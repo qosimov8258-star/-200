@@ -34,6 +34,12 @@ export function DashboardView() {
     placeholderData: keepPreviousData,
   });
 
+  // So'ralgan davr tanlov muddatidan chiqib ketgan bo'lsa, backend uni qisadi — buni ko'rsatamiz.
+  const rangeAdjusted =
+    data !== undefined &&
+    ((query.from !== undefined && data.range.from !== query.from) ||
+      (query.to !== undefined && data.range.to !== query.to));
+
   function handlePeriodChange(next: Period) {
     const search = periodToSearch(next);
     router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false });
@@ -55,6 +61,9 @@ export function DashboardView() {
             <span className="font-medium text-slate-700 tabular-nums">
               {formatDate(data.range.from)} – {formatDate(data.range.to)}
             </span>
+            {rangeAdjusted && (
+              <span className="text-amber-700"> (tanlov muddatiga moslashtirildi)</span>
+            )}
             <span aria-hidden> · </span>
             Ma&apos;lumotlar {formatDateTime(data.dataUpdatedAt)} holatiga (har kuni yangilanadi)
           </p>

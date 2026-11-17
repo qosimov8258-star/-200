@@ -129,7 +129,7 @@ function EvidenceBody({ detail }: { detail: TargetCaseDetail }) {
         <h3 className="mb-1 text-xs font-medium tracking-wide text-slate-500 uppercase">
           Kunlik ko&apos;rishlar o&apos;sishi
         </h3>
-        <div className="max-h-56 overflow-y-auto rounded-md border border-slate-200">
+        <div className="relative max-h-56 overflow-y-auto rounded-md border border-slate-200">
           <table className="w-full text-sm">
             <caption className="sr-only">Aniqlangan kun atrofidagi kunlik ko&apos;rishlar o&apos;sishi</caption>
             <thead className="sticky top-0 bg-slate-50 text-xs text-slate-500">

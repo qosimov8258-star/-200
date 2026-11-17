@@ -22,7 +22,7 @@ interface TelegramTableProps {
 
 export function TelegramTable({ items, resendingId, onResend }: TelegramTableProps) {
   return (
-    <div className="overflow-x-auto">
+    <div className="relative overflow-x-auto">
       <table className="w-full min-w-[900px] text-sm">
         <thead className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500">
           <tr>

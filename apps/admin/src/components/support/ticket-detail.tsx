@@ -213,7 +213,7 @@ function MessageThread({ messages }: { messages: SupportMessage[] }) {
   return (
     <div
       ref={threadRef}
-      className="min-h-64 flex-1 overflow-y-auto bg-slate-50/60 px-4 py-4"
+      className="relative min-h-64 flex-1 overflow-y-auto bg-slate-50/60 px-4 py-4"
       aria-label="Yozishma"
       role="log"
     >

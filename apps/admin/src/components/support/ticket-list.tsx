@@ -93,7 +93,7 @@ export function TicketList({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="relative min-h-0 flex-1 overflow-y-auto">
         {isPending ? (
           <ListSkeleton />
         ) : error && !data ? (

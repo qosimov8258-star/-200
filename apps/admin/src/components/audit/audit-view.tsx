@@ -121,7 +121,7 @@ export function AuditView() {
         ) : data ? (
           <>
             <div
-              className={cn("overflow-x-auto transition-opacity", isFetching && "opacity-60")}
+              className={cn("relative overflow-x-auto transition-opacity", isFetching && "opacity-60")}
               aria-busy={isFetching}
             >
               <table className="w-full min-w-[920px] text-sm">

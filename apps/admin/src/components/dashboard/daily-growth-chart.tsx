@@ -299,7 +299,7 @@ function DailyTable({ daily }: { daily: DailyStat[] }) {
   const totalParticipants = daily.reduce((sum, day) => sum + day.newParticipants, 0);
 
   return (
-    <div className="max-h-80 overflow-y-auto rounded-md border border-slate-200">
+    <div className="relative max-h-80 overflow-y-auto rounded-md border border-slate-200">
       <table className="w-full text-sm">
         <caption className="sr-only">Kunlik ko&apos;rishlar o&apos;sishi va yangi ishtirokchilar</caption>
         <thead className="sticky top-0 bg-slate-50 text-xs text-slate-500">
