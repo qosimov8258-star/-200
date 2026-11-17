@@ -27,14 +27,16 @@ packages/      umumiy kod: shared, api-client, config (rejada)
 docs/          tz.pdf va boshqa hujjatlar
 ```
 
-Hozircha repoda faqat hujjatlar bor; `apps/` va `packages/` Faza 0 da yaratiladi.
+`apps/admin` tayyor (mock API bilan); qolganlari va pnpm workspace Faza 0 da yaratiladi.
 
 ## Buyruqlar
 
-Hozir ishlaydigan buyruq yo'q — kod skeleti hali yaratilmagan. Rejadagilar:
+Admin panel hozircha alohida npm loyihasi (`apps/admin/README.md`); qolganlari reja:
 
 | Vazifa | Buyruq | Holat |
 |---|---|---|
+| Admin panel (3001-port) | `cd apps/admin`, `npm install`, `npm run dev` | ✅ |
+| Admin: tekshiruv | `npm run lint`, `npm run typecheck`, `npm run build` | ✅ |
 | Bog'liqliklarni o'rnatish | `pnpm install` | TODO |
 | Lokal DB, Redis, MinIO | `docker compose up -d` | TODO |
 | Hammasini ishga tushirish | `pnpm dev` | TODO |
