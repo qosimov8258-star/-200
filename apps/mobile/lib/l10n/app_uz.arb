@@ -1,0 +1,232 @@
+{
+  "@@locale": "uz",
+  "appTitle": "Reels tanlovi",
+  "greeting": "Salom, {name}",
+  "@greeting": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "welcome": "Tanlovga xush kelibsiz",
+  "daysLeft": "Tanlov tugashiga {days} kun qoldi",
+  "@daysLeft": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "contestFinished": "Tanlov yakunlandi",
+  "ratingTitle": "Reyting",
+  "filterAll": "Barchasi",
+  "filterTop10": "Top 10",
+  "filterNearMe": "Men atrofimda",
+  "firstPlace": "1-o'rin",
+  "viewsCount": "{count} ko'rish",
+  "@viewsCount": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "participantsCount": "{count} ishtirokchi",
+  "@participantsCount": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "myRankCta": "Mening o'rnim: {rank}",
+  "@myRankCta": {
+    "placeholders": {
+      "rank": {
+        "type": "int"
+      }
+    }
+  },
+  "joinCta": "Videongizni yuboring",
+  "you": "Siz",
+  "ratingEmpty": "Reyting hali shakllanmagan",
+  "loadError": "Ma'lumotni yuklab bo'lmadi",
+  "retry": "Qayta urinish",
+  "myReelTitle": "Mening videom",
+  "myReelSubtitle": "Link va ko'rishlar statistikasi",
+  "submitHeading": "Reel linkini yuboring",
+  "submitBody": "Mahsulot haqidagi Instagram Reel linkini qo'ying. Ko'rishlar har kuni avtomatik yangilanadi.",
+  "linkHint": "https://www.instagram.com/reel/...",
+  "paste": "Qo'yish",
+  "submit": "Yuborish",
+  "linkInvalid": "Bu Instagram Reel linki emas. Namuna: https://www.instagram.com/reel/ABC123",
+  "linkEmpty": "Linkni kiriting",
+  "submitFailed": "Yuborib bo'lmadi. Qayta urinib ko'ring.",
+  "submitted": "Video qabul qilindi",
+  "rulesHeading": "Shartlar",
+  "ruleBusiness": "Instagram akkaunt Business yoki Creator turida bo'lishi kerak",
+  "ruleTag": "Videoda zavod akkaunti belgilangan bo'lishi kerak",
+  "ruleNoTarget": "Pullik reklama (target) taqiqlangan",
+  "ruleOwn": "Video o'z akkauntingizda va ochiq bo'lishi kerak",
+  "reelLinkLabel": "Video linki",
+  "copy": "Nusxalash",
+  "copied": "Link nusxalandi",
+  "statusPending": "Tekshirilmoqda",
+  "statusAccepted": "Qabul qilingan",
+  "statusRejected": "Rad etilgan",
+  "pendingNote": "Video tekshirilmoqda. Qabul qilingach, statistika shu yerda paydo bo'ladi.",
+  "rejectedNote": "Video rad etildi. Batafsil ma'lumot uchun supportga murojaat qiling.",
+  "statTotalViews": "Jami ko'rishlar",
+  "statToday": "Bugungi o'sish",
+  "statRank": "Reytingdagi o'rin",
+  "statRankChange": "O'rin o'zgarishi",
+  "noChange": "o'zgarishsiz",
+  "chartTitle": "Kunlik ko'rishlar",
+  "chartSubtitle": "So'nggi 7 kun",
+  "lastSynced": "Oxirgi yangilanish: {time}",
+  "@lastSynced": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationsTitle": "Bildirishnomalar",
+  "notificationsEmpty": "Hozircha bildirishnoma yo'q",
+  "profileTitle": "Profil",
+  "profileLockedNote": "Ism, familiya va yosh ro'yxatdan o'tishda bir marta kiritiladi va o'zgartirilmaydi.",
+  "fieldFirstName": "Ism",
+  "fieldLastName": "Familiya",
+  "fieldAge": "Yosh",
+  "fieldPhone": "Telefon",
+  "navHome": "Reyting",
+  "navReel": "Videom",
+  "navNotifications": "Bildirishnomalar",
+  "navProfile": "Profil",
+  "back": "Orqaga",
+  "welcomeHeroTitle": "Reel joylang —\navtomobil yuting",
+  "welcomeHeroBody": "Mahsulot haqida Instagram Reel joylang. Eng ko'p ko'rish yig'gan ishtirokchi g'olib bo'ladi.",
+  "welcomeLogin": "Kirish",
+  "welcomeGuest": "Mehmon sifatida ko'rish",
+  "loginTitle": "Telefon raqamingiz",
+  "loginSubtitle": "Tasdiqlash kodi Telegram orqali yuboriladi. Bitta raqam — bitta akkaunt.",
+  "phoneHint": "90 123 45 67",
+  "phoneInvalid": "Telefon raqamini to'liq kiriting (9 ta raqam)",
+  "sendCode": "Kod olish",
+  "otpTitle": "Kodni kiriting",
+  "otpSubtitle": "{phone} raqami uchun kodni Telegram botimizdan oling",
+  "@otpSubtitle": {
+    "placeholders": {
+      "phone": {
+        "type": "String"
+      }
+    }
+  },
+  "otpInvalid": "Kod noto'g'ri. Qayta urinib ko'ring.",
+  "otpResendIn": "Yangi kod: {seconds} s",
+  "@otpResendIn": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "otpResend": "Yangi kod so'rash",
+  "otpTestHint": "Test rejimi: kod {code}",
+  "@otpTestHint": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "confirm": "Tasdiqlash",
+  "genericError": "Xatolik yuz berdi. Qayta urinib ko'ring.",
+  "registerTitle": "Ro'yxatdan o'tish",
+  "registerSubtitle": "Ma'lumotlarni hujjatdagidek kiriting.",
+  "registerWarning": "Diqqat: ism, familiya va yosh bir marta kiritiladi. Keyin ularni o'zgartirib bo'lmaydi.",
+  "nameInvalid": "Kamida 2 ta harf kiriting",
+  "ageInvalid": "Yoshni raqam bilan kiriting",
+  "ageTooYoung": "Tanlovda {min} yoshdan boshlab qatnashish mumkin",
+  "@ageTooYoung": {
+    "placeholders": {
+      "min": {
+        "type": "int"
+      }
+    }
+  },
+  "ageRejected": "Yoshingiz tanlov shartlariga to'g'ri kelmaydi",
+  "continueLabel": "Davom etish",
+  "registerConfirmTitle": "Ma'lumotlar to'g'rimi?",
+  "registerConfirmBody": "Tasdiqlagandan keyin ularni o'zgartirib bo'lmaydi.",
+  "edit": "Tahrirlash",
+  "rulesTitle": "Tanlov qoidalari",
+  "rulesAgree": "Qoidalar bilan tanishdim va ularga roziman",
+  "loginRequiredTitle": "Ro'yxatdan o'ting",
+  "loginRequiredBody": "Bu bo'limdan foydalanish uchun telefon raqamingiz bilan kiring.",
+  "menuSupport": "Support",
+  "menuRules": "Tanlov qoidalari",
+  "menuWinner": "G'olib",
+  "logout": "Chiqish",
+  "deleteAccount": "Akkauntni o'chirish",
+  "deleteConfirmTitle": "Akkaunt o'chirilsinmi?",
+  "deleteConfirmBody": "Akkauntingiz va videongiz tanlovdan chiqariladi. Bu amalni ortga qaytarib bo'lmaydi.",
+  "delete": "O'chirish",
+  "cancel": "Bekor qilish",
+  "supportTitle": "Support",
+  "supportEmpty": "Hozircha murojaat yo'q. Savolingiz bo'lsa, yozing.",
+  "supportNew": "Yangi murojaat",
+  "ticketOpen": "Yangi",
+  "ticketInProgress": "Ko'rib chiqilmoqda",
+  "ticketClosed": "Yopilgan",
+  "ticketClosedNote": "Murojaat yopilgan. Yangi savol uchun yangi murojaat oching.",
+  "messageHint": "Xabar yozing...",
+  "attach": "Skrinshot biriktirish",
+  "removeAttachment": "Biriktirmani olib tashlash",
+  "send": "Yuborish",
+  "attachTooLarge": "Rasm hajmi {mb} MB dan oshmasligi kerak",
+  "@attachTooLarge": {
+    "placeholders": {
+      "mb": {
+        "type": "int"
+      }
+    }
+  },
+  "attachFailed": "Rasmni tanlab bo'lmadi",
+  "supportAgent": "Support",
+  "chatEmpty": "Muammoni batafsil yozing. Kerak bo'lsa, skrinshot biriktiring.",
+  "attachmentLabel": "Biriktirilgan rasm",
+  "winnerTitle": "G'olib",
+  "winnerPendingTitle": "G'olib hali e'lon qilinmagan",
+  "winnerPendingBody": "G'olib tanlov tugagach, tekshiruvdan so'ng e'lon qilinadi.",
+  "winnerCongrats": "Tabriklaymiz!",
+  "winnerPrize": "Avtomobil sohibi",
+  "winnerAnnouncedAt": "E'lon qilingan: {date}",
+  "@winnerAnnouncedAt": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "markAllRead": "Barchasini o'qish",
+  "navNotificationsShort": "Xabarlar",
+  "unreadLabel": "O'qilmagan",
+  "prizeLabel": "Bosh sovrin",
+  "prizeCar": "Chevrolet Cobalt",
+  "otpStep1": "Telegram botimizni oching",
+  "otpStep2": "Botda «Raqamni ulashish» tugmasini bosing",
+  "otpStep3": "Bot yuborgan 6 xonali kodni shu yerga kiriting",
+  "openTelegram": "Telegram'ni ochish",
+  "telegramOpenFailed": "Telegram'ni ochib bo'lmadi. Telegram o'rnatilganini tekshiring.",
+  "telegramNotConnected": "Test rejimi: bot hali ulanmagan. Kod: {code}",
+  "@telegramNotConnected": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "codeLabel": "Tasdiqlash kodi"
+}

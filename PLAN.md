@@ -31,7 +31,7 @@ tasdiqlaydi). Maqsad — mahsulotni tabiiy targ'ib qilish va zavod Instagram akk
 
 | Qism | Kim uchun | Asosiy vazifa |
 |---|---|---|
-| Mobil ilova (iOS + Android) | Ishtirokchi, Mehmon | Ro'yxatdan o'tish (SMS), Instagram ulash, Reel yuborish, reyting, support |
+| Mobil ilova (iOS + Android) | Ishtirokchi, Mehmon | Ro'yxatdan o'tish (telefon, kod Telegram bot orqali), Instagram ulash, Reel yuborish, reyting, support |
 | Admin panel (veb) | Admin, Support operatori | Foydalanuvchilar, reyting arxivi, support, Telegram holati, target yoqqanlar, g'olib, sozlamalar, audit log |
 | Telegram bot | Support, Ishtirokchi | Support murojaatlarini yetkazish, xabarnomalar, o'qilganlik holati |
 | Fon xizmati ("AI") | Tizim | Kunlik ko'rishlarni yig'ish, reyting, target va anomaliyalarni aniqlash, Adminga signal |
@@ -100,19 +100,20 @@ tasdiqlaydi). Maqsad — mahsulotni tabiiy targ'ib qilish va zavod Instagram akk
 
 | Qism | Tanlov | Izoh |
 |---|---|---|
-| Monorepo | **pnpm workspaces + Turborepo** | Tez o'rnatish, keshlangan build/test. React Native uchun `node-linker=hoisted` kerak bo'lishi mumkin — Faza 0 da tekshiriladi |
+| Monorepo | **pnpm workspaces + Turborepo** | Tez o'rnatish, keshlangan build/test. Faqat TypeScript qismlari (backend, admin, `packages/*`) uchun; `apps/mobile` (Flutter) workspace'ga kirmaydi, o'z `pubspec.yaml` bilan yashaydi |
 | Node.js | Joriy LTS, `.nvmrc` da qayd etiladi | Hamma bir xil versiyada ishlaydi |
 | Backend | **NestJS + TypeScript** | Bitta kod bazasi, ikki jarayon: `api` (HTTP) va `worker` (navbat/cron) |
 | Ma'lumotlar bazasi | **PostgreSQL + Prisma** | Migratsiyalar repoda saqlanadi |
 | Navbat / cron | **BullMQ + Redis** | Kunlik sync, retry, rate limit, takrorlanuvchi joblar |
-| API kontrakt | **OpenAPI (Swagger)** → generatsiya qilingan TS klient | Admin va mobil bir xil tiplardan foydalanadi |
+| API kontrakt | **OpenAPI (Swagger)** → generatsiya qilingan klientlar | Bitta spetsifikatsiyadan ikkita klient: TS (admin, `packages/api-client`) va Dart (mobil, `apps/mobile/lib/api/`) |
 | Validatsiya | zod (`packages/shared`) yoki class-validator | Faza 0 da bittasi tanlanadi |
 | Admin panel | **Next.js** (App Router), TanStack Query/Table, shadcn/ui | Oddiy, ishchi dizayn |
-| Mobil | **React Native (Expo)**: expo-router, EAS Build, expo-notifications | TZ: "Flutter yoki RN" — jamoa stekiga mos RN tanlandi |
+| Mobil | **Flutter (Dart)**: go_router, Riverpod, dio, firebase_messaging | TZ: "Flutter yoki RN" — Flutter tanlandi (17.11.2026). Versiya FVM (`.fvmrc`) bilan qayd etiladi |
+| Push | **Firebase Cloud Messaging** (backendda `firebase-admin`) | iOS uchun APNs kaliti Firebase'ga yuklanadi |
 | Telegram | grammY, backend ichidagi modul | Dev — polling, prod — webhook |
-| SMS | Eskiz (dev muhitda — `mock` provayder) | OTP shablon matni Eskiz moderatsiyasidan o'tishi kerak |
+| Telefonni tasdiqlash | **Telegram bot** kod yetkazuvchi sifatida (SMS ulanmaydi — 17.11.2026 qarori) | Ilova bir martalik havola bilan botni ochadi → foydalanuvchi botda raqamini ulashadi → bot raqamni tekshirib 6 xonali kod yuboradi → kod ilovaga kiritiladi. Akkaunt ilovaning o'zida (telefon bo'yicha); "Telegram orqali kirish" emas — App Store 4.8-bandi uchun muhim. Dev muhitda `mock` |
 | Fayllar | S3-mos saqlash (lokal — MinIO) | Support skrinshotlari |
-| Auth (mobil) | SMS OTP → JWT access + refresh (rotatsiya) | |
+| Auth (mobil) | Telegram orqali kelgan OTP → JWT access + refresh (rotatsiya) | App Review uchun oldindan tayyor test raqam va doimiy kod kerak |
 | Auth (admin) | Login/parol (argon2) + TOTP 2FA, httpOnly cookie | TZ: 2FA tavsiya etiladi |
 | Maxfiylik | Instagram tokenlari AES-256-GCM bilan shifrlanadi | TZ 8-bo'lim |
 | Vaqt | DB da UTC; "tanlov kuni" `Asia/Tashkent` bo'yicha | |
@@ -138,7 +139,7 @@ reels-contest/
 │   │   │   ├── common/             # guard, interceptor, filter, decorator
 │   │   │   ├── prisma/             # PrismaService
 │   │   │   └── modules/
-│   │   │       ├── auth/           # SMS OTP, JWT, admin login + 2FA
+│   │   │       ├── auth/           # OTP (Telegram orqali), JWT, admin login + 2FA
 │   │   │       ├── users/          # profil (qulflangan maydonlar), rozilik, o'chirish
 │   │   │       ├── contest/        # sozlamalar, qoidalar matni
 │   │   │       ├── instagram/      # OAuth, Graph API klient, token refresh
@@ -162,22 +163,30 @@ reels-contest/
 │   │       │                       # targets, winner, settings, audit-log
 │   │       ├── components/
 │   │       └── lib/                # api klient, auth, formatlash
-│   └── mobile/                     # React Native (Expo)
-│       └── src/
-│           ├── app/                # expo-router ekranlari (9 ta ekran, TZ 7-bo'lim)
-│           ├── components/
-│           ├── features/           # auth, rating, reels, support, notifications
-│           ├── i18n/               # uz (lotin), ru
-│           └── theme/              # dizayn tokenlari (Yangi yil mavzusi shu yerda)
+│   └── mobile/                     # Flutter (Dart) — pnpm workspace'dan tashqarida
+│       ├── android/                # native loyihalar commit qilinadi
+│       ├── ios/
+│       ├── lib/
+│       │   ├── main.dart
+│       │   ├── app/                # router (go_router), ilova qobig'i
+│       │   ├── api/                # OpenAPI dan generatsiya qilingan Dart klient
+│       │   ├── features/           # auth, rating, reels, support, notifications
+│       │   │                       # (9 ta ekran, TZ 7-bo'lim)
+│       │   ├── widgets/            # umumiy vidjetlar
+│       │   ├── l10n/               # ARB fayllar: uz (lotin), ru
+│       │   └── theme/              # dizayn tokenlari (Yangi yil mavzusi shu yerda)
+│       ├── test/
+│       ├── pubspec.yaml
+│       └── .fvmrc                  # Flutter versiyasi
 ├── packages/
-│   ├── shared/                     # umumiy tiplar, enumlar, konstantalar, sxemalar
-│   ├── api-client/                 # OpenAPI dan generatsiya qilingan klient
+│   ├── shared/                     # umumiy tiplar, enumlar, konstantalar, sxemalar (backend + admin)
+│   ├── api-client/                 # OpenAPI dan generatsiya qilingan TS klient (admin)
 │   └── config/                     # umumiy tsconfig, eslint, prettier
 ├── docs/
 │   ├── tz.pdf                      # texnik topshiriq
 │   └── phase-0-report.md           # Faza 0 natijalari (keyin qo'shiladi)
 ├── .github/
-│   ├── workflows/ci.yml            # lint, typecheck, test, build
+│   ├── workflows/ci.yml            # TS: lint, typecheck, test, build; Flutter: analyze, test
 │   └── pull_request_template.md
 ├── docker-compose.yml              # PostgreSQL, Redis, MinIO (lokal)
 ├── .env.example
@@ -196,7 +205,10 @@ reels-contest/
   xabarnoma navbatidan foydalanadi. Kerak bo'lsa keyin ajratish oson.
 - **API va worker bitta kod bazasida, lekin alohida jarayon:** kunlik sync og'ir ish —
   API javob tezligiga ta'sir qilmasligi kerak; prod da alohida konteyner sifatida ishga tushadi.
-- **`packages/api-client`** — backend o'zgarsa, admin va mobil kompilyatsiyada xatoni ko'radi.
+- **Generatsiya qilingan klientlar** — backend o'zgarsa, admin (TS) ham, mobil (Dart) ham
+  kompilyatsiyada xatoni ko'radi. Dart klient CI da qayta generatsiya qilinib, farq tekshiriladi.
+- **Mobil ilova pnpm workspace'dan tashqarida:** Flutter o'z paket menejeri (`pub`) bilan
+  ishlaydi; backend bilan yagona bog'lanish nuqtasi — OpenAPI spetsifikatsiyasi.
 - **`theme/` tokenlari** — Faza 2 da oddiy dizayn bilan quriladi, Faza 4 da faqat
   token va assetlar almashtiriladi (ekranlarni qayta yozish shart emas).
 
@@ -243,7 +255,7 @@ unique; audit log faqat qo'shiladi.
 ### Faza 0 — Tadqiqot va poydevor (≈1 hafta)
 
 **Maqsad:** Instagram API imkoniyatlarini amalda tekshirish, tashqi ruxsatlarni (Meta,
-do'konlar, SMS) erta boshlash va monorepo poydevorini qo'yish.
+do'konlar, Telegram bot) erta boshlash va monorepo poydevorini qo'yish.
 
 **0.1. Instagram API spike (kritik yo'l)**
 
@@ -270,7 +282,7 @@ do'konlar, SMS) erta boshlash va monorepo poydevorini qo'yish.
 - [ ] Buyurtmachi bilan uchrashuv: 2-bo'limdagi Q1–Q18 savollar
 - [ ] Developer akkauntlar: Apple Developer Program va Google Play — **zavod nomidan,
       tashkilot sifatida** (Q13). D-U-N-S raqamini tekshirish
-- [ ] Eskiz: akkaunt, jo'natuvchi nomi, OTP shablon matnini moderatsiyaga yuborish
+- [ ] ~~Eskiz (SMS)~~ — bekor qilindi: kod Telegram bot orqali yetkaziladi
 - [ ] Telegram: bot yaratish (@BotFather), support operatorlari guruhi
 - [ ] Hosting: shaxsiy ma'lumotlarni O'zbekiston ichida saqlash talabi bo'yicha yurist xulosasi →
       DigitalOcean yoki mahalliy server qarori
@@ -281,7 +293,8 @@ do'konlar, SMS) erta boshlash va monorepo poydevorini qo'yish.
 
 - [ ] pnpm workspace + Turborepo, `.nvmrc`, `packages/config` (tsconfig, eslint, prettier)
 - [ ] `docker-compose.yml`: PostgreSQL, Redis, MinIO
-- [ ] NestJS, Next.js, Expo skeletlari ("hello world" darajasida, ishga tushadi)
+- [ ] NestJS, Next.js, Flutter skeletlari ("hello world" darajasida, ishga tushadi)
+- [ ] Flutter SDK versiyasini FVM bilan qayd etish; Firebase loyihasi (FCM) yaratish
 - [ ] `.gitattributes` (LF qator oxirlari — Windows/macOS aralash jamoa uchun)
 - [ ] GitHub: `main` himoyasi, PR shabloni, CI (lint, typecheck, test, build)
 - [ ] README: lokal ishga tushirish yo'riqnomasi
@@ -291,7 +304,7 @@ bo'yicha qaror, TZ 5.2/5.4 ga tuzatishlar), ishlaydigan monorepo skeleti, Meta A
 
 **Tayyorlik mezoni:**
 - Test akkauntdagi haqiqiy Reel ko'rishlari API orqali olinib, bazaga yozildi (prototip).
-- `pnpm dev` uchala app ni ko'taradi; CI yashil.
+- `pnpm dev` backend va admin ni ko'taradi, `flutter run` mobil ilovani; CI yashil.
 - Target aniqlash bo'yicha yakuniy usul buyurtmachi bilan kelishildi.
 
 ---
@@ -305,7 +318,9 @@ hujjatlashtirilgan API.
 
 - [ ] **Prisma sxemasi** (5-bo'lim asosida) + birinchi migratsiya + seed (500 ta fake ishtirokchi)
 - [ ] **Auth (mobil):** OTP yuborish/tekshirish, urinishlar limiti va qayta yuborish cooldown
-      (Redis), IP bo'yicha limit; JWT access + refresh rotatsiyasi; `mock` SMS provayder
+      (Redis), IP bo'yicha limit; JWT access + refresh rotatsiyasi; kodni Telegram bot yuboradi
+      (bir martalik start-token, ulashilgan raqam so'ralgan raqamga mos kelishi tekshiriladi);
+      dev da `mock`
 - [ ] **Users:** ro'yxatdan o'tish (ism, familiya, yosh) → profil qulflanadi; qoidalarga rozilik
       (versiya bilan); minimal yosh tekshiruvi; akkauntni o'chirish
 - [ ] **Contest:** sozlamalar (muddat, qoidalar matni, yangilanish vaqti, minimal yosh);
@@ -321,10 +336,10 @@ hujjatlashtirilgan API.
       (sozlanadigan chegaralar) → `flags` → Adminga signal
 - [ ] **Reyting API:** umumiy reyting (Mehmon uchun ham, telefonlarsiz, keshlangan), o'z o'rni,
       o'zgarish, birinchi o'rin alohida
-- [ ] **Notifications:** ilova ichidagi ro'yxat + push (Expo Push); Telegram kanali uchun interfeys
+- [ ] **Notifications:** ilova ichidagi ro'yxat + push (FCM); Telegram kanali uchun interfeys
 - [ ] **Admin auth va RBAC:** login/parol, rollar ADMIN/SUPPORT, guard, 2FA (TOTP),
       audit log interceptor
-- [ ] OpenAPI (Swagger) + `packages/api-client` generatsiyasi
+- [ ] OpenAPI (Swagger) + TS klient (`packages/api-client`) va Dart klient (`apps/mobile/lib/api/`) generatsiyasi
 - [ ] Testlar: unit (reyting hisoblash, anomaliya, OTP limitlari), e2e (asosiy oqim)
 - [ ] Staging muhitga deploy (Docker)
 
@@ -344,8 +359,8 @@ staging API bilan to'liq ishlaydi.
 
 **Vazifalar:**
 
-- [ ] Expo + expo-router, TanStack Query, `api-client`, i18n (uz-lotin; ru kalitlari tayyor),
-      `theme/` tokenlari
+- [ ] Flutter + go_router, Riverpod, dio + generatsiya qilingan Dart klient, l10n (ARB: uz-lotin;
+      ru kalitlari tayyor), `theme/` tokenlari
 - [ ] Faza 1 tugaguncha — mock ma'lumotlar bilan UI (kontrakt OpenAPI dan)
 - [ ] Ekranlar:
   - [ ] 1. Kirish va telefon tasdiqlash (OTP)
@@ -358,15 +373,15 @@ staging API bilan to'liq ishlaydi.
   - [ ] 8. Bildirishnomalar
   - [ ] 9. G'olib e'loni
 - [ ] Mehmon rejimi: qoidalar va reyting ro'yxatdan o'tmasdan
-- [ ] Push-bildirishnoma ruxsati va token ro'yxatdan o'tkazish
+- [ ] Push-bildirishnoma ruxsati va FCM token ro'yxatdan o'tkazish (iOS: APNs kaliti)
 - [ ] Telegram ulash tugmasi (deep link) — Q12 javobiga ko'ra
 - [ ] Xato, bo'sh va offline holatlar
-- [ ] EAS Build: dev client, TestFlight va Google Play internal testing
+- [ ] Build va imzolash: `flutter build ipa` / `appbundle`, TestFlight va Google Play internal testing
 
 **Natija:** TestFlight / Play internal testing da ishlaydigan build.
 
 **Tayyorlik mezoni:** iOS va Android real qurilmalarda staging bilan to'liq oqim o'tadi;
-barcha matnlar i18n fayllarida (kodda qattiq yozilgan matn yo'q).
+barcha matnlar ARB fayllarida (kodda qattiq yozilgan matn yo'q).
 
 ---
 
@@ -437,7 +452,7 @@ muvaffaqiyatli o'tdi; g'olib oqimi staging da to'liq sinalgan.
 | | Faza 0 | Faza 1 | Faza 2 | Faza 3 | Faza 4 |
 |---|---|---|---|---|---|
 | **Dasturchi A** (backend) | Instagram spike, Meta app | Backend yadrosi, kunlik job | API qo'llab-quvvatlash | Telegram/support backend | Yuk testi, prod infra |
-| **Dasturchi B** (mobil) | Expo skeleti, do'kon akkauntlari | Mock bilan UI | Mobil ilova | Mobil support/Telegram | Yangi yil dizayni, do'konga topshirish |
+| **Dasturchi B** (mobil) | Flutter skeleti, Firebase, do'kon akkauntlari | Mock bilan UI | Mobil ilova | Mobil support/Telegram | Yangi yil dizayni, do'konga topshirish |
 | **Dasturchi C** (admin + infra) | Repo, CI, Docker, Eskiz, Telegram bot | Auth/SMS, admin API, audit | Admin panel | Admin panel, Telegram bot | QA, xavfsizlik |
 
 **Taxminiy jadval (haftalar):**
@@ -475,7 +490,8 @@ muvaffaqiyatli o'tdi; g'olib oqimi staging da to'liq sinalgan.
 | Telegram o'qilganlik holati | TZ talabi so'zma-so'z bajarilmaydi | "O'qidim" tugmasi (Q11), buyurtmachi bilan kelishish |
 | Soxta ko'rishlar | Adolatsiz g'olib | Anomaliya signallari + g'olib tekshiruv ro'yxati |
 | Instagram token muddati (~60 kun) | Ko'rishlar yig'ilmay qoladi | Avtomatik refresh job; muvaffaqiyatsiz bo'lsa — qayta ulash xabari |
-| Eskiz shablon moderatsiyasi | OTP ishlamaydi | Erta topshirish; dev da `mock` provayder |
+| Telegram'siz foydalanuvchi | Ro'yxatdan o'ta olmaydi | Ekranda aniq yo'riqnoma; kerak bo'lsa keyinroq SMS zaxira kanal sifatida qo'shiladi |
+| O'chirilgan akkaunt qayta ro'yxatdan o'tadi | Qulflangan ism/yosh aylanib o'tiladi | Server: o'chirilgan raqam va Instagram tanlov tugaguncha band qoladi (Q17 bilan birga hal qilinadi) |
 | Yangi yil muddati | Dizayn mavzusi o'z ma'nosini yo'qotadi | MVP qisqartirish (7-bo'lim), parallel ish |
 
 ---
