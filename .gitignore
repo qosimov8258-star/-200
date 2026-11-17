@@ -1,6 +1,6 @@
 # =============================================================================
 # Reels tanlov ilovasi — monorepo .gitignore
-# apps/backend (NestJS) · apps/admin (Next.js) · apps/mobile (React Native / Expo)
+# apps/backend (NestJS) · apps/admin (Next.js) · apps/mobile (Flutter)
 # =============================================================================
 
 # --- Operatsion tizim ---
@@ -34,7 +34,8 @@ node_modules/
 *.jks
 *.keystore
 *.mobileprovision
-# Firebase konfiguratsiyalari — EAS secret / file env orqali beriladi
+# Firebase konfiguratsiyalari — CI secret orqali beriladi
+firebase-service-account*.json
 google-services.json
 GoogleService-Info.plist
 
@@ -66,17 +67,19 @@ junit.xml
 next-env.d.ts
 .vercel/
 
-# --- Expo / React Native (apps/mobile) ---
-.expo/
-.expo-shared/
-web-build/
-expo-env.d.ts
-.metro-health-check*
-*.orig.*
-# Expo CNG: native papkalar `expo prebuild` orqali generatsiya qilinadi.
-# Agar "bare" React Native ga o'tilsa, quyidagi 2 qatorni olib tashlang.
-apps/mobile/ios/
-apps/mobile/android/
+# --- Flutter (apps/mobile) ---
+# android/ va ios/ papkalari hamda pubspec.lock commit qilinadi.
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+.fvm/
+apps/mobile/ios/Flutter/Generated.xcconfig
+apps/mobile/ios/Flutter/flutter_export_environment.sh
+apps/mobile/ios/Flutter/ephemeral/
+apps/mobile/ios/.symlinks/
+apps/mobile/android/key.properties
 
 # --- Native build artefaktlari ---
 .gradle/
