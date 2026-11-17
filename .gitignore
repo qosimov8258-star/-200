@@ -1,15 +1,105 @@
-# macOS
+# =============================================================================
+# Reels tanlov ilovasi — monorepo .gitignore
+# apps/backend (NestJS) · apps/admin (Next.js) · apps/mobile (React Native / Expo)
+# =============================================================================
+
+# --- Operatsion tizim ---
 .DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
 
-# Dependencies
+# --- Muharrirlar / IDE ---
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+
+# --- Bog'liqliklar ---
 node_modules/
+.pnpm-store/
 
-# Secrets
+# --- Maxfiy ma'lumotlar (hech qachon commit qilinmaydi) ---
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*.p8
+*.p12
+*.jks
+*.keystore
+*.mobileprovision
+# Firebase konfiguratsiyalari — EAS secret / file env orqali beriladi
+google-services.json
+GoogleService-Info.plist
 
-# Logs / build
+# --- Loglar ---
 *.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Build natijalari va keshlar ---
 dist/
 build/
+out/
+*.tsbuildinfo
+.turbo/
+.cache/
+
+# --- Testlar va coverage ---
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+junit.xml
+
+# --- Next.js (apps/admin) ---
+.next/
+next-env.d.ts
+.vercel/
+
+# --- Expo / React Native (apps/mobile) ---
+.expo/
+.expo-shared/
+web-build/
+expo-env.d.ts
+.metro-health-check*
+*.orig.*
+# Expo CNG: native papkalar `expo prebuild` orqali generatsiya qilinadi.
+# Agar "bare" React Native ga o'tilsa, quyidagi 2 qatorni olib tashlang.
+apps/mobile/ios/
+apps/mobile/android/
+
+# --- Native build artefaktlari ---
+.gradle/
+local.properties
+.cxx/
+captures/
+*.apk
+*.aab
+*.ipa
+*.hprof
+xcuserdata/
+DerivedData/
+Pods/
+
+# --- Prisma (apps/backend) ---
+# Generatsiya qilingan klient. MUHIM: prisma/migrations/ commit qilinadi!
+**/generated/prisma/
+
+# --- Lokal ma'lumotlar ---
+uploads/
+tmp/
+.data/
+
+# --- Claude Code shaxsiy sozlamalari ---
+.claude/settings.local.json
+CLAUDE.local.md
