@@ -118,6 +118,8 @@ Narx: ≈ $2.7 / 1000 natija (har bir video har yig'ishda bitta natija).
 | `POST /admin/draws/preview` | Sozlamalar bo'yicha nomzodlar soni va chetda qolganlar sababi |
 | `POST /admin/draws` | Random tanlovni o'tkazish (kriptografik `seed`, natija — qoralama) |
 | `GET /admin/draws`, `GET /admin/draws/:id` | Tanlovlar tarixi va natija |
+| `GET /admin/draws/stock` | Voucherlar qoldig'i: jami, yuborilgan, tasdiqlangan, qoralamada, qolgan (bosqichlar bo'yicha) |
+| `GET\|POST /admin/draws/periods`, `PUT\|DELETE /admin/draws/periods/:periodId` | Admin kalendardan yaratadigan davrlar (`{title, startsOn, endsOn}`, tanlov muddati ichida) |
 | `POST /admin/draws/:id/{replace,confirm,cancel}` | G'olibni zaxira bilan almashtirish, tasdiqlash, bekor qilish |
 | `POST /admin/draws/:id/send` | G'oliblarga Telegram bot orqali tabrik (faqat tasdiqlangandan keyin) |
 

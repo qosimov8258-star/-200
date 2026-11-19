@@ -74,6 +74,32 @@ export function validateDrawSettings(s: DrawSettings): string | null {
   return unknown ? `Noma'lum o'rinbosar: ${unknown}` : null;
 }
 
+/** Admin o'zi yaratadigan davr (kalendardan tanlanadi). */
+export interface DrawPeriodInput {
+  title: string;
+  startsOn: string;
+  endsOn: string;
+}
+
+export const DRAW_PERIOD_LIMITS = { titleMin: 2, titleMax: 60 } as const;
+
+/**
+ * Davrni tekshiradi: nom 2–60 belgi, sanalar to'g'ri, tugash boshlanishdan oldin emas va ikkalasi ham
+ * tanlov muddati ichida. Xato bo'lsa — foydalanuvchiga ko'rsatiladigan matn, aks holda null.
+ */
+export function validateDrawPeriod(p: DrawPeriodInput, bounds: { min: string; max: string }): string | null {
+  const title = p.title.trim();
+  if (title.length < DRAW_PERIOD_LIMITS.titleMin || title.length > DRAW_PERIOD_LIMITS.titleMax) {
+    return `Davr nomi ${DRAW_PERIOD_LIMITS.titleMin}–${DRAW_PERIOD_LIMITS.titleMax} belgi bo'lsin.`;
+  }
+  if (!isIsoDate(p.startsOn) || !isIsoDate(p.endsOn)) return "Sana noto'g'ri.";
+  if (p.endsOn < p.startsOn) return "Tugash sanasi boshlanishdan oldin bo'lmasin.";
+  if (p.startsOn < bounds.min || p.endsOn > bounds.max) {
+    return `Davr tanlov muddati ichida bo'lsin: ${periodLabel(bounds.min, bounds.max)}.`;
+  }
+  return null;
+}
+
 const dmy = (iso: string) => iso.split("-").reverse().join(".");
 const groupDigits = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 

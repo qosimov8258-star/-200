@@ -1,6 +1,6 @@
-import { Body, Controller, Get, HttpCode, HttpException, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, HttpException, Param, Post, Put, UseGuards } from "@nestjs/common";
 
-import type { DrawSettings } from "../draws/draw-rules";
+import type { DrawPeriodInput, DrawSettings } from "../draws/draw-rules";
 import { DrawsService } from "../draws/draws.service";
 import { AdminTokenGuard } from "./admin-token.guard";
 
@@ -48,6 +48,15 @@ function parseSettings(body: unknown): DrawSettings {
   return b as unknown as DrawSettings;
 }
 
+/** Davr: faqat `title`, `startsOn`, `endsOn` — hammasi matn. */
+function parsePeriod(body: unknown): DrawPeriodInput {
+  const b = objectOf(body, ["title", "startsOn", "endsOn"]);
+  for (const key of ["title", "startsOn", "endsOn"]) {
+    if (typeof b[key] !== "string") throw bad(`Maydon noto'g'ri: ${key}`);
+  }
+  return b as unknown as DrawPeriodInput;
+}
+
 function parseReason(body: unknown, extra: string[] = []): Record<string, unknown> & { reason: string } {
   const b = objectOf(body, ["reason", ...extra]);
   if (typeof b.reason !== "string") throw bad("Sabab yozilmagan.");
@@ -82,6 +91,34 @@ export class AdminDrawsController {
   @Get()
   list() {
     return this.draws.list();
+  }
+
+  /** Admin yaratgan davrlar (bosqichlardan tashqari). `setup` javobida ham bor. */
+  @Get("periods")
+  periods() {
+    return this.draws.listPeriods();
+  }
+
+  @Post("periods")
+  createPeriod(@Body() body: unknown) {
+    return this.draws.createPeriod(parsePeriod(body), ACTOR);
+  }
+
+  @Put("periods/:periodId")
+  updatePeriod(@Param("periodId") periodId: string, @Body() body: unknown) {
+    return this.draws.updatePeriod(periodId, parsePeriod(body), ACTOR);
+  }
+
+  @Delete("periods/:periodId")
+  @HttpCode(204)
+  deletePeriod(@Param("periodId") periodId: string) {
+    this.draws.deletePeriod(periodId, ACTOR);
+  }
+
+  /** Voucherlar qoldig'i (jami / yuborilgan / tasdiqlangan / qoralamada / qolgan). `:id` dan oldin turishi shart. */
+  @Get("stock")
+  stock() {
+    return this.draws.stock();
   }
 
   @Get(":id")
