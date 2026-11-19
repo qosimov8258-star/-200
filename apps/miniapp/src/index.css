@@ -21,13 +21,22 @@
 
   --animate-lens-travel: lens-travel 520ms cubic-bezier(0.25, 1, 0.35, 1);
   --animate-soap-bubble: soap-bubble 800ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
-  --animate-bubble-rise: bubble-rise 10s ease-in-out infinite;
   --animate-rise: rise 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   --animate-fade: fade 220ms ease-out both;
   --animate-menu-pop: menu-pop 280ms cubic-bezier(0.34, 1.4, 0.5, 1) both;
   --animate-float: float 9s ease-in-out infinite;
   --animate-sheen: sheen 3.6s ease-in-out infinite;
   --animate-bubble: bubble 2.6s ease-in infinite;
+  /* "1-o'rin" kartasi (tungi zal sahnasi): konfetti, uchqunlar, nurlar, yaltirash, belgilar. */
+  --animate-confetti-fall: confetti-fall 7s linear infinite;
+  --animate-twinkle: twinkle 2.8s ease-in-out infinite;
+  --animate-champ-spin: champ-spin 90s linear infinite;
+  --animate-champ-pulse: champ-pulse 4.5s ease-in-out infinite;
+  --animate-champ-beam: champ-beam 8s ease-in-out infinite alternate;
+  --animate-champ-sheen: champ-sheen 5.2s ease-in-out infinite;
+  --animate-champ-rise: champ-rise 5s ease-out infinite;
+  --animate-champ-bob: champ-bob 3s ease-in-out infinite;
+  --animate-champ-enter: champ-enter 900ms cubic-bezier(0.2, 0.9, 0.25, 1.15) both;
 }
 
 :root {
@@ -99,26 +108,6 @@ button {
 }
 
 /* Reyting kartasidagi pufakchalar: chayqalib yuqoriga ko'tariladi va ko'pikka yetib yo'qoladi. */
-@keyframes bubble-rise {
-  0% {
-    opacity: 0;
-    transform: translate(0, 0) scale(0.7);
-  }
-  12% {
-    opacity: 0.95;
-  }
-  50% {
-    transform: translate(var(--sway), -70px) scale(1);
-  }
-  85% {
-    opacity: 0.85;
-  }
-  100% {
-    opacity: 0;
-    transform: translate(calc(var(--sway) * -0.5), -150px) scale(1.08);
-  }
-}
-
 @keyframes rise {
   from {
     opacity: 0;
@@ -178,6 +167,118 @@ button {
   100% {
     opacity: 0;
     transform: translateY(-8px) scale(1.1);
+  }
+}
+
+/* Konfetti aylanib-ag'darilib tushadi. */
+@keyframes confetti-fall {
+  0% {
+    transform: translate3d(0, -24px, 0) rotateX(0deg) rotateZ(0deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.95;
+  }
+  70% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate3d(14px, 165px, 0) rotateX(600deg) rotateZ(220deg);
+    opacity: 0;
+  }
+}
+
+/* Kubok ortidagi nurlar sekin aylanadi. */
+@keyframes champ-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Oltin shu'la "nafas oladi". */
+@keyframes champ-pulse {
+  0%,
+  100% {
+    opacity: 0.78;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+/* Projektor nuri u yoqdan-bu yoqqa sekin og'adi (burchak — `--beam-sway`). */
+@keyframes champ-beam {
+  from {
+    transform: rotate(calc(var(--beam-sway, 4deg) * -1));
+  }
+  to {
+    transform: rotate(var(--beam-sway, 4deg));
+  }
+}
+
+/* Kubok ustidan yaltiroq chiziq o'tadi, keyin pauza. */
+@keyframes champ-sheen {
+  0%,
+  58% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(140px);
+  }
+}
+
+/* Tomoshabinlar qatori sekin tebranadi (olqishlayotgandek). */
+@keyframes champ-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2.5px);
+  }
+}
+
+/* Kubok karta ochilganda pastdan ko'tarilib, joyiga "o'tiradi". */
+@keyframes champ-enter {
+  from {
+    opacity: 0;
+    transform: translateY(26px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Telefonlardan yurakcha va "ko'rish" belgilari ko'tarilib, so'nadi. */
+@keyframes champ-rise {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 40px, 0) scale(0.5);
+  }
+  14% {
+    opacity: 1;
+  }
+  62% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--rise-dx, 10px), -110px, 0) scale(1.08);
+  }
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.6);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
   }
 }
 

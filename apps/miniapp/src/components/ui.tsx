@@ -127,10 +127,22 @@ export function RankDelta({ delta, large = false }: { delta: number; large?: boo
   );
 }
 
-export function PageHeader({ title, subtitle, trailing }: { title: string; subtitle?: string; trailing?: ReactNode }) {
+export function PageHeader({
+  title,
+  subtitle,
+  trailing,
+  eyebrow,
+}: {
+  title: string;
+  subtitle?: string;
+  trailing?: ReactNode;
+  /** Sarlavha ustidagi kichik element (masalan, brend logosi). */
+  eyebrow?: ReactNode;
+}) {
   return (
     <header className="flex items-center gap-3">
       <div className="min-w-0 flex-1">
+        {eyebrow && <div className="mb-1.5">{eyebrow}</div>}
         <h1 className="truncate text-[26px] font-bold tracking-tight">{title}</h1>
         {subtitle && <p className="mt-0.5 text-[13px] text-muted">{subtitle}</p>}
       </div>

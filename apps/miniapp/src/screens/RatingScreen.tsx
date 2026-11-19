@@ -3,7 +3,8 @@ import clsx from "clsx";
 import { ArrowRight, ChevronRight, Eye, Trophy } from "lucide-react";
 import { useState } from "react";
 
-import { FoamBackdrop } from "../components/FoamBackdrop";
+import oliviaLogo from "../assets/olivia-logo.webp";
+import { ChampionBackdrop } from "../components/ChampionBackdrop";
 import { Avatar, Card, ErrorBlock, PageHeader, RankDelta, RoundIcon, Spinner } from "../components/ui";
 import { t } from "../i18n/uz";
 import * as api from "../lib/api";
@@ -45,6 +46,7 @@ export function RatingScreen({
   return (
     <div className="space-y-5">
       <PageHeader
+        eyebrow={<img src={oliviaLogo} alt="Olivia" width={78} height={32} className="h-8 w-auto" />}
         title={t.greeting(firstName)}
         subtitle={t.welcome}
         trailing={<Avatar name={fullName} dark />}
@@ -161,13 +163,13 @@ function LeaderCard({
   onOpenReel: () => void;
 }) {
   return (
-    <section className="relative isolate flex h-[300px] flex-col overflow-hidden rounded-card bg-[#123f5c] p-3.5 text-white">
-      <FoamBackdrop />
+    <section className="relative isolate flex h-[300px] flex-col overflow-hidden rounded-card bg-[#0e0826] p-3.5 text-white">
+      <ChampionBackdrop />
       <span className="ml-auto grid size-11 place-items-center rounded-full border border-white/50 bg-[#0a1a2a]/30 backdrop-blur-sm">
         <Trophy className="size-[22px]" />
       </span>
-      <div className="mt-auto px-1.5">
-        <p className="text-[13px] text-white/70">{t.firstPlace}</p>
+      <div className="mt-auto px-1.5 [text-shadow:0_1px_10px_rgba(5,4,15,0.9)]">
+        <p className="text-[13px] text-white/75">{t.firstPlace}</p>
         <p className="truncate text-[22px] font-bold tracking-tight">{leader.fullName}</p>
         <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-white/50 px-2.5 py-1 text-[13px] font-semibold">
           <Eye className="size-3.5" />
