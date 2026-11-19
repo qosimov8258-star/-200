@@ -31,10 +31,12 @@ packages/      backend va admin uchun umumiy kod: shared, api-client, config (re
 docs/          tz.pdf va boshqa hujjatlar
 ```
 
-Hozircha bor: `apps/miniapp` (mock yoki backend bilan), `apps/backend` (bot va Mini App API,
-bazasiz), `apps/mobile` (to'xtatilgan). `packages/` va pnpm workspace keyin.
+Hozircha bor: `apps/admin` (mock API bilan), `apps/miniapp` (mock yoki backend bilan),
+`apps/backend` (bot va Mini App API, bazasiz), `apps/mobile` (to'xtatilgan). `packages/` va
+pnpm workspace keyin.
 
-Mini App backend bilan faqat `apps/miniapp/src/lib/api.ts` orqali gaplashadi; foydalanuvchi
+Admin panel backend bilan faqat `apps/admin/src/lib/api.ts` orqali gaplashadi (hozir mock);
+Mini App esa faqat `apps/miniapp/src/lib/api.ts` orqali; foydalanuvchi
 `X-Telegram-Init-Data` imzosi bilan tanilgan (parol/SMS yo'q).
 
 Mobil ilovada Material vidjetlari `package:material_ui/material_ui.dart` dan import qilinadi
@@ -43,10 +45,13 @@ Mobil ilovada Material vidjetlari `package:material_ui/material_ui.dart` dan imp
 
 ## Buyruqlar
 
-Backend va Mini App alohida npm loyihalari (pnpm workspace hali yo'q); admin panel o'z branch'ida:
+Admin panel, backend va Mini App alohida npm loyihalari (pnpm workspace hali yo'q;
+admin uchun batafsil — `apps/admin/README.md`):
 
 | Vazifa | Buyruq | Holat |
 |---|---|---|
+| Admin panel (3001-port) | `cd apps/admin`, `npm install`, `npm run dev` | ✅ |
+| Admin: tekshiruv | `npm run lint`, `npm run typecheck`, `npm run build` | ✅ |
 | Bog'liqliklarni o'rnatish | `pnpm install` | TODO |
 | Lokal DB, Redis, MinIO | `docker compose up -d` | TODO |
 | Hammasini ishga tushirish | `pnpm dev` | TODO |

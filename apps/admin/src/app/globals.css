@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+/*
+ * Dizayn tokenlari. Brend ranglari zavod bilan kelishilgach shu yerda
+ * almashtiriladi (TZ, 7-bo'lim). Admin panel ataylab sodda: Yangi yil
+ * elementlari faqat logotip va sarlavhada bo'ladi (Faza 4).
+ */
+@theme {
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-500: #3b82f6;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-500;
+  }
+}

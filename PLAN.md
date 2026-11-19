@@ -85,6 +85,11 @@ tasdiqlaydi). Maqsad — mahsulotni tabiiy targ'ib qilish va zavod Instagram akk
       talab qiladi. O'chirilgan ishtirokchi reytingdan chiqadimi, ma'lumot qancha saqlanadi?
 - [ ] **Q18. "Yosh" o'rniga tug'ilgan sana?** Yosh tanlov davomida o'zgarishi mumkin; 18+
       tekshiruvi uchun tug'ilgan sana aniqroq.
+- [x] **Q19. Collab (hamkorlikda joylangan) videolar.** Jamoa qarori (17.11.2026): **ruxsat
+      etiladi**, chunki muhimi — ko'rishlar soni. Bitta Reel (bitta link) faqat bitta
+      ishtirokchiga hisoblanadi — linkni birinchi yuborganga. Hal qilinmagan qismi: boshqa
+      akkauntning videosini ko'chirib, o'zinikidek qayta joylash (re-upload) — taqiqlanadimi va
+      qanday aniqlanadi (Admin moderatsiyasi / AI).
 
 ### 2.3. TZ da qabul qilingan taxminlar (tasdiqlansa — yopiladi)
 
@@ -279,7 +284,7 @@ do'konlar, Telegram bot) erta boshlash va monorepo poydevorini qo'yish.
 
 **0.2. Tashkiliy ishlar (darhol boshlanadi — tashqi kutish vaqtlari uzun)**
 
-- [ ] Buyurtmachi bilan uchrashuv: 2-bo'limdagi Q1–Q18 savollar
+- [ ] Buyurtmachi bilan uchrashuv: 2-bo'limdagi Q1–Q19 savollar
 - [ ] Developer akkauntlar: Apple Developer Program va Google Play — **zavod nomidan,
       tashkilot sifatida** (Q13). D-U-N-S raqamini tekshirish
 - [ ] ~~Eskiz (SMS)~~ — bekor qilindi: kod Telegram bot orqali yetkaziladi
