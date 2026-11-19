@@ -1,3 +1,6 @@
+> **To'xtatilgan (19.11.2026).** Ishtirokchilar uchun ilova Telegram Mini App'ga
+> ko'chirildi (`apps/miniapp`). Bu kod ma'lumot uchun qoldirilgan.
+
 # reels_tanlov
 
 A new Flutter project.
