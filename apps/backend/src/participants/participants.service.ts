@@ -1,0 +1,230 @@
+import { Injectable } from "@nestjs/common";
+
+import { ApiException } from "../common/api-exception";
+import { RulesService } from "../rules/rules.service";
+
+export type ParticipantStage =
+  | "NEEDS_CONTACT"
+  | "NEEDS_PROFILE"
+  | "NEEDS_CONSENT"
+  | "ACTIVE"
+  | "BLOCKED"
+  | "DISQUALIFIED";
+
+export type ReelStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "REMOVED";
+
+/** Nega video qabul qilinmadi (Mini App va bot shu kod bo'yicha matn ko'rsatadi). */
+export type ReelRejectReason =
+  /** Instagram'da topilmadi: o'chirilgan, yopiq akkaunt yoki noto'g'ri link. */
+  | "NOT_FOUND"
+  /** Rasm yoki karusel — Reel emas. */
+  | "NOT_A_VIDEO"
+  /** Shu Instagram akkauntdan boshqa ishtirokchi video yuborgan (bitta akkaunt — bitta ishtirokchi). */
+  | "OWNER_TAKEN";
+
+/** Nakrutka shubhasi — admin ko'rib chiqishi uchun belgi; reytingga o'zi ta'sir qilmaydi. */
+export type ReelFlagType =
+  /** Ko'rishlarga nisbatan layklar juda kam. */
+  | "LOW_ENGAGEMENT"
+  /** Ko'rishlar bir kunda keskin (o'n barobardan ko'p) oshgan. */
+  | "VIEW_SPIKE"
+  /** Ko'rishlar kamaygan — Instagram sun'iy ko'rishlarni tozalaganda shunday bo'ladi. */
+  | "VIEW_DROP";
+
+export interface ReelFlag {
+  type: ReelFlagType;
+  /** Tanlov kuni (Asia/Tashkent). */
+  date: string;
+  detail: string;
+}
+
+/** Kunlik holat. Faqat worker (StatsService) yozadi — qo'lda o'zgartiruvchi endpoint yo'q. */
+export interface ReelSnapshot {
+  /** Tanlov kuni "YYYY-MM-DD" (Asia/Tashkent); bir kunga bitta yozuv. */
+  date: string;
+  at: Date;
+  views: number;
+  likes: number | null;
+  comments: number | null;
+}
+
+export interface Reel {
+  url: string;
+  shortcode: string;
+  status: ReelStatus;
+  submittedAt: Date;
+  /** Instagram akkaunt nomi — birinchi tekshiruvda aniqlanadi. */
+  owner: string | null;
+  postedAt: Date | null;
+  rejectReason: ReelRejectReason | null;
+  /** Eskidan yangiga. */
+  history: ReelSnapshot[];
+  flags: ReelFlag[];
+  /** Ketma-ket necha marta Instagram'da topilmadi. */
+  misses: number;
+}
+
+export interface Participant {
+  telegramId: number;
+  /** Bot bilan shaxsiy chat — xabarnoma va support javoblari shu yerga. */
+  chatId: number | null;
+  phone: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  age: number | null;
+  consentVersion: number | null;
+  reel: Reel | null;
+  status: "ACTIVE" | "BLOCKED" | "DISQUALIFIED";
+  createdAt: Date;
+}
+
+export const MIN_AGE = 18;
+
+/**
+ * Ishtirokchilar ombori.
+ *
+ * VAQTINCHA xotirada (server qayta ishga tushsa, ma'lumot yo'qoladi). Faza 1 da
+ * shu interfeys saqlangan holda Prisma + PostgreSQL ga ko'chiriladi.
+ *
+ * Qoidalar (CLAUDE.md): ism, familiya, yosh bir marta yoziladi — ularni yangilovchi
+ * metod yo'q; bitta telefon raqami — bitta ishtirokchi.
+ */
+@Injectable()
+export class ParticipantsService {
+  private readonly byTelegramId = new Map<number, Participant>();
+
+  constructor(private readonly rules: RulesService) {}
+
+  get(telegramId: number): Participant | null {
+    return this.byTelegramId.get(telegramId) ?? null;
+  }
+
+  getOrCreate(telegramId: number): Participant {
+    let p = this.byTelegramId.get(telegramId);
+    if (!p) {
+      p = {
+        telegramId,
+        chatId: null,
+        phone: null,
+        firstName: null,
+        lastName: null,
+        age: null,
+        consentVersion: null,
+        reel: null,
+        status: "ACTIVE",
+        createdAt: new Date(),
+      };
+      this.byTelegramId.set(telegramId, p);
+    }
+    return p;
+  }
+
+  all(): Participant[] {
+    return [...this.byTelegramId.values()];
+  }
+
+  stage(p: Participant): ParticipantStage {
+    if (p.status === "BLOCKED") return "BLOCKED";
+    if (p.status === "DISQUALIFIED") return "DISQUALIFIED";
+    if (!p.phone) return "NEEDS_CONTACT";
+    if (!p.firstName) return "NEEDS_PROFILE";
+    if (p.consentVersion !== this.rules.version) return "NEEDS_CONSENT";
+    return "ACTIVE";
+  }
+
+  /**
+   * Bot orqali ulashilgan raqamni saqlaydi. Raqam boshqa Telegram akkauntiga
+   * bog'langan bo'lsa — rad etadi (bitta raqam — bitta ishtirokchi).
+   */
+  setPhone(telegramId: number, chatId: number, rawPhone: string): "OK" | "TAKEN" {
+    const phone = normalizePhone(rawPhone);
+    const owner = this.all().find((p) => p.phone === phone && p.telegramId !== telegramId);
+    if (owner) return "TAKEN";
+    const p = this.getOrCreate(telegramId);
+    p.phone = phone;
+    p.chatId = chatId;
+    return "OK";
+  }
+
+  register(telegramId: number, firstName: string, lastName: string, age: number): void {
+    const p = this.get(telegramId);
+    if (!p?.phone) throw new ApiException(401, "UNAUTHORIZED");
+    if (p.firstName) throw new ApiException(409, "PROFILE_LOCKED");
+    if (age < MIN_AGE) throw new ApiException(422, "UNDER_AGE");
+    p.firstName = firstName;
+    p.lastName = lastName;
+    p.age = age;
+  }
+
+  acceptRules(telegramId: number, version: number): void {
+    const p = this.get(telegramId);
+    // Eskirgan versiyaga rozilik qabul qilinmaydi (admin shu orada qoidalarni yangilagan bo'lishi mumkin).
+    if (!p?.firstName) throw new ApiException(401, "UNAUTHORIZED");
+    if (version !== this.rules.version) throw new ApiException(409, "RULES_OUTDATED");
+    p.consentVersion = version;
+  }
+
+  /**
+   * Reel linkini qabul qiladi (holat PENDING). Instagram'dagi tekshiruv (mavjudligi,
+   * video ekanligi, egasi) va ko'rishlar — StatsService ishi.
+   *
+   * Rad etilgan video o'rniga yangisini yuborish mumkin; boshqa holatda — bitta video.
+   */
+  submitReel(telegramId: number, url: string, shortcode: string): Reel {
+    const p = this.requireActive(telegramId);
+    if (p.reel && p.reel.status !== "REJECTED") throw new ApiException(409, "REEL_ALREADY_SUBMITTED");
+    const taken = this.all().some(
+      (o) => o !== p && o.reel && o.reel.status !== "REJECTED" && o.reel.shortcode === shortcode,
+    );
+    if (taken) throw new ApiException(409, "REEL_TAKEN");
+    p.reel = {
+      url,
+      shortcode,
+      status: "PENDING",
+      submittedAt: new Date(),
+      owner: null,
+      postedAt: null,
+      rejectReason: null,
+      history: [],
+      flags: [],
+      misses: 0,
+    };
+    return p.reel;
+  }
+
+  /**
+   * Shu Instagram akkauntdan boshqa ishtirokchi video yuborganmi (rad etilganlar hisobga
+   * olinmaydi). Bitta akkaunt — bitta ishtirokchi.
+   */
+  ownerTakenByOther(owner: string, telegramId: number): boolean {
+    return this.all().some(
+      (o) =>
+        o.telegramId !== telegramId &&
+        o.reel !== null &&
+        o.reel.status !== "REJECTED" &&
+        o.reel.owner === owner,
+    );
+  }
+
+  /** Ishtirokni bekor qilish (do'kon talabi: akkauntni o'chirish). */
+  delete(telegramId: number): void {
+    this.byTelegramId.delete(telegramId);
+  }
+
+  private requireActive(telegramId: number): Participant {
+    const p = this.get(telegramId);
+    if (!p || this.stage(p) !== "ACTIVE") throw new ApiException(403, "UNAUTHORIZED");
+    return p;
+  }
+}
+
+/** "998 90 123-45-67" / "+998901234567" → "+998901234567". */
+export function normalizePhone(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  return `+${digits}`;
+}
+
+export function maskPhone(phone: string): string {
+  const d = phone.replace(/\D/g, "");
+  return `+${d.slice(0, 3)} ${d.slice(3, 5)} *** ** ${d.slice(-2)}`;
+}
