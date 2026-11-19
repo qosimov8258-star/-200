@@ -22,6 +22,7 @@ import type {
   RatingEntry,
   RegisterRequest,
   TelegramLoginUser,
+  TargetReportRequest,
   Winner,
 } from "./types";
 
@@ -112,6 +113,13 @@ export const getMyReel = (): Promise<MyReel | null> =>
  */
 export const submitReel = (url: string): Promise<MyReel> =>
   IS_MOCK_API ? mock.submitReel(url) : request("POST", "/miniapp/reel", { url });
+
+/**
+ * @endpoint POST /miniapp/target-reports — "Reklamani ko'rdim": skrinshotli shikoyat.
+ * Kim yuborgani faqat adminga ko'rinadi.
+ */
+export const reportTarget = (body: TargetReportRequest): Promise<void> =>
+  IS_MOCK_API ? mock.reportTarget(body) : request("POST", "/miniapp/target-reports", body);
 
 /** @endpoint GET /miniapp/prizes — oylik voucherlar, bosqichlar va asosiy sovrin toifalari. */
 export const getPrizes = (): Promise<ContestPrizes> =>

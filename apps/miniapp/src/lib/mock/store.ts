@@ -15,6 +15,7 @@ import type {
   MyReel,
   RatingEntry,
   RegisterRequest,
+  TargetReportRequest,
   Winner,
 } from "../types";
 
@@ -188,7 +189,7 @@ export async function getRules(): Promise<ContestRules> {
       },
       {
         title: "3. Taqiqlar",
-        body: "Pullik reklama (target) va nakrutka (sotib olingan ko'rishlar, botlar) taqiqlanadi. Nakrutka aniqlansa, ishtirokchi tanlovdan chetlashtiriladi.",
+        body: "Pullik reklama (target) va nakrutka (sotib olingan ko'rishlar, botlar) taqiqlanadi. Reyting yetakchilarining akkauntlari Meta reklama kutubxonasida muntazam tekshiriladi. Sovrin topshirilishidan oldin g'olib Instagram ilovasidagi \"Reklama vositalari\" bo'limini tashkilotchilarga ko'rsatadi. Boshqa ishtirokchining reklamasini ko'rsangiz, ilovadagi \"Reklamani ko'rdim\" bo'limi orqali skrinshot yuboring. Target yoki nakrutka aniqlansa, ishtirokchi tanlovdan chetlashtiriladi.",
       },
       {
         title: "4. G'olibni aniqlash",
@@ -315,6 +316,27 @@ export async function getRating(): Promise<RatingEntry[]> {
     n++;
   }
   return entries;
+}
+
+/** Mock: kunlik chegara faqat sahifa ochiq turganda sanaladi. */
+const mockReports: Array<{ target: string; day: string }> = [];
+const MOCK_REPORTS_PER_DAY = 5;
+
+export async function reportTarget(body: TargetReportRequest): Promise<void> {
+  await wait(700);
+  const raw = body.target.trim();
+  const shortcode = parseReelShortcode(raw);
+  const username = raw.replace(/^@/, "").toLowerCase();
+  if (!shortcode && !/^[a-z0-9._]{1,30}$/.test(username)) throw new ApiError("REPORT_TARGET_INVALID");
+  // Mock: "begona" bilan boshlangan akkaunt — tanlov ishtirokchisi emas.
+  if (username.startsWith("begona")) throw new ApiError("REPORT_NOT_FOUND");
+  if (shortcode && shortcode === currentReel()?.shortcode) throw new ApiError("REPORT_SELF");
+  if (!body.screenshot.startsWith("data:image/")) throw new ApiError("INVALID_IMAGE");
+  const day = new Date().toDateString();
+  const key = shortcode ?? username;
+  if (mockReports.some((r) => r.target === key && r.day === day)) throw new ApiError("REPORT_DUPLICATE");
+  if (mockReports.filter((r) => r.day === day).length >= MOCK_REPORTS_PER_DAY) throw new ApiError("REPORT_LIMIT");
+  mockReports.push({ target: key, day });
 }
 
 export async function getMyReel(): Promise<MyReel | null> {
