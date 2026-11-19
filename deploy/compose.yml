@@ -1,0 +1,54 @@
+# Reels tanlov — serverdagi Docker Compose (konkurs.mezon.site).
+#
+# Server: repo /srv/konkurs/app ga klonlangan, shu fayl — /srv/konkurs/app/deploy/compose.yml.
+# Ishga tushirish (odatda /srv/konkurs/bin/deploy orqali):
+#   docker compose -f /srv/konkurs/app/deploy/compose.yml up -d --build --remove-orphans
+# Batafsil — deploy/README.md.
+#
+# Yo'llar shu faylga nisbatan (deploy/). Maxfiy sozlamalar repoda emas:
+# /srv/konkurs/shared/backend.env (serverda, qo'lda boshqariladi).
+
+# Loyiha nomi eski sozlama bilan bir xil — konteynerlar ikkilanmaydi, yangisi bilan almashadi.
+name: konkurs
+
+services:
+  backend:
+    build:
+      context: ../apps/backend
+      # Context'ga nisbatan; Dockerfile repoda deploy/ ichida.
+      dockerfile: ../../deploy/Dockerfile.backend
+    env_file: /srv/konkurs/shared/backend.env
+    environment:
+      # Backend ma'lumotlarni (ishtirokchilar, reellar, support, audit...) shu papkaga yozadi.
+      DATA_DIR: /app/data
+    volumes:
+      # Host papkasi 1000:1000 (konteynerdagi `node` foydalanuvchisi) egaligida bo'lishi shart.
+      - /srv/konkurs/data:/app/data
+    # Tashqariga port ochilmaydi — faqat `web` (nginx) /api/ ni shu yerga uzatadi.
+    restart: unless-stopped
+    # To'xtatishda backend ma'lumotlarni diskka yozib ulgurishi uchun.
+    stop_grace_period: 30s
+
+  web:
+    build:
+      # Repo ildizi: Mini App va admin panel bitta nginx image'iga yig'iladi (.dockerignore — ildizda).
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+      args:
+        VITE_API_URL: https://konkurs.mezon.site/api/v1
+    volumes:
+      - ./web.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      default:
+      # Mezon nginx'i (80/443) konkurs.mezon.site so'rovlarini shu nom bilan uzatadi.
+      mezon:
+        aliases:
+          - konkurs-web
+
+networks:
+  mezon:
+    external: true
+    name: mezon_default
