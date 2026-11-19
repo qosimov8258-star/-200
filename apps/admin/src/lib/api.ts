@@ -15,8 +15,23 @@
 import { ApiError } from "./api-error";
 import { listAuditLog, recordAudit } from "./mock/audit";
 import { buildDailyRating } from "./mock/daily-rating";
+import {
+  cancelDraw as mockCancelDraw,
+  confirmDraw as mockConfirmDraw,
+  getDraw as mockGetDraw,
+  getDrawSetup as mockGetDrawSetup,
+  listDraws,
+  previewDraw as mockPreviewDraw,
+  replaceDrawWinner as mockReplaceDrawWinner,
+  runDraw as mockRunDraw,
+  sendDraw as mockSendDraw,
+} from "./mock/draws";
 import { computeDashboardStats } from "./mock/dashboard";
 import { mockAdmins } from "./mock/db";
+import {
+  decideManualReview as mockDecideManualReview,
+  listManualReviews,
+} from "./mock/manual-review";
 import { applyParticipantAction, listParticipants } from "./mock/participants";
 import {
   createPrize as mockCreatePrize,
@@ -68,7 +83,16 @@ import type {
   DailyRatingResponse,
   DashboardQuery,
   DashboardStats,
+  DrawCancelRequest,
+  DrawPreview,
+  DrawReplaceRequest,
+  DrawSettings,
+  DrawSetup,
   LoginRequest,
+  ManualReviewDecisionRequest,
+  ManualReviewItem,
+  ManualReviewListQuery,
+  ManualReviewListResponse,
   ParticipantActionRequest,
   ParticipantListItem,
   ParticipantListQuery,
@@ -92,6 +116,8 @@ import type {
   TelegramResendUnreadRequest,
   WinnerOverview,
   WinnerPurchaseCheckRequest,
+  VoucherDraw,
+  VoucherDrawSummary,
   WinnerSkipRequest,
 } from "./types";
 
@@ -327,6 +353,34 @@ export async function getDailyRating(query: DailyRatingQuery): Promise<DailyRati
 }
 
 // ---------------------------------------------------------------------------
+// Qo'lda tekshiruv
+// ---------------------------------------------------------------------------
+
+/**
+ * Apify ketma-ket 3 marta topa olmagan videolar. Ochiqlari navbat bo'yicha (eng eskisi yuqorida).
+ * @endpoint GET /api/v1/admin/manual-reviews?status=&search=&page=&pageSize=
+ */
+export async function getManualReviews(query: ManualReviewListQuery): Promise<ManualReviewListResponse> {
+  await delay(350);
+  requireRole("ADMIN");
+  return listManualReviews(query);
+}
+
+/**
+ * Admin qarori. Tasdiq — video reytingga qo'shiladi; rad — sababi ishtirokchiga bot orqali
+ * yuboriladi va u boshqa link yubora oladi. Ikkalasida ham ishtirokchi xabar oladi.
+ * @endpoint POST /api/v1/admin/manual-reviews/:id/decision
+ * @throws ApiError 400 — sabab tanlanmagan; 404; 409 — qaror allaqachon qabul qilingan
+ */
+export async function decideManualReview(
+  id: string,
+  request: ManualReviewDecisionRequest,
+): Promise<ManualReviewItem> {
+  await delay(450);
+  return mockDecideManualReview(id, request, requireRole("ADMIN"));
+}
+
+// ---------------------------------------------------------------------------
 // Target yoqqanlar
 // ---------------------------------------------------------------------------
 
@@ -480,6 +534,103 @@ export async function deletePrize(id: string): Promise<void> {
 export async function movePrize(id: string, request: PrizeMoveRequest): Promise<Prize[]> {
   await delay(250);
   return mockMovePrize(id, request.direction, requireRole("ADMIN"));
+}
+
+// ---------------------------------------------------------------------------
+// Random tanlov (oylik voucherlar)
+// ---------------------------------------------------------------------------
+
+/**
+ * Bosqichlar, oylik sovg'alar va boshlang'ich sozlamalar.
+ * @endpoint GET /api/v1/admin/draws/setup
+ */
+export async function getDrawSetup(): Promise<DrawSetup> {
+  await delay(300);
+  requireRole("ADMIN");
+  return mockGetDrawSetup();
+}
+
+/**
+ * Sozlamalar bo'yicha nomzodlar: soni, chetda qolganlar sababi, namuna. Hech narsa saqlanmaydi.
+ * @endpoint POST /api/v1/admin/draws/preview
+ * @throws ApiError 400 — sozlama noto'g'ri
+ */
+export async function previewDraw(settings: DrawSettings): Promise<DrawPreview> {
+  await delay(350);
+  requireRole("ADMIN");
+  return mockPreviewDraw(settings);
+}
+
+/**
+ * Random tanlovni o'tkazish: server tasodifiy kalit (seed) yaratadi va nomzodlarni aralashtiradi.
+ * Natija qoralama (DRAFT) holatida saqlanadi.
+ * @endpoint POST /api/v1/admin/draws
+ * @throws ApiError 400 — sozlama noto'g'ri yoki nomzod yo'q; 409 — shu davr uchun tanlov bor
+ */
+export async function runDraw(settings: DrawSettings): Promise<VoucherDraw> {
+  await delay(900);
+  return mockRunDraw(settings, requireRole("ADMIN"));
+}
+
+/**
+ * O'tkazilgan tanlovlar, eng yangisi yuqorida.
+ * @endpoint GET /api/v1/admin/draws
+ */
+export async function getDraws(): Promise<VoucherDrawSummary[]> {
+  await delay(250);
+  requireRole("ADMIN");
+  return listDraws();
+}
+
+/**
+ * Tanlov natijasi: g'oliblar, zaxira, yuborish holati.
+ * @endpoint GET /api/v1/admin/draws/:id
+ * @throws ApiError 404
+ */
+export async function getDraw(id: string): Promise<VoucherDraw> {
+  await delay(300);
+  requireRole("ADMIN");
+  return mockGetDraw(id);
+}
+
+/**
+ * G'olibni chetlatish: o'rniga navbatdagi zaxira g'olib bo'ladi. Sabab audit logga yoziladi.
+ * @endpoint POST /api/v1/admin/draws/:id/replace
+ * @throws ApiError 400 | 404; 409 — zaxira qolmagan yoki tanlov bekor qilingan
+ */
+export async function replaceDrawWinner(id: string, request: DrawReplaceRequest): Promise<VoucherDraw> {
+  await delay(400);
+  return mockReplaceDrawWinner(id, request, requireRole("ADMIN"));
+}
+
+/**
+ * Natijani tasdiqlash (shundan keyin g'oliblarga yuborish mumkin).
+ * @endpoint POST /api/v1/admin/draws/:id/confirm
+ * @throws ApiError 404 | 409
+ */
+export async function confirmDraw(id: string): Promise<VoucherDraw> {
+  await delay(400);
+  return mockConfirmDraw(id, requireRole("ADMIN"));
+}
+
+/**
+ * Tanlovni bekor qilish (xabar yuborilmagan bo'lsa). Shu davr uchun yangi tanlov o'tkazish mumkin bo'ladi.
+ * @endpoint POST /api/v1/admin/draws/:id/cancel
+ * @throws ApiError 400 | 404 | 409
+ */
+export async function cancelDraw(id: string, request: DrawCancelRequest): Promise<VoucherDraw> {
+  await delay(400);
+  return mockCancelDraw(id, request, requireRole("ADMIN"));
+}
+
+/**
+ * Faol g'oliblarga Telegram bot orqali xabar (hali yuborilmagan va xato bo'lganlarga).
+ * @endpoint POST /api/v1/admin/draws/:id/send
+ * @throws ApiError 404; 409 — tasdiqlanmagan yoki yuboriladigan xabar yo'q
+ */
+export async function sendDraw(id: string): Promise<VoucherDraw> {
+  await delay(1200);
+  return mockSendDraw(id, requireRole("ADMIN"));
 }
 
 // ---------------------------------------------------------------------------

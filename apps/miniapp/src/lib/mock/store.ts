@@ -6,7 +6,9 @@
 import { ApiError } from "../api-error";
 import { canonicalReelUrl, parseReelShortcode } from "../reel-url";
 import type {
+  AuthConfig,
   ContestInfo,
+  ContestPrizes,
   ContestRules,
   DailyViews,
   Me,
@@ -20,13 +22,18 @@ const KEY = "reels-miniapp:mock";
 const RULES_VERSION = 1;
 const MIN_AGE = 18;
 const MY_RANK = 12;
+const PRIZE_NAME = "BYD Chazor";
 
 /** Server videoni Instagram'da tekshirishini taqlid qiladi: shuncha vaqt PENDING. */
 const MOCK_VERIFY_MS = 4000;
-/** Shunday boshlangan shortcode — "Instagram'da topilmadi" (rad etish oqimini sinash uchun). */
+/** Shunday boshlangan shortcode — Instagram'da topilmadi → qo'lda tekshiruv (oqimni sinash uchun). */
 const MOCK_NOT_FOUND_PREFIX = "notfound";
+/** Shunday boshlangan shortcode — "Reel emas" deb rad etiladi (rad etish oqimini sinash uchun). */
+const MOCK_PHOTO_PREFIX = "photo";
 
 interface MockState {
+  /** Veb-saytga "Telegram orqali kirish" bajarilganmi (mock — Telegram'dan tashqarida). */
+  webSession: boolean;
   phone: string | null;
   profile: RegisterRequest | null;
   consentVersion: number | null;
@@ -35,6 +42,7 @@ interface MockState {
 }
 
 const EMPTY: MockState = {
+  webSession: false,
   phone: null,
   profile: null,
   consentVersion: null,
@@ -89,8 +97,10 @@ function maskPhone(phone: string): string {
 
 // ---------------------------------------------------------------------------
 
+/** Haqiqiy backenddagidek: kirmagan bo'lsa — 401 (sayt kirish sahifasini ko'rsatadi). */
 export async function getMe(): Promise<Me> {
   await wait(250);
+  if (!state.webSession) throw new ApiError("UNAUTHORIZED");
   const stage = !state.phone
     ? "NEEDS_CONTACT"
     : !state.profile
@@ -104,6 +114,22 @@ export async function getMe(): Promise<Me> {
     profile: state.profile,
     rulesUpdated: state.consentVersion !== null && state.consentVersion !== RULES_VERSION,
   };
+}
+
+export async function getAuthConfig(): Promise<AuthConfig> {
+  await wait(150);
+  return { botUsername: "reels_tanlov_bot", prizeName: PRIZE_NAME };
+}
+
+/** Login Widget'ni taqlid qiladi (haqiqiy widget faqat BotFather'da ko'rsatilgan domenda ishlaydi). */
+export async function webLogin(): Promise<void> {
+  await wait(400);
+  update({ webSession: true });
+}
+
+export async function webLogout(): Promise<void> {
+  await wait(200);
+  update({ webSession: false });
 }
 
 /**
@@ -141,7 +167,7 @@ export async function getContest(): Promise<ContestInfo> {
     endsAt: ends.toISOString(),
     participants: 1284,
     minAge: MIN_AGE,
-    prizeName: "Chevrolet Cobalt",
+    prizeName: PRIZE_NAME,
   };
 }
 
@@ -195,6 +221,19 @@ const DELTAS = [0, 1, -1, 2, 0, -2, 3, 0, 1, -1, 0, 4];
 
 const SAMPLE_TOTALS = [3120, 5480, 9050, 12890, 15400, 19760, 22310, 26255];
 
+/** Backend jadvali bilan bir xil: tanlov boshidan har 10 kunda, soat 06:00 (Toshkent). */
+const MOCK_CONTEST_STARTS_ON = "2026-11-25";
+const MOCK_SYNC_EVERY_DAYS = 10;
+
+function mockNextSyncAt(now = new Date()): string | null {
+  for (let k = 1; k <= 50; k++) {
+    const slot = new Date(`${MOCK_CONTEST_STARTS_ON}T06:00:00+05:00`);
+    slot.setUTCDate(slot.getUTCDate() + k * MOCK_SYNC_EVERY_DAYS);
+    if (slot > now) return slot.toISOString();
+  }
+  return null;
+}
+
 function sampleReel(shortcode: string): MyReel {
   const t = today();
   const daily: DailyViews[] = [];
@@ -216,6 +255,8 @@ function sampleReel(shortcode: string): MyReel {
     rankDelta: 3,
     daily,
     lastSyncedAt: synced.toISOString(),
+    nextSyncAt: mockNextSyncAt(),
+    syncEveryDays: MOCK_SYNC_EVERY_DAYS,
   };
 }
 
@@ -234,10 +275,14 @@ function currentReel(): MyReel | null {
     rankDelta: 0,
     daily: [],
     lastSyncedAt: null,
+    nextSyncAt: mockNextSyncAt(),
+    syncEveryDays: MOCK_SYNC_EVERY_DAYS,
   };
   if (Date.now() - (state.reelSubmittedAt ?? 0) < MOCK_VERIFY_MS) return empty;
-  if (shortcode.toLowerCase().startsWith(MOCK_NOT_FOUND_PREFIX)) {
-    return { ...empty, status: "REJECTED", rejectReason: "NOT_FOUND" };
+  const code = shortcode.toLowerCase();
+  if (code.startsWith(MOCK_NOT_FOUND_PREFIX)) return { ...empty, status: "MANUAL_REVIEW" };
+  if (code.startsWith(MOCK_PHOTO_PREFIX)) {
+    return { ...empty, status: "REJECTED", rejectReason: "NOT_A_VIDEO" };
   }
   return sampleReel(shortcode);
 }
@@ -288,6 +333,49 @@ export async function submitReel(url: string): Promise<MyReel> {
   const reel = currentReel();
   if (!reel) throw new ApiError("SERVER");
   return reel;
+}
+
+/** Sovrinlar — backenddagi `apps/backend/src/miniapp/prizes.ts` bilan bir xil. */
+const PRIZES: ContestPrizes = {
+  monthly: {
+    title: "Korzinka voucheri",
+    amount: 500_000,
+    perMonth: 300,
+    total: 900,
+    minViews: 1_000,
+    maxViews: 100_000,
+  },
+  stages: [
+    { startsOn: "2026-11-25", endsOn: "2026-12-24" },
+    { startsOn: "2026-12-25", endsOn: "2027-01-24" },
+    { startsOn: "2027-01-25", endsOn: "2027-02-25" },
+  ],
+  tiers: [
+    { kind: "tablet", title: "Planshet", quantity: 25, unit: null, minViews: 101_000, maxViews: 500_000 },
+    { kind: "phone", title: "iPhone 18 Pro", quantity: 15, unit: null, minViews: 500_001, maxViews: 1_500_000 },
+    {
+      kind: "travel",
+      title: "Tailandga 2 kishilik sayohat",
+      quantity: 3,
+      unit: "yo'llanma",
+      minViews: 1_500_001,
+      maxViews: 3_500_000,
+    },
+    { kind: "car", title: "BYD Chazor avtomobili", quantity: 1, unit: null, minViews: 4_000_000, maxViews: null },
+  ],
+  notes: [
+    "Talablarni bajarsangiz, har oy voucher yutishingiz mumkin",
+    "Voucherlardan tashqari bitta asosiy sovrinni ham yutishingiz mumkin",
+    "Bitta ishtirokchiga faqat bitta asosiy sovrin beriladi",
+    "Oylik sovrin uchun faqat shu oyda yuklangan Reellar hisoblanadi",
+    "Asosiy sovrin uchun aksiya davomidagi barcha tasdiqlangan Reellaringiz ko'rishlari qo'shiladi",
+    "Sovrinlar pulga almashtirilmaydi va boshqa odamga berilmaydi",
+  ],
+};
+
+export async function getPrizes(): Promise<ContestPrizes> {
+  await wait(250);
+  return PRIZES;
 }
 
 export async function getWinner(): Promise<Winner | null> {

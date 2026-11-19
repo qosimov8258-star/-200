@@ -3,6 +3,7 @@ import clsx from "clsx";
 import { ArrowRight, ChevronRight, Eye, Trophy } from "lucide-react";
 import { useState } from "react";
 
+import { FoamBackdrop } from "../components/FoamBackdrop";
 import { Avatar, Card, ErrorBlock, PageHeader, RankDelta, RoundIcon, Spinner } from "../components/ui";
 import { t } from "../i18n/uz";
 import * as api from "../lib/api";
@@ -160,8 +161,9 @@ function LeaderCard({
   onOpenReel: () => void;
 }) {
   return (
-    <section className="flex h-[300px] flex-col rounded-card bg-[linear-gradient(180deg,#5b8fa8_0%,#b8674a_60%,#2a2320_100%)] p-3.5 text-white">
-      <span className="ml-auto grid size-11 place-items-center rounded-full border border-white/50">
+    <section className="relative isolate flex h-[300px] flex-col overflow-hidden rounded-card bg-[#123f5c] p-3.5 text-white">
+      <FoamBackdrop />
+      <span className="ml-auto grid size-11 place-items-center rounded-full border border-white/50 bg-[#0a1a2a]/30 backdrop-blur-sm">
         <Trophy className="size-[22px]" />
       </span>
       <div className="mt-auto px-1.5">
@@ -175,7 +177,7 @@ function LeaderCard({
       <button
         type="button"
         onClick={onOpenReel}
-        className="mt-3.5 flex items-center rounded-full bg-white/20 py-[5px] pr-[5px] pl-5 text-left transition active:scale-[0.98]"
+        className="mt-3.5 flex items-center rounded-full bg-white/20 py-[5px] pr-[5px] pl-5 text-left backdrop-blur-sm transition active:scale-[0.98]"
       >
         <span className="flex-1 truncate text-[15px] font-semibold">
           {me ? t.myRank(me.rank) : t.sendVideoCta}

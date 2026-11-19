@@ -6,6 +6,7 @@ import { RulesService } from "../rules/rules.service";
 import { StatsService } from "../stats/stats.service";
 import type { TelegramIdentity } from "../telegram/init-data";
 import { contestSettings } from "./contest";
+import { contestPrizes } from "./prizes";
 import { canonicalReelUrl, parseReelShortcode } from "./reel-url";
 import { TelegramAuthGuard, TgUser } from "./telegram-auth.guard";
 import { parseRegister, parseUrl, parseVersion } from "./validation";
@@ -102,6 +103,9 @@ export class MiniappController {
       rankDelta: entry?.rankDelta ?? 0,
       daily: daily.slice(-DAILY_DAYS),
       lastSyncedAt: last?.at.toISOString() ?? null,
+      /** Keyingi rejadagi yangilanish (har `syncEveryDays` kunda); bo'lmasa — null. */
+      nextSyncAt: this.stats.nextSyncAt()?.toISOString() ?? null,
+      syncEveryDays: this.stats.syncEveryDays,
     };
   }
 
@@ -113,6 +117,12 @@ export class MiniappController {
     this.participants.submitReel(user.telegramId, canonicalReelUrl(shortcode), shortcode);
     this.stats.queueVerification(user.telegramId);
     return this.reel(user);
+  }
+
+  /** Sovrinlar: oylik voucherlar, bosqichlar, asosiy sovrin toifalari. */
+  @Get("prizes")
+  prizes() {
+    return contestPrizes;
   }
 
   @Get("winner")

@@ -1,23 +1,27 @@
 /**
- * Mini App'ning backend bilan yagona aloqa nuqtasi. Komponentlar `fetch` ni
+ * Mini App va veb-saytning backend bilan yagona aloqa nuqtasi. Komponentlar `fetch` ni
  * to'g'ridan-to'g'ri chaqirmaydi.
  *
  * `VITE_API_URL` berilmagan bo'lsa — mock rejim (`./mock/store.ts`).
- * Berilgan bo'lsa — har bir so'rov `X-Telegram-Init-Data` sarlavhasi bilan
- * yuboriladi; backend uni bot tokeni bilan HMAC orqali tekshiradi va foydalanuvchini
- * shu bo'yicha taniydi (parol, SMS yoki kod kerak emas).
+ * Berilgan bo'lsa, foydalanuvchi ikki yo'l bilan tanilgan (parol, SMS yoki kod yo'q):
+ * - Telegram ichida — har bir so'rovda `X-Telegram-Init-Data` (bot tokeni bilan HMAC);
+ * - oddiy brauzerda (veb-sayt) — Telegram Login Widget orqali kirgandan keyingi
+ *   `HttpOnly` sessiya cookie'si (`credentials: "include"`).
  */
 import { ApiError } from "./api-error";
 import * as mock from "./mock/store";
 import { initData } from "./telegram";
 import type {
   ApiErrorCode,
+  AuthConfig,
   ContestInfo,
+  ContestPrizes,
   ContestRules,
   Me,
   MyReel,
   RatingEntry,
   RegisterRequest,
+  TelegramLoginUser,
   Winner,
 } from "./types";
 
@@ -40,8 +44,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       method,
       headers: {
         "Content-Type": "application/json",
-        "X-Telegram-Init-Data": initData,
+        ...(initData ? { "X-Telegram-Init-Data": initData } : {}),
       },
+      // Veb-saytda sessiya cookie'si (Telegram ichida ishlatilmaydi, lekin zarari yo'q).
+      credentials: "include",
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
@@ -107,6 +113,10 @@ export const getMyReel = (): Promise<MyReel | null> =>
 export const submitReel = (url: string): Promise<MyReel> =>
   IS_MOCK_API ? mock.submitReel(url) : request("POST", "/miniapp/reel", { url });
 
+/** @endpoint GET /miniapp/prizes — oylik voucherlar, bosqichlar va asosiy sovrin toifalari. */
+export const getPrizes = (): Promise<ContestPrizes> =>
+  IS_MOCK_API ? mock.getPrizes() : request("GET", "/miniapp/prizes");
+
 /** @endpoint GET /miniapp/winner — e'lon qilinmagan bo'lsa null. */
 export const getWinner = (): Promise<Winner | null> =>
   IS_MOCK_API ? mock.getWinner() : request("GET", "/miniapp/winner");
@@ -114,3 +124,20 @@ export const getWinner = (): Promise<Winner | null> =>
 /** @endpoint DELETE /miniapp/me */
 export const deleteAccount = (): Promise<void> =>
   IS_MOCK_API ? mock.deleteAccount() : request("DELETE", "/miniapp/me");
+
+// --- Veb-sayt: kirish va chiqish ---------------------------------------------
+
+/** @endpoint GET /auth/config — bot nomi (Login Widget uchun) va sovrin; ochiq. */
+export const getAuthConfig = (): Promise<AuthConfig> =>
+  IS_MOCK_API ? mock.getAuthConfig() : request("GET", "/auth/config");
+
+/**
+ * @endpoint POST /auth/telegram-login — Login Widget natijasi; backend imzoni tekshirib,
+ * `HttpOnly` sessiya cookie'sini qo'yadi.
+ */
+export const telegramLogin = (user: TelegramLoginUser): Promise<void> =>
+  IS_MOCK_API ? mock.webLogin() : request("POST", "/auth/telegram-login", user);
+
+/** @endpoint POST /auth/logout */
+export const logout = (): Promise<void> =>
+  IS_MOCK_API ? mock.webLogout() : request("POST", "/auth/logout");

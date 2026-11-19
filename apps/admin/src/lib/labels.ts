@@ -1,5 +1,12 @@
 import type {
   AuditEntity,
+  DrawDateBasis,
+  DrawExclusion,
+  DrawNotifyStatus,
+  DrawStatus,
+  ManualReviewKind,
+  ManualReviewRejectReason,
+  ManualReviewStatus,
   ParticipantStatus,
   PrizeKind,
   ReelStatus,
@@ -41,6 +48,30 @@ export const REEL_STATUS_TONES: Record<ReelStatus, BadgeTone> = {
   ACCEPTED: "success",
   REJECTED: "danger",
   REMOVED: "neutral",
+};
+
+export const MANUAL_REVIEW_STATUS_LABELS: Record<ManualReviewStatus, string> = {
+  OPEN: "Tekshiruv kutilmoqda",
+  APPROVED: "Tasdiqlangan",
+  REJECTED: "Rad etilgan",
+};
+
+export const MANUAL_REVIEW_STATUS_TONES: Record<ManualReviewStatus, BadgeTone> = {
+  OPEN: "warning",
+  APPROVED: "success",
+  REJECTED: "danger",
+};
+
+export const MANUAL_REVIEW_KIND_LABELS: Record<ManualReviewKind, string> = {
+  NEW_REEL: "Yangi video",
+  LOST_REEL: "Reytingdagi video yo'qoldi",
+};
+
+/** Rad etish sabablari — ishtirokchiga bot orqali shunga mos xabar boradi. */
+export const MANUAL_REVIEW_REJECT_LABELS: Record<ManualReviewRejectReason, string> = {
+  NOT_FOUND: "Video topilmadi yoki akkaunt yopiq",
+  NOT_A_VIDEO: "Reel (video) emas",
+  OWNER_TAKEN: "Bu Instagram akkaunt boshqa ishtirokchida",
 };
 
 export const TARGET_CASE_STATUS_LABELS: Record<TargetCaseStatus, string> = {
@@ -141,6 +172,52 @@ export const PRIZE_KIND_TONES: Record<PrizeKind, BadgeTone> = {
 };
 
 // ---------------------------------------------------------------------------
+// Random tanlov
+// ---------------------------------------------------------------------------
+
+export const DRAW_STATUS_LABELS: Record<DrawStatus, string> = {
+  DRAFT: "Qoralama",
+  CONFIRMED: "Tasdiqlangan",
+  SENT: "Botga yuborilgan",
+  CANCELLED: "Bekor qilingan",
+};
+
+export const DRAW_STATUS_TONES: Record<DrawStatus, BadgeTone> = {
+  DRAFT: "warning",
+  CONFIRMED: "brand",
+  SENT: "success",
+  CANCELLED: "neutral",
+};
+
+export const DRAW_DATE_BASIS_LABELS: Record<DrawDateBasis, string> = {
+  POSTED: "Instagram'da joylangan sana",
+  SUBMITTED: "Ilovaga yuborilgan sana",
+};
+
+export const DRAW_EXCLUSION_LABELS: Record<DrawExclusion, string> = {
+  NOT_ACCEPTED: "Reel tasdiqlanmagan yoki o'chirilgan",
+  OUT_OF_PERIOD: "Reel boshqa davrda joylangan",
+  VIEWS_LOW: "Ko'rishlar kam",
+  VIEWS_HIGH: "Ko'rishlar chegaradan ko'p",
+  STATUS: "Bloklangan yoki diskvalifikatsiya",
+  WARNED: "Ogohlantirilgan",
+  TARGET: "Target aniqlangan",
+  PREVIOUS_WINNER: "Oldingi bosqich g'olibi",
+};
+
+export const DRAW_NOTIFY_LABELS: Record<DrawNotifyStatus, string> = {
+  NOT_SENT: "Yuborilmagan",
+  SENT: "Yuborildi",
+  FAILED: "Xato",
+};
+
+export const DRAW_NOTIFY_TONES: Record<DrawNotifyStatus, BadgeTone> = {
+  NOT_SENT: "neutral",
+  SENT: "success",
+  FAILED: "danger",
+};
+
+// ---------------------------------------------------------------------------
 // Audit log
 // ---------------------------------------------------------------------------
 
@@ -153,6 +230,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntity, string> = {
   winner: "G'olib",
   settings: "Sozlamalar",
   prize: "Sovg'alar",
+  voucher_draw: "Random tanlov",
   auth: "Kirish",
 };
 
@@ -161,6 +239,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "auth.logout": "Tizimdan chiqdi",
   "reel.accept": "Reelni qabul qildi",
   "reel.reject": "Reelni rad etdi",
+  "manual_review.approve": "Qo'lda tekshiruv: tasdiqladi",
+  "manual_review.reject": "Qo'lda tekshiruv: rad etdi",
   "participant.block": "Bloklandi",
   "participant.unblock": "Blokdan chiqarildi",
   "participant.disqualify": "Diskvalifikatsiya qilindi",
@@ -183,6 +263,11 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "prize.update": "Sovg'ani o'zgartirdi",
   "prize.delete": "Sovg'ani o'chirdi",
   "prize.move": "Sovg'alar tartibini o'zgartirdi",
+  "draw.run": "Random tanlov o'tkazdi",
+  "draw.replace": "G'olibni zaxira bilan almashtirdi",
+  "draw.confirm": "Random tanlov natijasini tasdiqladi",
+  "draw.cancel": "Random tanlovni bekor qildi",
+  "draw.send": "G'oliblarga bot orqali xabar yubordi",
 };
 
 const WINNER_VALUE_LABELS: Record<string, string> = {
@@ -202,6 +287,7 @@ const AUDIT_VALUE_LABELS: Partial<Record<AuditEntity, Record<string, string>>> =
   target_case: TARGET_CASE_STATUS_LABELS,
   telegram_message: TELEGRAM_STATUS_LABELS,
   winner: WINNER_VALUE_LABELS,
+  voucher_draw: DRAW_STATUS_LABELS,
 };
 
 /** Audit yozuvidagi holat kodini o'qiladigan matnga ("ACTIVE" -> "Faol"). */

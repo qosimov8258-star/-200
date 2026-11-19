@@ -43,8 +43,11 @@ export const config = {
     apifyToken: str("APIFY_API_TOKEN"),
     /** Kunning qaysi vaqtida yig'iladi (Asia/Tashkent, "HH:MM"). */
     syncTime: str("STATS_SYNC_TIME") ?? "06:00",
-    /** Necha kunda bir marta: 1 — har kuni, 14 — ikki haftada; 0 — avtomatik yig'ish o'chiq. */
-    syncEveryDays: Number(str("STATS_SYNC_EVERY_DAYS") ?? 1),
+    /**
+     * Tanlov boshlangan kundan (`contest.ts` → `startsOn`) boshlab necha kunda bir marta:
+     * 10 — har 10 kunda, 1 — har kuni; 0 — avtomatik yig'ish o'chiq.
+     */
+    syncEveryDays: Number(str("STATS_SYNC_EVERY_DAYS") ?? 10),
     /** Yangi videolar shuncha kutib, bitta so'rovda tekshiriladi (pulni tejash uchun). */
     verifyDelayMs: Number(str("STATS_VERIFY_DELAY_MS") ?? 5_000),
   },

@@ -15,6 +15,8 @@ async function bootstrap(): Promise<void> {
     // Authorization — admin panel (Bearer token), X-Telegram-Init-Data — Mini App.
     allowedHeaders: ["Content-Type", "Authorization", "X-Telegram-Init-Data"],
     methods: ["GET", "POST", "PUT", "DELETE"],
+    // Veb-sayt sessiyasi cookie'da — lokal ishlab chiqishda sayt (3002) va API (3000) alohida portda.
+    credentials: true,
   });
   app.enableShutdownHooks();
   await app.listen(config.port);

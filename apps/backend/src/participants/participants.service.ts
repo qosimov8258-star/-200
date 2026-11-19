@@ -11,7 +11,12 @@ export type ParticipantStage =
   | "BLOCKED"
   | "DISQUALIFIED";
 
-export type ReelStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "REMOVED";
+/**
+ * PENDING — avtomatik tekshiruv kutilmoqda; ACCEPTED — reytingda;
+ * MANUAL_REVIEW — Apify 3 marta topa olmadi, admin qo'lda tekshiradi (reytingda emas);
+ * REJECTED — rad etilgan, ishtirokchi boshqa link yubora oladi.
+ */
+export type ReelStatus = "PENDING" | "ACCEPTED" | "MANUAL_REVIEW" | "REJECTED";
 
 /** Nega video qabul qilinmadi (Mini App va bot shu kod bo'yicha matn ko'rsatadi). */
 export type ReelRejectReason =
@@ -48,6 +53,26 @@ export interface ReelSnapshot {
   comments: number | null;
 }
 
+/**
+ * Qo'lda tekshiruv: Apify videoni ketma-ket 3 marta topa olmaganda ochiladi.
+ * NEW_REEL — yangi yuborilgan video hali qabul qilinmagan;
+ * LOST_REEL — avval qabul qilingan video endi topilmayapti (reytingdan vaqtincha chiqadi).
+ */
+export interface ManualReview {
+  kind: "NEW_REEL" | "LOST_REEL";
+  requestedAt: Date;
+  /** Qo'lda tekshiruvga o'tgunga qadar avtomatik urinishlar soni. */
+  attempts: number;
+  /** null — admin hali qaror qilmagan. `by: "Avtomatik"` — Apify keyinroq o'zi topdi. */
+  decision: {
+    approved: boolean;
+    reason: ReelRejectReason | null;
+    note: string;
+    by: string;
+    at: Date;
+  } | null;
+}
+
 export interface Reel {
   url: string;
   shortcode: string;
@@ -62,6 +87,10 @@ export interface Reel {
   flags: ReelFlag[];
   /** Ketma-ket necha marta Instagram'da topilmadi. */
   misses: number;
+  /** Apify videoni oxirgi marta topgan vaqt. */
+  lastFoundAt: Date | null;
+  /** Oxirgi qo'lda tekshiruv (bo'lmagan bo'lsa — null). */
+  review: ManualReview | null;
 }
 
 export interface Participant {
@@ -188,6 +217,8 @@ export class ParticipantsService {
       history: [],
       flags: [],
       misses: 0,
+      lastFoundAt: null,
+      review: null,
     };
     return p.reel;
   }
@@ -204,6 +235,14 @@ export class ParticipantsService {
         o.reel.status !== "REJECTED" &&
         o.reel.owner === owner,
     );
+  }
+
+  /** Shortcode bo'yicha video va uning egasi (admin qo'lda tekshiruvi uchun). */
+  findByShortcode(shortcode: string): { participant: Participant; reel: Reel } | null {
+    for (const p of this.byTelegramId.values()) {
+      if (p.reel?.shortcode === shortcode) return { participant: p, reel: p.reel };
+    }
+    return null;
   }
 
   /** Ishtirokni bekor qilish (do'kon talabi: akkauntni o'chirish). */

@@ -10,7 +10,7 @@ import { StatsService } from "./stats.service";
 /** Toshkent vaqti bo'yicha soat (UTC+5): "2026-12-01 07:00" → Date. */
 const tashkent = (s: string) => new Date(`${s.replace(" ", "T")}:00+05:00`);
 
-function setup(opts: { everyDays?: number; endsAt?: string } = {}) {
+function setup(opts: { everyDays?: number; startsOn?: string; endsAt?: string } = {}) {
   let now = tashkent("2026-12-01 07:00");
   const participants = new ParticipantsService(new RulesService());
   const provider = new MockReelStatsProvider();
@@ -25,6 +25,7 @@ function setup(opts: { everyDays?: number; endsAt?: string } = {}) {
     syncTime: "06:00",
     everyDays: opts.everyDays ?? 1,
     verifyDelayMs: 0,
+    contestStartsOn: opts.startsOn ?? "2026-11-30",
     contestEndsAt: tashkent(opts.endsAt ?? "2027-01-01 12:00"),
     clock: () => now,
   });
@@ -69,19 +70,99 @@ test("new Reels arriving together are checked in one request", async () => {
   assert.deepEqual(provider.requests, [["AAAAA1", "BBBBB2", "CCCCC3"]]);
 });
 
-test("a Reel that is not found twice is rejected (one glitch is forgiven)", async () => {
+/** Yangi videoni 3 marta tekshiradi (2- va 3-urinishlar haqiqatda taymer bilan keladi). */
+async function threeAttempts(stats: StatsService, id: number) {
+  await stats.flushVerification();
+  for (let i = 0; i < 2; i++) {
+    stats.queueVerification(id);
+    await stats.flushVerification();
+  }
+}
+
+test("a Reel not found 3 times goes to manual review — the participant is told first", async () => {
   const { provider, stats, sent, join, reel } = setup();
   provider.set("GONE01", null);
   join(1, "GONE01");
+  await stats.flushVerification();
+  stats.queueVerification(1);
   await stats.flushVerification();
   assert.equal(reel(1)?.status, "PENDING");
   assert.equal(sent.length, 0);
 
   stats.queueVerification(1);
   await stats.flushVerification();
+  assert.equal(reel(1)?.status, "MANUAL_REVIEW");
+  assert.equal(reel(1)?.rejectReason, null);
+  assert.equal(reel(1)?.review?.kind, "NEW_REEL");
+  assert.equal(reel(1)?.review?.attempts, 3);
+  assert.equal(sent.length, 1);
+  assert.match(sent[0].text, /qo'lda tekshiradi/);
+  assert.equal(provider.requests.length, 3);
+  assert.equal(stats.manualReviews().length, 1);
+  assert.equal(stats.ranking().length, 0);
+});
+
+test("admin approves a manual review: the Reel joins the rating and is not sent back while unreadable", async () => {
+  const { provider, stats, sent, join, reel, setNow } = setup();
+  provider.set("GONE01", null);
+  join(1, "GONE01");
+  await threeAttempts(stats, 1);
+
+  stats.decideManualReview("GONE01", { approve: true, note: "Video ochiq, mahsulot ko'rinadi" }, "Admin");
+  assert.equal(reel(1)?.status, "ACCEPTED");
+  assert.equal(reel(1)?.review?.decision?.approved, true);
+  assert.equal(reel(1)?.review?.decision?.by, "Admin");
+  assert.match(sent.at(-1)?.text ?? "", /administrator tomonidan tekshirildi/);
+  assert.deepEqual(stats.ranking().map((e) => [e.participant.telegramId, e.views]), [[1, 0]]);
+
+  // Apify hamon topa olmaydi — admin ko'rgan video qayta-qayta tekshiruvga tushmaydi.
+  for (const day of ["2026-12-02", "2026-12-03", "2026-12-04"]) {
+    setNow(`${day} 06:01`);
+    await stats.syncAll("schedule");
+  }
+  assert.equal(reel(1)?.status, "ACCEPTED");
+
+  // Apify topdi — ko'rishlar yoziladi.
+  provider.set("GONE01", { owner: "ali", views: 4_200 });
+  setNow("2026-12-05 06:01");
+  await stats.syncAll("schedule");
+  assert.equal(reel(1)?.history.at(-1)?.views, 4_200);
+  assert.equal(stats.ranking()[0]?.views, 4_200);
+});
+
+test("admin rejects a manual review: the reason is sent and a new link can be submitted", async () => {
+  const { participants, provider, stats, sent, join, reel } = setup();
+  provider.set("GONE01", null);
+  join(1, "GONE01");
+  await threeAttempts(stats, 1);
+
+  stats.decideManualReview("GONE01", { approve: false, reason: "NOT_FOUND", note: "Akkaunt yopiq" }, "Admin");
   assert.equal(reel(1)?.status, "REJECTED");
   assert.equal(reel(1)?.rejectReason, "NOT_FOUND");
-  assert.equal(sent.length, 1);
+  assert.match(sent.at(-1)?.text ?? "", /topilmadi/);
+  assert.throws(
+    () => stats.decideManualReview("GONE01", { approve: true, note: "" }, "Admin"),
+    /qo'lda tekshiruvda emas/,
+  );
+
+  participants.submitReel(1, "https://www.instagram.com/reel/NEWONE1/", "NEWONE1");
+  assert.equal(reel(1)?.status, "PENDING");
+});
+
+test("a manual review closes itself when a later sync finds the Reel", async () => {
+  const { provider, stats, join, reel, setNow } = setup();
+  provider.set("LATE01", null);
+  join(1, "LATE01");
+  await threeAttempts(stats, 1);
+  assert.equal(reel(1)?.status, "MANUAL_REVIEW");
+
+  provider.set("LATE01", { owner: "vali", views: 7_000 });
+  setNow("2026-12-02 06:01");
+  const report = await stats.syncAll("schedule");
+  assert.equal(report.resolved, 1);
+  assert.equal(reel(1)?.status, "ACCEPTED");
+  assert.equal(reel(1)?.review?.decision?.by, "Avtomatik");
+  assert.equal(stats.ranking()[0]?.views, 7_000);
 });
 
 test("photos are rejected and one Instagram account can join only once", async () => {
@@ -140,8 +221,8 @@ test("daily sync records history, ranks by views and reports rank changes", asyn
   assert.equal(reel(1)?.history.at(-1)?.views, 9_500);
 });
 
-test("a Reel missing twice leaves the rating and returns when found again", async () => {
-  const { provider, stats, sent, join, reel, setNow } = setup();
+test("a one-off miss is forgiven when the quick re-check finds the Reel", async () => {
+  const { provider, stats, join, reel, setNow } = setup();
   provider.set("AAAAA1", { owner: "a", views: 1_000 });
   join(1, "AAAAA1");
   await stats.flushVerification();
@@ -149,19 +230,44 @@ test("a Reel missing twice leaves the rating and returns when found again", asyn
   provider.set("AAAAA1", null);
   setNow("2026-12-02 06:01");
   await stats.syncAll("schedule");
+  provider.set("AAAAA1", { owner: "a", views: 1_500 });
+  stats.queueVerification(1);
+  await stats.flushVerification();
   assert.equal(reel(1)?.status, "ACCEPTED");
-  setNow("2026-12-03 06:01");
-  await stats.syncAll("schedule");
-  assert.equal(reel(1)?.status, "REMOVED");
+  assert.equal(reel(1)?.misses, 0);
+  assert.equal(reel(1)?.history.at(-1)?.views, 1_500);
+});
+
+test("an accepted Reel missing in a sync is re-checked within minutes; 3 misses → manual review", async () => {
+  const { provider, stats, sent, join, reel, setNow } = setup();
+  provider.set("AAAAA1", { owner: "a", views: 1_000 });
+  join(1, "AAAAA1");
+  await stats.flushVerification();
+
+  // Yig'ishda topilmadi — keyingi yig'ishni (10 kun) kutmasdan, 2 va 10 daqiqadan keyin qayta tekshiriladi.
+  provider.set("AAAAA1", null);
+  setNow("2026-12-02 06:01");
+  const sync = await stats.syncAll("schedule");
+  assert.equal(sync.missing, 1);
+  assert.equal(reel(1)?.status, "ACCEPTED");
+  stats.queueVerification(1); // 2 daqiqalik taymer o'rniga
+  await stats.flushVerification();
+  assert.equal(reel(1)?.status, "ACCEPTED");
+  assert.equal(reel(1)?.misses, 2);
+  stats.queueVerification(1); // 10 daqiqalik taymer o'rniga
+  await stats.flushVerification();
+  assert.equal(reel(1)?.status, "MANUAL_REVIEW");
+  assert.equal(reel(1)?.review?.kind, "LOST_REEL");
   assert.equal(stats.ranking().length, 0);
+  assert.match(sent.at(-1)?.text ?? "", /reytingdan vaqtincha chiqarildi/);
 
   provider.set("AAAAA1", { owner: "a", views: 1_200 });
-  setNow("2026-12-04 06:01");
+  setNow("2026-12-05 06:01");
   const report = await stats.syncAll("schedule");
-  assert.equal(report.restored, 1);
+  assert.equal(report.resolved, 1);
   assert.equal(reel(1)?.status, "ACCEPTED");
-  assert.equal(stats.ranking().length, 1);
-  assert.equal(sent.length, 3); // qabul, chiqarildi, qaytdi
+  assert.equal(stats.ranking()[0]?.views, 1_200);
+  assert.equal(sent.length, 3); // qabul, qo'lda tekshiruv, qaytdi
 });
 
 test("suspicious numbers are flagged for the admin, not punished automatically", async () => {
@@ -202,20 +308,51 @@ test("schedule: daily after sync time, every N days, and one final sync after th
   daily.setNow("2026-12-02 06:30");
   assert.equal(daily.stats.dueReason(), "schedule");
 
-  const biweekly = setup({ everyDays: 14 });
-  biweekly.setNow("2026-12-01 06:00");
-  await biweekly.stats.syncAll("schedule");
-  biweekly.setNow("2026-12-14 06:00");
-  assert.equal(biweekly.stats.dueReason(), null);
-  biweekly.setNow("2026-12-15 06:00");
-  assert.equal(biweekly.stats.dueReason(), "schedule");
-
   const ending = setup({ endsAt: "2026-12-20 12:00" });
   ending.setNow("2026-12-20 12:00");
   assert.equal(ending.stats.dueReason(), "final");
   await ending.stats.syncAll("final");
   ending.setNow("2026-12-21 06:00");
   assert.equal(ending.stats.dueReason(), null);
+});
+
+test("every 10 days from the contest start: 5 Dec, 15 Dec, 25 Dec, then the final sync", async () => {
+  const s = setup({ everyDays: 10, startsOn: "2026-11-25", endsAt: "2027-01-01 12:00" });
+  const next = () => s.stats.nextSyncAt()?.toISOString();
+
+  // Tanlovdan oldin va boshlangan kuni — birinchi yangilanish 5-dekabr.
+  s.setNow("2026-11-20 10:00");
+  assert.equal(s.stats.dueReason(), null);
+  assert.equal(next(), tashkent("2026-12-05 06:00").toISOString());
+  s.setNow("2026-11-25 07:00");
+  assert.equal(s.stats.dueReason(), null);
+
+  s.setNow("2026-12-05 06:00");
+  assert.equal(s.stats.dueReason(), "schedule");
+  await s.stats.syncAll("schedule");
+  assert.equal(s.stats.dueReason(), null);
+  assert.equal(next(), tashkent("2026-12-15 06:00").toISOString());
+
+  // 15-dekabrgacha yig'ilmaydi.
+  s.setNow("2026-12-14 23:59");
+  assert.equal(s.stats.dueReason(), null);
+
+  // Server 15-dekabrda o'chiq turgan bo'lsa — yoqilganda yetib oladi.
+  s.setNow("2026-12-17 09:00");
+  assert.equal(s.stats.dueReason(), "schedule");
+  await s.stats.syncAll("schedule");
+  assert.equal(next(), tashkent("2026-12-25 06:00").toISOString());
+
+  // 25-dekabrdan keyin navbatdagisi (4-yanvar) tanlovdan keyin — demak, yakuniy yig'ish.
+  s.setNow("2026-12-25 06:00");
+  await s.stats.syncAll("schedule");
+  assert.equal(next(), tashkent("2027-01-01 12:00").toISOString());
+
+  s.setNow("2027-01-01 12:00");
+  assert.equal(s.stats.dueReason(), "final");
+  await s.stats.syncAll("final");
+  assert.equal(s.stats.dueReason(), null);
+  assert.equal(next(), undefined);
 });
 
 test("a failed sync is not retried immediately", async () => {

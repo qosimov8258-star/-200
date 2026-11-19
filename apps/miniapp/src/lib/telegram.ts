@@ -6,6 +6,8 @@
  * ilova dev rejimida ishlaydi va Telegram funksiyalari o'rniga zaxira yo'l ishlatiladi.
  */
 
+import type { TelegramLoginUser } from "./types";
+
 type HapticImpact = "light" | "medium" | "heavy" | "rigid" | "soft";
 type HapticNotice = "error" | "success" | "warning";
 
@@ -63,6 +65,8 @@ interface TgWebApp {
 declare global {
   interface Window {
     Telegram?: { WebApp?: TgWebApp };
+    /** Telegram Login Widget shu global funksiyani chaqiradi (`data-onauth`). */
+    onTelegramAuth?: (user: TelegramLoginUser) => void;
   }
 }
 
@@ -130,6 +134,10 @@ export function openExternal(url: string): void {
   if (isInTelegram) webApp!.openLink(url);
   else window.open(url, "_blank", "noopener");
 }
+
+/** Bot chati havolasi; `start` — /start parametri (masalan, saytdan raqam ulashish uchun "web"). */
+export const botLink = (botUsername: string, start?: string) =>
+  `https://t.me/${botUsername}${start ? `?start=${encodeURIComponent(start)}` : ""}`;
 
 /** Telegram ichidagi havola (bot chati). */
 export function openTelegram(url: string): void {

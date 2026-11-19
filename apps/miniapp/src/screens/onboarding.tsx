@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Check, Lock, Phone } from "lucide-react";
+import { ArrowRight, Check, Lock, Phone, Send } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { PrizeHero } from "../components/PrizeHero";
@@ -7,7 +7,14 @@ import { Card, ErrorBlock, PillButton, Spinner, TextField } from "../components/
 import { t } from "../i18n/uz";
 import * as api from "../lib/api";
 import { errorCode } from "../lib/api-error";
-import { confirmDialog, haptic, requestContact } from "../lib/telegram";
+import {
+  botLink,
+  confirmDialog,
+  haptic,
+  isInTelegram,
+  openTelegram,
+  requestContact,
+} from "../lib/telegram";
 
 const NAME = /^[\p{L}'ʻʼ‘’\- ]{2,40}$/u;
 const MAX_AGE = 100;
@@ -31,23 +38,42 @@ export function ContactScreen({ prizeName }: { prizeName: string }) {
     return () => window.clearInterval(id);
   }, [phase, queryClient]);
 
+  // Veb-saytda raqam bot chatida ulashiladi: t.me/<bot>?start=web.
+  const auth = useQuery({
+    queryKey: ["auth-config"],
+    queryFn: api.getAuthConfig,
+    enabled: !isInTelegram,
+  });
+
   const share = async () => {
     haptic.tap();
+    // Mock rejimda bot yo'q — raqam kelganini o'zimiz taqlid qilamiz.
+    if (api.mockControls) {
+      setPhase("waiting");
+      await api.mockControls.shareContact();
+      await queryClient.invalidateQueries({ queryKey: ["me"] });
+      return;
+    }
+    if (!isInTelegram) {
+      const bot = auth.data?.botUsername;
+      if (!bot) {
+        setPhase("unsupported");
+        return;
+      }
+      openTelegram(botLink(bot, "web"));
+      setPhase("waiting");
+      return;
+    }
     const result = await requestContact();
     if (result === false) {
       setPhase("declined");
       return;
     }
-    if (result === null && !api.mockControls) {
+    if (result === null) {
       setPhase("unsupported");
       return;
     }
     setPhase("waiting");
-    // Mock rejimda bot yo'q — raqam kelganini o'zimiz taqlid qilamiz.
-    if (api.mockControls) {
-      await api.mockControls.shareContact();
-      await queryClient.invalidateQueries({ queryKey: ["me"] });
-    }
   };
 
   const note =
@@ -55,7 +81,11 @@ export function ContactScreen({ prizeName }: { prizeName: string }) {
       ? t.contactDeclined
       : phase === "unsupported"
         ? t.contactUnsupported
-        : t.shareContactHint;
+        : !isInTelegram && phase === "waiting"
+          ? t.contactWebWaiting
+          : isInTelegram
+            ? t.shareContactHint
+            : t.shareContactWebHint;
 
   return (
     <main className="flex min-h-dvh flex-col gap-4 px-5 pt-[calc(var(--safe-top)+12px)] pb-[calc(var(--safe-bottom)+16px)]">
@@ -64,11 +94,12 @@ export function ContactScreen({ prizeName }: { prizeName: string }) {
         {note}
       </p>
       <PillButton
-        loading={phase === "waiting"}
+        // Vebda kutish paytida ham bosish mumkin — chat yopilib qolsa, qayta ochish uchun.
+        loading={phase === "waiting" && isInTelegram}
         onClick={() => void share()}
-        icon={<Phone className="size-5" />}
+        icon={isInTelegram ? <Phone className="size-5" /> : <Send className="size-5" />}
       >
-        {t.shareContact}
+        {isInTelegram ? t.shareContact : t.shareContactViaBot}
       </PillButton>
     </main>
   );

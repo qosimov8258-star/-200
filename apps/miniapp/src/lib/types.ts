@@ -8,7 +8,11 @@
 /** Sana "YYYY-MM-DD" — tanlov kuni (Asia/Tashkent). */
 export type IsoDate = string;
 
-export type ReelStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "REMOVED";
+/**
+ * PENDING — avtomatik tekshiruv; ACCEPTED — reytingda; MANUAL_REVIEW — Instagram'da
+ * 3 marta topilmadi, admin qo'lda tekshiradi; REJECTED — rad etilgan (yangi link yuborish mumkin).
+ */
+export type ReelStatus = "PENDING" | "ACCEPTED" | "MANUAL_REVIEW" | "REJECTED";
 
 /**
  * Ishtirokchining ro'yxatdan o'tish bosqichi. Bosqichlar ketma-ket:
@@ -105,6 +109,28 @@ export interface MyReel {
   /** So'nggi kunlar, eskidan yangiga. */
   daily: DailyViews[];
   lastSyncedAt: string | null;
+  /** Keyingi rejadagi yangilanish (UTC ISO); rejada yo'q bo'lsa — null. */
+  nextSyncAt: string | null;
+  /** Ko'rishlar necha kunda bir yangilanadi (0 — jadval yo'q). */
+  syncEveryDays: number;
+}
+
+/** Saytning kirish sahifasi uchun ochiq sozlamalar (GET /auth/config). */
+export interface AuthConfig {
+  /** Login Widget va "Botda ochish" havolasi uchun; sozlanmagan bo'lsa — null. */
+  botUsername: string | null;
+  prizeName: string;
+}
+
+/** Telegram Login Widget `onauth` qaytaradigan obyekt — backendga o'zgartirmasdan yuboriladi. */
+export interface TelegramLoginUser {
+  id: number;
+  first_name: string;
+  last_name?: string;
+  username?: string;
+  photo_url?: string;
+  auth_date: number;
+  hash: string;
 }
 
 export interface Winner {
@@ -124,3 +150,45 @@ export type ApiErrorCode =
   | "RULES_OUTDATED"
   | "UNAUTHORIZED"
   | "SERVER";
+
+/** Asosiy sovrin toifasi (aksiya yakunida, jami ko'rishlar bo'yicha). */
+export type PrizeTierKind = "tablet" | "phone" | "travel" | "car";
+
+export interface PrizeTier {
+  kind: PrizeTierKind;
+  /** "Planshet", "iPhone 18 Pro"… */
+  title: string;
+  quantity: number;
+  /** Miqdor birligi ("yo'llanma"); null — oddiy "ta". */
+  unit: string | null;
+  minViews: number;
+  /** null — "va undan ko'p". */
+  maxViews: number | null;
+}
+
+/** Har oylik sovrin (voucher), g'oliblar tasodifiy tanlanadi. */
+export interface MonthlyPrize {
+  title: string;
+  /** Bitta voucher qiymati, so'm. */
+  amount: number;
+  perMonth: number;
+  total: number;
+  /** Oy davomida shu oraliqda ko'rish yig'ganlar qatnashadi. */
+  minViews: number;
+  maxViews: number;
+}
+
+/** Oylik o'yin bosqichi; sanalar Asia/Tashkent bo'yicha, ikkalasi ham kiradi. */
+export interface PrizeStage {
+  startsOn: IsoDate;
+  endsOn: IsoDate;
+}
+
+export interface ContestPrizes {
+  monthly: MonthlyPrize;
+  stages: PrizeStage[];
+  /** Arzonidan qimmatiga. */
+  tiers: PrizeTier[];
+  /** "Muhim" bandlari. */
+  notes: string[];
+}

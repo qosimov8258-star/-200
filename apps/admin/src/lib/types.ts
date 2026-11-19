@@ -181,6 +181,72 @@ export interface TargetActionRequest {
 }
 
 // ---------------------------------------------------------------------------
+// Qo'lda tekshiruv — Apify videoni ketma-ket 3 marta topa olmaganda
+// (backend: `apps/backend/src/admin/admin-manual-review.controller.ts`)
+// ---------------------------------------------------------------------------
+
+/**
+ * NEW_REEL — yangi yuborilgan video hali qabul qilinmagan;
+ * LOST_REEL — avval qabul qilingan video endi topilmayapti (reytingdan vaqtincha chiqqan).
+ */
+export type ManualReviewKind = "NEW_REEL" | "LOST_REEL";
+
+/** OPEN — admin qarorini kutmoqda. */
+export type ManualReviewStatus = "OPEN" | "APPROVED" | "REJECTED";
+
+/** Rad etish sababi — ishtirokchiga bot orqali shunga mos matn yuboriladi. */
+export type ManualReviewRejectReason = "NOT_FOUND" | "NOT_A_VIDEO" | "OWNER_TAKEN";
+
+export interface ManualReviewListQuery {
+  status?: ManualReviewStatus;
+  /** Ism, telefon, shortcode yoki @instagram bo'yicha. */
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface ManualReviewItem {
+  /** Reel shortcode. */
+  id: string;
+  participant: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+    status: ParticipantStatus;
+  };
+  reelUrl: string;
+  shortcode: string;
+  kind: ManualReviewKind;
+  /** Qo'lda tekshiruvga o'tgunga qadar avtomatik urinishlar soni. */
+  attempts: number;
+  /** Qo'lda tekshiruvga o'tgan vaqt (UTC ISO). */
+  requestedAt: string;
+  /** Video yuborilgan vaqt (UTC ISO). */
+  submittedAt: string;
+  /** Avval qabul qilingan videoning oxirgi ma'lum ko'rishlari; yangi videoda — null. */
+  lastViews: number | null;
+  /** Instagram akkaunt (Apify avval topgan bo'lsa); noma'lum — null. */
+  owner: string | null;
+  status: ManualReviewStatus;
+  /** `by: "Avtomatik"` — Apify keyingi yig'ishda videoni o'zi topgan. */
+  decision: {
+    at: string;
+    by: string;
+    reason: ManualReviewRejectReason | null;
+    note: string;
+  } | null;
+}
+
+export interface ManualReviewListResponse extends Paginated<ManualReviewItem> {
+  statusCounts: Record<ManualReviewStatus | "ALL", number>;
+}
+
+export type ManualReviewDecisionRequest =
+  | { decision: "approve"; note?: string }
+  | { decision: "reject"; reason: ManualReviewRejectReason; note?: string };
+
+// ---------------------------------------------------------------------------
 // Sozlamalar (TZ 6-bo'lim: tanlov muddati, qoidalar matni, yangilanish vaqti, minimal yosh)
 // ---------------------------------------------------------------------------
 
@@ -286,6 +352,171 @@ export interface PrizeImageUpload {
 }
 
 // ---------------------------------------------------------------------------
+// Random tanlov — oylik voucher g'oliblari (Aksiya qoidalari: tasodifiy tanlov)
+// ---------------------------------------------------------------------------
+
+/** Oylik bosqich; ikkala chegara ham kiradi (Asia/Tashkent). */
+export interface DrawStage {
+  /** 1 dan boshlanadi. */
+  index: number;
+  startsOn: IsoDate;
+  endsOn: IsoDate;
+  /** Bosqich tugaganmi (bugun `endsOn` dan keyin). */
+  finished: boolean;
+}
+
+/** Reel qaysi sana bo'yicha davrga tegishli deb olinadi. */
+export type DrawDateBasis = "POSTED" | "SUBMITTED";
+
+export interface DrawSettings {
+  /** Oylik (MONTHLY) sovg'a. */
+  prizeId: string;
+  /** Bosqich raqami; null — qo'lda kiritilgan davr. */
+  stage: number | null;
+  periodFrom: IsoDate;
+  periodTo: IsoDate;
+  /** POSTED — Instagram'da joylangan sana; SUBMITTED — ilovaga yuborilgan sana. */
+  dateBasis: DrawDateBasis;
+  /** Tasdiqlangan ko'rishlar oralig'i (ikkala chegara ham kiradi). */
+  minViews: number;
+  maxViews: number;
+  winnersCount: number;
+  /** Zaxira: g'olib chetlatilsa, navbatdagi zaxira g'olib bo'ladi. */
+  reservesCount: number;
+  /** Ogohlantirilgan (WARNED) ishtirokchilar qatnashmaydi. */
+  excludeWarned: boolean;
+  /** Target (pullik reklama) aniqlanganlar qatnashmaydi. */
+  excludeTargets: boolean;
+  /** Shu sovg'ani oldingi bosqichlarda yutganlar qatnashmaydi. */
+  excludePreviousWinners: boolean;
+  /** G'oliblarga bot xabari; `{ism}`, `{sovrin}` kabi o'rinbosarlar bilan. */
+  messageTemplate: string;
+}
+
+export interface DrawPlaceholder {
+  /** Masalan "{ism}". */
+  token: string;
+  label: string;
+}
+
+export interface DrawSetup {
+  today: IsoDate;
+  stages: DrawStage[];
+  /** Oylik sovg'alar (random tanlov faqat ular uchun). */
+  prizes: Array<Pick<Prize, "id" | "title" | "quantity" | "minViews" | "maxViews">>;
+  /** Joriy (yoki eng oxirgi tugagan) bosqich va birinchi oylik sovg'a bo'yicha boshlang'ich sozlamalar. */
+  defaults: DrawSettings;
+  placeholders: DrawPlaceholder[];
+}
+
+/** Nomzod nega tanlovga kirmadi — birinchi to'g'ri kelgan sabab bo'yicha sanaladi. */
+export type DrawExclusion =
+  | "NOT_ACCEPTED"
+  | "OUT_OF_PERIOD"
+  | "VIEWS_LOW"
+  | "VIEWS_HIGH"
+  | "STATUS"
+  | "WARNED"
+  | "TARGET"
+  | "PREVIOUS_WINNER";
+
+export interface DrawCandidate {
+  participantId: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  instagramUsername: string | null;
+  reelUrl: string;
+  /** `viewsAsOf` kunidagi tasdiqlangan ko'rishlar. */
+  views: number;
+  postedOn: IsoDate;
+  submittedOn: IsoDate;
+}
+
+export interface DrawPreview {
+  /** Ko'rishlar qaysi kun holatida olinadi: davr oxiri (tugamagan bo'lsa — bugun). */
+  viewsAsOf: IsoDate;
+  /** Tekshirilgan Reellar soni. */
+  totalReels: number;
+  eligibleCount: number;
+  excluded: Record<DrawExclusion, number>;
+  /** Nomzodlar ro'yxatining xeshi — natijani keyin qayta tekshirish uchun. */
+  poolHash: string;
+  /** Eng ko'p ko'rishli nomzodlar (namuna). */
+  sample: DrawCandidate[];
+  /** Ogohlantirishlar (bosqich tugamagan, nomzod kam va h.k.). */
+  warnings: string[];
+}
+
+/** DRAFT → CONFIRMED → SENT; DRAFT yoki CONFIRMED bekor qilinishi mumkin. */
+export type DrawStatus = "DRAFT" | "CONFIRMED" | "SENT" | "CANCELLED";
+
+/** G'olib: ACTIVE yoki REPLACED (chetlatilgan). Zaxira: ACTIVE yoki PROMOTED (g'olib bo'lgan). */
+export type DrawEntryState = "ACTIVE" | "REPLACED" | "PROMOTED";
+
+export type DrawNotifyStatus = "NOT_SENT" | "SENT" | "FAILED";
+
+export interface DrawEntry {
+  /** G'oliblar va zaxira ichidagi tartib raqami (1 dan). */
+  position: number;
+  state: DrawEntryState;
+  candidate: DrawCandidate;
+  /** Chetlatilgan g'olib: kim, qachon, nega va o'rniga kim. */
+  replaced: { at: string; by: string; reason: string; replacementId: string } | null;
+  /** Zaxiradan ko'tarilgan g'olib — kimning o'rniga. */
+  promotedFor: string | null;
+  notify: { status: DrawNotifyStatus; at: string | null; error: string | null };
+}
+
+export interface DrawDelivery {
+  sent: number;
+  failed: number;
+  notSent: number;
+}
+
+export interface VoucherDrawSummary {
+  id: string;
+  /** Tartib raqami (#1, #2…). */
+  number: number;
+  prizeTitle: string;
+  stage: number | null;
+  periodFrom: IsoDate;
+  periodTo: IsoDate;
+  status: DrawStatus;
+  /** Faol g'oliblar soni. */
+  winners: number;
+  /** Ishlatilmagan zaxira soni. */
+  reserves: number;
+  poolSize: number;
+  createdAt: string;
+  createdBy: string;
+  delivery: DrawDelivery;
+}
+
+export interface VoucherDraw extends VoucherDrawSummary {
+  settings: DrawSettings;
+  viewsAsOf: IsoDate;
+  /** Tasodifiy kalit: nomzodlar ro'yxati va shu kalit bilan natijani qayta hisoblash mumkin. */
+  seed: string;
+  poolHash: string;
+  winnerEntries: DrawEntry[];
+  reserveEntries: DrawEntry[];
+  confirmed: { at: string; by: string } | null;
+  sent: { at: string; by: string } | null;
+  cancelled: { at: string; by: string; reason: string } | null;
+}
+
+export interface DrawReplaceRequest {
+  participantId: string;
+  /** Audit logga yoziladi. */
+  reason: string;
+}
+
+export interface DrawCancelRequest {
+  reason: string;
+}
+
+// ---------------------------------------------------------------------------
 // Audit log (TZ 2-bo'lim: barcha Admin va Support harakatlari — kim, nima, qachon)
 // ---------------------------------------------------------------------------
 
@@ -298,6 +529,7 @@ export type AuditEntity =
   | "winner"
   | "settings"
   | "prize"
+  | "voucher_draw"
   | "auth";
 
 export interface AuditLogQuery {

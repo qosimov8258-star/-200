@@ -10,9 +10,11 @@ import type {
   AuditEntity,
   ContestRules,
   ContestSettingsUpdate,
+  ManualReviewRejectReason,
   ParticipantStatus,
   Prize,
   SupportTicketStatus,
+  VoucherDraw,
   TargetCaseStatus,
 } from "../types";
 import type { MockSupportMessage } from "./contest";
@@ -45,6 +47,8 @@ export interface MockStore {
   ticketReplies: Record<string, MockSupportMessage[]>;
   /** Target holati id -> admin qarori. */
   targetCaseStatus: Record<string, TargetCaseStatus>;
+  /** Qo'lda tekshiruv (Reel shortcode) -> admin qarori. */
+  manualReviews: Record<string, MockManualDecision>;
   /** Telegram xabari id -> qayta yuborishlar. */
   telegramResends: Record<string, { attempts: number; lastSentAt: string }>;
   winner: MockWinnerState;
@@ -54,7 +58,17 @@ export interface MockStore {
   rules: ContestRules | null;
   /** Admin o'zgartirgan sovg'alar ro'yxati; null — boshlang'ich ro'yxat (`prizes.ts`). */
   prizes: Prize[] | null;
+  /** Oylik voucherlar uchun o'tkazilgan random tanlovlar. */
+  draws: VoucherDraw[];
   audit: MockAuditEntry[];
+}
+
+export interface MockManualDecision {
+  approved: boolean;
+  reason: ManualReviewRejectReason | null;
+  note: string;
+  at: string;
+  by: string;
 }
 
 export interface MockSettingsOverride extends ContestSettingsUpdate {
@@ -83,6 +97,7 @@ function emptyStore(): MockStore {
     ticketStatusChangedAt: {},
     ticketReplies: {},
     targetCaseStatus: {},
+    manualReviews: {},
     telegramResends: {},
     winner: {
       contestEnded: false,
@@ -94,6 +109,7 @@ function emptyStore(): MockStore {
     settings: null,
     rules: null,
     prizes: null,
+    draws: [],
     audit: [],
   };
 }

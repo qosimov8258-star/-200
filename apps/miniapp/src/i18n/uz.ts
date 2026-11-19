@@ -20,6 +20,21 @@ export const t = {
   contactDeclined: "Raqamsiz ro'yxatdan o'tib bo'lmaydi. Qayta urinib ko'ring.",
   contactUnsupported:
     "Telegram ilovangizni yangilang yoki bot chatidagi «Raqamni ulashish» tugmasini bosing.",
+  shareContactViaBot: "Botda raqamni ulashish",
+  shareContactWebHint:
+    "Raqam Telegram bot orqali ulashiladi: tugmani bosing, ochilgan chatda «Raqamni ulashish» ni tanlang va shu sahifaga qayting. Bitta raqam — bitta ishtirokchi.",
+  contactWebWaiting: "Telegram'da raqamni ulashgach, sahifa o'zi yangilanadi…",
+
+  // Veb-sayt: kirish
+  webLoginTitle: "Saytga kirish",
+  webLoginBody:
+    "Telegram akkauntingiz orqali kiring — parol yoki SMS kerak emas. Botda va saytda akkauntingiz bitta, ma'lumotlar bir xil.",
+  webLoginFailed: "Kirib bo'lmadi. Qayta urinib ko'ring.",
+  webLoginNotConfigured: "Saytga kirish hali sozlanmagan. Tanlovda Telegram bot orqali qatnashing.",
+  webLoginMock: "Telegram orqali kirish (sinov)",
+  webOpenBot: "Telegram'da botni ochish",
+  webLogout: "Saytdan chiqish",
+  supportWebHint: "Support Telegram botda — ochilgan chatga savolingizni yozing.",
 
   // Ro'yxatdan o'tish
   registerTitle: "Ro'yxatdan o'tish",
@@ -47,6 +62,12 @@ export const t = {
   navRating: "Reyting",
   navReel: "Videom",
   navProfile: "Profil",
+  navMore: "Ko'proq",
+  navPrizes: "Sovg'alar",
+  moreClose: "Yopish",
+  morePrizesHint: "Voucherlar va asosiy sovrinlar",
+  moreRulesHint: "Ishtirok shartlari",
+  moreWinnerHint: "Tanlov natijasi",
 
   // Reyting
   greeting: (name: string) => `Salom, ${name}`,
@@ -96,7 +117,7 @@ export const t = {
   statusPending: "Tekshirilmoqda",
   statusAccepted: "Qabul qilingan",
   statusRejected: "Rad etilgan",
-  statusRemoved: "O'chirilgan",
+  statusManualReview: "Qo'lda tekshirilmoqda",
   pendingNote:
     "Video Instagram'da tekshirilmoqda — odatda bir necha daqiqa. Natijani bot ham xabar qiladi.",
   rejectedNote: "Video rad etildi. Savollar bo'lsa, bot orqali supportga yozing.",
@@ -107,16 +128,34 @@ export const t = {
     OWNER_TAKEN:
       "Bu Instagram akkauntdan boshqa ishtirokchi video yuborgan. Bitta akkaunt — bitta ishtirokchi. Xato bo'lsa, supportga yozing.",
   },
-  removedNote:
-    "Video Instagram'da topilmadi va reytingdan vaqtincha chiqarildi. Video ochiqligini tekshiring.",
+  manualReviewNote:
+    "Videongizni Instagram'da 3 marta topa olmadik, shuning uchun uni administrator qo'lda tekshiradi. Natijani bot orqali xabar qilamiz. Shu orada akkauntingiz ochiq (yopiq emas) va video o'chirilmaganini tekshiring.",
   statTotal: "Jami ko'rishlar",
-  statToday: "Bugungi o'sish",
+  statToday: "Oxirgi o'sish",
   statRank: "Reytingdagi o'rin",
   statRankDelta: "O'rin o'zgarishi",
   noChange: "o'zgarishsiz",
-  chartTitle: "Kunlik ko'rishlar",
-  chartSubtitle: "So'nggi 7 kun",
-  lastSynced: (time: string) => `Oxirgi yangilanish: ${time}`,
+  chartTitle: "Ko'rishlar o'sishi",
+  chartSubtitle: "Har bir yangilanishda qo'shilgan ko'rishlar",
+  lastSyncedLabel: "Oxirgi yangilanish",
+  nextSyncLabel: "Keyingi yangilanish",
+  syncEvery: (days: number) =>
+    days === 1 ? "Ko'rishlar har kuni yangilanadi" : `Ko'rishlar har ${days} kunda yangilanadi`,
+  inDays: (days: number) => (days <= 0 ? "bugun" : days === 1 ? "ertaga" : `${days} kundan keyin`),
+  months: [
+    "yanvar",
+    "fevral",
+    "mart",
+    "aprel",
+    "may",
+    "iyun",
+    "iyul",
+    "avgust",
+    "sentabr",
+    "oktabr",
+    "noyabr",
+    "dekabr",
+  ],
 
   // Profil
   profileTitle: "Profil",
@@ -146,6 +185,51 @@ export const t = {
   disqualifiedTitle: "Tanlovdan chetlatilgansiz",
   disqualifiedBody:
     "Tanlov qoidalari buzilgani sababli ishtirokingiz bekor qilindi. Savollar bo'lsa, bot orqali supportga yozing.",
+
+  // Sovg'alar
+  prizesTitle: "Sovg'alar",
+  prizesSubtitle: "Ko'rish yig'ing — sovrinlarni oling",
+  fundLabel: "Sovrin fondi",
+  fundTotal: "ta sovrin",
+  fundBody: "Har oy voucherlar o'ynaladi, aksiya yakunida esa asosiy sovrinlar topshiriladi.",
+  monthlyTag: "Har oylik sovrin",
+  sum: "so'm",
+  perMonth: "har oy",
+  totalPieces: "jami",
+  randomDraw: "Tasodifiy tanlov",
+  monthlyWho: (min: string, max: string) =>
+    `Oy davomida Reellari ${min} dan ${max} gacha tasdiqlangan ko'rish yig'gan ishtirokchilar qatnashadi`,
+  monthlyDraw: "G'oliblar tasodifiy tanlov (random) orqali aniqlanadi",
+  stagesTitle: "Bosqichlar",
+  stageLabel: (n: number) => `${n}-bosqich`,
+  stageNow: "Hozir",
+  stageDone: "Yakunlangan",
+  stageSoon: "Kutilmoqda",
+  stageStartsIn: (n: number, days: number) =>
+    days === 0 ? `${n}-bosqich bugun boshlanadi` : `${n}-bosqich ${days} kundan keyin boshlanadi`,
+  stageEndsIn: (n: number, days: number) =>
+    days === 0 ? `${n}-bosqichning oxirgi kuni` : `${n}-bosqich davom etmoqda — tugashiga ${days} kun`,
+  stagesFinished: "Barcha bosqichlar yakunlandi",
+  mainTitle: "Asosiy sovrinlar",
+  mainSubtitle: "Aksiya yakunida — barcha Reellaringizning umumiy ko'rishlari bo'yicha",
+  mainPrize: "Bosh sovrin",
+  viewsWord: "ko'rish",
+  andMore: "va undan ko'p",
+  pieces: (n: number, unit: string | null) => `${n} ta${unit ? ` ${unit}` : ""}`,
+  tierWinners: (n: number) =>
+    n === 1
+      ? "Toifada eng ko'p ko'rish yig'gan ishtirokchi yutadi"
+      : `Toifada eng ko'p ko'rish yig'gan ${n} kishi yutadi`,
+  youAreHere: "Siz shu yerdasiz",
+  tierReached: "Erishildi",
+  viewsLeft: (n: string) => `yana ${n} ko'rish`,
+  startLabel: "Sizning ko'rishlaringiz",
+  startNoReel: "Video yuboring — ko'rishlaringiz shu yerda hisoblanadi",
+  startSendVideo: "Video yuborish",
+  startNext: (title: string, left: string) => `Keyingi sovrin — ${title}: yana ${left} ko'rish`,
+  startTop: "Siz eng yuqori toifadasiz!",
+  notesTitle: "Muhim",
+  goodLuck: "Omad!",
 
   // Dev
   devBanner: "Dev rejim: Telegram'dan tashqarida, soxta ma'lumotlar",
