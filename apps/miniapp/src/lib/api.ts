@@ -57,7 +57,17 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     }
     throw new ApiError(code);
   }
-  return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
+  if (response.status === 204) return undefined as T;
+  // NestJS `null` qaytargan endpoint uchun 200 va bo'sh tana yuboradi (GET /miniapp/reel —
+  // video hali yo'q, GET /miniapp/winner — g'olib e'lon qilinmagan). Bo'sh tana — null;
+  // `response.json()` uni o'qiy olmay "Ma'lumotni yuklab bo'lmadi" ko'rsatardi.
+  const text = await response.text();
+  if (!text) return null as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new ApiError("SERVER", "Invalid JSON");
+  }
 }
 
 /** @endpoint GET /miniapp/me */
