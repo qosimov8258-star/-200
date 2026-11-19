@@ -26,7 +26,6 @@ export const t = {
   contactWebWaiting: "Telegram'da raqamni ulashgach, sahifa o'zi yangilanadi…",
 
   // Veb-sayt: kirish
-  webLoginTitle: "Saytga kirish",
   webLoginBody:
     "Telegram akkauntingiz orqali kiring — parol yoki SMS kerak emas. Botda va saytda akkauntingiz bitta, ma'lumotlar bir xil.",
   webLoginFailed: "Kirib bo'lmadi. Qayta urinib ko'ring.",
@@ -34,6 +33,22 @@ export const t = {
   webLoginMock: "Telegram orqali kirish (sinov)",
   webOpenBot: "Telegram'da botni ochish",
   webLogout: "Saytdan chiqish",
+  logoutConfirmTitle: "Saytdan chiqasizmi?",
+  logoutConfirmBody:
+    "Hisobingiz va ko'rishlaringiz saqlanib qoladi. Qaytish uchun yana Telegram orqali kirasiz — sovg'alar sizni kutadi.",
+  logoutStay: "Qolaman",
+  logoutLeave: "Ha, chiqish",
+
+  // Veb-sayt: ro'yxatdan o'tmagan mehmon (bosh sahifani ko'radi, qatnashish uchun "Profil" da kiradi)
+  guestName: "Mehmon",
+  guestStatus: "Hali ro'yxatdan o'tmagansiz",
+  guestJoinTitle: "Ro'yxatdan o'tish",
+  guestJoinCta: "Ro'yxatdan o'tish",
+  guestReelTitle: "Videongizni yuborish uchun ro'yxatdan o'ting",
+  guestReelBody:
+    "Telegram orqali kiring — parol yoki SMS kerak emas. Keyin Reel linkini yuborasiz va ko'rishlaringiz reytingga qo'shiladi.",
+  guestReportTitle: "Xabar yuborish uchun ro'yxatdan o'ting",
+  guestReportBody: "Reklama haqida faqat tanlov ishtirokchilari xabar bera oladi. Telegram orqali kirish bir daqiqa oladi.",
   supportWebHint: "Support Telegram botda — ochilgan chatga savolingizni yozing.",
 
   // Ro'yxatdan o'tish
@@ -52,6 +67,9 @@ export const t = {
 
   // Qoidalar
   rulesTitle: "Tanlov qoidalari",
+  rulesHeroBadge: "Rasmiy shartlar",
+  rulesHeroBody: "Qishki Olivia tanlovida qatnashish va sovg'a yutish shartlari. Video yuborishdan oldin o'qib chiqing 🎄",
+  rulesSectionsCount: (n: number) => `${n} ta bo'lim`,
   rulesAgree: "Qoidalar bilan tanishdim va ularga roziman",
   rulesUpdatedTitle: "Qoidalar yangilandi",
   rulesUpdatedBody:
@@ -59,6 +77,7 @@ export const t = {
   rulesStale: "Qoidalar hozirgina yana yangilandi. Iltimos, qaytadan ko'rib chiqing.",
 
   // Navigatsiya
+  navHome: "Asosiy",
   navRating: "Reyting",
   navReel: "Videom",
   navProfile: "Profil",
@@ -70,8 +89,21 @@ export const t = {
   moreWinnerHint: "Tanlov natijasi",
 
   // Reyting
-  greeting: (name: string) => `Salom, ${name}`,
-  welcome: "Tanlovga xush kelibsiz",
+  greetingByTime: { morning: "Xayrli tong", day: "Xayrli kun", evening: "Xayrli kech" },
+  /** Ism ostida almashib turadigan satrlar. */
+  homeTaglines: [
+    "Tanlovga xush kelibsiz",
+    "Yangi yil sovg'alari kutmoqda 🎁",
+    "Ko'rishlar sovg'aga aylanadi ✨",
+    "Bosh sovrin — avtomobil 🚗",
+  ],
+  homeStartedTitle: "tanlovi boshlandi! 🎉",
+  homeStartedBody: "Mahsulotimiz haqida Reels joylang, ko'rishlar yig'ing va qimmatbaho sovg'alarni yuting.",
+  homeDaysLeft: (days: number) => `${days} kun qoldi`,
+  homeJoin: "Ishtirok etish",
+  homePrizesTitle: "Sovg'alar",
+  homeAllPrizes: "Batafsil",
+  homeVoucherCount: (perMonth: number, total: number) => `Har oy ${perMonth} ta · jami ${total} ta`,
   daysLeft: (days: number) => `Tanlov tugashiga ${days} kun qoldi`,
   contestFinished: "Tanlov yakunlandi",
   ratingTitle: "Reyting",
@@ -159,10 +191,35 @@ export const t = {
 
   // Profil
   profileTitle: "Profil",
+  profileRole: "Tanlov ishtirokchisi",
+  profileWish: "Yangi yil muborak!",
+  profileStatRank: "O'rin",
+  profileStatViews: "Ko'rish",
+  profileStatDays: "Kun qoldi",
+  profileFooter: "Yangi yilingiz omadli kelsin! — Olivia jamoasi",
+  profileDevTeam: "Dasturchilar jamoasi:",
   phone: "Telefon",
   profileLocked:
     "Ism, familiya va yosh ro'yxatdan o'tishda bir marta kiritiladi va o'zgartirilmaydi.",
   menuSupport: "Supportga yozish",
+  supportTitle: "Support",
+  supportIntroTitle: "Savolingiz bormi? Yozing!",
+  supportIntroBody:
+    "Operatorlarimiz ish vaqtida javob beradi. Javob shu yerda va Telegram botda ham keladi — ilovadan ham, saytdan ham yozishingiz mumkin.",
+  supportEmpty: "Hali yozishma yo'q. Savolingizni pastda yozing ❄️",
+  supportOperator: "Operator",
+  supportTyping: "yozmoqda…",
+  supportPlaceholder: "Savolingizni yozing…",
+  supportSend: "Yuborish",
+  supportErrorInvalid: "Xabar bo'sh yoki juda uzun (1000 belgigacha).",
+  supportErrorLimit: "Juda ko'p xabar yubordingiz — 10 daqiqadan keyin qayta urinib ko'ring.",
+  supportDraftField: (field: string) =>
+    `Assalomu alaykum! Profilimdagi «${field}» noto'g'ri kiritilgan. To'g'risi: `,
+  lockedTitle: (field: string) => `«${field}» o'zgartirilmaydi`,
+  lockedBody:
+    "Ism, familiya va yosh ro'yxatdan o'tishda bir marta kiritiladi va keyin o'zgartirib bo'lmaydi. Xato kiritilgan bo'lsa, supportga yozing — operator tekshirib, to'g'rilab beradi.",
+  lockedWriteSupport: "Supportga yozish",
+  lockedClose: "Yopish",
   menuRules: "Tanlov qoidalari",
   menuWinner: "G'olib",
   supportHint:
@@ -178,6 +235,10 @@ export const t = {
   winnerCongrats: "Tabriklaymiz!",
   winnerPrize: "Avtomobil sohibi",
   winnerAnnounced: (date: string) => `E'lon qilingan: ${date}`,
+  winnerCountdown: "Tanlov tugashiga",
+  winnerUnitDays: "kun",
+  winnerUnitHours: "soat",
+  winnerUnitMinutes: "daqiqa",
 
   // Holatlar
   blockedTitle: "Ishtirok to'xtatilgan",

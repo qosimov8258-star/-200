@@ -7,9 +7,7 @@ import {
   Check,
   Crown,
   Dices,
-  Flag,
   Info,
-  Lock,
   Plane,
   ShoppingCart,
   Smartphone,
@@ -21,6 +19,7 @@ import {
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
 import { SoapIcon } from "../components/SoapIcon";
+import { Snowfall } from "../components/Snowfall";
 import { Card, ErrorBlock, PageHeader, Spinner } from "../components/ui";
 import { t } from "../i18n/uz";
 import * as api from "../lib/api";
@@ -60,9 +59,10 @@ const TIER_STYLE: Record<
 
 const rise = (i: number): CSSProperties => ({ animationDelay: `${i * 80}ms` });
 
-export function PrizesScreen({ onOpenReel }: { onOpenReel: () => void }) {
+export function PrizesScreen({ onOpenReel, guest = false }: { onOpenReel: () => void; guest?: boolean }) {
   const prizes = useQuery({ queryKey: ["prizes"], queryFn: api.getPrizes });
-  const reel = useQuery({ queryKey: ["reel"], queryFn: api.getMyReel });
+  // Mehmonning videosi yo'q — so'ralmaydi (aks holda 401).
+  const reel = useQuery({ queryKey: ["reel"], queryFn: api.getMyReel, enabled: !guest });
 
   return (
     <div className="space-y-6">
@@ -79,7 +79,7 @@ export function PrizesScreen({ onOpenReel }: { onOpenReel: () => void }) {
             tiers={prizes.data.tiers}
             // Reytingga faqat qabul qilingan video kiradi; video yo'q bo'lsa — null.
             views={reel.data ? (reel.data.status === "ACCEPTED" ? reel.data.totalViews : 0) : null}
-            loading={reel.isPending}
+            loading={!guest && reel.isPending}
             onOpenReel={onOpenReel}
             style={rise(2)}
           />
@@ -141,6 +141,7 @@ function FundHero({ prizes, style }: { prizes: ContestPrizes; style: CSSProperti
       />
       <div aria-hidden className="absolute top-10 right-8 -z-10 size-28 animate-float rounded-full bg-[#22c1ad]/30 blur-2xl [animation-delay:-2s]" />
       <Sparkles aria-hidden className="absolute top-5 right-5 size-5 animate-pulse text-gold" />
+      <Snowfall density={0.8} />
 
       <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[12px] font-semibold tracking-wide text-white/85 uppercase backdrop-blur">
         <Sparkles className="size-3.5" />
@@ -354,7 +355,7 @@ function TierLadder({
   const v = views ?? 0;
   const next = tiers.find((tier) => tier.minViews > v) ?? null;
   // Yuqoridan pastga: avtomobil → … → planshet.
-  const rows = tiers.map((tier, i) => ({ tier, lower: i === 0 ? 0 : tiers[i - 1].minViews })).reverse();
+  const rows = [...tiers].reverse();
 
   return (
     <section className="animate-rise" style={style}>
@@ -362,10 +363,9 @@ function TierLadder({
       <p className="mt-1 text-[13px] text-muted">{t.mainSubtitle}</p>
 
       <ol className="mt-5 space-y-4">
-        {rows.map(({ tier, lower }) => {
+        {rows.map((tier) => {
           const reached = v >= tier.minViews;
           const current = reached && (tier.maxViews === null || v <= tier.maxViews);
-          const fill = Math.min(1, Math.max(0, (v - lower) / (tier.minViews - lower)));
           return (
             <TierRow
               key={tier.kind}
@@ -375,7 +375,6 @@ function TierLadder({
               isNext={next === tier}
               left={tier.minViews - v}
               views={v}
-              fill={fill}
             />
           );
         })}
@@ -392,7 +391,6 @@ function TierRow({
   isNext,
   left,
   views,
-  fill,
 }: {
   tier: PrizeTier;
   reached: boolean;
@@ -400,7 +398,6 @@ function TierRow({
   isNext: boolean;
   left: number;
   views: number;
-  fill: number;
 }) {
   const style = TIER_STYLE[tier.kind];
   const Icon = style.icon;
@@ -475,26 +472,8 @@ function TierRow({
   );
 
   return (
-    <li className="relative flex gap-3">
-      {/* Tugun va pastdagi tugungacha chiziq */}
-      <div className="relative w-10 shrink-0">
-        <span
-          className={clsx(
-            "relative z-10 grid size-10 place-items-center rounded-full border-[3px] border-bg transition",
-            reached ? clsx(style.node, "text-white") : "bg-surface text-muted",
-            current && "ring-4 ring-positive/25",
-          )}
-        >
-          {reached ? <Icon className="size-[18px]" strokeWidth={2.3} /> : <Lock className="size-4" strokeWidth={2.4} />}
-        </span>
-        <span aria-hidden className="absolute top-10 -bottom-4 left-1/2 w-[3px] -translate-x-1/2 overflow-hidden rounded-full bg-line">
-          <span
-            className="absolute inset-x-0 bottom-0 rounded-full bg-[linear-gradient(0deg,#1c9a5b,#e8b84a)] transition-[height] duration-700"
-            style={{ height: `${Math.round(fill * 100)}%` }}
-          />
-        </span>
-      </div>
-      <div className="min-w-0 flex-1">
+    <li>
+      <div className="min-w-0">
         {isCar ? (
           <div className="rounded-[24px] bg-[linear-gradient(135deg,#ffe2aa,#c8922a_45%,#ffe2aa)] p-[1.5px] shadow-[0_14px_30px_rgba(200,146,42,0.3)]">
             {card}
@@ -519,11 +498,8 @@ function StartRow({
   onOpenReel: () => void;
 }) {
   return (
-    <li className="relative flex gap-3">
-      <span className="relative z-10 grid size-10 shrink-0 place-items-center rounded-full border-[3px] border-bg bg-ink text-white">
-        <Flag className="size-[18px]" strokeWidth={2.3} />
-      </span>
-      <Card className="min-w-0 flex-1 rounded-[24px] p-4">
+    <li>
+      <Card className="min-w-0 rounded-[24px] p-4">
         <p className="text-[12.5px] font-medium text-muted">{t.startLabel}</p>
         {loading ? (
           <p className="mt-1 text-[28px] font-black text-muted">…</p>

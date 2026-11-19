@@ -133,6 +133,17 @@ export interface TelegramLoginUser {
   hash: string;
 }
 
+/** Support yozishmasi: ishtirokchi xabarlari va operator javoblari (eskisidan yangisiga). */
+export interface SupportMessage {
+  from: "PARTICIPANT" | "OPERATOR";
+  text: string;
+  createdAt: string;
+}
+
+export interface SupportThread {
+  messages: SupportMessage[];
+}
+
 export interface Winner {
   fullName: string;
   finalViews: number;
@@ -160,6 +171,10 @@ export type ApiErrorCode =
   | "REPORT_LIMIT"
   /** Skrinshot yaroqsiz (rasm emas yoki juda katta). */
   | "INVALID_IMAGE"
+  /** Support: xabar bo'sh yoki juda uzun. */
+  | "SUPPORT_INVALID"
+  /** Support: qisqa vaqtda juda ko'p xabar. */
+  | "SUPPORT_LIMIT"
   | "UNAUTHORIZED"
   | "SERVER";
 

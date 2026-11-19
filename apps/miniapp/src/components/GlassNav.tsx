@@ -3,6 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 
 import { haptic } from "../lib/telegram";
+import { SnowCap } from "./Ornaments";
 
 export interface GlassNavItem<K extends string> {
   key: K;
@@ -267,6 +268,8 @@ export function GlassNav<K extends string>({
           setDragX(null);
         }}
       >
+        {/* Qishki bezak: menyu ustiga qo'ngan qor. */}
+        <SnowCap className="absolute inset-x-10 -top-[10px] z-10 h-[16px] w-[calc(100%-5rem)] drop-shadow-[0_1px_1.5px_rgba(60,70,110,0.28)]" />
         {/* Oddiy (kattalashtirilmagan) ikonkalar va yozuvlar */}
         <div className="relative flex h-full px-[5px]">
           {items.map((item, i) => (

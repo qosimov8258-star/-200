@@ -1,7 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Check, Lock, Phone, Send } from "lucide-react";
+import { ArrowRight, Check, Lock, Phone, Send, Snowflake } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { GiftButton } from "../components/GiftButton";
 import { PrizeHero } from "../components/PrizeHero";
 import { Card, ErrorBlock, PillButton, Spinner, TextField } from "../components/ui";
 import { t } from "../i18n/uz";
@@ -94,6 +95,7 @@ export function ContactScreen({ prizeName }: { prizeName: string }) {
         {note}
       </p>
       <PillButton
+        className="mt-6"
         // Vebda kutish paytida ham bosish mumkin — chat yopilib qolsa, qayta ochish uchun.
         loading={phase === "waiting" && isInTelegram}
         onClick={() => void share()}
@@ -196,11 +198,27 @@ export function RegisterScreen({ minAge }: { minAge: number }) {
           enterKeyHint="done"
         />
         {serverError && <p className="px-1.5 text-[13px] text-negative">{serverError}</p>}
-        <PillButton type="submit" loading={loading} className="!mt-6" icon={<ArrowRight className="size-5" />}>
+        {/* Sovg'a qutisi ko'rinishidagi tugma — tepasidagi bantik uchun ko'proq joy. */}
+        <GiftButton type="submit" loading={loading} className="!mt-10" icon={<ArrowRight className="size-5" />}>
           {t.continue}
-        </PillButton>
+        </GiftButton>
       </form>
     </main>
+  );
+}
+
+/** Bo'lim raqami — oltin ilgichli qizil archa o'yinchog'i. */
+function Bauble({ label }: { label: string }) {
+  return (
+    <span
+      aria-hidden
+      className="relative mt-2 grid size-10 shrink-0 place-items-center rounded-full bg-[radial-gradient(circle_at_35%_30%,#ff9585,#e2372a_55%,#9c1b25)] text-[15px] font-bold text-white shadow-[0_6px_12px_-6px_rgba(173,31,44,0.8)]"
+    >
+      <span className="absolute -top-[7px] left-1/2 h-[7px] w-3.5 -translate-x-1/2 rounded-t-[3px] bg-[linear-gradient(90deg,#c8922a,#ffe2aa,#c8922a)]" />
+      <span className="absolute -top-[13px] left-1/2 size-[8px] -translate-x-1/2 rounded-full border-[1.5px] border-[#c8922a]" />
+      <span className="absolute top-[7px] left-[9px] h-2 w-1.5 -rotate-[30deg] rounded-full bg-white/60" />
+      {label}
+    </span>
   );
 }
 
@@ -241,18 +259,38 @@ export function RulesContent({ requireConsent = false }: { requireConsent?: bool
       ) : rules.isError ? (
         <ErrorBlock onRetry={() => void rules.refetch()} />
       ) : (
-        <Card className="space-y-[18px]">
-          {rules.data.sections.map((s) => (
-            <section key={s.title}>
-              <h2 className="font-semibold">{s.title}</h2>
-              <p className="mt-1.5 text-[15px] leading-relaxed whitespace-pre-line">{s.body}</p>
-            </section>
-          ))}
-        </Card>
+        <ol className="space-y-3">
+          {rules.data.sections.map((s, i) => {
+            // Sarlavha "1. Ishtirok etish" ko'rinishida keladi — raqam archa o'yinchog'iga chiqadi.
+            const match = /^(\d+)[.)]\s*(.+)$/.exec(s.title);
+            const number = match ? match[1] : String(i + 1);
+            const title = match ? match[2] : s.title;
+            return (
+              <li
+                key={s.title}
+                className="relative isolate animate-rise overflow-hidden rounded-card bg-surface p-5"
+                style={{ animationDelay: `${i * 70}ms` }}
+              >
+                <Snowflake
+                  aria-hidden
+                  className="absolute -top-5 -right-5 -z-10 size-28 text-[#df3425]/[0.07]"
+                  strokeWidth={1.3}
+                />
+                <div className="flex items-start gap-3.5">
+                  <Bauble label={number} />
+                  <div className="min-w-0 pt-1">
+                    <h2 className="text-[17px] leading-snug font-bold tracking-tight">{title}</h2>
+                    <p className="mt-1.5 text-[15px] leading-relaxed whitespace-pre-line text-ink/85">{s.body}</p>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
       )}
 
       {requireConsent && (
-        <div className="fixed inset-x-0 bottom-0 bg-gradient-to-t from-bg via-bg to-bg/0 px-5 pt-8 pb-[calc(var(--safe-bottom)+12px)]">
+        <div className="fixed inset-x-0 bottom-0 bg-gradient-to-t from-bg via-bg to-bg/0 px-5 pt-10 pb-[calc(var(--safe-bottom)+12px)]">
           <label className="mb-3 flex cursor-pointer items-center gap-3 px-1">
             <button
               type="button"
@@ -277,6 +315,7 @@ export function RulesContent({ requireConsent = false }: { requireConsent?: bool
           </label>
           {error && <p className="mb-2 px-1 text-[13px] text-negative">{error}</p>}
           <PillButton
+            className="mt-8"
             disabled={!agreed || !rules.data}
             loading={loading}
             onClick={() => void accept()}

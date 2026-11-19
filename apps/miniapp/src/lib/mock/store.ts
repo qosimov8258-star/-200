@@ -15,6 +15,8 @@ import type {
   MyReel,
   RatingEntry,
   RegisterRequest,
+  SupportMessage,
+  SupportThread,
   TargetReportRequest,
   Winner,
 } from "../types";
@@ -40,6 +42,8 @@ interface MockState {
   consentVersion: number | null;
   reelShortcode: string | null;
   reelSubmittedAt: number | null;
+  /** Support yozishmasi (mock). */
+  support: SupportMessage[];
 }
 
 const EMPTY: MockState = {
@@ -49,6 +53,7 @@ const EMPTY: MockState = {
   consentVersion: null,
   reelShortcode: null,
   reelSubmittedAt: null,
+  support: [],
 };
 
 function load(): MockState {
@@ -119,7 +124,7 @@ export async function getMe(): Promise<Me> {
 
 export async function getAuthConfig(): Promise<AuthConfig> {
   await wait(150);
-  return { botUsername: "reels_tanlov_bot", prizeName: PRIZE_NAME };
+  return { botUsername: "olivia_konkursbot", prizeName: PRIZE_NAME };
 }
 
 /** Login Widget'ni taqlid qiladi (haqiqiy widget faqat BotFather'da ko'rsatilgan domenda ishlaydi). */
@@ -337,6 +342,35 @@ export async function reportTarget(body: TargetReportRequest): Promise<void> {
   if (mockReports.some((r) => r.target === key && r.day === day)) throw new ApiError("REPORT_DUPLICATE");
   if (mockReports.filter((r) => r.day === day).length >= MOCK_REPORTS_PER_DAY) throw new ApiError("REPORT_LIMIT");
   mockReports.push({ target: key, day });
+}
+
+export async function getSupport(): Promise<SupportThread> {
+  await wait(250);
+  if (!state.webSession) throw new ApiError("UNAUTHORIZED");
+  return { messages: state.support };
+}
+
+/** Birinchi xabarga mock operator avtomatik javob beradi (oqimni sinash uchun). */
+export async function sendSupport(text: string): Promise<SupportThread> {
+  await wait(500);
+  if (!state.webSession) throw new ApiError("UNAUTHORIZED");
+  const clean = text.trim();
+  if (!clean || clean.length > 1000) throw new ApiError("SUPPORT_INVALID");
+  const recent = state.support.filter(
+    (m) => m.from === "PARTICIPANT" && Date.now() - new Date(m.createdAt).getTime() < 10 * 60 * 1000,
+  );
+  if (recent.length >= 5) throw new ApiError("SUPPORT_LIMIT");
+  const now = new Date();
+  const messages: SupportMessage[] = [...state.support, { from: "PARTICIPANT", text: clean, createdAt: now.toISOString() }];
+  if (!state.support.some((m) => m.from === "OPERATOR")) {
+    messages.push({
+      from: "OPERATOR",
+      text: "Assalomu alaykum! Murojaatingiz qabul qilindi — operatorimiz tez orada shu yerda va Telegram botda javob beradi.",
+      createdAt: new Date(now.getTime() + 1000).toISOString(),
+    });
+  }
+  update({ support: messages });
+  return { messages };
 }
 
 export async function getMyReel(): Promise<MyReel | null> {

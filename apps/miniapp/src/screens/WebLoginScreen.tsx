@@ -1,9 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Send } from "lucide-react";
+import { ExternalLink, LoaderCircle, Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { PrizeHero } from "../components/PrizeHero";
-import { Card, PillButton, Spinner } from "../components/ui";
+import { Spinner } from "../components/ui";
 import { t } from "../i18n/uz";
 import * as api from "../lib/api";
 import { botLink } from "../lib/telegram";
@@ -13,10 +12,13 @@ import type { TelegramLoginUser } from "../lib/types";
 const MOCK_USER: TelegramLoginUser = { id: 1, first_name: "Sinov", auth_date: 0, hash: "" };
 
 /**
- * Veb-saytning kirish sahifasi (Telegram'dan tashqarida, kirmagan foydalanuvchi).
+ * Veb-saytda ro'yxatdan o'tish / kirish bloki (mehmonning "Profil" bo'limida, qizil karta ichida —
+ * yozuvlar oq, asosiy tugma oq fonda qizil).
  * Telegram Login Widget orqali kiriladi — Mini App bilan bir xil akkaunt (telegramId).
+ * Kirgandan keyin hamma so'rovlar qayta yuklanadi: ilova ro'yxatdan o'tish qadamlariga
+ * (raqam, ism, qoidalar) yoki to'g'ridan-to'g'ri bosh sahifaga o'tadi.
  */
-export function WebLoginScreen() {
+export function WebLoginPanel() {
   const queryClient = useQueryClient();
   const auth = useQuery({ queryKey: ["auth-config"], queryFn: api.getAuthConfig });
   const [error, setError] = useState(false);
@@ -38,38 +40,45 @@ export function WebLoginScreen() {
   const bot = auth.data?.botUsername ?? null;
 
   return (
-    <main className="flex min-h-dvh flex-col gap-4 px-5 pt-[calc(var(--safe-top)+12px)] pb-[calc(var(--safe-bottom)+16px)]">
-      <PrizeHero prizeName={auth.data?.prizeName ?? ""} />
-      <Card>
-        <h1 className="text-lg font-bold tracking-tight">{t.webLoginTitle}</h1>
-        <p className="mt-1.5 text-[15px] leading-snug text-muted">{t.webLoginBody}</p>
-        <div className="mt-4">
-          {auth.isPending ? (
-            <Spinner />
-          ) : api.mockControls ? (
-            <PillButton loading={busy} onClick={() => void login(MOCK_USER)} icon={<Send className="size-5" />}>
-              {t.webLoginMock}
-            </PillButton>
-          ) : bot ? (
+    <div>
+      <h2 className="text-[19px] font-bold tracking-tight">{t.guestJoinTitle}</h2>
+      <p className="mt-1.5 text-[14px] leading-snug text-white/85">{t.webLoginBody}</p>
+      <div className="mt-4">
+        {auth.isPending ? (
+          <Spinner />
+        ) : api.mockControls ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void login(MOCK_USER)}
+            className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-white text-base font-bold text-[#c22a24] shadow-[0_10px_24px_-10px_rgba(0,0,0,0.45)] transition active:scale-[0.98] disabled:opacity-70"
+          >
+            {busy ? <LoaderCircle className="size-5 animate-spin" /> : t.webLoginMock}
+            {!busy && <Send className="size-5" />}
+          </button>
+        ) : bot ? (
+          // Telegram'ning o'z tugmasi (iframe) — oq "taglik" ustida, karta bilan uyg'un.
+          <div className="rounded-[22px] bg-white p-2.5 shadow-[0_10px_24px_-10px_rgba(0,0,0,0.45)]">
             <TelegramLoginButton botUsername={bot} onAuth={(user) => void login(user)} />
-          ) : (
-            <p className="text-[15px] text-negative">{t.webLoginNotConfigured}</p>
-          )}
-        </div>
-        {busy && !api.mockControls && <Spinner />}
-        {error && <p className="mt-3 text-[13px] text-negative">{t.webLoginFailed}</p>}
-      </Card>
+          </div>
+        ) : (
+          <p className="rounded-xl bg-black/20 px-3 py-2 text-[14px]">{t.webLoginNotConfigured}</p>
+        )}
+      </div>
+      {busy && !api.mockControls && <Spinner />}
+      {error && <p className="mt-3 rounded-xl bg-black/20 px-3 py-2 text-[13px] font-medium">{t.webLoginFailed}</p>}
       {bot && (
         <a
           href={botLink(bot)}
           target="_blank"
           rel="noopener noreferrer"
-          className="px-1 text-center text-[15px] font-semibold underline"
+          className="mt-3 flex h-12 items-center justify-center gap-2 rounded-full bg-white/15 text-[15px] font-semibold ring-1 ring-white/35 backdrop-blur-sm transition active:scale-[0.98]"
         >
           {t.webOpenBot}
+          <ExternalLink className="size-4" aria-hidden />
         </a>
       )}
-    </main>
+    </div>
   );
 }
 

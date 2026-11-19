@@ -1,15 +1,17 @@
 import type { CSSProperties } from "react";
 
 /**
- * "1-o'rin" kartasi foni — tungi zal sahnasi.
+ * "1-o'rin" kartasi foni — qishki bayram kechasi sahnasi (G'olib sahifasidagi tungi uslubda).
  *
- * Syujet: sahnada projektor nurlari ostida katta oltin "Reels kubogi" (ustida ▶ belgisi) turibdi,
- * pastda tomoshabinlar uni telefoniga olyapti (ekranlarida kichkina kubok ko'rinadi), telefonlardan
- * yurakcha va "ko'rish" belgilari ko'tariladi, tepadan oltin konfetti tushadi.
+ * Syujet: tungi ko'k osmonda shimol shu'lasi (aurora) to'lqinlanadi, tepada rangli gulchambar
+ * chiroqlari yonib-o'chadi. Qorli shohsupada qorbobo qalpog'i kiydirilgan oltin "Reels kubogi"
+ * (▶ belgisi bilan) turibdi, pastda pomponli qishki shapkadagi tomoshabinlar uni telefoniga
+ * olyapti, telefonlardan yurakcha va "ko'rish" belgilari ko'tariladi. Qor yog'ishi kartaning
+ * o'zida (`Snowfall`) — matn oldidan ham o'tadi.
  *
  * Hammasi SVG/CSS — rasm fayli yo'q. Sahna qatlami o'zgarmas o'lchamda (640×300) va kubok o'qi
  * kartaning ~60% ida turadi: karta kengaysa (veb-sayt) rasm cho'zilmaydi, faqat chetlari ochiladi.
- * Harakatlanadigan qismlar alohida HTML qatlamlarda (transform/opacity) — telefon qiynalmaydi.
+ * Harakatlanadigan qismlar transform/opacity bilan — telefon qiynalmaydi.
  * `prefers-reduced-motion` yoqilgan bo'lsa — hammasi harakatsiz.
  */
 
@@ -43,12 +45,87 @@ const cssVars = (vars: Record<`--${string}`, string>) => vars as CSSProperties;
 /* ───────────────────────── Projektor nurlari ───────────────────────── */
 
 const BEAMS = [
-  { key: "pink", x: 138, y: -36, angle: -51, w: 150, h: 390, rgb: "255,86,168", sway: 5, dur: 8, delay: 0 },
-  { key: "blue", x: 512, y: -36, angle: 54, w: 150, h: 390, rgb: "86,196,255", sway: -5, dur: 9.5, delay: -3 },
   { key: "gold", x: CX, y: -70, angle: 0, w: 210, h: 330, rgb: "255,232,180", sway: 3, dur: 12, delay: -6 },
 ];
 
-/* ───────────────────────── Zal chiroqlari ───────────────────────── */
+/* ───────────────────────── Shimol shu'lasi (aurora) ───────────────────────── */
+
+/** To'lqinsimon yorug' pardalar: pastki cheti yorqin, tepaga qarab so'nadi. */
+const AURORA = [
+  {
+    key: "teal",
+    d: "M-60 0 L700 0 L700 46 C640 30 600 74 540 58 C470 40 430 90 360 70 C300 52 250 26 190 52 C130 78 70 40 -60 64Z",
+    color: "#58f0c2",
+    opacity: 0.85,
+    dur: 15,
+    delay: 0,
+  },
+  {
+    key: "violet",
+    d: "M-60 0 L700 0 L700 78 C620 60 580 104 500 86 C430 70 380 112 300 92 C230 74 180 50 110 76 C60 94 10 70 -60 88Z",
+    color: "#9a8cff",
+    opacity: 0.7,
+    dur: 19,
+    delay: -7,
+  },
+];
+
+/* ───────────────────────── Gulchambar chiroqlari ───────────────────────── */
+
+const BULB_COLORS = ["#ff5a4f", "#ffd166", "#5be38c", "#62b6ff", "#ff8ad8"];
+
+/** Ikki osilgan sim (kubok tepasini ochiq qoldiradi) va ular bo'ylab chiroqchalar. */
+const GARLAND = (() => {
+  const swags = [
+    { x0: -24, y0: 4, x1: 238, y1: 8, sag: 26 },
+    { x0: 402, y0: 8, x1: 664, y1: 4, sag: 26 },
+  ];
+  const wires: string[] = [];
+  const bulbs: { key: string; x: number; y: number; angle: number; color: string; delay: number }[] = [];
+  swags.forEach((w, si) => {
+    const cx = (w.x0 + w.x1) / 2;
+    const cy = (w.y0 + w.y1) / 2 + w.sag * 2;
+    wires.push(`M${w.x0} ${w.y0} Q${cx} ${cy} ${w.x1} ${w.y1}`);
+    const count = 11;
+    for (let i = 1; i < count; i++) {
+      const t = i / count;
+      const x = (1 - t) ** 2 * w.x0 + 2 * (1 - t) * t * cx + t ** 2 * w.x1;
+      const y = (1 - t) ** 2 * w.y0 + 2 * (1 - t) * t * cy + t ** 2 * w.y1;
+      const dx = 2 * (1 - t) * (cx - w.x0) + 2 * t * (w.x1 - cx);
+      const dy = 2 * (1 - t) * (cy - w.y0) + 2 * t * (w.y1 - cy);
+      const index = si * count + i;
+      bulbs.push({
+        key: `${si}-${i}`,
+        x: n(x),
+        y: n(y),
+        angle: n((Math.atan2(dy, dx) * 180) / Math.PI),
+        color: BULB_COLORS[index % BULB_COLORS.length],
+        delay: n((index % 3) * 0.55),
+      });
+    }
+  });
+  return { wires, bulbs };
+})();
+
+/** Shohsupa ustidagi qor qatlami: orqa yoy biroz qalinroq, old yoy bo'ylab osilib turgan tomchilar. */
+const SNOW_DRIFT = (() => {
+  const rx = 81.5;
+  const ry = 13.5;
+  const steps = 40;
+  const pts: string[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const a = Math.PI + (i / steps) * Math.PI;
+    pts.push(`${n(CX + rx * Math.cos(a))} ${n(PED_Y + ry * Math.sin(a) - 2.5)}`);
+  }
+  for (let i = 0; i <= steps; i++) {
+    const a = (i / steps) * Math.PI;
+    const drip = Math.max(0, Math.sin(i * 1.7 + 0.6)) ** 3 * 6 + Math.max(0, Math.sin(i * 0.9 + 2.1)) ** 4 * 4;
+    pts.push(`${n(CX + rx * Math.cos(a))} ${n(PED_Y + (ry + 0.5) * Math.sin(a) + 2.5 + drip)}`);
+  }
+  return `M${pts.join(" L")}Z`;
+})();
+
+/* ───────────────────────── Yulduzlar ───────────────────────── */
 
 const ARENA_LIGHTS = (() => {
   const rnd = seeded(41);
@@ -240,28 +317,16 @@ function ReactionIcon({ kind }: { kind: ReactionKind }) {
   );
 }
 
-/* ───────────────────────── Konfetti ───────────────────────── */
+/* ───────────────────────── Qishki shapkalar ───────────────────────── */
 
-const CONFETTI_COLORS = ["#ffd166", "#fff1b8", "#f5b83d", "#ff7aa8", "#ffffff", "#6fd6ff", "#ffd166", "#e9a528"];
+const BEANIE_COLORS = ["#a3262a", "#1f6b4a", "#c58a1f", "#3a56b0"];
 
-const CONFETTI = (() => {
-  const rnd = seeded(7);
-  return Array.from({ length: 20 }, (_, i) => {
-    const ribbon = i % 3 !== 1;
-    return {
-      key: i,
-      left: n(rnd() * 100),
-      top: n(rnd() * 46 - 10),
-      color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
-      width: ribbon ? n(6 + rnd() * 5) : 5,
-      height: ribbon ? 3 : 5,
-      rotate: n(rnd() * 180),
-      duration: n(6 + rnd() * 5),
-      delay: n(-rnd() * 11),
-      opacity: n(0.5 + rnd() * 0.45),
-    };
-  });
-})();
+/** Ba'zi tomoshabinlarda pomponli qishki shapka: old qatorda har ikkinchisi, orqada har uchinchisi. */
+function beanieOf(fan: Fan): string | null {
+  const index = Number(fan.key.split("-")[1]);
+  if (index % (fan.row === 1 ? 2 : 3) !== 0) return null;
+  return BEANIE_COLORS[(index + fan.row) % BEANIE_COLORS.length];
+}
 
 /* ───────────────────────── Kubok atrofidagi uchqunlar ───────────────────────── */
 
@@ -283,15 +348,29 @@ const BOWL = `M274 40 C274 78 292 104 312 113 L328 113 C348 104 366 78 366 40Z`;
 const HANDLE = `M278 49 C257 44 245 60 252 77 C258 91 275 97 291 95`;
 const PLAY = `M314.5 68.5 L314.5 87.5 L331 78Z`;
 
+/** Pomponli qishki shapka: bosh ustida gumbaz, oq hoshiya va pompon. */
+function Beanie({ fan, dim }: { fan: Fan; dim: number }) {
+  const color = beanieOf(fan);
+  if (!color) return null;
+  const { x, y, r } = fan;
+  return (
+    <g opacity={dim}>
+      <path d={`M${n(x - r * 1.02)} ${n(y - r * 0.2)} A${n(r * 1.02)} ${n(r * 1.05)} 0 0 1 ${n(x + r * 1.02)} ${n(y - r * 0.2)}Z`} fill={color} />
+      <rect x={n(x - r * 1.08)} y={n(y - r * 0.44)} width={n(r * 2.16)} height={n(r * 0.48)} rx={n(r * 0.24)} fill="#e9eef8" />
+      <circle cx={x} cy={n(y - r * 1.24)} r={n(r * 0.36)} fill="#f4f7fc" />
+    </g>
+  );
+}
+
 export function ChampionBackdrop() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-      {/* Zal: kubok atrofi binafsha, chetlar qorong'i */}
+      {/* Qishki tun: kubok atrofi ko'kimtir yorug', chetlar qorong'i */}
       <div
         className="absolute inset-0"
         style={{
           background:
-            "radial-gradient(120% 95% at 60.5% 24%, #43207c 0%, #24124f 34%, #0e0826 68%, #05040f 100%)",
+            "radial-gradient(120% 95% at 60.5% 24%, #2f3a7a 0%, #1c2254 34%, #10132e 68%, #06071a 100%)",
         }}
       />
 
@@ -300,10 +379,39 @@ export function ChampionBackdrop() {
         className="absolute top-0"
         style={{ left: AXIS, marginLeft: -CX, width: STAGE_W, height: STAGE_H }}
       >
-        {/* Zal chiroqlari */}
+        {/* Yulduzlar */}
         <svg className="absolute inset-0" width={STAGE_W} height={STAGE_H} viewBox={`0 0 ${STAGE_W} ${STAGE_H}`}>
           {ARENA_LIGHTS.map((light) => (
-            <circle key={light.key} cx={light.x} cy={light.y} r={light.r} fill="#ffe7b0" opacity={light.o} />
+            <circle key={light.key} cx={light.x} cy={light.y} r={light.r} fill="#e8f0ff" opacity={light.o} />
+          ))}
+        </svg>
+
+        {/* Shimol shu'lasi */}
+        <svg
+          className="absolute inset-0 mix-blend-screen"
+          style={{ filter: "blur(7px)" }}
+          width={STAGE_W}
+          height={STAGE_H}
+          viewBox={`0 0 ${STAGE_W} ${STAGE_H}`}
+        >
+          <defs>
+            {AURORA.map((band) => (
+              <linearGradient key={band.key} id={`champ-aurora-${band.key}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor={band.color} stopOpacity="0" />
+                <stop offset="0.4" stopColor={band.color} stopOpacity="0.45" />
+                <stop offset="0.75" stopColor={band.color} stopOpacity="1" />
+              </linearGradient>
+            ))}
+          </defs>
+          {AURORA.map((band) => (
+            <path
+              key={band.key}
+              d={band.d}
+              fill={`url(#champ-aurora-${band.key})`}
+              opacity={band.opacity}
+              className="[transform-box:fill-box] [transform-origin:50%_0] motion-safe:animate-aurora"
+              style={{ animationDuration: `${band.dur}s`, animationDelay: `${band.delay}s` }}
+            />
           ))}
         </svg>
 
@@ -370,6 +478,26 @@ export function ChampionBackdrop() {
           </div>
         ))}
 
+        {/* Gulchambar chiroqlari */}
+        <svg className="absolute inset-0" width={STAGE_W} height={STAGE_H} viewBox={`0 0 ${STAGE_W} ${STAGE_H}`}>
+          {GARLAND.wires.map((d) => (
+            <path key={d} d={d} fill="none" stroke="#0c1024" strokeWidth="1.6" opacity="0.9" />
+          ))}
+          {GARLAND.bulbs.map((bulb) => (
+            <g key={bulb.key} transform={`translate(${bulb.x} ${bulb.y}) rotate(${bulb.angle})`}>
+              <g
+                className="motion-safe:animate-bulb"
+                style={{ animationDelay: `${bulb.delay}s`, transformBox: "fill-box", transformOrigin: "center" }}
+              >
+                <circle cx="0" cy="9" r="7" fill={bulb.color} opacity="0.35" style={{ filter: "blur(3px)" }} />
+                <ellipse cx="0" cy="8.5" rx="3" ry="4.4" fill={bulb.color} />
+                <ellipse cx="-0.9" cy="7.2" rx="0.9" ry="1.6" fill="#ffffff" opacity="0.7" />
+              </g>
+              <rect x="-1.8" y="2.6" width="3.6" height="3" rx="0.8" fill="#2b3150" />
+            </g>
+          ))}
+        </svg>
+
         {/* Sahna doirasi va kubok — karta ochilganda pastdan ko'tarilib chiqadi */}
         <svg className="absolute inset-0 motion-safe:animate-champ-enter" width={STAGE_W} height={STAGE_H} viewBox={`0 0 ${STAGE_W} ${STAGE_H}`}>
           <defs>
@@ -414,20 +542,32 @@ export function ChampionBackdrop() {
               <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
             </linearGradient>
             <radialGradient id="champ-ped-top" cx="0.5" cy="0.5" r="0.5">
-              <stop offset="0" stopColor="#fff4cc" stopOpacity="0.98" />
-              <stop offset="0.34" stopColor="#f6c25a" stopOpacity="0.8" />
-              <stop offset="0.72" stopColor="#7a4bd6" stopOpacity="0.9" />
-              <stop offset="1" stopColor="#35208a" stopOpacity="0.96" />
+              <stop offset="0" stopColor="#e4ecf8" />
+              <stop offset="0.45" stopColor="#bccde8" />
+              <stop offset="1" stopColor="#7f97c4" />
             </radialGradient>
             <linearGradient id="champ-ped-body" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0" stopColor="#0d0728" />
-              <stop offset="0.3" stopColor="#4a2c9a" />
-              <stop offset="0.55" stopColor="#2b1866" />
-              <stop offset="1" stopColor="#0b0622" />
+              <stop offset="0" stopColor="#0a0e28" />
+              <stop offset="0.3" stopColor="#2c3c80" />
+              <stop offset="0.55" stopColor="#1a2356" />
+              <stop offset="1" stopColor="#090c22" />
             </linearGradient>
             <linearGradient id="champ-ped-fade" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#05040f" stopOpacity="0" />
-              <stop offset="0.5" stopColor="#05040f" stopOpacity="0.85" />
+              <stop offset="0" stopColor="#06071a" stopOpacity="0" />
+              <stop offset="0.5" stopColor="#06071a" stopOpacity="0.85" />
+            </linearGradient>
+            <linearGradient id="champ-snow" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#ffffff" />
+              <stop offset="1" stopColor="#d5e2f5" />
+            </linearGradient>
+            <linearGradient id="champ-drift" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#d6e1f2" />
+              <stop offset="1" stopColor="#8ea5cf" />
+            </linearGradient>
+            <linearGradient id="champ-hat" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#ff6a55" />
+              <stop offset="0.55" stopColor="#df3425" />
+              <stop offset="1" stopColor="#a81d17" />
             </linearGradient>
             <clipPath id="champ-bowl-clip">
               <path d={BOWL} />
@@ -448,6 +588,9 @@ export function ChampionBackdrop() {
             fill="url(#champ-ped-fade)"
           />
           <ellipse cx={CX} cy={PED_Y} rx="80" ry="12" fill="url(#champ-ped-top)" />
+          {/* Qor qatlami va old tomondagi tomchilar */}
+          <path d={SNOW_DRIFT} fill="#5f74a3" transform="translate(0 1.4)" />
+          <path d={SNOW_DRIFT} fill="url(#champ-drift)" />
           {[
             { w: 7, o: 0.18 },
             { w: 3.5, o: 0.4 },
@@ -457,14 +600,14 @@ export function ChampionBackdrop() {
               key={glow.w}
               d={`M${CX - 80} ${PED_Y} A80 12 0 0 0 ${CX + 80} ${PED_Y}`}
               fill="none"
-              stroke="#ffe9b0"
+              stroke="#f4f8ff"
               strokeWidth={glow.w}
               strokeLinecap="round"
               opacity={glow.o}
             />
           ))}
-          <ellipse cx={CX} cy={PED_Y} rx="80" ry="12" fill="none" stroke="#ffe9b0" strokeOpacity="0.45" strokeWidth="1" />
-          <ellipse cx={CX} cy={PED_Y - 4} rx="38" ry="5" fill="#2a1200" opacity="0.5" />
+          <ellipse cx={CX} cy={PED_Y} rx="80" ry="12" fill="none" stroke="#ffffff" strokeOpacity="0.5" strokeWidth="1" />
+          <ellipse cx={CX} cy={PED_Y - 4} rx="38" ry="5" fill="#5d6f99" opacity="0.45" />
 
           {/* Kubok tagligi */}
           <rect x={CX - 31} y="146" width="62" height="14" rx="3.5" fill="url(#champ-gold)" />
@@ -514,6 +657,23 @@ export function ChampionBackdrop() {
           <ellipse cx={CX} cy="40.6" rx="41" ry="6.9" fill="url(#champ-inner)" />
           <path d={`M${CX - 38} 43 A41 6.9 0 0 0 ${CX + 38} 43`} fill="none" stroke="#fff3c4" strokeWidth="1" opacity="0.5" />
 
+          {/* Qorbobo qalpog'i — kosa og'ziga chapga qiyshiq kiydirilgan, sekin chayqaladi */}
+          <g transform="rotate(-9 306 33)">
+            <g
+              className="motion-safe:animate-hat-rock"
+              style={{ transformBox: "view-box", transformOrigin: "306px 34px" }}
+            >
+              <path d="M285 31 C287 19 297 12 308 11 C318 10.5 326 18 327.5 31Z" fill="url(#champ-hat)" />
+              <path d="M318 13 C324 17 327 23 327.5 31 L320 31 C320 24 319.5 18 318 13Z" fill="#8f1712" opacity="0.35" />
+              <path d="M308 11.5 C299 7 287 9.5 280.5 18.5" fill="none" stroke="url(#champ-hat)" strokeWidth="7" strokeLinecap="round" />
+              <path d="M300 11 C293 10.5 287 13 283.5 17" fill="none" stroke="#ffffff" strokeWidth="1.3" strokeLinecap="round" opacity="0.4" />
+              <rect x="281.5" y="28" width="49" height="10.5" rx="5.25" fill="url(#champ-snow)" />
+              <rect x="283" y="34.5" width="46" height="3.4" rx="1.7" fill="#c7d6ee" opacity="0.8" />
+              <circle cx="279.5" cy="20.5" r="6.2" fill="url(#champ-snow)" />
+              <circle cx="277.6" cy="18.6" r="2" fill="#ffffff" />
+            </g>
+          </g>
+
           {/* Uchqunlar */}
           {SPARKLES.map((s) => (
             <path
@@ -536,7 +696,7 @@ export function ChampionBackdrop() {
             width: STAGE_W + 120,
             height: 150,
             background:
-              "radial-gradient(26% 46% at 50% 44%, rgba(255,206,130,0.5) 0%, rgba(255,206,130,0) 100%), radial-gradient(50% 50% at 50% 50%, rgba(176,116,255,0.5) 0%, rgba(124,74,226,0.22) 55%, rgba(124,74,226,0) 100%)",
+              "radial-gradient(26% 46% at 50% 44%, rgba(255,214,150,0.45) 0%, rgba(255,214,150,0) 100%), radial-gradient(50% 50% at 50% 50%, rgba(150,190,255,0.45) 0%, rgba(110,150,230,0.2) 55%, rgba(110,150,230,0) 100%)",
           }}
         />
 
@@ -544,18 +704,18 @@ export function ChampionBackdrop() {
         <svg className="absolute" width="0" height="0">
           <defs>
             <radialGradient id="champ-phone-glow" cx="0.5" cy="0.5" r="0.5">
-              <stop offset="0" stopColor="#e9dcff" stopOpacity="0.48" />
-              <stop offset="1" stopColor="#b68cff" stopOpacity="0" />
+              <stop offset="0" stopColor="#dfe8ff" stopOpacity="0.48" />
+              <stop offset="1" stopColor="#8cb0ff" stopOpacity="0" />
             </radialGradient>
             <linearGradient id="champ-screen" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#8a5cf0" />
-              <stop offset="0.6" stopColor="#4a2aa8" />
-              <stop offset="1" stopColor="#1c1150" />
+              <stop offset="0" stopColor="#6f8cff" />
+              <stop offset="0.6" stopColor="#3a4fb8" />
+              <stop offset="1" stopColor="#141c50" />
             </linearGradient>
           </defs>
         </svg>
         {([0, 1] as const).map((row) => {
-          const fill = row === 0 ? "#170f3d" : "#07051a";
+          const fill = row === 0 ? "#141a3f" : "#060818";
           return (
             <svg
               key={row}
@@ -578,6 +738,7 @@ export function ChampionBackdrop() {
                       strokeLinecap="round"
                       opacity={row === 0 ? 0.6 : 0.42}
                     />
+                    <Beanie fan={fan} dim={row === 0 ? 0.62 : 0.8} />
                   </g>
                 ))}
                 {CROWD.filter((fan) => fan.row === row && fan.arm).map((fan) => {
@@ -690,31 +851,12 @@ export function ChampionBackdrop() {
         ))}
       </div>
 
-      {/* Oltin konfetti */}
-      {CONFETTI.map((c) => (
-        <span
-          key={c.key}
-          className="absolute block rounded-[1.5px] motion-safe:animate-confetti-fall"
-          style={{
-            left: `${c.left}%`,
-            top: `${c.top}%`,
-            width: c.width,
-            height: c.height,
-            background: c.color,
-            opacity: c.opacity,
-            rotate: `${c.rotate}deg`,
-            animationDuration: `${c.duration}s`,
-            animationDelay: `${c.delay}s`,
-          }}
-        />
-      ))}
-
       {/* Matn o'qilishi uchun: chap-past va eng past qism to'qlashadi */}
       <div
         className="absolute inset-0"
         style={{
           background:
-            "radial-gradient(72% 62% at 0% 62%, rgba(6,5,18,0.84) 0%, rgba(6,5,18,0.5) 46%, rgba(6,5,18,0) 86%), linear-gradient(to top, rgba(5,4,14,0.9) 0%, rgba(5,4,14,0.45) 20%, rgba(5,4,14,0) 44%)",
+            "radial-gradient(72% 62% at 0% 62%, rgba(6,8,24,0.84) 0%, rgba(6,8,24,0.5) 46%, rgba(6,8,24,0) 86%), linear-gradient(to top, rgba(5,7,20,0.9) 0%, rgba(5,7,20,0.45) 20%, rgba(5,7,20,0) 44%)",
         }}
       />
     </div>

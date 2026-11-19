@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import carUrl from "../assets/hero_car.webp";
 import { t } from "../i18n/uz";
+import { Snowfall } from "./Snowfall";
 
 /**
  * Bosh sovrin kartasi — avtosalon sahnasi: yuqoridan ikki projektor nuri,
@@ -23,6 +24,7 @@ export function PrizeHero({ prizeName, children }: { prizeName: string; children
       />
       <span aria-hidden className="absolute top-1 left-[9%] size-3 rounded-full bg-white blur-[3px]" />
       <span aria-hidden className="absolute top-1 right-[9%] size-3 rounded-full bg-white blur-[3px]" />
+      <Snowfall density={0.7} />
 
       <div className="flex w-fit items-center gap-2.5 rounded-full border border-white/25 bg-white/10 py-1.5 pr-4 pl-1.5 backdrop-blur">
         <span className="grid size-[34px] place-items-center rounded-full bg-gold text-ink">

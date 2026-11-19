@@ -21,8 +21,9 @@ import type {
   MyReel,
   RatingEntry,
   RegisterRequest,
-  TelegramLoginUser,
+  SupportThread,
   TargetReportRequest,
+  TelegramLoginUser,
   Winner,
 } from "./types";
 
@@ -120,6 +121,17 @@ export const submitReel = (url: string): Promise<MyReel> =>
  */
 export const reportTarget = (body: TargetReportRequest): Promise<void> =>
   IS_MOCK_API ? mock.reportTarget(body) : request("POST", "/miniapp/target-reports", body);
+
+/** @endpoint GET /miniapp/support — support yozishmasi (ilova va sayt). */
+export const getSupport = (): Promise<SupportThread> =>
+  IS_MOCK_API ? mock.getSupport() : request("GET", "/miniapp/support");
+
+/**
+ * @endpoint POST /miniapp/support — support'ga yozish: murojaat operatorlar guruhiga boradi,
+ * javob bot orqali ham keladi. Javob — yangilangan yozishma.
+ */
+export const sendSupport = (text: string): Promise<SupportThread> =>
+  IS_MOCK_API ? mock.sendSupport(text) : request("POST", "/miniapp/support", { text });
 
 /** @endpoint GET /miniapp/prizes — oylik voucherlar, bosqichlar va asosiy sovrin toifalari. */
 export const getPrizes = (): Promise<ContestPrizes> =>

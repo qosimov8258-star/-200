@@ -1,42 +1,53 @@
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, Gift, Home, LayoutGrid, Megaphone, PlayCircle, Trophy, User, X } from "lucide-react";
+import { BookOpen, Gift, Home, LayoutGrid, Medal, Megaphone, PlayCircle, Trophy, User, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
+import { BackButton } from "./components/BackButton";
 import { GlassNav } from "./components/GlassNav";
 import { MoreMenu } from "./components/MoreMenu";
+import { RulesHero } from "./components/RulesHero";
+import { SupportScreen } from "./screens/SupportScreen";
 import { ErrorBlock, PageHeader, Spinner } from "./components/ui";
 import { t } from "./i18n/uz";
 import * as api from "./lib/api";
 import { errorCode } from "./lib/api-error";
+import { hideSplash } from "./lib/splash";
 import { isInTelegram, showBackButton } from "./lib/telegram";
 import type { Me } from "./lib/types";
 import { MyReelScreen } from "./screens/MyReelScreen";
 import { PrizesScreen } from "./screens/PrizesScreen";
+import { HomeScreen } from "./screens/HomeScreen";
 import { ConsentScreen, ContactScreen, RegisterScreen, RulesContent, StatusScreen } from "./screens/onboarding";
-import { ProfileScreen, WinnerContent } from "./screens/ProfileScreen";
+import { GuestGate, GuestProfile, ProfileScreen, WinnerContent } from "./screens/ProfileScreen";
 import { RatingScreen } from "./screens/RatingScreen";
-import { WebLoginScreen } from "./screens/WebLoginScreen";
 import { ReportScreen } from "./screens/ReportScreen";
 
-type Tab = "rating" | "reel" | "profile" | "prizes";
+type Tab = "home" | "rating" | "reel" | "profile" | "prizes";
 /** Pastki menyuga sig'masdan "Ko'proq" ichida turadigan bo'limlar. */
 type OverflowTab = Extract<Tab, "prizes">;
 type NavKey = Exclude<Tab, OverflowTab> | "more";
-type SubPage = "rules" | "winner" | "report" | null;
+type SubPage = "rules" | "winner" | "report" | "support" | null;
 
 const isOverflow = (tab: Tab): tab is OverflowTab => tab === "prizes";
 
 export default function App() {
   const me = useQuery({ queryKey: ["me"], queryFn: api.getMe });
   const contest = useQuery({ queryKey: ["contest"], queryFn: api.getContest });
-  // Veb-sayt (Telegram'dan tashqarida): kirmagan — Telegram orqali kirish sahifasi.
-  const needsWebLogin = !isInTelegram && me.isError && errorCode(me.error) === "UNAUTHORIZED";
+  // Veb-sayt (Telegram'dan tashqarida), kirmagan: mehmon sifatida bosh sahifaga kiradi,
+  // ro'yxatdan o'tishni "Profil" da boshlaydi.
+  const isGuest = !isInTelegram && me.isError && errorCode(me.error) === "UNAUTHORIZED";
+  const loading = (me.isPending || contest.isPending) && !isGuest;
+
+  // Birinchi ekran tayyor (yoki xato) — "Olivia" yuklanish sahifasi yopiladi.
+  useEffect(() => {
+    if (!loading) hideSplash();
+  }, [loading]);
 
   return (
     <>
       {api.IS_MOCK_API && <DevBanner />}
-      {needsWebLogin ? (
-        <WebLoginScreen />
+      {isGuest ? (
+        <MainShell me={null} />
       ) : me.isPending || contest.isPending ? (
         <div className="grid min-h-dvh place-items-center">
           <Spinner />
@@ -69,9 +80,15 @@ function Stage({ me, prizeName, minAge }: { me: Me; prizeName: string; minAge: n
   }
 }
 
-function MainShell({ me }: { me: Me }) {
-  const [tab, setTab] = useState<Tab>("rating");
+/** `me === null` — veb-saytdagi mehmon: ochiq bo'limlarni ko'radi, qolganlarida ro'yxatdan o'tish taklifi. */
+function MainShell({ me }: { me: Me | null }) {
+  const firstName = me?.profile?.firstName ?? t.guestName;
+  const fullName = me?.profile ? `${me.profile.firstName} ${me.profile.lastName}` : t.guestName;
+
+  const [tab, setTab] = useState<Tab>("home");
   const [sub, setSub] = useState<SubPage>(null);
+  /** Support sahifasiga oldindan yozilgan matn (masalan, profil maydonini o'zgartirish so'rovi). */
+  const [supportDraft, setSupportDraft] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
@@ -80,6 +97,8 @@ function MainShell({ me }: { me: Me }) {
     setSub(next.sub ?? null);
     if (next.tab) setTab(next.tab);
   };
+  /** Mehmon yopiq bo'limga kirdi — ro'yxatdan o'tish "Profil" da. */
+  const toProfile = () => open({ tab: "profile" });
 
   // Ichki sahifada Telegram'ning "Orqaga" tugmasi ko'rinadi.
   useEffect(() => {
@@ -95,8 +114,12 @@ function MainShell({ me }: { me: Me }) {
     <>
       <main className="px-5 pt-[calc(var(--safe-top)+12px)] pb-[calc(var(--safe-bottom)+120px)]">
         {sub === "rules" ? (
-          <SubPageLayout title={t.rulesTitle} onBack={() => setSub(null)}>
+          <SubPageLayout title={t.rulesTitle} header={<RulesHero />} onBack={() => setSub(null)}>
             <RulesContent />
+          </SubPageLayout>
+        ) : sub === "support" ? (
+          <SubPageLayout title={t.supportTitle} onBack={() => setSub(null)}>
+            <SupportScreen key={supportDraft} draft={supportDraft} />
           </SubPageLayout>
         ) : sub === "winner" ? (
           <SubPageLayout title={t.winnerTitle} onBack={() => setSub(null)}>
@@ -104,25 +127,44 @@ function MainShell({ me }: { me: Me }) {
           </SubPageLayout>
         ) : sub === "report" ? (
           <SubPageLayout title={t.reportTitle} onBack={() => setSub(null)}>
-            <ReportScreen onBack={() => open({ tab: "rating" })} />
+            {me ? (
+              <ReportScreen onBack={() => open({ tab: "rating" })} />
+            ) : (
+              <GuestGate title={t.guestReportTitle} body={t.guestReportBody} onJoin={toProfile} />
+            )}
           </SubPageLayout>
-        ) : tab === "rating" ? (
-          <RatingScreen
-            firstName={me.profile!.firstName}
-            fullName={`${me.profile!.firstName} ${me.profile!.lastName}`}
-            onOpenReel={() => setTab("reel")}
-            onOpenWinner={() => setSub("winner")}
+        ) : tab === "home" ? (
+          <HomeScreen
+            firstName={firstName}
+            fullName={fullName}
+            onOpenPrizes={() => open({ tab: "prizes" })}
+            onJoin={me ? undefined : toProfile}
           />
+        ) : tab === "rating" ? (
+          <RatingScreen onOpenReel={() => setTab("reel")} />
         ) : tab === "reel" ? (
-          <MyReelScreen />
+          me ? (
+            <MyReelScreen />
+          ) : (
+            <div className="space-y-5">
+              <PageHeader title={t.navReel} />
+              <GuestGate title={t.guestReelTitle} body={t.guestReelBody} onJoin={toProfile} />
+            </div>
+          )
         ) : tab === "prizes" ? (
-          <PrizesScreen onOpenReel={() => setTab("reel")} />
-        ) : (
+          <PrizesScreen onOpenReel={() => setTab("reel")} guest={!me} />
+        ) : me ? (
           <ProfileScreen
             me={me}
             onOpenRules={() => setSub("rules")}
             onOpenWinner={() => setSub("winner")}
+            onOpenSupport={(draft) => {
+              setSupportDraft(draft ?? "");
+              setSub("support");
+            }}
           />
+        ) : (
+          <GuestProfile onOpenRules={() => setSub("rules")} onOpenWinner={() => setSub("winner")} />
         )}
       </main>
       <MoreMenu
@@ -169,7 +211,8 @@ function MainShell({ me }: { me: Me }) {
       />
       <GlassNav<NavKey>
         items={[
-          { key: "rating", label: t.navRating, icon: Home },
+          { key: "home", label: t.navHome, icon: Home },
+          { key: "rating", label: t.navRating, icon: Medal },
           { key: "reel", label: t.navReel, icon: PlayCircle },
           { key: "profile", label: t.navProfile, icon: User },
           // Sig'magan bo'lim ochiq bo'lsa — tugma o'sha bo'lim nomi va belgisini oladi.
@@ -196,22 +239,21 @@ function MainShell({ me }: { me: Me }) {
 
 function SubPageLayout({
   title,
+  header,
   onBack,
   children,
 }: {
   title: string;
+  /** Oddiy sarlavha o'rniga (masalan, qoidalar sahifasining bayram kartasi). */
+  header?: React.ReactNode;
   onBack: () => void;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-5">
       {/* Telegram ichida "Orqaga" tugmasi Telegram panelida; brauzerda — shu yerda. */}
-      {!isInTelegram && (
-        <button type="button" onClick={onBack} className="text-sm font-semibold underline">
-          ← {t.back}
-        </button>
-      )}
-      <PageHeader title={title} />
+      {!isInTelegram && <BackButton onClick={onBack} />}
+      {header ?? <PageHeader title={title} />}
       {children}
     </div>
   );

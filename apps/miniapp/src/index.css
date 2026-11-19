@@ -37,6 +37,17 @@
   --animate-champ-rise: champ-rise 5s ease-out infinite;
   --animate-champ-bob: champ-bob 3s ease-in-out infinite;
   --animate-champ-enter: champ-enter 900ms cubic-bezier(0.2, 0.9, 0.25, 1.15) both;
+  /* Bosh sahifa: salomlashuv va bayramona "Olivia" (qalpoq, qor). */
+  --animate-wave: wave 2.8s ease-in-out 0.5s infinite;
+  --animate-hat-rock: hat-rock 5.5s ease-in-out infinite;
+  --animate-pom-swing: pom-swing 2.75s ease-in-out infinite;
+  --animate-name-sheen: name-sheen 6s ease-in-out infinite;
+  --animate-tagline: tagline 3.8s ease both;
+  --animate-snow-settle: snow-settle 900ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+  /* Reyting: 1-o'rin kartasidagi shimol shu'lasi va gulchambar chiroqchalari, ro'yxatdagi o'yinchoq. */
+  --animate-aurora: aurora-drift 16s ease-in-out infinite alternate;
+  --animate-bulb: bulb-glow 1.65s ease-in-out infinite;
+  --animate-ornament: ornament-swing 3.6s ease-in-out infinite;
 }
 
 :root {
@@ -62,7 +73,8 @@ body,
 
 body {
   margin: 0;
-  background: var(--color-bg);
+  /* Qishki fon: xira qor parchalari naqshi. */
+  background: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22140%22%20height%3D%22140%22%20viewBox%3D%220%200%20140%20140%22%3E%3Cpath%20d%3D%22M30%2034L39.0%2034.0M35.4%2034.0L37.6%2032.1M35.4%2034.0L37.6%2035.9M30%2034L34.5%2041.8M32.7%2038.7L35.4%2039.7M32.7%2038.7L32.2%2041.5M30%2034L25.5%2041.8M27.3%2038.7L27.8%2041.5M27.3%2038.7L24.6%2039.7M30%2034L21.0%2034.0M24.6%2034.0L22.4%2035.9M24.6%2034.0L22.4%2032.1M30%2034L25.5%2026.2M27.3%2029.3L24.6%2028.3M27.3%2029.3L27.8%2026.5M30%2034L34.5%2026.2M32.7%2029.3L32.2%2026.5M32.7%2029.3L35.4%2028.3%22%20stroke%3D%22%23b9c3d1%22%20stroke-opacity%3D%220.55%22%20stroke-width%3D%221.2%22%20stroke-linecap%3D%22round%22%20fill%3D%22none%22%2F%3E%3Cpath%20d%3D%22M104%2086L110.0%2086.0M107.6%2086.0L109.1%2084.8M107.6%2086.0L109.1%2087.2M104%2086L107.0%2091.2M105.8%2089.1L107.6%2089.8M105.8%2089.1L105.5%2091.0M104%2086L101.0%2091.2M102.2%2089.1L102.5%2091.0M102.2%2089.1L100.4%2089.8M104%2086L98.0%2086.0M100.4%2086.0L98.9%2087.2M100.4%2086.0L98.9%2084.8M104%2086L101.0%2080.8M102.2%2082.9L100.4%2082.2M102.2%2082.9L102.5%2081.0M104%2086L107.0%2080.8M105.8%2082.9L105.5%2081.0M105.8%2082.9L107.6%2082.2%22%20stroke%3D%22%23b9c3d1%22%20stroke-opacity%3D%220.45%22%20stroke-width%3D%221.2%22%20stroke-linecap%3D%22round%22%20fill%3D%22none%22%2F%3E%3Cpath%20d%3D%22M58%20118L62.5%20118.0M60.7%20118.0L61.8%20117.1M60.7%20118.0L61.8%20118.9M58%20118L60.2%20121.9M59.4%20120.3L60.7%20120.8M59.4%20120.3L59.1%20121.8M58%20118L55.8%20121.9M56.6%20120.3L56.9%20121.8M56.6%20120.3L55.3%20120.8M58%20118L53.5%20118.0M55.3%20118.0L54.2%20118.9M55.3%20118.0L54.2%20117.1M58%20118L55.8%20114.1M56.6%20115.7L55.3%20115.2M56.6%20115.7L56.9%20114.2M58%20118L60.2%20114.1M59.4%20115.7L59.1%20114.2M59.4%20115.7L60.7%20115.2%22%20stroke%3D%22%23b9c3d1%22%20stroke-opacity%3D%220.4%22%20stroke-width%3D%221.2%22%20stroke-linecap%3D%22round%22%20fill%3D%22none%22%2F%3E%3C%2Fsvg%3E") 0 0 / 140px 140px repeat, var(--color-bg);
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -72,6 +84,12 @@ body {
 
 button {
   cursor: pointer;
+}
+
+/* Klaviatura fokusi — ko'k emas, bayramona oltin halqa. */
+:focus-visible {
+  outline: 2px solid #e8b84a;
+  outline-offset: 3px;
 }
 
 /* Pastki menyu linzasi: harakat yo'nalishida yengil cho'ziladi va tebranmasdan qaytadi. */
@@ -279,6 +297,124 @@ button {
   50% {
     opacity: 1;
     transform: scale(1.1);
+  }
+}
+
+/* Qo'l silkitish: ikki-uch marta silkitib, bir oz tin oladi. */
+@keyframes wave {
+  0%,
+  52%,
+  100% {
+    transform: rotate(0deg);
+  }
+  8%,
+  24% {
+    transform: rotate(18deg);
+  }
+  16%,
+  32% {
+    transform: rotate(-10deg);
+  }
+  42% {
+    transform: rotate(8deg);
+  }
+}
+
+/* Qalpoq yengil chayqaladi, pomponi esa osilib tebranadi. */
+@keyframes hat-rock {
+  0%,
+  100% {
+    transform: rotate(-1.5deg);
+  }
+  50% {
+    transform: rotate(1.8deg);
+  }
+}
+
+@keyframes pom-swing {
+  0%,
+  100% {
+    transform: rotate(-8deg);
+  }
+  50% {
+    transform: rotate(7deg);
+  }
+}
+
+/* Ism ustidan tilla nur sekin o'tib turadi. */
+@keyframes name-sheen {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Almashib turadigan satr: pastdan kiradi, turadi, yuqoriga chiqib ketadi. */
+@keyframes tagline {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  12%,
+  86% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+/* Qor do'ngligi harf ustiga "qo'nadi". */
+@keyframes snow-settle {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.6, 0.2);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Shimol shu'lasi pardalari sekin chayqalib, yorug'ligi o'zgarib turadi. */
+@keyframes aurora-drift {
+  0% {
+    opacity: 0.55;
+    transform: translateX(-26px) skewX(-6deg) scaleY(0.92);
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.7;
+    transform: translateX(26px) skewX(6deg) scaleY(1.08);
+  }
+}
+
+/* Gulchambar chiroqchasi: yonib-o'chib turadi (uch guruh navbatma-navbat). */
+@keyframes bulb-glow {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Ipga osilgan archa o'yinchog'i yengil tebranadi. */
+@keyframes ornament-swing {
+  0%,
+  100% {
+    transform: rotate(-6deg);
+  }
+  50% {
+    transform: rotate(6deg);
   }
 }
 

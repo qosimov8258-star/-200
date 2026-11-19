@@ -1,14 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
-import { ArrowRight, ChevronRight, Eye, Trophy } from "lucide-react";
+import { ChevronRight, Eye, Trophy } from "lucide-react";
 import { useState } from "react";
 
-import oliviaLogo from "../assets/olivia-logo.webp";
 import { ChampionBackdrop } from "../components/ChampionBackdrop";
-import { Avatar, Card, ErrorBlock, PageHeader, RankDelta, RoundIcon, Spinner } from "../components/ui";
+import { HangingOrnament, RankOrnament, SnowCap } from "../components/Ornaments";
+import { Snowfall } from "../components/Snowfall";
+import { Avatar, Card, ErrorBlock, PageHeader, RankDelta, Spinner } from "../components/ui";
 import { t } from "../i18n/uz";
 import * as api from "../lib/api";
-import { daysUntil, formatCount } from "../lib/format";
+import { formatCount } from "../lib/format";
 import { haptic } from "../lib/telegram";
 import type { RatingEntry } from "../lib/types";
 
@@ -21,22 +22,16 @@ function applyFilter(entries: RatingEntry[], filter: Filter): RatingEntry[] {
   return me < 0 ? [] : entries.slice(Math.max(0, me - 3), me + 4);
 }
 
-export function RatingScreen({
-  firstName,
-  fullName,
-  onOpenReel,
-  onOpenWinner,
-}: {
-  firstName: string;
-  fullName: string;
-  onOpenReel: () => void;
-  onOpenWinner: () => void;
-}) {
+/**
+ * "Reyting" bo'limi: 1-o'rin kartasi va ishtirokchilar ro'yxati (filtrlar bilan).
+ * Yangi yil uslubida: sarlavha yonida osilgan archa o'yinchog'i, konfet-tayoqcha filtrlar,
+ * qor yog'ayotgan qishki tun sahnasi, ro'yxat ustida qor va top-3 uchun o'yinchoq-medallar.
+ */
+export function RatingScreen({ onOpenReel }: { onOpenReel: () => void }) {
   const contest = useQuery({ queryKey: ["contest"], queryFn: api.getContest });
   const rating = useQuery({ queryKey: ["rating"], queryFn: api.getRating });
   const [filter, setFilter] = useState<Filter>("all");
 
-  const days = contest.data ? daysUntil(contest.data.endsAt) : null;
   const filters: [Filter, string][] = [
     ["all", t.filterAll],
     ["top10", t.filterTop10],
@@ -46,29 +41,10 @@ export function RatingScreen({
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow={<img src={oliviaLogo} alt="Olivia" width={78} height={32} className="h-8 w-auto" />}
-        title={t.greeting(firstName)}
-        subtitle={t.welcome}
-        trailing={<Avatar name={fullName} dark />}
+        title={t.ratingTitle}
+        subtitle={contest.data ? t.participants(formatCount(contest.data.participants)) : undefined}
+        trailing={<HangingOrnament className="-mt-6 mr-1 h-[72px] w-[46px] shrink-0 self-start" />}
       />
-
-      <div className="flex h-[60px] items-center rounded-full bg-surface pr-1.5 pl-5">
-        <span className="flex-1 truncate text-[15px] font-medium">
-          {days === null ? "…" : days === 0 ? t.contestFinished : t.daysLeft(days)}
-        </span>
-        <RoundIcon label={t.menuWinner} dark onClick={onOpenWinner}>
-          <ArrowRight className="size-5" />
-        </RoundIcon>
-      </div>
-
-      <div className="flex items-end justify-between">
-        <h2 className="text-[22px] font-bold tracking-tight">{t.ratingTitle}</h2>
-        {contest.data && (
-          <span className="text-[13px] text-muted">
-            {t.participants(formatCount(contest.data.participants))}
-          </span>
-        )}
-      </div>
 
       <div className="-mx-5 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none]">
         {filters.map(([key, label]) => (
@@ -81,7 +57,10 @@ export function RatingScreen({
             }}
             className={clsx(
               "h-11 shrink-0 rounded-full px-5 text-[15px] font-medium transition",
-              filter === key ? "bg-ink text-white" : "bg-surface text-muted",
+              filter === key
+                ? // Konfet tayoqcha: qizil asos ustida qiya oq chiziqlar (orqaga tugmasi bilan bir uslub).
+                  "bg-[#df3425] bg-[repeating-linear-gradient(-45deg,rgba(255,255,255,0.2)_0_7px,transparent_7px_14px)] font-semibold text-white shadow-[0_6px_14px_-8px_rgba(223,52,37,0.9)]"
+                : "bg-surface text-muted",
             )}
           >
             {label}
@@ -108,7 +87,8 @@ export function RatingScreen({
               return <Card className="py-7 text-center text-muted">{t.nearMeEmpty}</Card>;
             }
             return (
-              <Card className="px-0 py-1.5">
+              <Card className="relative mt-2 px-0 py-1.5">
+                <SnowCap className="absolute inset-x-5 -top-[11px] h-[18px] w-[calc(100%-2.5rem)] drop-shadow-[0_1px_1.5px_rgba(60,70,110,0.28)]" />
                 <ol>
                   {visible.map((entry, i) => (
                     <li
@@ -118,20 +98,20 @@ export function RatingScreen({
                         i > 0 && "border-t border-line",
                       )}
                     >
-                      <span
-                        className={clsx(
-                          "w-7 text-base font-bold",
-                          entry.rank <= 3 ? "text-ink" : "text-muted",
-                        )}
-                      >
-                        {entry.rank}
-                      </span>
+                      {entry.rank <= 3 ? (
+                        <span className="w-[30px]">
+                          <RankOrnament rank={entry.rank as 1 | 2 | 3} />
+                          <span className="sr-only">{entry.rank}</span>
+                        </span>
+                      ) : (
+                        <span className="w-[30px] text-center text-base font-bold text-muted">{entry.rank}</span>
+                      )}
                       <Avatar name={entry.fullName} dark={entry.isMe} />
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-1.5">
                           <span className="truncate text-[15px] font-semibold">{entry.fullName}</span>
                           {entry.isMe && (
-                            <span className="rounded-full bg-ink px-2 py-0.5 text-[11px] font-semibold text-white">
+                            <span className="rounded-full bg-[#df3425] px-2 py-0.5 text-[11px] font-semibold text-white">
                               {t.you}
                             </span>
                           )}
@@ -163,8 +143,9 @@ function LeaderCard({
   onOpenReel: () => void;
 }) {
   return (
-    <section className="relative isolate flex h-[300px] flex-col overflow-hidden rounded-card bg-[#0e0826] p-3.5 text-white">
+    <section className="relative isolate flex h-[300px] flex-col overflow-hidden rounded-card bg-[#10132e] p-3.5 text-white shadow-[0_20px_44px_-24px_rgba(11,13,31,0.9)]">
       <ChampionBackdrop />
+      <Snowfall density={0.75} />
       <span className="ml-auto grid size-11 place-items-center rounded-full border border-white/50 bg-[#0a1a2a]/30 backdrop-blur-sm">
         <Trophy className="size-[22px]" />
       </span>

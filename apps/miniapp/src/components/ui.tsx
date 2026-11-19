@@ -1,8 +1,9 @@
 import clsx from "clsx";
-import { ArrowDown, ArrowUp, LoaderCircle } from "lucide-react";
+import { ArrowDown, ArrowUp, LoaderCircle, Snowflake } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 
 import { t } from "../i18n/uz";
+import { GiftButton } from "./GiftButton";
 import { initials } from "../lib/format";
 
 export function Card({
@@ -14,7 +15,8 @@ export function Card({
     <div
       className={clsx(
         "rounded-card p-[18px]",
-        dark ? "bg-ink text-white" : "bg-surface",
+        // Qorong'i karta — qishki tun ko'kida.
+        dark ? "bg-[linear-gradient(150deg,#262f5f,#151a39_70%)] text-white" : "bg-surface",
         className,
       )}
       {...props}
@@ -22,28 +24,9 @@ export function Card({
   );
 }
 
-export function PillButton({
-  children,
-  loading = false,
-  icon,
-  disabled,
-  className,
-  ...props
-}: ComponentProps<"button"> & { loading?: boolean; icon?: ReactNode }) {
-  return (
-    <button
-      type="button"
-      disabled={disabled || loading}
-      className={clsx(
-        "flex h-14 w-full items-center justify-center gap-2 rounded-full bg-ink text-base font-semibold text-white transition active:scale-[0.98] disabled:opacity-60",
-        className,
-      )}
-      {...props}
-    >
-      {loading ? <LoaderCircle className="size-5 animate-spin" /> : children}
-      {!loading && icon}
-    </button>
-  );
+/** Asosiy tugma — qishki bayramda sovg'a qutisi ko'rinishida (lenta va tepasida bantik). */
+export function PillButton(props: ComponentProps<"button"> & { loading?: boolean; icon?: ReactNode }) {
+  return <GiftButton {...props} />;
 }
 
 export function RoundIcon({
@@ -83,7 +66,7 @@ export function TextField({
       {label && <span className="mb-1.5 ml-1.5 block text-[13px] text-muted">{label}</span>}
       <input
         className={clsx(
-          "h-14 w-full rounded-full border bg-surface px-5 text-base outline-none transition placeholder:text-muted focus:border-ink/30",
+          "h-14 w-full rounded-full border bg-surface px-5 text-base outline-none transition placeholder:text-muted focus:border-[#df3425]/45 focus:ring-4 focus:ring-[#df3425]/10",
           error ? "border-negative" : "border-transparent",
         )}
         aria-invalid={error ? true : undefined}
@@ -143,7 +126,14 @@ export function PageHeader({
     <header className="flex items-center gap-3">
       <div className="min-w-0 flex-1">
         {eyebrow && <div className="mb-1.5">{eyebrow}</div>}
-        <h1 className="truncate text-[26px] font-bold tracking-tight">{title}</h1>
+        <h1 className="truncate text-[26px] font-bold tracking-tight">
+          {title}
+          <Snowflake
+            aria-hidden
+            className="ml-2 inline-block size-[18px] align-[3px] text-[#df3425]/60 motion-safe:animate-[spin_14s_linear_infinite]"
+            strokeWidth={2.2}
+          />
+        </h1>
         {subtitle && <p className="mt-0.5 text-[13px] text-muted">{subtitle}</p>}
       </div>
       {trailing}

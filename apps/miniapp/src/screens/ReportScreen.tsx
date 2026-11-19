@@ -1,6 +1,7 @@
 import { ArrowRight, CheckCircle2, ClipboardPaste, ImagePlus, LoaderCircle, Megaphone, ShieldCheck, X } from "lucide-react";
 import { useRef, useState } from "react";
 
+import { Snowfall } from "../components/Snowfall";
 import { Card, PillButton, RoundIcon } from "../components/ui";
 import { t } from "../i18n/uz";
 import * as api from "../lib/api";
@@ -37,7 +38,7 @@ export function ReportScreen({ onBack }: { onBack: () => void }) {
           </span>
           <h2 className="mt-3 text-lg font-bold tracking-tight">{t.reportDoneTitle}</h2>
           <p className="mt-1.5 text-[15px] leading-snug text-muted">{t.reportDoneBody}</p>
-          <PillButton className="mt-5" onClick={onBack}>
+          <PillButton className="mt-10" onClick={onBack}>
             {t.reportBackToRating}
           </PillButton>
           <button
@@ -57,7 +58,8 @@ export function ReportScreen({ onBack }: { onBack: () => void }) {
 
 function Hero() {
   return (
-    <Card dark className="relative overflow-hidden">
+    <Card dark className="relative isolate overflow-hidden">
+      <Snowfall density={0.6} />
       {/* Yengil "signal" halqalari. */}
       <span aria-hidden className="absolute -top-10 -right-10 size-40 rounded-full border border-white/10" />
       <span aria-hidden className="absolute -top-4 -right-4 size-28 rounded-full border border-white/10" />
@@ -234,6 +236,7 @@ function ReportForm({ onSent }: { onSent: () => void }) {
       )}
 
       <PillButton
+        className="mt-6"
         loading={submitting}
         disabled={preparing}
         onClick={() => void submit()}

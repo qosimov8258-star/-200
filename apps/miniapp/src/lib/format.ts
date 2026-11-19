@@ -83,3 +83,16 @@ export const tashkentToday = (now = new Date()): string => tashkentDay.format(no
 /** Ikki "YYYY-MM-DD" sana orasidagi kunlar (`to` − `from`). */
 export const daysBetween = (from: string, to: string): number =>
   Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);
+
+/**
+ * Faqat ko'rsatish uchun: butunlay BOSH HARFLARDA yozilgan ism ("QUVONCHBEK UMARALIYEV") odatiy
+ * ko'rinishga keltiriladi ("Quvonchbek Umaraliyev"). Saqlangan ism o'zgarmaydi.
+ */
+export function displayName(name: string): string {
+  const isShouting =
+    name.length > 1 && name === name.toLocaleUpperCase("uz") && name !== name.toLocaleLowerCase("uz");
+  if (!isShouting) return name;
+  return name
+    .toLocaleLowerCase("uz")
+    .replace(/(^|[\s-])(\p{L})/gu, (_, lead: string, letter: string) => lead + letter.toLocaleUpperCase("uz"));
+}
