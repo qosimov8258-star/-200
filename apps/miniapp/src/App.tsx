@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BookOpen, Gift, Home, LayoutGrid, Medal, Megaphone, PlayCircle, Trophy, User, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -7,11 +7,13 @@ import { GlassNav } from "./components/GlassNav";
 import { MoreMenu } from "./components/MoreMenu";
 import { RulesHero } from "./components/RulesHero";
 import { SupportScreen } from "./screens/SupportScreen";
+import { useToast } from "./components/toast-context";
 import { ErrorBlock, PageHeader, Spinner } from "./components/ui";
 import { t } from "./i18n/uz";
 import * as api from "./lib/api";
 import { errorCode } from "./lib/api-error";
 import { hideSplash } from "./lib/splash";
+import { takeTelegramAuthResult } from "./lib/telegram-login-return";
 import { isInTelegram, showBackButton } from "./lib/telegram";
 import type { Me } from "./lib/types";
 import { MyReelScreen } from "./screens/MyReelScreen";
@@ -37,6 +39,7 @@ export default function App() {
   // ro'yxatdan o'tishni "Profil" da boshlaydi.
   const isGuest = !isInTelegram && me.isError && errorCode(me.error) === "UNAUTHORIZED";
   const loading = (me.isPending || contest.isPending) && !isGuest;
+  useTelegramLoginReturn();
 
   // Birinchi ekran tayyor (yoki xato) — "Olivia" yuklanish sahifasi yopiladi.
   useEffect(() => {
@@ -61,6 +64,25 @@ export default function App() {
       )}
     </>
   );
+}
+
+/**
+ * Saytda "Telegram bilan kirish" telefonda bosilganda Telegram tasdiqdan keyin sahifani
+ * `#tgAuthResult=…` bilan qayta ochadi — kirishni shu yerda yakunlaymiz (qaysi bo'lim ochiq
+ * bo'lishidan qat'i nazar). Kompyuterda vidjet natijani o'zi qaytaradi (WebLoginPanel).
+ */
+function useTelegramLoginReturn() {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  useEffect(() => {
+    if (isInTelegram) return;
+    const user = takeTelegramAuthResult();
+    if (!user) return;
+    api
+      .telegramLogin(user)
+      .then(() => queryClient.invalidateQueries())
+      .catch(() => toast(t.webLoginFailed));
+  }, [queryClient, toast]);
 }
 
 function Stage({ me, prizeName, minAge }: { me: Me; prizeName: string; minAge: number }) {
