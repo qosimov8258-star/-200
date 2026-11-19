@@ -83,8 +83,8 @@ export function WebLoginPanel() {
 }
 
 /**
- * Rasmiy Telegram Login Widget (`telegram-widget.js`). Faqat @BotFather → /setdomain da
- * ko'rsatilgan domenda ishlaydi; boshqa joyda Telegram "Bot domain invalid" deydi.
+ * Rasmiy Telegram Login Widget (`telegram-widget.js`), o'zbek tilida. Faqat @BotFather → /setdomain
+ * da ko'rsatilgan domenda ishlaydi; boshqa joyda Telegram "Bot domain invalid" deydi.
  */
 function TelegramLoginButton({
   botUsername,
@@ -110,6 +110,9 @@ function TelegramLoginButton({
     script.setAttribute("data-size", "large");
     script.setAttribute("data-radius", "20");
     script.setAttribute("data-request-access", "write");
+    // O'zbekcha tugma ("Telegram bilan kirish"). Shu bilan vidjet manzili ham o'zgaradi: domen
+    // @BotFather'da yoqilishidan oldin keshlangan "Bot domain invalid" javobi qayta ishlatilmaydi.
+    script.setAttribute("data-lang", "uz");
     script.setAttribute("data-onauth", "onTelegramAuth(user)");
     el.appendChild(script);
     return () => {
