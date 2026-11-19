@@ -191,12 +191,6 @@ export interface ContestSettings {
   syncTime: string;
   /** Ro'yxatdan o'tish uchun minimal yosh (PLAN.md Q3). */
   minAge: number;
-  /** Tanlov qoidalari matni (o'zbekcha, lotin). */
-  rulesUz: string;
-  /** Ruscha matn — ixtiyoriy (PLAN.md Q9). */
-  rulesRu: string;
-  /** Qoidalar matni o'zgarganda oshadi. */
-  rulesVersion: number;
   updatedAt: string | null;
   updatedBy: string | null;
 }
@@ -208,10 +202,44 @@ export interface ContestSettingsResponse {
   today: IsoDate;
 }
 
-export type ContestSettingsUpdate = Pick<
-  ContestSettings,
-  "startsOn" | "endsOn" | "syncTime" | "minAge" | "rulesUz" | "rulesRu"
->;
+export type ContestSettingsUpdate = Pick<ContestSettings, "startsOn" | "endsOn" | "syncTime" | "minAge">;
+
+// ---------------------------------------------------------------------------
+// Tanlov qoidalari (TZ 4) — Mini App'da bo'limlar ko'rinishida ko'rsatiladi
+// ---------------------------------------------------------------------------
+
+/** Qoidaning bitta bo'limi: sarlavha va matn. */
+export interface RulesSection {
+  title: string;
+  body: string;
+}
+
+export interface ContestRules {
+  /**
+   * Rozilik versiyasi. Faqat "muhim o'zgarish" belgilansa oshadi — shunda barcha
+   * ishtirokchilar Mini App'da yangilangan qoidalarga qaytadan rozilik beradi.
+   */
+  version: number;
+  sections: RulesSection[];
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
+export interface ContestRulesUpdate {
+  sections: RulesSection[];
+  /** true — versiya oshadi va ishtirokchilardan qayta rozilik so'raladi. */
+  requireReconsent: boolean;
+}
+
+/** Backend bilan bir xil cheklovlar (`apps/backend/src/rules/rules.service.ts`). */
+export const RULES_LIMITS = {
+  minSections: 1,
+  maxSections: 20,
+  titleMin: 2,
+  titleMax: 120,
+  bodyMin: 5,
+  bodyMax: 3000,
+} as const;
 
 // ---------------------------------------------------------------------------
 // Audit log (TZ 2-bo'lim: barcha Admin va Support harakatlari — kim, nima, qachon)

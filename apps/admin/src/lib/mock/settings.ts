@@ -15,20 +15,10 @@ import type {
 import { getContestData } from "./contest";
 import { auditId, readStore, writeStore, type MockStore } from "./store";
 
-/** TZ 4-bo'limidagi to'rtta asosiy qoida. */
-export const DEFAULT_RULES_UZ = [
-  "1. Target mumkin emas. Reelni pullik reklama qilish (target, boost) taqiqlanadi.",
-  "2. Ism va familiyani o'zgartirish mumkin emas.",
-  "3. Har qanday muammo supportga yoziladi.",
-  "4. Sotib olingan mahsulot videosini joylash shart.",
-].join("\n");
-
 const DEFAULT_SYNC_TIME = "00:00";
 const DEFAULT_MIN_AGE = 18;
 const SYNC_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const MIN_AGE_RANGE = { min: 14, max: 100 } as const;
-const MIN_RULES_LENGTH = 20;
-const MAX_RULES_LENGTH = 5000;
 
 /** Boshlang'ich qiymatlar + admin o'zgartirganlari. */
 export function effectiveSettings(store: MockStore = readStore()): ContestSettings {
@@ -39,9 +29,6 @@ export function effectiveSettings(store: MockStore = readStore()): ContestSettin
     endsOn: override?.endsOn ?? data.endsOn,
     syncTime: override?.syncTime ?? DEFAULT_SYNC_TIME,
     minAge: override?.minAge ?? DEFAULT_MIN_AGE,
-    rulesUz: override?.rulesUz ?? DEFAULT_RULES_UZ,
-    rulesRu: override?.rulesRu ?? "",
-    rulesVersion: override?.rulesVersion ?? 1,
     updatedAt: override?.updatedAt ?? null,
     updatedBy: override?.updatedBy ?? null,
   };
@@ -83,14 +70,7 @@ function validate(update: ContestSettingsUpdate, current: ContestSettings, today
   ) {
     throw new ApiError(400, `Minimal yosh ${MIN_AGE_RANGE.min}–${MIN_AGE_RANGE.max} oralig'ida bo'lishi kerak.`);
   }
-  const rulesUz = update.rulesUz.trim();
-  if (rulesUz.length < MIN_RULES_LENGTH) {
-    throw new ApiError(400, `Qoidalar matni kamida ${MIN_RULES_LENGTH} ta belgi bo'lishi kerak.`);
-  }
-  if (rulesUz.length > MAX_RULES_LENGTH || update.rulesRu.length > MAX_RULES_LENGTH) {
-    throw new ApiError(400, `Qoidalar matni ${MAX_RULES_LENGTH} belgidan oshmasligi kerak.`);
-  }
-  return { ...update, rulesUz, rulesRu: update.rulesRu.trim() };
+  return update;
 }
 
 const FIELD_LABELS: Record<keyof ContestSettingsUpdate, string> = {
@@ -98,8 +78,6 @@ const FIELD_LABELS: Record<keyof ContestSettingsUpdate, string> = {
   endsOn: "tugash",
   syncTime: "yangilanish vaqti",
   minAge: "minimal yosh",
-  rulesUz: "qoidalar (uz)",
-  rulesRu: "qoidalar (ru)",
 };
 
 export function updateContestSettings(update: ContestSettingsUpdate, actor: AdminUser): ContestSettingsResponse {
@@ -114,21 +92,14 @@ export function updateContestSettings(update: ContestSettingsUpdate, actor: Admi
     return getContestSettings();
   }
 
-  const rulesChanged = changed.includes("rulesUz") || changed.includes("rulesRu");
-  const nextVersion = rulesChanged ? current.rulesVersion + 1 : current.rulesVersion;
   const at = new Date().toISOString();
-  /** Audit uchun faqat o'zgargan maydonlar; qoidalar matni o'rniga versiya. */
-  const describe = (settings: ContestSettingsUpdate, version: number) =>
-    [
-      ...changed
-        .filter((key) => key !== "rulesUz" && key !== "rulesRu")
-        .map((key) => `${FIELD_LABELS[key]}: ${settings[key]}`),
-      ...(rulesChanged ? [`qoidalar v${version}`] : []),
-    ].join("; ");
+  /** Audit uchun faqat o'zgargan maydonlar. */
+  const describe = (settings: ContestSettingsUpdate) =>
+    changed.map((key) => `${FIELD_LABELS[key]}: ${settings[key]}`).join("; ");
 
   const nextStore: MockStore = {
     ...store,
-    settings: { ...clean, rulesVersion: nextVersion, updatedAt: at, updatedBy: actor.fullName },
+    settings: { ...clean, updatedAt: at, updatedBy: actor.fullName },
     audit: [
       ...store.audit,
       {
@@ -139,8 +110,8 @@ export function updateContestSettings(update: ContestSettingsUpdate, actor: Admi
         action: "settings.update",
         entity: "settings",
         entityId: "contest",
-        before: describe(current, current.rulesVersion),
-        after: describe(clean, nextVersion),
+        before: describe(current),
+        after: describe(clean),
         reason: "",
       },
     ],

@@ -2,17 +2,14 @@
 
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, Info } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { updateContestSettings } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
-import { formatDateTime } from "@/lib/format";
 import type { ContestSettingsResponse, ContestSettingsUpdate } from "@/lib/types";
 
 const SYNC_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -20,8 +17,8 @@ const SYNC_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 type FieldErrors = Partial<Record<keyof ContestSettingsUpdate, string>>;
 
 function toForm(data: ContestSettingsResponse): ContestSettingsUpdate {
-  const { startsOn, endsOn, syncTime, minAge, rulesUz, rulesRu } = data.settings;
-  return { startsOn, endsOn, syncTime, minAge, rulesUz, rulesRu };
+  const { startsOn, endsOn, syncTime, minAge } = data.settings;
+  return { startsOn, endsOn, syncTime, minAge };
 }
 
 /** Brauzerda tezkor tekshiruv; yakuniy tekshiruv serverda. */
@@ -38,7 +35,6 @@ function validate(form: ContestSettingsUpdate, data: ContestSettingsResponse): F
   if (!Number.isInteger(form.minAge) || form.minAge < 14 || form.minAge > 100) {
     errors.minAge = "14 dan 100 gacha butun son.";
   }
-  if (form.rulesUz.trim().length < 20) errors.rulesUz = "Kamida 20 ta belgi.";
   return errors;
 }
 
@@ -48,7 +44,7 @@ interface SettingsFormProps {
   onSaved: () => void;
 }
 
-/** TZ 6: Sozlamalar — tanlov muddati, qoidalar matni, yangilanish vaqti, minimal yosh. */
+/** TZ 6: Sozlamalar — tanlov muddati, yangilanish vaqti, minimal yosh. Qoidalar — `RulesEditor`. */
 export function SettingsForm({ data, onSaved }: SettingsFormProps) {
   const queryClient = useQueryClient();
   const initial = toForm(data);
@@ -60,7 +56,6 @@ export function SettingsForm({ data, onSaved }: SettingsFormProps) {
   const dirty = (Object.keys(initial) as Array<keyof ContestSettingsUpdate>).some(
     (key) => form[key] !== initial[key],
   );
-  const rulesDirty = form.rulesUz !== initial.rulesUz || form.rulesRu !== initial.rulesRu;
 
   const mutation = useMutation({
     mutationFn: () => updateContestSettings(form),
@@ -179,56 +174,6 @@ export function SettingsForm({ data, onSaved }: SettingsFormProps) {
               aria-invalid={fieldError("minAge") ? true : undefined}
             />
           </Field>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-wrap items-center justify-between gap-2">
-          <CardTitle>Tanlov qoidalari</CardTitle>
-          <span className="flex items-center gap-2 text-xs text-slate-500">
-            <Badge tone="brand">Versiya {data.settings.rulesVersion}</Badge>
-            {data.settings.updatedAt && (
-              <span>
-                Oxirgi o&apos;zgarish: {formatDateTime(data.settings.updatedAt)} · {data.settings.updatedBy}
-              </span>
-            )}
-          </span>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="flex items-start gap-2 text-sm text-slate-600">
-            <Info className="mt-0.5 size-4 shrink-0 text-slate-400" aria-hidden />
-            Qoidalar ro&apos;yxatdan o&apos;tishda va ilovadagi &quot;Qoidalar&quot; ekranida
-            ko&apos;rsatiladi; ishtirokchi rozilik bermasa ro&apos;yxatdan o&apos;ta olmaydi (TZ 4).
-          </p>
-          <Field id="rulesUz" label="O'zbekcha (lotin)" error={fieldError("rulesUz")}>
-            <Textarea
-              id="rulesUz"
-              rows={7}
-              value={form.rulesUz}
-              disabled={mutation.isPending}
-              onChange={(event) => update("rulesUz", event.target.value)}
-              aria-invalid={fieldError("rulesUz") ? true : undefined}
-            />
-          </Field>
-          <Field
-            id="rulesRu"
-            label="Ruscha (ixtiyoriy)"
-            hint="Rus tili tasdiqlansa to'ldiriladi (PLAN.md Q9)."
-          >
-            <Textarea
-              id="rulesRu"
-              rows={5}
-              value={form.rulesRu}
-              disabled={mutation.isPending}
-              onChange={(event) => update("rulesRu", event.target.value)}
-            />
-          </Field>
-          {rulesDirty && (
-            <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
-              Saqlansa qoidalar versiyasi {data.settings.rulesVersion + 1} ga oshadi va ishtirokchilar
-              ilovada yangilangan qoidalarni ko&apos;radi.
-            </p>
-          )}
         </CardContent>
       </Card>
 

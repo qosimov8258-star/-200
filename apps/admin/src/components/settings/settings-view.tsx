@@ -10,6 +10,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { getContestSettings } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
 
+import { RulesEditor } from "./rules-editor";
 import { SettingsForm } from "./settings-form";
 
 const NOTICE_TIMEOUT_MS = 5000;
@@ -48,7 +49,7 @@ export function SettingsView() {
   }
 
   return (
-    <div className="max-w-3xl space-y-4">
+    <div className="max-w-5xl space-y-4">
       <div role="status" aria-live="polite">
         {saved && (
           <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
@@ -63,6 +64,7 @@ export function SettingsView() {
         data={data}
         onSaved={() => setSaved(true)}
       />
+      <RulesEditor />
     </div>
   );
 }

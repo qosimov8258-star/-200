@@ -8,6 +8,7 @@
  */
 import type {
   AuditEntity,
+  ContestRules,
   ContestSettingsUpdate,
   ParticipantStatus,
   SupportTicketStatus,
@@ -48,11 +49,12 @@ export interface MockStore {
   winner: MockWinnerState;
   /** Admin o'zgartirgan sozlamalar; null — boshlang'ich qiymatlar. */
   settings: MockSettingsOverride | null;
+  /** Admin tahrirlagan tanlov qoidalari; null — boshlang'ich matn. */
+  rules: ContestRules | null;
   audit: MockAuditEntry[];
 }
 
 export interface MockSettingsOverride extends ContestSettingsUpdate {
-  rulesVersion: number;
   updatedAt: string;
   updatedBy: string;
 }
@@ -87,6 +89,7 @@ function emptyStore(): MockStore {
       announced: null,
     },
     settings: null,
+    rules: null,
     audit: [],
   };
 }
