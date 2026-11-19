@@ -39,11 +39,22 @@ yuboradi, Mini App esa holat o'zgarguncha `GET /me` ni qayta so'raydi.
 - Barcha so'rovlar faqat [`src/lib/api.ts`](src/lib/api.ts) da.
 - `VITE_API_URL` bo'sh → mock rejim ([`src/lib/mock/store.ts`](src/lib/mock/store.ts),
   holat `localStorage` da, "Boshidan boshlash" tugmasi bilan tozalanadi). Yuborilgan video
-  4 soniya "Tekshirilmoqda" bo'ladi, keyin qabul qilinadi; shortcode `notfound` bilan
-  boshlansa (masalan, `https://www.instagram.com/reel/notfound1/`) — rad etiladi.
-- `VITE_API_URL=http://localhost:3000/api/v1` → haqiqiy backend. Har bir so'rov
+  4 soniya "Tekshirilmoqda" bo'ladi, keyin qabul qilinadi. Shortcode `notfound` bilan
+  boshlansa (masalan, `https://www.instagram.com/reel/notfound1/`) — "Qo'lda tekshirilmoqda",
+  `photo` bilan boshlansa — "Reel emas" deb rad etiladi.
+- `VITE_API_URL=http://localhost:3000/api/v1` → haqiqiy backend. Telegram ichida har bir so'rov
   `X-Telegram-Init-Data` sarlavhasi bilan ketadi; backend uni bot tokeni bilan tekshiradi.
-  Shuning uchun haqiqiy rejim faqat Telegram ichida ishlaydi.
+
+## Veb-sayt (oddiy brauzerda)
+
+Xuddi shu ilova — bot bilan bir xil vazifa va bir xil akkaunt:
+
+- **Kirish** — "Telegram orqali kirish" (rasmiy Telegram Login Widget). Backend imzoni tekshirib,
+  `HttpOnly` sessiya cookie'sini qo'yadi (30 kun). Mock rejimda widget o'rniga sinov tugmasi.
+- **Raqam** — "Botda raqamni ulashish": bot chati `t.me/<bot>?start=web` bilan ochiladi, raqam
+  o'sha yerda ulashiladi, sayt o'zi yangilanadi.
+- **Support** — bot chatini ochadi; **Profil → Saytdan chiqish** — sessiyani yopadi.
+- Widget faqat @BotFather → `/setdomain` da ko'rsatilgan domenda ishlaydi (localhost'da emas).
 
 ## Telegram ichida sinash
 

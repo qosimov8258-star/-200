@@ -1,3 +1,5 @@
+import { t } from "../i18n/uz";
+
 const NBSP = " ";
 
 /** 1234567 → "1 234 567". */
@@ -37,6 +39,21 @@ export function formatDateTime(iso: string): string {
   return `${two(d.getDate())}.${two(d.getMonth() + 1)}.${d.getFullYear()} ${two(d.getHours())}:${two(d.getMinutes())}`;
 }
 
+/** ISO vaqt → "5-dekabr, 06:00" (qurilma vaqt mintaqasida). */
+export function formatDayMonthTime(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getDate()}-${t.months[d.getMonth()]}, ${two(d.getHours())}:${two(d.getMinutes())}`;
+}
+
+/** Bugundan necha kalendar kun keyin (bugun — 0, ertaga — 1). */
+export function calendarDaysUntil(iso: string, now = new Date()): number {
+  const from = new Date(now);
+  from.setHours(0, 0, 0, 0);
+  const to = new Date(iso);
+  to.setHours(0, 0, 0, 0);
+  return Math.round((to.getTime() - from.getTime()) / 86_400_000);
+}
+
 /** Tanlov tugashigacha to'liq kunlar (manfiy bo'lmaydi). */
 export function daysUntil(iso: string, now = new Date()): number {
   const diff = new Date(iso).getTime() - now.getTime();
@@ -52,3 +69,17 @@ export function initials(fullName: string): string {
     .map((p) => p[0]?.toUpperCase() ?? "")
     .join("");
 }
+
+const tashkentDay = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Tashkent",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/** Bugungi tanlov kuni "YYYY-MM-DD" (Asia/Tashkent). */
+export const tashkentToday = (now = new Date()): string => tashkentDay.format(now);
+
+/** Ikki "YYYY-MM-DD" sana orasidagi kunlar (`to` − `from`). */
+export const daysBetween = (from: string, to: string): number =>
+  Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);

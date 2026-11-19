@@ -3,12 +3,14 @@ import clsx from "clsx";
 import {
   ArrowRight,
   ArrowUpDown,
+  CalendarClock,
   CheckCircle2,
   ClipboardPaste,
   Copy,
   Eye,
   LoaderCircle,
   Play,
+  RefreshCw,
   TrendingUp,
   Trophy,
 } from "lucide-react";
@@ -20,27 +22,34 @@ import { useToast } from "../components/toast-context";
 import { t } from "../i18n/uz";
 import * as api from "../lib/api";
 import { errorCode } from "../lib/api-error";
-import { formatCount, formatDateTime, formatSigned } from "../lib/format";
+import { calendarDaysUntil, formatCount, formatDayMonthTime, formatSigned } from "../lib/format";
 import { parseReelShortcode } from "../lib/reel-url";
 import { haptic, openExternal } from "../lib/telegram";
 import type { MyReel, ReelStatus } from "../lib/types";
 
-/** Server videoni tekshirayotganda holat shuncha millisoniyada bir so'raladi. */
+/** Avtomatik tekshiruv paytida holat shuncha millisoniyada bir so'raladi. */
 const PENDING_POLL_MS = 5000;
+/** Qo'lda tekshiruv soatlab cho'zilishi mumkin — kamroq so'raymiz (natija botga ham keladi). */
+const MANUAL_REVIEW_POLL_MS = 60_000;
+
+const WAITING: ReadonlySet<ReelStatus | undefined> = new Set(["PENDING", "MANUAL_REVIEW"]);
 
 export function MyReelScreen() {
   const queryClient = useQueryClient();
   const reel = useQuery({
     queryKey: ["reel"],
     queryFn: api.getMyReel,
-    refetchInterval: (query) => (query.state.data?.status === "PENDING" ? PENDING_POLL_MS : false),
+    refetchInterval: (query) => {
+      const s = query.state.data?.status;
+      return s === "PENDING" ? PENDING_POLL_MS : s === "MANUAL_REVIEW" ? MANUAL_REVIEW_POLL_MS : false;
+    },
   });
 
-  // Tekshiruv tugadi (PENDING → qabul/rad): reyting ham yangilansin.
+  // Tekshiruv tugadi (kutish → qabul/rad): reyting ham yangilansin.
   const status = reel.data?.status;
   const previous = useRef(status);
   useEffect(() => {
-    if (previous.current === "PENDING" && status && status !== "PENDING") {
+    if (WAITING.has(previous.current) && status && !WAITING.has(status)) {
       if (status === "ACCEPTED") haptic.success();
       else haptic.error();
       void queryClient.invalidateQueries({ queryKey: ["rating"] });
@@ -189,8 +198,8 @@ function Conditions() {
 const STATUS: Record<ReelStatus, { label: string; color: string; note: string | null }> = {
   PENDING: { label: t.statusPending, color: "text-muted", note: t.pendingNote },
   ACCEPTED: { label: t.statusAccepted, color: "text-positive", note: null },
+  MANUAL_REVIEW: { label: t.statusManualReview, color: "text-warning", note: t.manualReviewNote },
   REJECTED: { label: t.statusRejected, color: "text-negative", note: t.rejectedNote },
-  REMOVED: { label: t.statusRemoved, color: "text-negative", note: t.removedNote },
 };
 
 function ReelStats({ reel }: { reel: MyReel }) {
@@ -224,7 +233,7 @@ function ReelStats({ reel }: { reel: MyReel }) {
           <span className="flex items-center gap-2 text-[13px] whitespace-nowrap">
             <span className="text-muted">{t.reelLink}</span>
             <span className={clsx("flex items-center gap-1 font-semibold", status.color)}>
-              {reel.status === "PENDING" ? (
+              {WAITING.has(reel.status) ? (
                 <LoaderCircle className="size-3 animate-spin" />
               ) : (
                 <span className="size-1.5 rounded-full bg-current" />
@@ -276,14 +285,71 @@ function ReelStats({ reel }: { reel: MyReel }) {
               </div>
             </Card>
           )}
-          {reel.lastSyncedAt && (
-            <p className="text-center text-[13px] text-muted">
-              {t.lastSynced(formatDateTime(reel.lastSyncedAt))}
-            </p>
-          )}
+          {(reel.lastSyncedAt || reel.nextSyncAt) && <SyncCard reel={reel} />}
         </>
       )}
     </>
+  );
+}
+
+/** Oxirgi va keyingi yangilanish — ishtirokchi ko'rishlar qachon yangilanishini aniq bilsin. */
+function SyncCard({ reel }: { reel: MyReel }) {
+  return (
+    <Card className="space-y-4">
+      <SyncRow
+        icon={<RefreshCw />}
+        label={t.lastSyncedLabel}
+        value={reel.lastSyncedAt ? formatDayMonthTime(reel.lastSyncedAt) : "—"}
+      />
+      {reel.nextSyncAt && (
+        <SyncRow
+          accent
+          icon={<CalendarClock />}
+          label={t.nextSyncLabel}
+          value={formatDayMonthTime(reel.nextSyncAt)}
+          badge={t.inDays(calendarDaysUntil(reel.nextSyncAt))}
+        />
+      )}
+      {reel.syncEveryDays > 0 && (
+        <p className="border-t border-line pt-3.5 text-[13px] text-muted">{t.syncEvery(reel.syncEveryDays)}</p>
+      )}
+    </Card>
+  );
+}
+
+function SyncRow({
+  icon,
+  label,
+  value,
+  badge,
+  accent = false,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  badge?: string;
+  accent?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <span
+        className={clsx(
+          "grid size-11 shrink-0 place-items-center rounded-full [&>svg]:size-5",
+          accent ? "bg-ink text-white" : "bg-chip text-ink",
+        )}
+      >
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[13px] text-muted">{label}</span>
+        <span className="block text-[18px] leading-snug font-bold tracking-tight">{value}</span>
+        {badge && (
+          <span className="mt-1 inline-block rounded-full bg-positive/12 px-2.5 py-0.5 text-[13px] font-semibold text-positive">
+            {badge}
+          </span>
+        )}
+      </span>
+    </div>
   );
 }
 

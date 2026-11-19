@@ -5,13 +5,19 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { ToastProvider } from "./components/Toast";
 import "./index.css";
+import { errorCode } from "./lib/api-error";
 import { initTelegram } from "./lib/telegram";
 
 initTelegram("#f1f2f4");
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, refetchOnWindowFocus: false, staleTime: 30_000 },
+    queries: {
+      // Kirmagan (401) — qayta urinish befoyda: sayt darhol kirish sahifasini ko'rsatadi.
+      retry: (count, error) => count < 1 && errorCode(error) !== "UNAUTHORIZED",
+      refetchOnWindowFocus: false,
+      staleTime: 30_000,
+    },
   },
 });
 

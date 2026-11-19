@@ -1,6 +1,15 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
-import { ChevronRight, FileText, Hourglass, Lock, MessageCircle, Trash2, Trophy } from "lucide-react";
+import {
+  ChevronRight,
+  FileText,
+  Hourglass,
+  Lock,
+  LogOut,
+  MessageCircle,
+  Trash2,
+  Trophy,
+} from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Avatar, Card, ErrorBlock, PageHeader, Spinner } from "../components/ui";
@@ -8,7 +17,7 @@ import { useToast } from "../components/toast-context";
 import { t } from "../i18n/uz";
 import * as api from "../lib/api";
 import { daysUntil, formatCount, formatDateTime } from "../lib/format";
-import { closeMiniApp, confirmDialog, haptic, isInTelegram } from "../lib/telegram";
+import { botLink, closeMiniApp, confirmDialog, haptic, isInTelegram, openTelegram } from "../lib/telegram";
 import type { Me } from "../lib/types";
 
 export function ProfileScreen({
@@ -25,11 +34,34 @@ export function ProfileScreen({
   const profile = me.profile!;
   const fullName = `${profile.firstName} ${profile.lastName}`;
 
+  const auth = useQuery({
+    queryKey: ["auth-config"],
+    queryFn: api.getAuthConfig,
+    enabled: !isInTelegram,
+  });
+
   const openSupport = () => {
     haptic.tap();
-    // Support yozishmasi bot chatida: Mini App yopiladi va foydalanuvchi chatga qaytadi.
-    toast(t.supportHint);
-    if (isInTelegram) window.setTimeout(closeMiniApp, 1400);
+    // Support yozishmasi bot chatida: Mini App yopiladi va foydalanuvchi chatga qaytadi;
+    // saytda — bot chati yangi oynada ochiladi.
+    if (isInTelegram) {
+      toast(t.supportHint);
+      window.setTimeout(closeMiniApp, 1400);
+      return;
+    }
+    const bot = auth.data?.botUsername;
+    toast(t.supportWebHint);
+    if (bot) openTelegram(botLink(bot));
+  };
+
+  const signOut = async () => {
+    try {
+      await api.logout();
+      // `clear()` faol so'rovlarni qayta yuklamaydi — ekran eski holatda qolardi.
+      await queryClient.resetQueries();
+    } catch {
+      toast(t.genericError);
+    }
   };
 
   const remove = async () => {
@@ -37,8 +69,8 @@ export function ProfileScreen({
     try {
       await api.deleteAccount();
       haptic.success();
-      queryClient.clear();
-      await queryClient.invalidateQueries({ queryKey: ["me"] });
+      // `clear()` faol so'rovlarni qayta yuklamaydi — ekran eski holatda qolardi.
+      await queryClient.resetQueries();
     } catch {
       toast(t.genericError);
     }
@@ -78,6 +110,10 @@ export function ProfileScreen({
       />
       <Menu
         items={[
+          // Saytda — chiqish (Telegram ichida kerak emas: u yerda akkaunt Telegram'ning o'zi).
+          ...(isInTelegram
+            ? []
+            : [{ icon: <LogOut />, label: t.webLogout, onClick: () => void signOut() }]),
           {
             icon: <Trash2 />,
             label: t.deleteAccount,
