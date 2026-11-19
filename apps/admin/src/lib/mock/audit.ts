@@ -129,6 +129,10 @@ function entityLabelResolver(): (entry: MockAuditEntry) => string {
       case "prize":
         // O'chirilgan sovg'aning nomi audit yozuvining "oldin" qismida qoladi.
         return prizes.get(entry.entityId) ?? entry.before.split("; ")[0] ?? entry.entityId;
+      case "voucher_draw": {
+        const draw = readStore().draws.find((item) => item.id === entry.entityId);
+        return draw ? `#${draw.number} — ${draw.prizeTitle}` : entry.entityId;
+      }
       case "auth":
         return entry.actorName;
     }

@@ -31,3 +31,35 @@
     @apply outline-2 outline-offset-2 outline-brand-500;
   }
 }
+
+/* Random tanlov: nom almashinuvi va natija konfettisi. */
+@theme {
+  --animate-draw-flip: draw-flip 90ms ease-out;
+  --animate-confetti: confetti 1.6s cubic-bezier(0.2, 0.6, 0.3, 1) forwards;
+}
+
+@keyframes draw-flip {
+  from {
+    opacity: 0.2;
+    transform: translateY(-40%);
+    filter: blur(2px);
+  }
+}
+
+@keyframes confetti {
+  from {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0);
+  }
+  to {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) rotate(var(--rot));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-draw-flip,
+  .animate-confetti {
+    animation: none;
+  }
+}
