@@ -8,7 +8,7 @@ import {
 } from "@nestjs/common";
 
 import { ApiException } from "../common/api-exception";
-import { contestDay, daysBetween } from "../common/time";
+import { addDays, contestDay, daysBetween } from "../common/time";
 import { AdLibraryProvider, type AdHit } from "../instagram/ad-library";
 import { parseReelShortcode } from "../miniapp/reel-url";
 import {
@@ -78,8 +78,15 @@ export interface AdsCheckReport {
 export interface TargetsOptions {
   /** Reytingning nechta yetakchisi reklama kutubxonasida tekshiriladi. */
   checkTop: number;
-  /** Necha kunda bir tekshiriladi (ko'rishlar yig'ilgandan keyin); 0 — avtomatik tekshiruv o'chiq. */
+  /**
+   * Tanlov boshidan necha kunda bir tekshiriladi: k × everyDays-kun (30 — oyiga bir marta);
+   * 0 — avtomatik tekshiruv o'chiq (faqat admin qo'lda).
+   */
   everyDays: number;
+  /** Tanlov boshlangan kun "YYYY-MM-DD" (Toshkent) — jadval shundan sanaladi. */
+  contestStartsOn: string;
+  /** Tanlov tugagach avtomatik tekshiruv to'xtaydi. */
+  contestEndsAt: Date;
   clock?: () => Date;
 }
 
@@ -112,9 +119,10 @@ const fail = (status: number, message: string) => new HttpException({ message },
 /**
  * Target (pullik reklama) holatlari:
  *
- * 1. **Meta reklama kutubxonasi** — har `everyDays` kunda (ko'rishlar yig'ishidan qat'i nazar,
- *    oxirgi reyting bo'yicha) `checkTop` yetakchi Apify orqali tekshiriladi (faqat faol reklamalar
- *    ko'rinadi).
+ * 1. **Meta reklama kutubxonasi** — tanlov boshidan har `everyDays` kunda (standart 30 — oyiga
+ *    bir marta; ko'rishlar yig'ishidan qat'i nazar, oxirgi reyting bo'yicha) `checkTop` yetakchi
+ *    Apify orqali tekshiriladi (faqat faol reklamalar ko'rinadi). Admin istalgan vaqtda qo'lda ham
+ *    tekshira oladi.
  * 2. **O'sish tahlili** — StatsService qo'ygan belgilar holatga aylanadi: keskin o'sish
  *    (VIEW_SPIKE) va "ko'rishlar oshgan, layklar o'smagan" (ENGAGEMENT_GAP).
  * 3. **Shikoyatlar** — ishtirokchilar lentasida "Reklama" belgisi bilan ko'rgan postning
@@ -150,7 +158,11 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
   }
 
   onApplicationBootstrap(): void {
-    const period = this.options.everyDays <= 0 ? "o'chiq" : `har ${this.options.everyDays} kunda top-${this.options.checkTop}`;
+    const next = this.nextCheckOn();
+    const period =
+      this.options.everyDays <= 0
+        ? "o'chiq (faqat qo'lda)"
+        : `har ${this.options.everyDays} kunda top-${this.options.checkTop}${next ? `, keyingisi ${next}` : ""}`;
     this.logger.log(`Reklama kutubxonasi tekshiruvi: ${period} (manba: ${this.ads.name}).`);
     this.timer = setInterval(() => this.tick(), TICK_MS);
     this.timer.unref();
@@ -162,8 +174,8 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
 
   /**
    * Har daqiqa: ko'rishlar yangi yig'ilgan bo'lsa — o'sish belgilarini ko'chiradi. Reklama
-   * kutubxonasi esa yig'ishdan qat'i nazar o'z jadvali bilan (har `everyDays` kunda) tekshiriladi:
-   * ko'rishlar 10 kunda bir yig'ilsa ham, oradagi faol reklamalar o'tkazib yuborilmasin.
+   * kutubxonasi esa yig'ishdan qat'i nazar o'z jadvali bilan (tanlov boshidan har `everyDays`
+   * kunda) tekshiriladi.
    */
   tick(): void {
     const syncAt = this.stats.status().lastSuccessAt;
@@ -174,13 +186,34 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
     if (this.adsDue()) void this.checkAds("schedule");
   }
 
+  /** Rejadagi oxirgi tekshiruv kuni (bugun yoki undan oldingi); hali kelmagan bo'lsa — null. */
+  private currentSlot(): string | null {
+    const { everyDays, contestStartsOn } = this.options;
+    if (everyDays <= 0) return null;
+    const k = Math.floor(daysBetween(contestStartsOn, contestDay(this.now())) / everyDays);
+    return k >= 1 ? addDays(contestStartsOn, k * everyDays) : null;
+  }
+
+  /** Keyingi rejadagi tekshiruv kuni; tanlov tugagan yoki avtomatik tekshiruv o'chiq — null. */
+  nextCheckOn(): string | null {
+    const { everyDays, contestStartsOn, contestEndsAt } = this.options;
+    if (everyDays <= 0) return null;
+    const today = contestDay(this.now());
+    const slot = this.currentSlot();
+    const next =
+      slot !== null && slot === today && (this.lastAdsDay === null || this.lastAdsDay < slot)
+        ? slot
+        : addDays(contestStartsOn, (Math.floor(daysBetween(contestStartsOn, today) / everyDays) + 1) * everyDays);
+    return next <= contestDay(contestEndsAt) ? next : null;
+  }
+
   private adsDue(): boolean {
-    if (this.options.everyDays <= 0 || this.checking !== null) return false;
+    if (this.checking !== null || this.now() >= this.options.contestEndsAt) return false;
     if (this.now().getTime() < this.adsRetryAt) return false;
+    const slot = this.currentSlot();
+    if (slot === null || (this.lastAdsDay !== null && this.lastAdsDay >= slot)) return false;
     // Reyting bo'sh — tekshiradigan akkaunt yo'q.
-    if (this.stats.ranking().length === 0) return false;
-    if (this.lastAdsDay === null) return true;
-    return daysBetween(this.lastAdsDay, contestDay(this.now())) >= this.options.everyDays;
+    return this.stats.ranking().length > 0;
   }
 
   /**

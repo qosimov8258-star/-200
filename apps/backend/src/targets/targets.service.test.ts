@@ -35,7 +35,13 @@ async function setup(checkTop = 2) {
     clock,
   });
   const ads = new MockAdLibraryProvider();
-  const targets = new TargetsService(participants, stats, ads, notifier, { checkTop, everyDays: 1, clock });
+  const targets = new TargetsService(participants, stats, ads, notifier, {
+    checkTop,
+    everyDays: 1,
+    contestStartsOn: "2026-11-30",
+    contestEndsAt: at("2027-02-25"),
+    clock,
+  });
 
   // 1-o'rin: user1 (30 000), 2: user2 (20 000), 3: user3 (10 000).
   for (const [id, views] of [
@@ -193,6 +199,8 @@ test("a failed ad library check is retried after an hour, not every minute", asy
   const targets = new TargetsService(participants, stats, new FailingAds(), notifier, {
     checkTop: 2,
     everyDays: 1,
+    contestStartsOn: "2026-11-30",
+    contestEndsAt: at("2027-02-25"),
     clock: () => now,
   });
   const settle = () => new Promise((r) => setTimeout(r, 0));
@@ -208,6 +216,42 @@ test("a failed ad library check is retried after an hour, not every minute", asy
   targets.tick();
   await settle();
   assert.equal(calls, 2);
+});
+
+test("monthly schedule: days 30, 60, 90 from the contest start, nothing after the end", async () => {
+  const { participants, stats } = await setup();
+  const ads = new MockAdLibraryProvider();
+  let now = at("2026-12-01");
+  const notifier: ParticipantNotifier = { notify: () => Promise.resolve() };
+  const targets = new TargetsService(participants, stats, ads, notifier, {
+    checkTop: 2,
+    everyDays: 30,
+    contestStartsOn: "2026-11-25",
+    contestEndsAt: new Date("2027-02-25T19:00:00Z"),
+    clock: () => now,
+  });
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+  const tickOn = async (day: string) => {
+    now = at(day);
+    targets.tick();
+    await settle();
+    return ads.requests.length;
+  };
+
+  assert.equal(targets.nextCheckOn(), "2026-12-25");
+  assert.equal(await tickOn("2026-12-24"), 0);
+  assert.equal(await tickOn("2026-12-25"), 1);
+  assert.equal(await tickOn("2026-12-26"), 1);
+  assert.equal(targets.nextCheckOn(), "2027-01-24");
+  assert.equal(await tickOn("2027-01-24"), 2);
+  assert.equal(await tickOn("2027-02-23"), 3);
+  // Keyingisi (2027-03-25) tanlov tugagandan keyin — rejada yo'q.
+  assert.equal(targets.nextCheckOn(), null);
+  assert.equal(await tickOn("2027-03-25"), 3);
+
+  // Admin istalgan vaqtda qo'lda tekshira oladi.
+  await targets.checkAds("admin");
+  assert.equal(ads.requests.length, 4);
 });
 
 const jpeg = (size = 2_000): Screenshot => ({

@@ -41,7 +41,7 @@ TypeScript 6 da qoladi: Nest CLI hozircha TypeScript 7 bilan ishlamaydi.
 | `STATS_SYNC_EVERY_DAYS` | Tanlov boshidan (`contest.ts` → `startsOn`, 25-noyabr) necha kunda bir: `10` (standart) — 5, 15, 25-dekabr…; `1` — har kuni; `0` — o'chiq |
 | `STATS_VERIFY_DELAY_MS` | Yangi videolar shuncha yig'ilib, bitta so'rovda tekshiriladi (standart `5000`) |
 | `TARGET_CHECK_TOP` | Reklama kutubxonasida reytingning nechta yetakchisi tekshiriladi (standart `30`) |
-| `TARGET_CHECK_EVERY_DAYS` | Necha kunda bir tekshiriladi (standart `1`; `0` — faqat qo'lda) |
+| `TARGET_CHECK_EVERY_DAYS` | Tanlov boshidan necha kunda bir tekshiriladi (standart `30` — oyiga bir marta; `0` — faqat qo'lda) |
 | `ADMIN_API_TOKEN` | VAQTINCHA admin API kaliti (admin login qurilguncha). Bo'sh — admin API yopiq |
 
 Bot tokeni bo'lmasa, bot ishga tushmaydi va Mini App API barcha so'rovlarni rad etadi.
@@ -93,13 +93,15 @@ Narx: ≈ $2.7 / 1000 natija (har bir video har yig'ishda bitta natija).
 Instagram boshqa akkauntning reklama tarixini bermaydi, shuning uchun to'rt qatlam
 ([`src/targets/targets.service.ts`](src/targets/targets.service.ts)):
 
-1. **Meta reklama kutubxonasi** — har `TARGET_CHECK_EVERY_DAYS` kunda (ko'rishlar yig'ishidan qat'i
-   nazar, oxirgi reyting bo'yicha) `TARGET_CHECK_TOP` yetakchi Apify'ning
+1. **Meta reklama kutubxonasi** — oyiga bir marta (tanlov boshidan har `TARGET_CHECK_EVERY_DAYS` = 30
+   kunda: 25-dekabr, 24-yanvar, 23-fevral — har oylik bosqich oxirida; tanlov tugagach to'xtaydi)
+   oxirgi reyting bo'yicha `TARGET_CHECK_TOP` yetakchi Apify'ning
    [`apify/facebook-ads-scraper`](https://apify.com/apify/facebook-ads-scraper) aktori bilan
    tekshiriladi ([`src/instagram/ad-library.ts`](src/instagram/ad-library.ts)). Reklama beruvchining
    Instagram username'i aniq mos kelsa — `AD_LIBRARY` holati ochiladi, dalil havolasi saqlanadi;
    reklama to'xtasa tarixga `OFF`, qayta yoqilsa `ON` yoziladi. Cheklov: kutubxona faqat
-   **faol** reklamalarni ko'rsatadi — shuning uchun tekshiruv muntazam.
+   **faol** reklamalarni ko'rsatadi — tekshiruvlar orasida yoqib-o'chirilgan reklamani shikoyatlar,
+   o'sish tahlili va yuzma-yuz tekshiruv ushlaydi. Admin istalgan vaqtda "Hozir tekshirish" bosa oladi.
    Narx: pul faqat topilgan reklama uchun (≈ $0.006 / reklama, bitta akkauntdan ko'pi bilan 5 ta);
    reklama topilmasa — deyarli bepul.
 2. **O'sish tahlili** — `VIEW_SPIKE` (keskin o'sish) va `ENGAGEMENT_GAP` (ko'rishlar oshgan,
@@ -155,7 +157,7 @@ bot xabari) yoki ro'yxatdan chiqarishni Admin hal qiladi.
 | `GET /admin/targets` | Target holatlari: `status` (`NEW`/`WARNED`/`DISQUALIFIED`/`DISMISSED`/`OPEN`), `search`, `page`, `pageSize` |
 | `GET /admin/targets/:id` | Holat: dalil, dalil havolasi, kunlik o'sish, target holati tarixi |
 | `POST /admin/targets/:id/resolve` | `{ action: "warn" \| "disqualify" \| "dismiss", reason }` — Admin qarori |
-| `GET /admin/targets/check`, `POST /admin/targets/check` | Reklama kutubxonasi: oxirgi tekshiruv / hoziroq tekshirish (tugashini kutadi) |
+| `GET /admin/targets/check`, `POST /admin/targets/check` | Reklama kutubxonasi: oxirgi tekshiruv va keyingi rejadagi kun (`nextCheckOn`) / hoziroq tekshirish (tugashini kutadi) |
 | `GET /admin/targets/:id/attachments/:attachmentId` | Shikoyat skrinshoti (rasm) |
 
 Mini App'dagi shikoyat: `POST /miniapp/target-reports` — `{ target, screenshot, comment? }`,

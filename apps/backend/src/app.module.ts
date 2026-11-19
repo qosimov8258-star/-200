@@ -71,7 +71,12 @@ function statsOptions(): StatsOptions {
         const { checkTop, everyDays } = config.targets;
         if (!Number.isInteger(checkTop) || checkTop < 0) throw new Error("TARGET_CHECK_TOP 0 yoki musbat butun son");
         if (!Number.isInteger(everyDays) || everyDays < 0) throw new Error("TARGET_CHECK_EVERY_DAYS 0 yoki musbat butun son");
-        return { checkTop, everyDays };
+        return {
+          checkTop,
+          everyDays,
+          contestStartsOn: contestSettings.startsOn,
+          contestEndsAt: new Date(contestSettings.endsAt),
+        };
       },
     },
     TargetsService,

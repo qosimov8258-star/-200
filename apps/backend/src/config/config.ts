@@ -56,8 +56,11 @@ export const config = {
   targets: {
     /** Reytingning nechta yetakchisi tekshiriladi. */
     checkTop: Number(str("TARGET_CHECK_TOP") ?? 30),
-    /** Necha kunda bir (ko'rishlar yig'ilgandan keyin); 0 — avtomatik tekshiruv o'chiq. */
-    everyDays: Number(str("TARGET_CHECK_EVERY_DAYS") ?? 1),
+    /**
+     * Tanlov boshidan necha kunda bir (30 — oyiga bir marta: 30, 60, 90-kunlar);
+     * 0 — avtomatik tekshiruv o'chiq (faqat admin "Hozir tekshirish" bosganda).
+     */
+    everyDays: Number(str("TARGET_CHECK_EVERY_DAYS") ?? 30),
   },
 
   /**

@@ -56,10 +56,14 @@ export class AdminTargetsController {
     });
   }
 
-  /** Oxirgi reklama kutubxonasi tekshiruvi natijasi. */
+  /** Reklama kutubxonasi: oxirgi tekshiruv natijasi va keyingi rejadagi kun. */
   @Get("check")
   lastCheck() {
-    return { running: this.targets.isChecking, lastCheck: this.targets.lastCheck };
+    return {
+      running: this.targets.isChecking,
+      lastCheck: this.targets.lastCheck,
+      nextCheckOn: this.targets.nextCheckOn(),
+    };
   }
 
   /** Reklama kutubxonasini hoziroq tekshirish (reyting yetakchilari). Tugashini kutadi. */
