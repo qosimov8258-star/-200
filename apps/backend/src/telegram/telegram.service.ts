@@ -7,6 +7,9 @@ import { SupportService } from "../support/support.service";
 import type { ParticipantNotifier } from "./notifier";
 import { texts } from "./texts";
 
+/** Sayt botga shu parametr bilan yuboradi: `https://t.me/<bot>?start=web`. */
+const WEB_START_PAYLOAD = "web";
+
 /**
  * Telegram bot:
  * - /start — salomlashadi va raqam ulashishni so'raydi (yoki Mini App tugmasini beradi);
@@ -22,6 +25,8 @@ export class TelegramService
 {
   private readonly logger = new Logger(TelegramService.name);
   private bot: Bot | null = null;
+  /** Saytdan raqam ulashish uchun kelganlar — raqamdan keyin "saytga qayting" deyiladi. */
+  private readonly webStarts = new Set<number>();
 
   constructor(
     private readonly participants: ParticipantsService,
@@ -59,7 +64,9 @@ export class TelegramService
 
   /** Ishtirokchiga bot orqali xabar (xabarnomalar, support javoblari). */
   async notify(chatId: number, text: string): Promise<void> {
-    await this.bot?.api.sendMessage(chatId, text);
+    // Bot ishlamasa — xato: chaqiruvchi xabarni "yuborildi" deb hisoblamasin.
+    if (!this.bot) throw new Error("Telegram bot ishga tushmagan");
+    await this.bot.api.sendMessage(chatId, text);
   }
 
   // -------------------------------------------------------------------------
@@ -75,8 +82,13 @@ export class TelegramService
       if (!isPrivate(ctx) || !ctx.from) return;
       const p = this.participants.getOrCreate(ctx.from.id);
       p.chatId = ctx.chat.id;
+      // Saytdan "Botda raqamni ulashish" orqali kelgan: t.me/<bot>?start=web
+      const fromWeb = ctx.match === WEB_START_PAYLOAD;
+      if (fromWeb) this.webStarts.add(ctx.from.id);
       if (!p.phone) {
-        await ctx.reply(texts.welcome, { reply_markup: this.contactKeyboard() });
+        await ctx.reply(fromWeb ? texts.welcomeFromWeb : texts.welcome, {
+          reply_markup: this.contactKeyboard(),
+        });
         return;
       }
       await this.replyWithMiniApp(ctx, texts.alreadyRegistered);
@@ -96,7 +108,10 @@ export class TelegramService
         return;
       }
       // Pastdagi "Raqamni ulashish" klaviaturasini yopamiz, keyin Mini App tugmasi.
-      await ctx.reply(texts.contactSaved, { reply_markup: { remove_keyboard: true } });
+      const fromWeb = this.webStarts.delete(ctx.from.id);
+      await ctx.reply(fromWeb ? texts.contactSavedWeb : texts.contactSaved, {
+        reply_markup: { remove_keyboard: true },
+      });
       await this.replyWithMiniApp(ctx, texts.openMiniApp);
     });
 

@@ -7,6 +7,10 @@ export const texts = {
   contactTaken:
     "Bu raqam boshqa Telegram akkauntiga bog'langan. Bitta raqam — bitta ishtirokchi. Savol bo'lsa, shu yerga yozing.",
   contactSaved: "✅ Raqam qabul qilindi!\n\nEndi tanlov ilovasini ochib, ro'yxatdan o'ting:",
+  welcomeFromWeb:
+    "Assalomu alaykum! 👋\n\nSaytda ro'yxatdan o'tish uchun pastdagi tugma orqali telefon raqamingizni ulashing — keyin saytga qayting.",
+  contactSavedWeb:
+    "✅ Raqam qabul qilindi!\n\nEndi saytga qayting — sahifa o'zi yangilanadi va ro'yxatdan o'tishni davom ettirasiz. Xohlasangiz, shu yerdan ham ochishingiz mumkin:",
   openMiniApp: "🏆 Tanlovni ochish",
   menuButton: "Tanlov",
   alreadyRegistered: "Tanlov ilovasini ochish uchun pastdagi tugmani bosing:",
@@ -33,7 +37,13 @@ export const texts = {
     OWNER_TAKEN:
       "❌ Bu Instagram akkauntdan boshqa ishtirokchi video yuborgan. Bitta akkaunt — bitta ishtirokchi. Xato bo'lsa, shu chatga yozing.",
   },
-  reelRemoved:
-    "⚠️ Videongiz Instagram'da topilmay qoldi va reytingdan vaqtincha chiqarildi. Video o'chirilmagani va akkauntingiz ochiq ekanini tekshiring.",
+  reelManualReview: {
+    NEW_REEL:
+      "🔎 Videongizni avtomatik tekshira olmadik — Instagram'da 3 marta topilmadi.\n\nUni administrator qo'lda tekshiradi, natijani shu chatga yozamiz. Akkauntingiz ochiq (yopiq emas) va video o'chirilmaganini tekshirib qo'ying.",
+    LOST_REEL:
+      "⚠️ Videongiz Instagram'da ketma-ket 3 marta topilmadi va reytingdan vaqtincha chiqarildi.\n\nUni administrator qo'lda tekshiradi, natijani shu chatga yozamiz. Video o'chirilmagani va akkauntingiz ochiq ekanini tekshiring.",
+  },
+  reelManualApproved:
+    "✅ Videongiz administrator tomonidan tekshirildi va reytingga qo'shildi. Ko'rishlar avtomatik yangilanib boradi.",
   reelRestored: "✅ Videongiz yana topildi va reytingga qaytarildi.",
 } as const;

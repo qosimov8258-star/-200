@@ -27,3 +27,16 @@ export const contestTime = (at: Date): string => timeFormat.format(at);
 /** Ikki tanlov kuni orasidagi kunlar soni (`to` − `from`). */
 export const daysBetween = (from: string, to: string): number =>
   Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);
+
+/** "2026-11-25" + 10 → "2026-12-05". */
+export function addDays(day: string, days: number): string {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Toshkent vaqtidagi kun va soat → `Date` (UTC). O'zbekistonda yozgi vaqt yo'q,
+ * shuning uchun siljish doim +05:00.
+ */
+export const tashkentAt = (day: string, time: string): Date => new Date(`${day}T${time}:00+05:00`);
