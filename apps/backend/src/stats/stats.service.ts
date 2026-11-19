@@ -94,6 +94,13 @@ export const FLAG_RULES = {
   /** Kunlik o'sish kamida shuncha va oldingisidan `spikeFactor` barobar ko'p — VIEW_SPIKE. */
   spikeMinDailyGain: 50_000,
   spikeFactor: 10,
+  /**
+   * ENGAGEMENT_GAP: kunlik o'sish kamida `gapMinDailyGain` va oldingisidan `gapFactor` barobar
+   * ko'p, shu kungi layk ulushi esa Reelning odatdagi ulushidan `gapLikeShare` martadan past.
+   */
+  gapMinDailyGain: 20_000,
+  gapFactor: 3,
+  gapLikeShare: 0.25,
   /** Ko'rishlar shuncha ulushga kamaysa — VIEW_DROP. */
   dropRatio: 0.1,
 } as const;
@@ -655,7 +662,23 @@ export function detectFlags(reel: Reel): void {
   if (rate >= R.spikeMinDailyGain && rate > R.spikeFactor * Math.max(prevRate, 1)) {
     add("VIEW_SPIKE", `kuniga +${formatCount(Math.round(prevRate))} → +${formatCount(Math.round(rate))}`);
   }
+
+  // Ko'rishlar oshgan, layklar o'smagan: reklama begona auditoriyaga ko'rsatiladi.
+  if (cur.likes === null || prev.likes === null || prev.views <= 0 || prev.likes <= 0) return;
+  const viewsGain = cur.views - prev.views;
+  if (rate < R.gapMinDailyGain || rate <= R.gapFactor * Math.max(prevRate, 1)) return;
+  const usualShare = prev.likes / prev.views;
+  const dayShare = Math.max(0, cur.likes - prev.likes) / viewsGain;
+  if (dayShare < R.gapLikeShare * usualShare) {
+    add(
+      "ENGAGEMENT_GAP",
+      `+${formatCount(viewsGain)} ko'rish, +${formatCount(Math.max(0, cur.likes - prev.likes))} layk ` +
+        `(layk ulushi ${percent(usualShare)} → ${percent(dayShare)})`,
+    );
+  }
 }
+
+const percent = (ratio: number): string => `${(ratio * 100).toFixed(ratio < 0.01 ? 2 : 1)}%`;
 
 /** 156745 → "156 745". */
 export const formatCount = (n: number): string =>

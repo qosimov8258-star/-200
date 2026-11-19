@@ -40,6 +40,8 @@ TypeScript 6 da qoladi: Nest CLI hozircha TypeScript 7 bilan ishlamaydi.
 | `STATS_SYNC_TIME` | Ko'rishlar soat nechada yig'iladi, Toshkent vaqti (standart `06:00`) |
 | `STATS_SYNC_EVERY_DAYS` | Tanlov boshidan (`contest.ts` → `startsOn`, 25-noyabr) necha kunda bir: `10` (standart) — 5, 15, 25-dekabr…; `1` — har kuni; `0` — o'chiq |
 | `STATS_VERIFY_DELAY_MS` | Yangi videolar shuncha yig'ilib, bitta so'rovda tekshiriladi (standart `5000`) |
+| `TARGET_CHECK_TOP` | Reklama kutubxonasida reytingning nechta yetakchisi tekshiriladi (standart `30`) |
+| `TARGET_CHECK_EVERY_DAYS` | Necha kunda bir tekshiriladi (standart `1`; `0` — faqat qo'lda) |
 | `ADMIN_API_TOKEN` | VAQTINCHA admin API kaliti (admin login qurilguncha). Bo'sh — admin API yopiq |
 
 Bot tokeni bo'lmasa, bot ishga tushmaydi va Mini App API barcha so'rovlarni rad etadi.
@@ -79,11 +81,41 @@ ishtirokchi faqat Reel linkini yuboradi, Instagram akkaunt ulash yo'q.
 5. **Reyting** — oxirgi ko'rishlar bo'yicha; teng bo'lsa, oldinroq yuborgan yuqorida.
    O'rin o'zgarishi — oldingi yig'ishga nisbatan.
 6. **Nakrutka belgilari** (faqat admin uchun, avtomatik jazo yo'q): `LOW_ENGAGEMENT`
-   (layk/ko'rish < 0.3%), `VIEW_SPIKE` (bir kunda 10 barobardan ko'p o'sish), `VIEW_DROP`
-   (ko'rishlar 10% dan ko'p kamaygan — Instagram sun'iy ko'rishlarni tozalaganda).
+   (layk/ko'rish < 0.3%), `VIEW_SPIKE` (bir kunda 10 barobardan ko'p o'sish), `ENGAGEMENT_GAP`
+   (kuniga kamida +20 000 va 3 barobar o'sish, shu kungi layk ulushi odatdagidan 4 marta past),
+   `VIEW_DROP` (ko'rishlar 10% dan ko'p kamaygan — Instagram sun'iy ko'rishlarni tozalaganda).
 
 Ko'rishlarni faqat worker yozadi — qo'lda o'zgartiruvchi endpoint yo'q.
 Narx: ≈ $2.7 / 1000 natija (har bir video har yig'ishda bitta natija).
+
+## Target (pullik reklama) qanday aniqlanadi
+
+Instagram boshqa akkauntning reklama tarixini bermaydi, shuning uchun to'rt qatlam
+([`src/targets/targets.service.ts`](src/targets/targets.service.ts)):
+
+1. **Meta reklama kutubxonasi** — har `TARGET_CHECK_EVERY_DAYS` kunda (ko'rishlar yig'ishidan qat'i
+   nazar, oxirgi reyting bo'yicha) `TARGET_CHECK_TOP` yetakchi Apify'ning
+   [`apify/facebook-ads-scraper`](https://apify.com/apify/facebook-ads-scraper) aktori bilan
+   tekshiriladi ([`src/instagram/ad-library.ts`](src/instagram/ad-library.ts)). Reklama beruvchining
+   Instagram username'i aniq mos kelsa — `AD_LIBRARY` holati ochiladi, dalil havolasi saqlanadi;
+   reklama to'xtasa tarixga `OFF`, qayta yoqilsa `ON` yoziladi. Cheklov: kutubxona faqat
+   **faol** reklamalarni ko'rsatadi — shuning uchun tekshiruv muntazam.
+   Narx: pul faqat topilgan reklama uchun (≈ $0.006 / reklama, bitta akkauntdan ko'pi bilan 5 ta);
+   reklama topilmasa — deyarli bepul.
+2. **O'sish tahlili** — `VIEW_SPIKE` (keskin o'sish) va `ENGAGEMENT_GAP` (ko'rishlar oshgan,
+   layklar o'smagan — reklama begona auditoriyaga ko'rsatiladi) belgilari: har bir kun bir marta
+   `GROWTH_ANALYSIS` holatiga aylanadi, bir kunda ikkalasi bo'lsa — dalilda ikkalasi.
+3. **Ishtirokchilar shikoyati** — Mini App'dagi "Reklamani ko'rdim": lentada «Reklama» belgisi bilan
+   ko'rilgan videoning skrinshoti va akkaunt nomi (yoki Reel linki). Bitta ishtirokchiga ochiq
+   `REPORT` holati bitta, yangi shikoyatlar unga qo'shiladi. Cheklovlar: kuniga 5 ta, bir kunda bir
+   kishi haqida bitta, o'zi haqida yo'q. Skrinshot Mini App'da JPEG ga siqiladi (≤ 2 MB, EXIF
+   olib tashlanadi), server turini baytlar bo'yicha tekshiradi. VAQTINCHA xotirada (keyin MinIO).
+   Shikoyatchini faqat admin ko'radi.
+4. **Yuzma-yuz tekshiruv** — sovrin topshirilishidan oldin g'olib telefonida Instagram →
+   Professional panel → "Reklama vositalari" ko'riladi (admin panel → G'olib → tekshiruv ro'yxati).
+
+Tizim faqat signal beradi: ogohlantirish (bot xabari), diskvalifikatsiya (reytingdan chiqadi,
+bot xabari) yoki ro'yxatdan chiqarishni Admin hal qiladi.
 
 ## API
 
@@ -120,6 +152,14 @@ Narx: ≈ $2.7 / 1000 natija (har bir video har yig'ishda bitta natija).
 | `GET /admin/draws`, `GET /admin/draws/:id` | Tanlovlar tarixi va natija |
 | `POST /admin/draws/:id/{replace,confirm,cancel}` | G'olibni zaxira bilan almashtirish, tasdiqlash, bekor qilish |
 | `POST /admin/draws/:id/send` | G'oliblarga Telegram bot orqali tabrik (faqat tasdiqlangandan keyin) |
+| `GET /admin/targets` | Target holatlari: `status` (`NEW`/`WARNED`/`DISQUALIFIED`/`DISMISSED`/`OPEN`), `search`, `page`, `pageSize` |
+| `GET /admin/targets/:id` | Holat: dalil, dalil havolasi, kunlik o'sish, target holati tarixi |
+| `POST /admin/targets/:id/resolve` | `{ action: "warn" \| "disqualify" \| "dismiss", reason }` — Admin qarori |
+| `GET /admin/targets/check`, `POST /admin/targets/check` | Reklama kutubxonasi: oxirgi tekshiruv / hoziroq tekshirish (tugashini kutadi) |
+| `GET /admin/targets/:id/attachments/:attachmentId` | Shikoyat skrinshoti (rasm) |
+
+Mini App'dagi shikoyat: `POST /miniapp/target-reports` — `{ target, screenshot, comment? }`,
+`screenshot` — `data:image/jpeg;base64,...`; JSON tanasi chegarasi 3 MB.
 
 ## Keyingi qadamlar
 

@@ -2,12 +2,15 @@ import "reflect-metadata";
 
 import { Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 
 import { AppModule } from "./app.module";
 import { config } from "./config/config";
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // Shikoyat skrinshoti JSON ichida (`data:` URL, ≤ 2 MB rasm) keladi — standart 100 KB yetmaydi.
+  app.useBodyParser("json", { limit: "3mb" });
   // Admin panel va Mini App ikkalasi shu prefiks bilan murojaat qiladi.
   app.setGlobalPrefix("api/v1");
   app.enableCors({

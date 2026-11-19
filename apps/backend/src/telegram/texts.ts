@@ -46,4 +46,10 @@ export const texts = {
   reelManualApproved:
     "✅ Videongiz administrator tomonidan tekshirildi va reytingga qo'shildi. Ko'rishlar avtomatik yangilanib boradi.",
   reelRestored: "✅ Videongiz yana topildi va reytingga qaytarildi.",
+
+  // Target (pullik reklama) — admin qaroridan keyin
+  targetWarning:
+    "⚠️ Ogohlantirish: videongiz pullik reklama (target) yordamida ko'tarilgani aniqlandi. Qoidalarga ko'ra bu taqiqlangan — reklamani to'xtating. Takrorlansa, tanlovdan chetlashtirilasiz. Savollar bo'lsa, shu chatga yozing.",
+  targetDisqualified:
+    "❌ Pullik reklama (target) taqiqi buzilgani sababli tanlovdan chetlashtirildingiz. Savollar bo'lsa, shu chatga yozing.",
 } as const;

@@ -52,6 +52,14 @@ export const config = {
     verifyDelayMs: Number(str("STATS_VERIFY_DELAY_MS") ?? 5_000),
   },
 
+  /** Target (pullik reklama) tekshiruvi — Meta reklama kutubxonasi orqali (Apify). */
+  targets: {
+    /** Reytingning nechta yetakchisi tekshiriladi. */
+    checkTop: Number(str("TARGET_CHECK_TOP") ?? 30),
+    /** Necha kunda bir (ko'rishlar yig'ilgandan keyin); 0 — avtomatik tekshiruv o'chiq. */
+    everyDays: Number(str("TARGET_CHECK_EVERY_DAYS") ?? 1),
+  },
+
   /**
    * VAQTINCHA: admin API kaliti (admin login qurilguncha). Bo'sh bo'lsa — admin API yopiq.
    */

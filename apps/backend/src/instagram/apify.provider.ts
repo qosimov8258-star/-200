@@ -1,17 +1,11 @@
 import { canonicalReelUrl } from "../miniapp/reel-url";
+import { ApifyClient, type FetchFn } from "./apify-client";
 import { ReelStatsProvider, type ReelStats } from "./reel-stats";
 
-const API = "https://api.apify.com/v2";
 /** Apify'ning rasmiy Instagram aktori: https://apify.com/apify/instagram-scraper */
 const ACTOR = "apify~instagram-scraper";
 /** Bitta ishga (run) nechta link beriladi. */
 const CHUNK_SIZE = 100;
-/** Holatni so'raganda server shuncha soniya kutib turadi (long polling). */
-const WAIT_SECONDS = 60;
-/** Bitta ish bundan uzoq cho'zilsa — xato. */
-const MAX_RUN_MS = 30 * 60_000;
-const REQUEST_TIMEOUT_MS = (WAIT_SECONDS + 30) * 1000;
-const FINISHED = new Set(["SUCCEEDED", "FAILED", "TIMED-OUT", "ABORTED"]);
 
 /** Aktor natijasidagi bizga kerakli maydonlar (`resultsType: "details"`). */
 interface ApifyItem {
@@ -28,13 +22,6 @@ interface ApifyItem {
   error?: string;
 }
 
-interface ApifyRun {
-  id: string;
-  status: string;
-  defaultDatasetId: string;
-}
-
-type FetchFn = typeof fetch;
 
 /**
  * Reel ko'rishlarini Apify orqali oladi (Meta App Review kerak emas).
@@ -46,11 +33,11 @@ type FetchFn = typeof fetch;
 export class ApifyReelStatsProvider extends ReelStatsProvider {
   readonly name = "apify";
 
-  constructor(
-    private readonly token: string,
-    private readonly fetchFn: FetchFn = fetch,
-  ) {
+  private readonly client: ApifyClient;
+
+  constructor(token: string, fetchFn: FetchFn = fetch) {
     super();
+    this.client = new ApifyClient(token, fetchFn);
   }
 
   async fetch(shortcodes: string[]): Promise<Map<string, ReelStats | null>> {
@@ -71,53 +58,12 @@ export class ApifyReelStatsProvider extends ReelStatsProvider {
     return result;
   }
 
-  private async run(shortcodes: string[]): Promise<ApifyItem[]> {
-    const input = {
-      directUrls: shortcodes.map(canonicalReelUrl),
-      resultsType: "details",
-      resultsLimit: 1,
-    };
-    let run = await this.call<ApifyRun>(
-      "POST",
-      `/acts/${ACTOR}/runs?maxItems=${shortcodes.length}`,
-      input,
+  private run(shortcodes: string[]): Promise<ApifyItem[]> {
+    return this.client.run<ApifyItem>(
+      ACTOR,
+      { directUrls: shortcodes.map(canonicalReelUrl), resultsType: "details", resultsLimit: 1 },
+      shortcodes.length,
     );
-    const started = Date.now();
-    while (!FINISHED.has(run.status)) {
-      if (Date.now() - started > MAX_RUN_MS) {
-        throw new Error(`Apify ishi ${run.id} juda uzoq cho'zildi (holat: ${run.status})`);
-      }
-      run = await this.call<ApifyRun>("GET", `/actor-runs/${run.id}?waitForFinish=${WAIT_SECONDS}`);
-    }
-    if (run.status !== "SUCCEEDED") {
-      throw new Error(`Apify ishi ${run.id} muvaffaqiyatsiz tugadi (holat: ${run.status})`);
-    }
-    return this.call<ApifyItem[]>(
-      "GET",
-      `/datasets/${run.defaultDatasetId}/items?clean=true&format=json`,
-      undefined,
-      false,
-    );
-  }
-
-  /** `unwrap` — Apify javobi `{ data: ... }` ichida keladi (datasetdan tashqari). */
-  private async call<T>(method: string, path: string, body?: unknown, unwrap = true): Promise<T> {
-    const res = await this.fetchFn(`${API}${path}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${this.token}`,
-        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
-    const text = await res.text();
-    if (!res.ok) {
-      const route = path.split("?")[0];
-      throw new Error(`Apify ${method} ${route} → HTTP ${res.status}: ${text.slice(0, 200)}`);
-    }
-    const json = JSON.parse(text) as T | { data: T };
-    return unwrap ? (json as { data: T }).data : (json as T);
   }
 }
 

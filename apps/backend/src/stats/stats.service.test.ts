@@ -285,7 +285,7 @@ test("suspicious numbers are flagged for the admin, not punished automatically",
   setNow("2026-12-03 06:01");
   provider.set("AAAAA1", { owner: "a", views: 425_000, likes: 1_100 });
   await stats.syncAll("schedule");
-  assert.deepEqual(reel(1)?.flags.map((f) => f.type).sort(), ["LOW_ENGAGEMENT", "VIEW_SPIKE"]);
+  assert.deepEqual(reel(1)?.flags.map((f) => f.type).sort(), ["ENGAGEMENT_GAP", "LOW_ENGAGEMENT", "VIEW_SPIKE"]);
 
   // Instagram sun'iy ko'rishlarni tozaladi.
   setNow("2026-12-04 06:01");
@@ -294,6 +294,29 @@ test("suspicious numbers are flagged for the admin, not punished automatically",
   assert.ok(reel(1)?.flags.some((f) => f.type === "VIEW_DROP"));
   assert.equal(reel(1)?.status, "ACCEPTED");
   assert.equal(reel(1)?.flags.filter((f) => f.type === "LOW_ENGAGEMENT").length, 1);
+});
+
+test("views jumping while likes stay flat is flagged; organic growth with likes is not", async () => {
+  const { provider, stats, join, reel, setNow } = setup();
+  for (const code of ["AAAAA1", "BBBBB2"]) provider.set(code, { owner: code.toLowerCase(), views: 20_000, likes: 800 });
+  join(1, "AAAAA1");
+  join(2, "BBBBB2");
+  await stats.flushVerification();
+
+  setNow("2026-12-02 06:01");
+  for (const code of ["AAAAA1", "BBBBB2"]) provider.set(code, { owner: code.toLowerCase(), views: 25_000, likes: 1_000 });
+  await stats.syncAll("schedule");
+
+  // Ikkalasi ham kuniga +5 000 dan +35 000 ga (7×, VIEW_SPIKE emas). Birinchisida layklar
+  // deyarli o'smagan (reklama), ikkinchisida o'sish bilan birga oshgan (organik).
+  setNow("2026-12-03 06:01");
+  provider.set("AAAAA1", { owner: "aaaaa1", views: 60_000, likes: 1_050 });
+  provider.set("BBBBB2", { owner: "bbbbb2", views: 60_000, likes: 2_400 });
+  await stats.syncAll("schedule");
+
+  assert.deepEqual(reel(1)?.flags.map((f) => f.type), ["ENGAGEMENT_GAP"]);
+  assert.match(reel(1)?.flags[0].detail ?? "", /\+35 000 ko'rish, \+50 layk \(layk ulushi 4\.0% → 0\.14%\)/);
+  assert.deepEqual(reel(2)?.flags, []);
 });
 
 test("schedule: daily after sync time, every N days, and one final sync after the end", async () => {
