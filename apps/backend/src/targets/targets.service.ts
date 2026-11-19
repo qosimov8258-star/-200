@@ -3,6 +3,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  Optional,
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from "@nestjs/common";
@@ -17,8 +18,9 @@ import {
   type ReelFlag,
   type ReelFlagType,
 } from "../participants/participants.service";
+import { StateStore } from "../persistence/state-store";
 import { StatsService } from "../stats/stats.service";
-import { ParticipantNotifier } from "../telegram/notifier";
+import { ParticipantNotifier, type TelegramMessageKind } from "../telegram/notifier";
 import { texts } from "../telegram/texts";
 import { screenshotExtension, type Screenshot, type ScreenshotMime } from "./screenshot";
 
@@ -102,8 +104,8 @@ const TICK_MS = 60_000;
 const ADS_RETRY_MS = 60 * 60_000;
 /** Bitta ishtirokchi bir kunda ko'pi bilan nechta shikoyat yubora oladi. */
 const REPORTS_PER_DAY = 5;
-/** Xotirada saqlanadigan skrinshotlar chegarasi (MinIO ulanguncha). */
-const MAX_STORED_SCREENSHOTS = 500;
+/** Saqlanadigan skrinshotlar chegarasi (MinIO ulanguncha; diskda ~1 GB). */
+const MAX_STORED_SCREENSHOTS = 2_000;
 const GROWTH_FLAGS = new Set<ReelFlagType>(["VIEW_SPIKE", "ENGAGEMENT_GAP"]);
 const USERNAME = /^[a-z0-9._]{1,30}$/;
 const INSTAGRAM_HOSTS = new Set(["instagram.com", "www.instagram.com", "m.instagram.com"]);
@@ -137,7 +139,7 @@ const fail = (status: number, message: string) => new HttpException({ message },
 export class TargetsService implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger(TargetsService.name);
   private readonly cases: TargetCase[] = [];
-  /** Shikoyat skrinshotlari: attachmentId → rasm. VAQTINCHA xotirada (keyin MinIO). */
+  /** Shikoyat skrinshotlari diskda (`StateStore` fayllari); store bo'lmasa (testlar) — shu yerda. */
   private readonly screenshots = new Map<string, Screenshot>();
   private readonly now: () => Date;
   private timer: NodeJS.Timeout | null = null;
@@ -153,8 +155,21 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
     private readonly ads: AdLibraryProvider,
     private readonly notifier: ParticipantNotifier,
     @Inject(TARGETS_OPTIONS) private readonly options: TargetsOptions,
+    @Optional() @Inject(StateStore) private readonly store: StateStore | null = null,
   ) {
     this.now = options.clock ?? (() => new Date());
+    const saved = store?.attach("targets", () => ({
+      cases: this.cases,
+      processedSync: this.processedSync,
+      lastAdsDay: this.lastAdsDay,
+      lastCheck: this.lastCheck,
+    }));
+    if (saved) {
+      this.cases.push(...saved.cases);
+      this.processedSync = saved.processedSync;
+      this.lastAdsDay = saved.lastAdsDay;
+      this.lastCheck = saved.lastCheck;
+    }
   }
 
   onApplicationBootstrap(): void {
@@ -277,7 +292,8 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
     const sentToday = this.cases
       .flatMap((c) => c.reports)
       .filter((r) => r.reporterId === reporterId && r.day === today).length;
-    if (sentToday >= REPORTS_PER_DAY || this.screenshots.size >= MAX_STORED_SCREENSHOTS) {
+    const stored = this.cases.reduce((sum, c) => sum + c.reports.length, 0);
+    if (sentToday >= REPORTS_PER_DAY || stored >= MAX_STORED_SCREENSHOTS) {
       throw new ApiException(429, "REPORT_LIMIT");
     }
     const open = this.cases.find(
@@ -287,8 +303,10 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
       throw new ApiException(409, "REPORT_DUPLICATE");
     }
 
-    const attachmentId = `att_${this.screenshots.size + 1}_${Date.now().toString(36)}`;
-    this.screenshots.set(attachmentId, input.screenshot);
+    const attachmentId = `att_${stored + 1}_${Date.now().toString(36)}`;
+    // Diskda saqlanadi; xotiraga faqat store bo'lmaganda (testlar) — 2 MB lik rasmlar RAM'ni to'ldirmasin.
+    if (this.store) this.store.putFile(`${attachmentId}.${screenshotExtension(input.screenshot.mime)}`, input.screenshot.data);
+    else this.screenshots.set(attachmentId, input.screenshot);
     const entry: TargetReport = {
       id: `rep_${attachmentId.slice(4)}`,
       reporterId,
@@ -327,9 +345,13 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
   /** Shikoyat skrinshoti (admin ko'rishi uchun). */
   attachment(caseId: string, attachmentId: string): Screenshot {
     const c = this.find(caseId);
-    const image = c.reports.some((r) => r.attachmentId === attachmentId) ? this.screenshots.get(attachmentId) : undefined;
-    if (!image) throw fail(404, "Fayl topilmadi.");
-    return image;
+    const report = c.reports.find((r) => r.attachmentId === attachmentId);
+    if (!report) throw fail(404, "Fayl topilmadi.");
+    const cached = this.screenshots.get(attachmentId);
+    if (cached) return cached;
+    const data = this.store?.getFile(`${attachmentId}.${screenshotExtension(report.mime)}`);
+    if (!data) throw fail(404, "Fayl topilmadi.");
+    return { mime: report.mime, data };
   }
 
   /** Reel linki → shu Reel egasi; profil linki yoki @username → shu akkaunt egasi. */
@@ -433,6 +455,16 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
 
   // --- Admin --------------------------------------------------------------
 
+  /** Barcha holatlar (o'qish uchun: ishtirokchilar ro'yxati, dashboard, g'olib tekshiruvi). */
+  allCases(): readonly TargetCase[] {
+    return this.cases;
+  }
+
+  /** Ishtirokchining holatlari. */
+  casesOf(telegramId: number): TargetCase[] {
+    return this.cases.filter((c) => c.telegramId === telegramId);
+  }
+
   list(query: { status?: TargetStatusFilter; search?: string; page?: number; pageSize?: number }) {
     const needle = (query.search ?? "").trim().toLowerCase();
     const ranks = this.rankMap();
@@ -522,8 +554,8 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
     c.status = rule.to;
     c.history.push({ date: contestDay(this.now()), state: c.currentState, note: `${rule.label}: ${why}` });
     if (action === "disqualify") this.participants.disqualify(p.telegramId);
-    if (action === "warn") this.notify(p, texts.targetWarning);
-    if (action === "disqualify") this.notify(p, texts.targetDisqualified);
+    if (action === "warn") this.notify(p, texts.targetWarning, "WARNING");
+    if (action === "disqualify") this.notify(p, texts.targetDisqualified, "WARNING");
     this.logger.log(`${actor}: target ${c.id} (${p.firstName} ${p.lastName}) — ${rule.label}: ${why}`);
     return this.get(id);
   }
@@ -567,9 +599,9 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
     return `tgt_${String(this.cases.length + 1).padStart(4, "0")}`;
   }
 
-  private notify(p: Participant, text: string): void {
+  private notify(p: Participant, text: string, kind: TelegramMessageKind): void {
     if (p.chatId === null) return;
-    this.notifier.notify(p.chatId, text).catch((err: Error) => {
+    this.notifier.notify(p.chatId, text, kind).catch((err: Error) => {
       this.logger.warn(`Ishtirokchiga (${p.telegramId}) xabar yuborilmadi: ${err.message}`);
     });
   }

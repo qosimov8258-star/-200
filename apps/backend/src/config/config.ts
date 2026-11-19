@@ -64,7 +64,29 @@ export const config = {
   },
 
   /**
-   * VAQTINCHA: admin API kaliti (admin login qurilguncha). Bo'sh bo'lsa — admin API yopiq.
+   * Skriptlar uchun admin API kaliti (`Authorization: Bearer ...`). Admin panel undan
+   * foydalanmaydi — xodimlar login/parol bilan kiradi. Bo'sh bo'lsa — kalit bilan kirish yopiq.
    */
   adminApiToken: str("ADMIN_API_TOKEN"),
+
+  /**
+   * Ma'lumotlar saqlanadigan papka (holat fayli, zaxiralar, skrinshotlar). Ma'lumotlar bazasi
+   * ulanguncha shu. Docker'da volume'ga ulanadi — aks holda konteyner almashganda o'chadi.
+   */
+  dataDir: str("DATA_DIR") ?? "data",
+
+  /** Admin panel xodimlari va sessiyasi. */
+  admin: {
+    /**
+     * Xodimlar: `login|ROL|Ism Familiya|parol`, bir nechta bo'lsa `;` bilan. ROL — ADMIN yoki
+     * SUPPORT. Parolda `|` va `;` bo'lmasin. Bo'sh bo'lsa — admin panelga hech kim kira olmaydi.
+     */
+    users: str("ADMIN_USERS"),
+    /** Sessiya cookie'sini imzolash kaliti (`openssl rand -base64 32`). */
+    sessionSecret: str("ADMIN_SESSION_SECRET"),
+    /** Sessiya necha soat amal qiladi. */
+    sessionTtlHours: Number(str("ADMIN_SESSION_TTL_HOURS") ?? 12),
+    /** Cookie faqat https orqali yuborilsin (prod da doim true). */
+    cookieSecure: (str("ADMIN_COOKIE_SECURE") ?? (process.env.NODE_ENV === "production" ? "true" : "false")) === "true",
+  },
 } as const;

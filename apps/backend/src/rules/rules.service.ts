@@ -1,6 +1,7 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 
 import { ApiException } from "../common/api-exception";
+import { StateStore } from "../persistence/state-store";
 
 export interface RulesSection {
   title: string;
@@ -54,7 +55,7 @@ const DEFAULT_SECTIONS: RulesSection[] = [
 
 /**
  * Tanlov qoidalari — admin paneldan tahrirlanadi, Mini App'da ko'rsatiladi.
- * VAQTINCHA xotirada; Faza 1 da `contest_settings` (yoki alohida `contest_rules`) jadvaliga ko'chadi.
+ * `StateStore` orqali diskka saqlanadi; Faza 1 da `contest_rules` jadvaliga ko'chadi.
  */
 @Injectable()
 export class RulesService {
@@ -64,6 +65,11 @@ export class RulesService {
     updatedAt: null,
     updatedBy: null,
   };
+
+  constructor(@Optional() @Inject(StateStore) store: StateStore | null = null) {
+    const saved = store?.attach("rules", () => this.rules);
+    if (saved) this.rules = saved;
+  }
 
   get(): ContestRules {
     return this.rules;

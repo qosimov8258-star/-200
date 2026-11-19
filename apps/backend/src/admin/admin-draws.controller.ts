@@ -1,11 +1,11 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpException, Param, Post, Put, UseGuards } from "@nestjs/common";
 
+import { AuditService, type AuditInput } from "../audit/audit.service";
 import type { DrawPeriodInput, DrawSettings } from "../draws/draw-rules";
 import { DrawsService } from "../draws/draws.service";
-import { AdminTokenGuard } from "./admin-token.guard";
-
-/** Admin login qurilguncha harakat qiluvchi xodim nomi. */
-const ACTOR = "Admin";
+import type { AdminUser } from "./auth/admin-accounts";
+import { AdminAuthGuard, CurrentAdmin } from "./auth/admin-auth.guard";
+import { actorOf } from "./auth/admin-auth.service";
 
 const SETTINGS_FIELDS: Record<keyof DrawSettings, "string" | "number" | "boolean" | "stage" | "basis"> = {
   prizeId: "string",
@@ -68,9 +68,12 @@ function parseReason(body: unknown, extra: string[] = []): Record<string, unknow
  * Kontrakt `apps/admin/src/lib/api.ts` dagi `getDrawSetup` … `sendDraw` bilan bir xil.
  */
 @Controller("admin/draws")
-@UseGuards(AdminTokenGuard)
+@UseGuards(AdminAuthGuard)
 export class AdminDrawsController {
-  constructor(private readonly draws: DrawsService) {}
+  constructor(
+    private readonly draws: DrawsService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Get("setup")
   setup() {
@@ -84,8 +87,12 @@ export class AdminDrawsController {
   }
 
   @Post()
-  run(@Body() body: unknown) {
-    return this.draws.run(parseSettings(body), ACTOR);
+  run(@Body() body: unknown, @CurrentAdmin() admin: AdminUser) {
+    const draw = this.draws.run(parseSettings(body), admin.fullName);
+    this.log(admin, "draw.run", draw.id, `#${draw.number} ${draw.prizeTitle}`, {
+      after: `${draw.periodFrom} – ${draw.periodTo}: ${draw.winners} g'olib, ${draw.reserves} zaxira`,
+    });
+    return draw;
   }
 
   @Get()
@@ -100,19 +107,33 @@ export class AdminDrawsController {
   }
 
   @Post("periods")
-  createPeriod(@Body() body: unknown) {
-    return this.draws.createPeriod(parsePeriod(body), ACTOR);
+  createPeriod(@Body() body: unknown, @CurrentAdmin() admin: AdminUser) {
+    const period = this.draws.createPeriod(parsePeriod(body), admin.fullName);
+    this.log(admin, "draw.period.create", period.id, period.title, {
+      after: `${period.startsOn} – ${period.endsOn}`,
+    });
+    return period;
   }
 
   @Put("periods/:periodId")
-  updatePeriod(@Param("periodId") periodId: string, @Body() body: unknown) {
-    return this.draws.updatePeriod(periodId, parsePeriod(body), ACTOR);
+  updatePeriod(@Param("periodId") periodId: string, @Body() body: unknown, @CurrentAdmin() admin: AdminUser) {
+    const before = this.draws.listPeriods().find((p) => p.id === periodId);
+    const period = this.draws.updatePeriod(periodId, parsePeriod(body), admin.fullName);
+    this.log(admin, "draw.period.update", period.id, period.title, {
+      before: before ? `${before.title}: ${before.startsOn} – ${before.endsOn}` : "",
+      after: `${period.title}: ${period.startsOn} – ${period.endsOn}`,
+    });
+    return period;
   }
 
   @Delete("periods/:periodId")
   @HttpCode(204)
-  deletePeriod(@Param("periodId") periodId: string) {
-    this.draws.deletePeriod(periodId, ACTOR);
+  deletePeriod(@Param("periodId") periodId: string, @CurrentAdmin() admin: AdminUser) {
+    const before = this.draws.listPeriods().find((p) => p.id === periodId);
+    this.draws.deletePeriod(periodId, admin.fullName);
+    this.log(admin, "draw.period.delete", periodId, before?.title ?? periodId, {
+      before: before ? `${before.startsOn} – ${before.endsOn}` : "",
+    });
   }
 
   /** Voucherlar qoldig'i (jami / yuborilgan / tasdiqlangan / qoralamada / qolgan). `:id` dan oldin turishi shart. */
@@ -128,28 +149,65 @@ export class AdminDrawsController {
 
   @Post(":id/replace")
   @HttpCode(200)
-  replace(@Param("id") id: string, @Body() body: unknown) {
+  replace(@Param("id") id: string, @Body() body: unknown, @CurrentAdmin() admin: AdminUser) {
     const b = parseReason(body, ["participantId"]);
     if (typeof b.participantId !== "string") throw bad("Ishtirokchi ko'rsatilmagan.");
-    return this.draws.replace(id, b.participantId, b.reason, ACTOR);
+    const draw = this.draws.replace(id, b.participantId, b.reason, admin.fullName);
+    this.log(admin, "draw.replace", draw.id, `#${draw.number} ${draw.prizeTitle}`, {
+      before: `G'olib: ${b.participantId}`,
+      after: "Zaxiradan almashtirildi",
+      reason: b.reason,
+    });
+    return draw;
   }
 
   @Post(":id/confirm")
   @HttpCode(200)
-  confirm(@Param("id") id: string) {
-    return this.draws.confirm(id, ACTOR);
+  confirm(@Param("id") id: string, @CurrentAdmin() admin: AdminUser) {
+    const draw = this.draws.confirm(id, admin.fullName);
+    this.log(admin, "draw.confirm", draw.id, `#${draw.number} ${draw.prizeTitle}`, {
+      before: "Qoralama",
+      after: "Tasdiqlandi",
+    });
+    return draw;
   }
 
   @Post(":id/cancel")
   @HttpCode(200)
-  cancel(@Param("id") id: string, @Body() body: unknown) {
-    return this.draws.cancel(id, parseReason(body).reason, ACTOR);
+  cancel(@Param("id") id: string, @Body() body: unknown, @CurrentAdmin() admin: AdminUser) {
+    const { reason } = parseReason(body);
+    const draw = this.draws.cancel(id, reason, admin.fullName);
+    this.log(admin, "draw.cancel", draw.id, `#${draw.number} ${draw.prizeTitle}`, { after: "Bekor qilindi", reason });
+    return draw;
   }
 
   /** G'oliblarga Telegram bot orqali (ketma-ket, ~25 xabar/soniya). */
   @Post(":id/send")
   @HttpCode(200)
-  send(@Param("id") id: string) {
-    return this.draws.send(id, ACTOR);
+  async send(@Param("id") id: string, @CurrentAdmin() admin: AdminUser) {
+    const draw = await this.draws.send(id, admin.fullName);
+    this.log(admin, "draw.send", draw.id, `#${draw.number} ${draw.prizeTitle}`, {
+      after: `${draw.delivery.sent} ta yuborildi, ${draw.delivery.failed} ta xato`,
+    });
+    return draw;
+  }
+
+  private log(
+    admin: AdminUser,
+    action: string,
+    entityId: string,
+    entityLabel: string,
+    details: Partial<Pick<AuditInput, "before" | "after" | "reason">>,
+  ): void {
+    this.audit.record({
+      actor: actorOf(admin),
+      action,
+      entity: "voucher_draw",
+      entityId,
+      entityLabel,
+      before: details.before ?? "",
+      after: details.after ?? "",
+      reason: details.reason ?? "",
+    });
   }
 }

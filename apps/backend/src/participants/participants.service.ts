@@ -1,6 +1,8 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 
 import { ApiException } from "../common/api-exception";
+import { ContestSettingsService } from "../contest/contest-settings.service";
+import { StateStore } from "../persistence/state-store";
 import { RulesService } from "../rules/rules.service";
 
 export type ParticipantStage =
@@ -112,13 +114,14 @@ export interface Participant {
   createdAt: Date;
 }
 
+/** Sozlamalar ulanmagan bo'lsa (testlar) — minimal yosh. */
 export const MIN_AGE = 18;
 
 /**
  * Ishtirokchilar ombori.
  *
- * VAQTINCHA xotirada (server qayta ishga tushsa, ma'lumot yo'qoladi). Faza 1 da
- * shu interfeys saqlangan holda Prisma + PostgreSQL ga ko'chiriladi.
+ * Xotirada ishlaydi va `StateStore` orqali diskka saqlanadi (server qayta ishga tushsa ham
+ * yo'qolmaydi). Faza 1 da shu interfeys saqlangan holda Prisma + PostgreSQL ga ko'chiriladi.
  *
  * Qoidalar (CLAUDE.md): ism, familiya, yosh bir marta yoziladi — ularni yangilovchi
  * metod yo'q; bitta telefon raqami — bitta ishtirokchi.
@@ -127,7 +130,14 @@ export const MIN_AGE = 18;
 export class ParticipantsService {
   private readonly byTelegramId = new Map<number, Participant>();
 
-  constructor(private readonly rules: RulesService) {}
+  constructor(
+    private readonly rules: RulesService,
+    @Optional() @Inject(StateStore) store: StateStore | null = null,
+    @Optional() @Inject(ContestSettingsService) private readonly contest: ContestSettingsService | null = null,
+  ) {
+    const saved = store?.attach("participants", () => ({ participants: this.all() }));
+    for (const p of saved?.participants ?? []) this.byTelegramId.set(p.telegramId, p);
+  }
 
   get(telegramId: number): Participant | null {
     return this.byTelegramId.get(telegramId) ?? null;
@@ -184,7 +194,7 @@ export class ParticipantsService {
     const p = this.get(telegramId);
     if (!p?.phone) throw new ApiException(401, "UNAUTHORIZED");
     if (p.firstName) throw new ApiException(409, "PROFILE_LOCKED");
-    if (age < MIN_AGE) throw new ApiException(422, "UNDER_AGE");
+    if (age < (this.contest?.get().minAge ?? MIN_AGE)) throw new ApiException(422, "UNDER_AGE");
     p.firstName = firstName;
     p.lastName = lastName;
     p.age = age;
@@ -254,6 +264,25 @@ export class ParticipantsService {
   disqualify(telegramId: number): void {
     const p = this.get(telegramId);
     if (p) p.status = "DISQUALIFIED";
+  }
+
+  /**
+   * Admin bloklashi: faqat faol ishtirokchi. Bloklangan ishtirokchi ilovadan foydalana olmaydi
+   * va reytingdan chiqadi (video va ko'rishlari saqlanadi). Holat o'zgargan bo'lsa — true.
+   */
+  block(telegramId: number): boolean {
+    const p = this.get(telegramId);
+    if (!p || p.status !== "ACTIVE") return false;
+    p.status = "BLOCKED";
+    return true;
+  }
+
+  /** Blokdan chiqarish: faqat bloklangan → faol. Holat o'zgargan bo'lsa — true. */
+  unblock(telegramId: number): boolean {
+    const p = this.get(telegramId);
+    if (!p || p.status !== "BLOCKED") return false;
+    p.status = "ACTIVE";
+    return true;
   }
 
   /** Ishtirokni bekor qilish (do'kon talabi: akkauntni o'chirish). */

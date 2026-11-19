@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Post, UseGuards } from "@nestjs/common";
 
+import { ContestSettingsService } from "../contest/contest-settings.service";
 import { ApiException } from "../common/api-exception";
 import { maskPhone, ParticipantsService } from "../participants/participants.service";
 import { RulesService } from "../rules/rules.service";
@@ -8,7 +9,7 @@ import { SupportRelay } from "../support/support-relay";
 import { SupportService } from "../support/support.service";
 import { TargetsService } from "../targets/targets.service";
 import type { TelegramIdentity } from "../telegram/init-data";
-import { contestSettings } from "./contest";
+import { WinnerService } from "../winner/winner.service";
 import { contestPrizes } from "./prizes";
 import { canonicalReelUrl, parseReelShortcode } from "./reel-url";
 import { Public, TelegramAuthGuard, TgUser, TgUserOptional } from "./telegram-auth.guard";
@@ -37,6 +38,8 @@ export class MiniappController {
     private readonly targets: TargetsService,
     private readonly support: SupportService,
     private readonly supportRelay: SupportRelay,
+    private readonly contestSettings: ContestSettingsService,
+    private readonly winnerService: WinnerService,
   ) {}
 
   @Get("me")
@@ -67,7 +70,13 @@ export class MiniappController {
     const participants = this.participants
       .all()
       .filter((p) => this.participants.stage(p) === "ACTIVE").length;
-    return { ...contestSettings, participants };
+    return {
+      startsOn: this.contestSettings.get().startsOn,
+      endsAt: this.contestSettings.endsAt.toISOString(),
+      prizeName: this.contestSettings.prizeName,
+      minAge: this.contestSettings.get().minAge,
+      participants,
+    };
   }
 
   @Public()
@@ -187,10 +196,11 @@ export class MiniappController {
     return contestPrizes;
   }
 
+  /** G'olib e'loni: faqat e'lon qilingandan keyin — ism, yakuniy ko'rishlar, sana (telefonsiz). */
   @Public()
   @Get("winner")
   winner() {
-    return null;
+    return this.winnerService.publicWinner();
   }
 
   @Delete("me")

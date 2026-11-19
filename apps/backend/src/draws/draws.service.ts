@@ -4,6 +4,7 @@ import { HttpException, Inject, Injectable, Logger, Optional } from "@nestjs/com
 
 import { contestDay } from "../common/time";
 import { contestPrizes } from "../miniapp/prizes";
+import { StateStore } from "../persistence/state-store";
 import { ParticipantsService, type Participant, type Reel } from "../participants/participants.service";
 import { ParticipantNotifier } from "../telegram/notifier";
 import {
@@ -156,8 +157,7 @@ const MONTHLY_PRIZE_ID = "monthly";
  * Oylik voucherlar uchun random tanlov: nomzodlarni filtrlash, kriptografik tasodifiy tanlash,
  * g'olibni zaxira bilan almashtirish, tasdiqlash va g'oliblarga Telegram bot orqali xabar.
  *
- * VAQTINCHA xotirada (ishtirokchilar kabi); Faza 1 da `voucher_draws` jadvaliga ko'chadi.
- * Admin login qurilguncha harakat qilgan xodim — "Admin", harakatlar server logida.
+ * `StateStore` orqali diskka saqlanadi; Faza 1 da `voucher_draws` jadvaliga ko'chadi.
  */
 @Injectable()
 export class DrawsService {
@@ -172,9 +172,16 @@ export class DrawsService {
     private readonly participants: ParticipantsService,
     private readonly notifier: ParticipantNotifier,
     @Optional() @Inject(DRAWS_OPTIONS) options: DrawsOptions | null = null,
+    @Optional() @Inject(StateStore) store: StateStore | null = null,
   ) {
     this.now = options?.clock ?? (() => new Date());
     this.sendIntervalMs = options?.sendIntervalMs ?? DEFAULT_SEND_INTERVAL_MS;
+    const saved = store?.attach("draws", () => ({ draws: this.draws, periods: this.periods, periodSeq: this.periodSeq }));
+    if (saved) {
+      this.draws.push(...saved.draws);
+      this.periods.push(...saved.periods);
+      this.periodSeq = saved.periodSeq;
+    }
   }
 
   setup() {
@@ -488,7 +495,7 @@ export class DrawsService {
         views: entry.candidate.views,
       });
       try {
-        await this.notifier.notify(participant.chatId, text);
+        await this.notifier.notify(participant.chatId, text, "VOUCHER_WIN");
         entry.notify = { status: "SENT", at, error: null };
       } catch (err) {
         entry.notify = { status: "FAILED", at, error: (err as Error).message };

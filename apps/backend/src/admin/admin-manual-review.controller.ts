@@ -2,8 +2,11 @@ import { Body, Controller, Get, Param, Post, Query, UseGuards } from "@nestjs/co
 
 import { ApiException } from "../common/api-exception";
 import type { ManualReview, Participant, Reel, ReelRejectReason } from "../participants/participants.service";
+import { AuditService } from "../audit/audit.service";
 import { StatsService, type ManualDecision } from "../stats/stats.service";
-import { AdminTokenGuard } from "./admin-token.guard";
+import type { AdminUser } from "./auth/admin-accounts";
+import { AdminAuthGuard, CurrentAdmin } from "./auth/admin-auth.guard";
+import { actorOf } from "./auth/admin-auth.service";
 
 type ReviewStatus = "OPEN" | "APPROVED" | "REJECTED";
 
@@ -19,9 +22,12 @@ const MAX_NOTE_LENGTH = 500;
  * Kontrakt `apps/admin/src/lib/types.ts` → ManualReview* tiplari bilan bir xil.
  */
 @Controller("admin/manual-reviews")
-@UseGuards(AdminTokenGuard)
+@UseGuards(AdminAuthGuard)
 export class AdminManualReviewController {
-  constructor(private readonly stats: StatsService) {}
+  constructor(
+    private readonly stats: StatsService,
+    private readonly audit: AuditService,
+  ) {}
 
   /** `GET /admin/manual-reviews?status=OPEN|APPROVED|REJECTED&search=&page=&pageSize=` */
   @Get()
@@ -77,13 +83,23 @@ export class AdminManualReviewController {
    * Body: `{ decision: "approve", note? }` yoki `{ decision: "reject", reason, note? }`.
    */
   @Post(":id/decision")
-  decide(@Param("id") id: string, @Body() body: unknown) {
+  decide(@Param("id") id: string, @Body() body: unknown, @CurrentAdmin() admin: AdminUser) {
     const decision = parseDecision(body);
-    // Admin login qurilgach — haqiqiy xodim ismi.
-    const reel = this.stats.decideManualReview(id, decision, "Admin");
+    const reel = this.stats.decideManualReview(id, decision, admin.fullName);
     const found = this.stats.manualReviews().find((r) => r.reel === reel);
     if (!found) throw new ApiException(500, "SERVER");
-    return toItem(found.participant, found.reel, found.review);
+    const item = toItem(found.participant, found.reel, found.review);
+    this.audit.record({
+      actor: actorOf(admin),
+      action: decision.approve ? "reel.approve" : "reel.reject",
+      entity: "reel",
+      entityId: reel.shortcode,
+      entityLabel: `${item.participant.firstName} ${item.participant.lastName} — ${reel.shortcode}`.trim(),
+      before: "Qo'lda tekshiruvda",
+      after: decision.approve ? "Tasdiqlandi" : `Rad etildi (${decision.reason})`,
+      reason: decision.note,
+    });
+    return item;
   }
 }
 

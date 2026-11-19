@@ -9,6 +9,7 @@ import { config } from "./config/config";
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.disable("x-powered-by");
   // Shikoyat skrinshoti JSON ichida (`data:` URL, ≤ 2 MB rasm) keladi — standart 100 KB yetmaydi.
   app.useBodyParser("json", { limit: "3mb" });
   // Admin panel va Mini App ikkalasi shu prefiks bilan murojaat qiladi.
@@ -17,7 +18,7 @@ async function bootstrap(): Promise<void> {
     origin: config.corsOrigins,
     // Authorization — admin panel (Bearer token), X-Telegram-Init-Data — Mini App.
     allowedHeaders: ["Content-Type", "Authorization", "X-Telegram-Init-Data"],
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     // Veb-sayt sessiyasi cookie'da — lokal ishlab chiqishda sayt (3002) va API (3000) alohida portda.
     credentials: true,
   });

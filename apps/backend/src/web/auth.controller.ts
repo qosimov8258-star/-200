@@ -3,7 +3,7 @@ import type { Request, Response } from "express";
 
 import { ApiException } from "../common/api-exception";
 import { config } from "../config/config";
-import { contestSettings } from "../miniapp/contest";
+import { contestDefaults } from "../miniapp/contest";
 import { parseLoginWidget, verifyLoginWidget } from "./login-widget";
 import { createSessionToken, SESSION_TTL_SECONDS, sessionCookie } from "./web-session";
 
@@ -24,7 +24,7 @@ export class AuthController {
   /** Saytning kirish sahifasi uchun: bot nomi (Login Widget) va sovrin. Ochiq ma'lumot. */
   @Get("config")
   authConfig() {
-    return { botUsername: config.telegram.botUsername, prizeName: contestSettings.prizeName };
+    return { botUsername: config.telegram.botUsername, prizeName: contestDefaults.prizeName };
   }
 
   /** Body — widget `onauth` qaytargan obyektning o'zi. Muvaffaqiyatli bo'lsa sessiya cookie'si qo'yiladi. */
