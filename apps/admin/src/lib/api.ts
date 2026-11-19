@@ -27,6 +27,10 @@ import {
   uploadPrizeImage as mockUploadPrizeImage,
 } from "./mock/prizes";
 import {
+  getContestRules as mockGetContestRules,
+  updateContestRules as mockUpdateContestRules,
+} from "./mock/rules";
+import {
   getContestSettings as mockGetContestSettings,
   updateContestSettings as mockUpdateContestSettings,
 } from "./mock/settings";
@@ -56,6 +60,8 @@ import type {
   AdminUser,
   AuditLogQuery,
   AuditLogResponse,
+  ContestRules,
+  ContestRulesUpdate,
   ContestSettingsResponse,
   ContestSettingsUpdate,
   DailyRatingQuery,
@@ -383,6 +389,31 @@ export async function updateContestSettings(
 ): Promise<ContestSettingsResponse> {
   await delay(500);
   return mockUpdateContestSettings(update, requireRole("ADMIN"));
+}
+
+// ---------------------------------------------------------------------------
+// Tanlov qoidalari
+// ---------------------------------------------------------------------------
+
+/**
+ * Ishtirokchilar Mini App'da ko'radigan qoidalar (bo'limlar ko'rinishida).
+ * @endpoint GET /api/v1/admin/rules
+ */
+export async function getContestRules(): Promise<ContestRules> {
+  await delay(300);
+  requireRole("ADMIN");
+  return mockGetContestRules();
+}
+
+/**
+ * Qoidalarni saqlash. `requireReconsent` — versiya oshadi va barcha ishtirokchilar
+ * Mini App ochilganda yangilangan qoidalarga qaytadan rozilik beradi.
+ * @endpoint PUT /api/v1/admin/rules
+ * @throws ApiError 400 — bo'limlar soni yoki matn uzunligi noto'g'ri
+ */
+export async function updateContestRules(update: ContestRulesUpdate): Promise<ContestRules> {
+  await delay(500);
+  return mockUpdateContestRules(update, requireRole("ADMIN"));
 }
 
 // ---------------------------------------------------------------------------

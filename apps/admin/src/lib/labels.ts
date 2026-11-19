@@ -178,6 +178,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "winner.unconfirm": "G'olib tasdig'i bekor qilindi",
   "winner.announce": "G'olib e'lon qilindi",
   "settings.update": "Sozlamalarni o'zgartirdi",
+  "rules.update": "Tanlov qoidalarini o'zgartirdi",
   "prize.create": "Sovg'a qo'shdi",
   "prize.update": "Sovg'ani o'zgartirdi",
   "prize.delete": "Sovg'ani o'chirdi",
