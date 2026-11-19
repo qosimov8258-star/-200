@@ -15,7 +15,8 @@ eng ko'p ko'rish yig'gan ishtirokchi avtomobil yutadi (g'olibni Admin tasdiqlayd
 - **Navbat / cron:** BullMQ + Redis (kunlik ko'rishlar sync, reyting)
 - **Admin panel:** Next.js
 - **Ishtirokchilar uchun:** Telegram bot (grammY, backend ichida) + Telegram Mini App
-  (React, Vite, Tailwind) — ro'yxatdan o'tish, link yuborish va support shu orqali
+  (React, Vite, Tailwind) — ro'yxatdan o'tish, link yuborish va support shu orqali.
+  Xuddi shu ilova oddiy brauzerda **veb-sayt** sifatida ham ishlaydi (Telegram Login orqali kirish)
 - **Mobil (Flutter): to'xtatilgan** (19.11.2026) — kod `apps/mobile` da qoldi
 - **Monorepo:** pnpm workspaces + Turborepo — faqat TypeScript qismlari uchun
   (taklif, PLAN.md 3-bo'lim); `apps/mobile` workspace'ga kirmaydi
@@ -36,8 +37,9 @@ Hozircha bor: `apps/admin` (mock API bilan), `apps/miniapp` (mock yoki backend b
 pnpm workspace keyin.
 
 Admin panel backend bilan faqat `apps/admin/src/lib/api.ts` orqali gaplashadi (hozir mock);
-Mini App esa faqat `apps/miniapp/src/lib/api.ts` orqali; foydalanuvchi
-`X-Telegram-Init-Data` imzosi bilan tanilgan (parol/SMS yo'q).
+Mini App va veb-sayt esa faqat `apps/miniapp/src/lib/api.ts` orqali. Ishtirokchi parol/SMS'siz
+tanilgan: Telegram ichida — `X-Telegram-Init-Data` imzosi, saytda — Telegram Login Widget'dan
+keyingi `HttpOnly` sessiya cookie'si. Ikkalasi ham bitta `telegramId`.
 
 Mobil ilovada Material vidjetlari `package:material_ui/material_ui.dart` dan import qilinadi
 (Flutter 3.50 da `flutter/material.dart` alohida paketga ko'chgan). Backend bilan aloqa faqat
