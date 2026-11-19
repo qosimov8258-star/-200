@@ -11,6 +11,7 @@ import { addDays } from "../dates";
 import type { AdminRole, AuditLogEntry, AuditLogQuery, AuditLogResponse } from "../types";
 import { eventTime, getContestData } from "./contest";
 import { mockAdmins } from "./db";
+import { effectivePrizes } from "./prizes";
 import { auditId, readStore, writeStore, type MockAuditEntry } from "./store";
 import { normalizeSearch } from "./text";
 
@@ -108,6 +109,7 @@ function entityLabelResolver(): (entry: MockAuditEntry) => string {
   const reels = new Map(data.reels.map((reel) => [reel.id, reel.participantId]));
   const tickets = new Map(data.tickets.map((ticket) => [ticket.id, ticket.subject]));
   const targets = new Map(data.targets.map((target) => [target.id, target.participantId]));
+  const prizes = new Map(effectivePrizes().map((prize) => [prize.id, prize.title]));
 
   return (entry) => {
     switch (entry.entity) {
@@ -124,6 +126,9 @@ function entityLabelResolver(): (entry: MockAuditEntry) => string {
         return entry.entityId === "*" ? "O'qilmagan xabarlar" : entry.entityId;
       case "settings":
         return "Tanlov sozlamalari";
+      case "prize":
+        // O'chirilgan sovg'aning nomi audit yozuvining "oldin" qismida qoladi.
+        return prizes.get(entry.entityId) ?? entry.before.split("; ")[0] ?? entry.entityId;
       case "auth":
         return entry.actorName;
     }

@@ -100,6 +100,7 @@ src/
 │   ├── providers/        # TanStack Query provayderi
 │   ├── ratings/          # kunlik reyting: sana tanlash, jadval, o'rin o'zgarishi
 │   ├── support/          # murojaatlar ro'yxati, yozishma, javob va holat
+│   ├── prizes/           # sovg'alar: rasm, nom, soni, ko'rishlar sharti, tartib
 │   ├── targets/          # target yoqqanlar: ro'yxat, dalil oynasi, qarorlar
 │   ├── telegram/         # xabarlar holati (yuborildi/yetkazildi/o'qildi), qayta yuborish
 │   ├── winner/           # g'olib: nomzod, tekshiruv ro'yxati, tasdiqlash, e'lon
@@ -113,6 +114,8 @@ src/
     ├── auth-context.tsx  # joriy xodim va chiqish
     ├── dates.ts          # tanlov kunlari (Asia/Tashkent)
     ├── format.ts         # raqam va sana formatlari
+    ├── image.ts          # rasmni yuklashdan oldin kichraytirish
+    ├── prize-rules.ts    # sovg'a maydonlari tekshiruvi va ko'rinishi
     ├── labels.ts         # holatlar nomlari va ranglari
     ├── navigation.ts     # menyu, rollar
     ├── period.ts         # dashboard davri (URL bilan)

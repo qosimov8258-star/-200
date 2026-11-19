@@ -19,6 +19,14 @@ import { computeDashboardStats } from "./mock/dashboard";
 import { mockAdmins } from "./mock/db";
 import { applyParticipantAction, listParticipants } from "./mock/participants";
 import {
+  createPrize as mockCreatePrize,
+  deletePrize as mockDeletePrize,
+  listPrizes,
+  movePrize as mockMovePrize,
+  updatePrize as mockUpdatePrize,
+  uploadPrizeImage as mockUploadPrizeImage,
+} from "./mock/prizes";
+import {
   getContestSettings as mockGetContestSettings,
   updateContestSettings as mockUpdateContestSettings,
 } from "./mock/settings";
@@ -59,6 +67,10 @@ import type {
   ParticipantListItem,
   ParticipantListQuery,
   ParticipantListResponse,
+  Prize,
+  PrizeImageUpload,
+  PrizeInput,
+  PrizeMoveRequest,
   SupportReplyRequest,
   SupportStatusRequest,
   SupportTicketDetail,
@@ -371,6 +383,72 @@ export async function updateContestSettings(
 ): Promise<ContestSettingsResponse> {
   await delay(500);
   return mockUpdateContestSettings(update, requireRole("ADMIN"));
+}
+
+// ---------------------------------------------------------------------------
+// Sovg'alar (ilova va Telegram botda shu ro'yxat, shu tartibda ko'rsatiladi)
+// ---------------------------------------------------------------------------
+
+/**
+ * Aksiya sovg'alari, ko'rsatish tartibi bo'yicha.
+ * @endpoint GET /api/v1/admin/prizes
+ */
+export async function getPrizes(): Promise<Prize[]> {
+  await delay(300);
+  requireRole("ADMIN");
+  return listPrizes();
+}
+
+/**
+ * Sovg'a rasmini yuklash (oldin brauzerda kichraytiriladi — `lib/image.ts`).
+ * Qaytgan `url` sovg'ani saqlashda `imageUrl` ga yoziladi.
+ * @endpoint POST /api/v1/admin/uploads/prize-image (multipart/form-data, maydon: `file`)
+ * @throws ApiError 400 — rasm turi noto'g'ri; 413 — hajmi katta
+ */
+export async function uploadPrizeImage(file: Blob): Promise<PrizeImageUpload> {
+  await delay(500);
+  requireRole("ADMIN");
+  return mockUploadPrizeImage(file);
+}
+
+/**
+ * Yangi sovg'a qo'shish (ro'yxat oxiriga).
+ * @endpoint POST /api/v1/admin/prizes
+ * @throws ApiError 400 — maydon noto'g'ri (nom, soni, ko'rishlar oralig'i)
+ */
+export async function createPrize(input: PrizeInput): Promise<Prize> {
+  await delay(500);
+  return mockCreatePrize(input, requireRole("ADMIN"));
+}
+
+/**
+ * Sovg'ani tahrirlash.
+ * @endpoint PUT /api/v1/admin/prizes/:id
+ * @throws ApiError 400 | 404
+ */
+export async function updatePrize(id: string, input: PrizeInput): Promise<Prize> {
+  await delay(500);
+  return mockUpdatePrize(id, input, requireRole("ADMIN"));
+}
+
+/**
+ * Sovg'ani o'chirish.
+ * @endpoint DELETE /api/v1/admin/prizes/:id
+ * @throws ApiError 404
+ */
+export async function deletePrize(id: string): Promise<void> {
+  await delay(400);
+  mockDeletePrize(id, requireRole("ADMIN"));
+}
+
+/**
+ * Sovg'ani o'z turi (asosiy/oylik) ichida yuqoriga yoki pastga surish.
+ * @endpoint POST /api/v1/admin/prizes/:id/move
+ * @throws ApiError 404; 409 — allaqachon eng yuqorida/pastda
+ */
+export async function movePrize(id: string, request: PrizeMoveRequest): Promise<Prize[]> {
+  await delay(250);
+  return mockMovePrize(id, request.direction, requireRole("ADMIN"));
 }
 
 // ---------------------------------------------------------------------------
