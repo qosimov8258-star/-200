@@ -134,9 +134,26 @@ export const TELEGRAM_STATUS_TONES: Record<TelegramDeliveryStatus, BadgeTone> = 
 export const TELEGRAM_KIND_LABELS: Record<TelegramMessageKind, string> = {
   REEL_ACCEPTED: "Reel qabul qilindi",
   REEL_REJECTED: "Reel rad etildi",
+  REEL_REVIEW: "Reel qo'lda tekshiruvda",
   RANK_CHANGED: "Reyting o'zgardi",
   WARNING: "Ogohlantirish",
   SUPPORT_REPLY: "Support javobi",
+  VOUCHER_WIN: "Random tanlov g'olibi",
+  WINNER: "Asosiy g'olib",
+  OTHER: "Boshqa",
+};
+
+/** Xabar turi belgisi rangi: g'oliblik xabarlari va ogohlantirish ajralib turadi. */
+export const TELEGRAM_KIND_TONES: Record<TelegramMessageKind, BadgeTone> = {
+  REEL_ACCEPTED: "neutral",
+  REEL_REJECTED: "neutral",
+  REEL_REVIEW: "neutral",
+  RANK_CHANGED: "neutral",
+  WARNING: "warning",
+  SUPPORT_REPLY: "neutral",
+  VOUCHER_WIN: "brand",
+  WINNER: "success",
+  OTHER: "neutral",
 };
 
 export const TELEGRAM_FAILURE_LABELS: Record<TelegramFailureReason, string> = {

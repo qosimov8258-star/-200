@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { getMe, logout as apiLogout } from "./api";
 import { isUnauthorized } from "./api-error";
@@ -20,7 +21,13 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+/**
+ * Joriy xodim sessiyasi. `QueryProvider` ichida ishlatiladi: panel ishlab turganda
+ * istalgan so'rov yoki amal 401 qaytarsa (sessiya tugagan, cookie o'chgan), holat
+ * "unauthenticated" ga o'tadi va panel layout'i login sahifasiga yo'naltiradi.
+ */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const [state, setState] = useState<AuthState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
 
@@ -45,6 +52,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [attempt]);
 
+  // Sessiya ish davomida tugasa — so'rovlar va amallardagi 401 ni kuzatamiz.
+  useEffect(() => {
+    function handleError(error: unknown) {
+      if (isUnauthorized(error)) {
+        setState((current) => (current.status === "unauthenticated" ? current : { status: "unauthenticated" }));
+      }
+    }
+
+    const unsubscribeQueries = queryClient.getQueryCache().subscribe((event) => {
+      if (event.type === "updated" && event.action.type === "error") {
+        handleError(event.action.error);
+      }
+    });
+    const unsubscribeMutations = queryClient.getMutationCache().subscribe((event) => {
+      if (event.type === "updated" && event.action.type === "error") {
+        handleError(event.action.error);
+      }
+    });
+
+    return () => {
+      unsubscribeQueries();
+      unsubscribeMutations();
+    };
+  }, [queryClient]);
+
   const reload = useCallback(() => {
     setState({ status: "loading" });
     setAttempt((value) => value + 1);
@@ -53,6 +85,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     try {
       await apiLogout();
+    } catch {
+      // Chiqish so'rovi o'tmasa ham (tarmoq xatosi) panel login sahifasiga qaytadi.
     } finally {
       setState({ status: "unauthenticated" });
     }

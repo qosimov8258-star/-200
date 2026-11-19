@@ -121,17 +121,37 @@ function EvidenceBody({ detail }: { detail: TargetCaseDetail }) {
         )}
         {detail.attachments.length > 0 && detail.reports.length === 0 && (
           <ul className="mt-2 flex flex-wrap gap-2">
-            {detail.attachments.map((attachment) => (
-              <li
-                key={attachment.id}
-                className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-700"
-                title="Mock rejimda fayl mavjud emas"
-              >
-                <ImageIcon className="size-4 text-slate-400" aria-hidden />
-                {attachment.fileName}
-                <span className="text-slate-400">{formatFileSize(attachment.sizeBytes)}</span>
-              </li>
-            ))}
+            {detail.attachments.map((attachment) => {
+              const content = (
+                <>
+                  <ImageIcon className="size-4 text-slate-400" aria-hidden />
+                  {attachment.fileName}
+                  <span className="text-slate-400">{formatFileSize(attachment.sizeBytes)}</span>
+                </>
+              );
+              const classes =
+                "inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-700";
+              return (
+                <li key={attachment.id}>
+                  {/* `url` — backenddagi nisbiy yo'l, sessiya cookie'si bilan ochiladi. */}
+                  {attachment.url ? (
+                    <a
+                      href={attachment.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={cn(classes, "hover:bg-slate-50")}
+                    >
+                      {content}
+                      <span className="sr-only">(yangi oynada)</span>
+                    </a>
+                  ) : (
+                    <span className={classes} title="Mock rejimda fayl mavjud emas">
+                      {content}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
@@ -216,7 +236,8 @@ function ReportsSection({ detail }: { detail: TargetCaseDetail }) {
           const file = detail.attachments.find((attachment) => attachment.id === report.attachmentId);
           return (
             <li key={report.id} className="flex gap-3 px-3 py-2.5">
-              {/* Haqiqiy backendda rasm Bearer token bilan yuklanadi (`url` — API yo'li). */}
+              {/* `url` — backenddagi nisbiy yo'l (`/api/v1/admin/targets/:id/attachments/:attachmentId`),
+                  rasm sessiya cookie'si bilan yuklanadi — Authorization sarlavhasi kerak emas. */}
               {file?.url ? (
                 <a href={file.url} target="_blank" rel="noopener noreferrer" className="shrink-0">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
