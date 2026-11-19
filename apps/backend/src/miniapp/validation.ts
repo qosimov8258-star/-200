@@ -63,3 +63,13 @@ export function parseTargetReport(body: unknown): TargetReportInput {
   const comment = typeof b.comment === "string" ? b.comment.trim().slice(0, MAX_REPORT_COMMENT) : "";
   return { target: b.target.trim(), screenshot, comment: comment || null };
 }
+
+/** Support xabari: 1–1000 belgi (bo'shliqlar olib tashlanadi), boshqa maydon yo'q. */
+export const MAX_SUPPORT_TEXT = 1000;
+
+export function parseSupportMessage(body: unknown): string {
+  const b = object(body, ["text"]);
+  const text = typeof b.text === "string" ? b.text.trim() : "";
+  if (!text || text.length > MAX_SUPPORT_TEXT) throw new ApiException(422, "SUPPORT_INVALID");
+  return text;
+}

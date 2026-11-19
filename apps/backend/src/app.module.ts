@@ -15,6 +15,7 @@ import { MiniappController } from "./miniapp/miniapp.controller";
 import { ParticipantsService } from "./participants/participants.service";
 import { RulesService } from "./rules/rules.service";
 import { STATS_OPTIONS, StatsService, type StatsOptions } from "./stats/stats.service";
+import { SupportRelay } from "./support/support-relay";
 import { SupportService } from "./support/support.service";
 import { TARGETS_OPTIONS, TargetsService } from "./targets/targets.service";
 import { ParticipantNotifier } from "./telegram/notifier";
@@ -60,6 +61,7 @@ function statsOptions(): StatsOptions {
     SupportService,
     TelegramService,
     { provide: ParticipantNotifier, useExisting: TelegramService },
+    { provide: SupportRelay, useExisting: TelegramService },
     { provide: ReelStatsProvider, useFactory: createReelStatsProvider },
     { provide: STATS_OPTIONS, useFactory: statsOptions },
     StatsService,

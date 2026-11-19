@@ -165,6 +165,11 @@ bot xabari) yoki ro'yxatdan chiqarishni Admin hal qiladi.
 Mini App'dagi shikoyat: `POST /miniapp/target-reports` — `{ target, screenshot, comment? }`,
 `screenshot` — `data:image/jpeg;base64,...`; JSON tanasi chegarasi 3 MB.
 
+Support (ilova va veb-sayt): `GET /miniapp/support` — yozishma (`{ messages: [{ from, text, createdAt }] }`),
+`POST /miniapp/support` — `{ text }` (1–1000 belgi; 10 daqiqada ko'pi bilan 5 ta xabar).
+Xabar botdagidek murojaat bo'lib `TELEGRAM_SUPPORT_CHAT_ID` guruhiga boradi; operator shu xabarga
+"Reply" qilsa — javob bot orqali ishtirokchiga yetadi va yozishmada ham ko'rinadi.
+
 ## Keyingi qadamlar
 
 - PostgreSQL + Prisma (ma'lumotlar xotiradan bazaga), worker — BullMQ navbatiga

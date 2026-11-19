@@ -22,6 +22,10 @@ export type ApiErrorCode =
   | "REPORT_LIMIT"
   /** Skrinshot yaroqsiz (rasm emas yoki juda katta). */
   | "INVALID_IMAGE"
+  /** Support: xabar bo'sh yoki juda uzun. */
+  | "SUPPORT_INVALID"
+  /** Support: qisqa vaqtda juda ko'p xabar. */
+  | "SUPPORT_LIMIT"
   | "UNAUTHORIZED"
   | "SERVER";
 
