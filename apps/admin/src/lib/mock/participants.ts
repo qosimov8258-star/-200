@@ -79,7 +79,7 @@ function toListItem(participant: MockParticipant, context: ListContext): Partici
     status: effectiveStatus(participant, context.store),
     registeredOn: participant.registeredOn,
     reel:
-      reel && reelStatus ? { url: reel.url, status: reelStatus, collabWith: reel.collab } : null,
+      reel && reelStatus ? { url: reel.url, status: reelStatus } : null,
     views: reel ? latestViews(reel) : 0,
     rank: context.rankById.get(participant.id) ?? null,
     hasTarget: context.targetParticipants.has(participant.id),

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, AlertTriangle, CheckCircle2, Gift, Info, Plus } from "lucide-react";
 
+import { IosIcon } from "@/components/ui/ios-icon";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -71,7 +72,7 @@ export function PrizesView() {
   if (isError || !data) {
     return (
       <Card className="flex flex-col items-center gap-3 px-4 py-12 text-center">
-        <AlertTriangle className="size-8 text-amber-500" aria-hidden />
+        <IosIcon icon={AlertTriangle} tint="orange" size={48} />
         <p className="text-sm text-slate-600">{errorMessage(error)}</p>
         <Button variant="secondary" onClick={() => refetch()}>
           Qayta urinish
@@ -106,7 +107,7 @@ export function PrizesView() {
 
         <CardContent className="space-y-5">
           <p className="flex items-start gap-2 text-xs text-slate-500">
-            <Info className="mt-px size-3.5 shrink-0 text-slate-400" aria-hidden />
+            <IosIcon icon={Info} tint="blue" size={20} />
             <span>
               Sovg&apos;alar ilovadagi va Telegram botdagi &quot;Sovg&apos;alar&quot; bo&apos;limida shu
               tartibda ko&apos;rsatiladi. Tartibni sovg&apos;a menyusidagi &quot;Yuqoriga / Pastga
@@ -138,7 +139,7 @@ export function PrizesView() {
 
           {sections.length === 0 ? (
             <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-slate-300 px-4 py-12 text-center">
-              <Gift className="size-8 text-slate-300" aria-hidden />
+              <IosIcon icon={Gift} tint="gray" size={48} />
               <p className="text-sm text-slate-500">
                 Birinchi sovg&apos;ani qo&apos;shing: rasmini yuklang, nomini va sonini yozing.
               </p>

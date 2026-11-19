@@ -1,7 +1,7 @@
 /**
  * MOCK backend: g'olibni aniqlash (TZ 5.3). Haqiqiy backendda:
  *   GET    /api/v1/admin/winner
- *   PUT    /api/v1/admin/winner/purchase-check
+ *   PUT    /api/v1/admin/winner/manual-check
  *   POST   /api/v1/admin/winner/skip
  *   POST   /api/v1/admin/winner/confirm
  *   DELETE /api/v1/admin/winner/confirm
@@ -15,15 +15,24 @@ import type {
   IsoDate,
   WinnerCandidate,
   WinnerCheck,
+  WinnerManualCheckKey,
+  WinnerManualCheckRequest,
   WinnerOverview,
-  WinnerPurchaseCheckRequest,
   WinnerSkipRequest,
   WinnerStage,
 } from "../types";
 import { getContestData, reelStatusOn, type MockReel } from "./contest";
 import { computeRanking, type MockRankingEntry } from "./ranking";
 import { effectiveSettings } from "./settings";
-import { auditId, readStore, writeStore, type MockAuditEntry, type MockStore } from "./store";
+import {
+  auditId,
+  readStore,
+  writeStore,
+  type MockAuditEntry,
+  type MockManualCheck,
+  type MockStore,
+  type MockWinnerState,
+} from "./store";
 import { targetCaseStatus } from "./targets";
 
 /** Bir kunlik o'sish odatdagidan (mediana) shuncha marta ko'p bo'lsa — soxta ko'rish shubhasi. */
@@ -85,11 +94,39 @@ function fakeViewsIssue(reel: MockReel, date: IsoDate): string | null {
     : null;
 }
 
+/** Qo'lda belgilanadigan bandlar store'da qayerda saqlanadi. */
+const MANUAL_CHECK_FIELDS = {
+  PURCHASE_CONFIRMED: "purchaseChecks",
+  AD_TOOLS_REVIEWED: "adToolsChecks",
+} as const satisfies Record<WinnerManualCheckKey, keyof MockWinnerState>;
+
+const MANUAL_CHECK_AUDIT: Record<WinnerManualCheckKey, string> = {
+  PURCHASE_CONFIRMED: "purchase_check",
+  AD_TOOLS_REVIEWED: "ad_tools_check",
+};
+
+function manualChecks(store: MockStore, key: WinnerManualCheckKey): Record<string, MockManualCheck> {
+  // Eski mock yozuvlarida `adToolsChecks` bo'lmasligi mumkin.
+  return store.winner[MANUAL_CHECK_FIELDS[key]] ?? {};
+}
+
+function manualCheck(
+  key: WinnerManualCheckKey,
+  result: MockManualCheck | undefined,
+  pendingDetail: string,
+): WinnerCheck {
+  return {
+    key,
+    status: result ? (result.passed ? "PASSED" : "FAILED") : "PENDING",
+    detail: result ? `${result.note} — ${result.by}` : pendingDetail,
+    manual: true,
+  };
+}
+
 function buildChecks(participantId: string, reel: MockReel, date: IsoDate, store: MockStore): WinnerCheck[] {
   const target = targetIssue(participantId, store);
   const reelProblem = reelIssue(reel, date);
   const fakeViews = fakeViewsIssue(reel, date);
-  const purchase = store.winner.purchaseChecks[participantId];
 
   return [
     {
@@ -110,14 +147,16 @@ function buildChecks(participantId: string, reel: MockReel, date: IsoDate, store
       detail: fakeViews ?? "Ko'rishlar o'sishida g'ayritabiiy sakrash yo'q",
       manual: false,
     },
-    {
-      key: "PURCHASE_CONFIRMED",
-      status: purchase ? (purchase.passed ? "PASSED" : "FAILED") : "PENDING",
-      detail: purchase
-        ? `${purchase.note} — ${purchase.by}`
-        : "Chek yoki xarid hujjatini qo'lda tekshiring (PLAN.md Q4)",
-      manual: true,
-    },
+    manualCheck(
+      "PURCHASE_CONFIRMED",
+      manualChecks(store, "PURCHASE_CONFIRMED")[participantId],
+      "Chek yoki xarid hujjatini qo'lda tekshiring (PLAN.md Q4)",
+    ),
+    manualCheck(
+      "AD_TOOLS_REVIEWED",
+      manualChecks(store, "AD_TOOLS_REVIEWED")[participantId],
+      "Uchrashuvda g'olib telefonida Instagram → Professional panel → \"Reklama vositalari\" (reklama tarixi) bo'limini ko'ring",
+    ),
   ];
 }
 
@@ -264,7 +303,10 @@ export function getWinnerOverview(): WinnerOverview {
   return compute(readStore()).overview;
 }
 
-export function setPurchaseCheck(request: WinnerPurchaseCheckRequest, actor: AdminUser): WinnerOverview {
+export function setManualCheck(request: WinnerManualCheckRequest, actor: AdminUser): WinnerOverview {
+  if (!(request.check in MANUAL_CHECK_FIELDS)) {
+    throw new ApiError(400, "Tekshiruv bandi noto'g'ri.");
+  }
   const note = requireText(request.note, "Izoh");
   const store = readStore();
   if (store.winner.announced) {
@@ -275,13 +317,14 @@ export function setPurchaseCheck(request: WinnerPurchaseCheckRequest, actor: Adm
   }
 
   const at = new Date().toISOString();
-  const previous = store.winner.purchaseChecks[request.participantId];
+  const checks = manualChecks(store, request.check);
+  const previous = checks[request.participantId];
   const nextStore: MockStore = {
     ...store,
     winner: {
       ...store.winner,
-      purchaseChecks: {
-        ...store.winner.purchaseChecks,
+      [MANUAL_CHECK_FIELDS[request.check]]: {
+        ...checks,
         [request.participantId]: { passed: request.passed, note, at, by: actor.fullName },
       },
     },
@@ -289,7 +332,7 @@ export function setPurchaseCheck(request: WinnerPurchaseCheckRequest, actor: Adm
       ...store.audit,
       auditEntry(
         actor,
-        "purchase_check",
+        MANUAL_CHECK_AUDIT[request.check],
         request.participantId,
         previous ? (previous.passed ? "PASSED" : "FAILED") : "PENDING",
         request.passed ? "PASSED" : "FAILED",

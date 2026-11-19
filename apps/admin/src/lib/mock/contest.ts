@@ -60,11 +60,13 @@ export interface MockReel {
   viewsByDay: Map<IsoDate, number>;
   /** Kun -> shu kuni yig'ilgan yangi ko'rishlar. */
   growthByDay: Map<IsoDate, number>;
-  /**
-   * Instagram "Collab" — Reel boshqa akkaunt bilan hamkorlikda joylangan.
-   * Ruxsat etiladi (jamoa qarori, 17.11.2026): muhimi — ko'rishlar.
-   */
-  collab: { username: string; isFactory: boolean } | null;
+}
+
+export interface MockTargetReport {
+  reporterId: string;
+  on: IsoDate;
+  comment: string | null;
+  sizeBytes: number;
 }
 
 export interface MockTargetDetection {
@@ -75,8 +77,10 @@ export interface MockTargetDetection {
   method: TargetDetectionMethod;
   /** Boshlang'ich ko'rib chiqilish holati; admin o'zgartirganlari `store.ts` da. */
   status: TargetCaseStatus;
-  /** Skrinshot usulida — ishtirokchi yuborgan fayl. */
-  screenshot: { fileName: string; sizeBytes: number } | null;
+  /** Shikoyat usulida — boshqa ishtirokchilar yuborgan skrinshotlar. */
+  reports: MockTargetReport[];
+  /** Reklama kutubxonasi usulida — topilgan reklamaning id si (Meta Ad Library). */
+  adId: string | null;
 }
 
 export interface MockSupportMessage {
@@ -177,13 +181,22 @@ const LAST_NAMES = [
 
 const PHONE_CODES = ["90", "91", "93", "94", "95", "97", "98", "99", "33", "88"] as const;
 
-/** O'sish tahlili ko'proq uchraydi — API ruxsati hali tasdiqlanmagan bo'lishi mumkin. */
+/**
+ * O'sish tahlili ko'proq uchraydi: reklama kutubxonasi faqat reyting yetakchilarini va faqat
+ * faol reklamalarni ko'radi.
+ */
 const TARGET_METHODS: readonly TargetDetectionMethod[] = [
-  "INSTAGRAM_API",
+  "AD_LIBRARY",
   "GROWTH_ANALYSIS",
   "GROWTH_ANALYSIS",
-  "SCREENSHOT",
+  "REPORT",
 ];
+
+const REPORT_COMMENTS = [
+  "Kecha kechqurun lentamda «Reklama» deb chiqdi",
+  null,
+  "Ikki marta ko'rdim, Toshkentda",
+] as const;
 
 interface TicketTemplate {
   subject: string;
@@ -259,30 +272,6 @@ const TICKET_TEMPLATES: readonly TicketTemplate[] = [
     attachment: "chek.jpg",
   },
 ];
-
-/** Zavodning rasmiy Instagram akkaunti — haqiqiy nomi kelishilgach almashtiriladi (PLAN.md Q10). */
-export const FACTORY_INSTAGRAM_USERNAME = "zavod_rasmiy";
-
-/**
- * Reellarning bir qismi Collab: ~12% — do'sti bilan, shundan ~25% — zavod akkaunti bilan.
- * Alohida generator ishlatiladi — boshqa mock ma'lumotlar o'zgarmaydi.
- */
-function assignCollabs(reels: MockReel[], participants: MockParticipant[]): void {
-  const usernames = participants
-    .map((participant) => participant.instagramUsername)
-    .filter((username): username is string => username !== null);
-
-  for (const reel of reels) {
-    const random = createRandom(hashString(`collab:${reel.id}`));
-    if (!random.chance(0.12)) continue;
-    const isFactory = random.chance(0.25);
-    const own = participants.find((item) => item.id === reel.participantId)?.instagramUsername;
-    const friends = usernames.filter((username) => username !== own);
-    reel.collab = isFactory
-      ? { username: FACTORY_INSTAGRAM_USERNAME, isFactory: true }
-      : { username: random.pick(friends), isFactory: false };
-  }
-}
 
 const STAFF_NAME = "Navbatchi operator";
 const FOLLOW_UP_TEXT = "Rahmat, lekin muammo hali ham bor. Yana tekshirib bera olasizmi?";
@@ -397,11 +386,9 @@ function generateReels(
       removedOn,
       viewsByDay: new Map(),
       growthByDay: new Map(),
-      collab: null,
     });
   }
 
-  assignCollabs(reels, participants);
   return reels;
 }
 
@@ -464,23 +451,50 @@ function generateTargets(
     const index = targets.length;
     const method = random.pick(TARGET_METHODS);
     const detectedOn = minDate(addDays(reel.reviewedOn, random.int(2, 12)), today);
+    const detected = index === TARGET_COUNT - 1 ? addDays(today, -1) : detectedOn;
+    // Tasodifiy sonlar ketma-ketligi o'zgarmasin: shikoyat usulida avvalgidek bitta random.int.
+    const baseSize = method === "REPORT" ? random.int(150, 700) * 1024 : 0;
     targets.push({
       id: `tgt_${(index + 1).toString().padStart(3, "0")}`,
       reelId: reel.id,
       participantId: reel.participantId,
       // Oxirgisi kecha aniqlangan — reklama hali davom etmoqda ("Yoqilgan" holati).
-      detectedOn: index === TARGET_COUNT - 1 ? addDays(today, -1) : detectedOn,
+      detectedOn: detected,
       method,
       // Namuna uchun: bittasi allaqachon ogohlantirilgan, bittasi ro'yxatdan chiqarilgan.
       status: index === 0 ? "WARNED" : index === 1 ? "DISMISSED" : "NEW",
-      screenshot:
-        method === "SCREENSHOT"
-          ? { fileName: "reklama_kabineti.png", sizeBytes: random.int(150, 700) * 1024 }
-          : null,
+      reports:
+        method === "REPORT"
+          ? mockReports(candidates, reel.participantId, index, detected, today, baseSize)
+          : [],
+      // Tasodifiy sonlar ketma-ketligi o'zgarmasin — id indeksdan olinadi.
+      adId: method === "AD_LIBRARY" ? String(1_184_330_000_000_000 + (index + 1) * 7_919_311) : null,
     });
   }
 
   return targets;
+}
+
+/** Shikoyat usuli uchun 1–3 ta shikoyat: boshqa ishtirokchilardan, ketma-ket kunlarda. */
+function mockReports(
+  pool: MockReel[],
+  reportedId: string,
+  index: number,
+  detectedOn: IsoDate,
+  today: IsoDate,
+  baseSize: number,
+): MockTargetReport[] {
+  const reporters: string[] = [];
+  for (let step = 0; reporters.length < 1 + (index % 3) && step < pool.length; step++) {
+    const id = pool[(index * 11 + step * 17 + 3) % pool.length].participantId;
+    if (id !== reportedId && !reporters.includes(id)) reporters.push(id);
+  }
+  return reporters.map((reporterId, k) => ({
+    reporterId,
+    on: minDate(addDays(detectedOn, k), today),
+    comment: REPORT_COMMENTS[(index + k) % REPORT_COMMENTS.length],
+    sizeBytes: Math.round(baseSize * (1 + k * 0.17)),
+  }));
 }
 
 function generateTickets(

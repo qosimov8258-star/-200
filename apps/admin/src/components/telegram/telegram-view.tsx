@@ -5,6 +5,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, Eye, Info, MailWarning, RotateCw, Send, XCircle } from "lucide-react";
 
+import { IosIcon } from "@/components/ui/ios-icon";
+import { Segmented } from "@/components/ui/segmented";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -99,7 +101,7 @@ export function TelegramView() {
   return (
     <div className="space-y-4">
       <p className="flex items-start gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
-        <Info className="mt-0.5 size-4 shrink-0 text-slate-400" aria-hidden />
+        <IosIcon icon={Info} tint="blue" size={22} />
         <span>
           Telegram bot xabar o&apos;qilganini o&apos;zi bildirmaydi. Shuning uchun har bir xabar
           ostida <strong className="font-medium">&quot;✅ O&apos;qidim&quot;</strong> tugmasi bor:
@@ -158,38 +160,17 @@ export function TelegramView() {
           </Button>
         </div>
 
-        <div role="group" aria-label="Holat bo'yicha filtr" className="flex flex-wrap gap-2">
-          {STATUS_TABS.map((tab) => {
-            const active = tab === status;
-            const count = data?.statusCounts[tab];
-            return (
-              <button
-                key={tab}
-                type="button"
-                aria-pressed={active}
-                onClick={() => navigate({ status: tab })}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors",
-                  active
-                    ? "border-brand-600 bg-brand-600 text-white"
-                    : "border-slate-300 bg-white text-slate-600 hover:bg-slate-100",
-                )}
-              >
-                {tab === "ALL" ? "Hammasi" : TELEGRAM_STATUS_LABELS[tab]}
-                {count !== undefined && (
-                  <span
-                    className={cn(
-                      "rounded-full px-1.5 text-xs tabular-nums",
-                      active ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500",
-                    )}
-                  >
-                    {formatNumber(count)}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+        <Segmented
+          label="Holat bo'yicha filtr"
+          value={status}
+          onChange={(value) => navigate({ status: value })}
+          options={STATUS_TABS.map((tab) => ({
+            value: tab,
+            label: tab === "ALL" ? "Hammasi" : TELEGRAM_STATUS_LABELS[tab],
+            count: data?.statusCounts[tab],
+            attention: tab === "FAILED" || tab === "UNREAD",
+          }))}
+        />
       </div>
 
       <Card className="overflow-hidden">
@@ -197,7 +178,7 @@ export function TelegramView() {
           <TableSkeleton rows={8} />
         ) : isError && !data ? (
           <div className="flex flex-col items-center gap-3 px-4 py-12 text-center">
-            <AlertTriangle className="size-8 text-amber-500" aria-hidden />
+            <IosIcon icon={AlertTriangle} tint="orange" size={48} />
             <p className="text-sm text-slate-600">{errorMessage(error)}</p>
             <Button variant="secondary" onClick={() => refetch()}>
               Qayta urinish
@@ -205,7 +186,7 @@ export function TelegramView() {
           </div>
         ) : data && data.items.length === 0 ? (
           <div className="flex flex-col items-center gap-2 px-4 py-12 text-center">
-            <Send className="size-8 text-slate-300" aria-hidden />
+            <IosIcon icon={Send} tint="gray" size={48} />
             <p className="text-sm text-slate-600">Xabar topilmadi.</p>
           </div>
         ) : data ? (
@@ -283,21 +264,21 @@ function TelegramSummary({ data }: { data: TelegramMessageListResponse }) {
         botni bloklagan: <span className="tabular-nums">{formatNumber(blockedBot)}</span>
       </p>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Yuborilgan xabarlar" value={formatNumber(counts.ALL)} icon={Send}>
+        <StatCard label="Yuborilgan xabarlar" value={formatNumber(counts.ALL)} icon={Send} tint="cyan">
           Yetkazilgan: {formatNumber(delivered)}
         </StatCard>
-        <StatCard label="O'qildi" value={formatNumber(counts.READ)} icon={Eye}>
+        <StatCard label="O'qildi" value={formatNumber(counts.READ)} icon={Eye} tint="green">
           {delivered > 0 ? `${formatPercent(counts.READ / delivered)} yetkazilganlardan` : "—"}
         </StatCard>
         <StatCard
           label="O'qilmadi"
           value={formatNumber(counts.UNREAD)}
           icon={MailWarning}
-          tone={counts.UNREAD > 0 ? "attention" : "neutral"}
+          tint={counts.UNREAD > 0 ? "orange" : "gray"}
         >
           24 soatdan ko&apos;p javobsiz
         </StatCard>
-        <StatCard label="Yuborilmadi" value={formatNumber(counts.FAILED)} icon={XCircle}>
+        <StatCard label="Yuborilmadi" value={formatNumber(counts.FAILED)} icon={XCircle} tint="red">
           Bot bloklangan yoki tarmoq xatosi
         </StatCard>
       </div>

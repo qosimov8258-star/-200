@@ -2,11 +2,13 @@
 
 import { AlertTriangle, Inbox } from "lucide-react";
 
+import { IosIcon } from "@/components/ui/ios-icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
 import { SearchInput } from "@/components/ui/search-input";
+import { Segmented } from "@/components/ui/segmented";
 import { formatDayTime, formatNumber } from "@/lib/format";
 import { SUPPORT_STATUS_LABELS, SUPPORT_STATUS_TONES } from "@/lib/labels";
 import type {
@@ -64,33 +66,18 @@ export function TicketList({
           placeholder="Mavzu, ism yoki telefon"
           label="Murojaatlarni qidirish"
         />
-        <div role="group" aria-label="Holat bo'yicha filtr" className="flex flex-wrap gap-1.5">
-          {FILTER_TABS.map((tab) => {
-            const active = tab.value === filter;
-            const count = data?.statusCounts[tab.value];
-            return (
-              <button
-                key={tab.value}
-                type="button"
-                aria-pressed={active}
-                onClick={() => onFilterChange(tab.value)}
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
-                  active
-                    ? "border-brand-600 bg-brand-600 text-white"
-                    : "border-slate-300 bg-white text-slate-600 hover:bg-slate-100",
-                )}
-              >
-                {tab.label}
-                {count !== undefined && (
-                  <span className={cn("tabular-nums", active ? "text-white/80" : "text-slate-400")}>
-                    {formatNumber(count)}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+        <Segmented
+          size="sm"
+          label="Holat bo'yicha filtr"
+          value={filter}
+          onChange={onFilterChange}
+          options={FILTER_TABS.map((tab) => ({
+            value: tab.value,
+            label: tab.label,
+            count: data?.statusCounts[tab.value],
+            attention: tab.value === "NEW",
+          }))}
+        />
       </div>
 
       <div className="relative min-h-0 flex-1 overflow-y-auto">
@@ -106,7 +93,7 @@ export function TicketList({
           </div>
         ) : data && data.items.length === 0 ? (
           <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
-            <Inbox className="size-7 text-slate-300" aria-hidden />
+            <IosIcon icon={Inbox} tint="gray" size={44} />
             <p className="text-sm text-slate-500">Murojaat topilmadi.</p>
           </div>
         ) : data ? (

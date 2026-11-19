@@ -6,18 +6,23 @@ import { AlertTriangle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { IosIcon } from "@/components/ui/ios-icon";
 import { getDashboardStats } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
 import { todayIso } from "@/lib/dates";
 import { formatDate, formatDateTime } from "@/lib/format";
-import { parsePeriod, periodToQuery, periodToSearch, type Period } from "@/lib/period";
+import { parsePeriod, periodPhrase, periodToQuery, periodToSearch, type Period } from "@/lib/period";
 import { cn } from "@/lib/utils";
 
-import { DailyGrowthChart } from "./daily-growth-chart";
+import { ContestMeters } from "./contest-meters";
 import { DashboardSkeleton } from "./dashboard-skeleton";
-import { PeriodFilter } from "./period-filter";
-import { StatsGrid } from "./stats-grid";
+import { KpiStrip } from "./kpi-strip";
+import { PeriodSelect } from "./period-select";
+import { ReelsBreakdown } from "./reels-breakdown";
+import { TopPerformers } from "./top-performers";
+import { ViewsChart } from "./views-chart";
 
+/** Boshqaruv paneli — CareOps "Operations dashboard" uslubida. */
 export function DashboardView() {
   const router = useRouter();
   const pathname = usePathname();
@@ -47,49 +52,51 @@ export function DashboardView() {
 
   return (
     <div className="space-y-6">
-      {/* Filtrlar — bitta qatorda, ular ta'sir qiladigan hamma narsadan yuqorida */}
-      <div className="space-y-2">
-        <PeriodFilter
-          value={period}
-          onChange={handlePeriodChange}
-          today={today}
-          minDate={data?.contest.startsOn}
-        />
-        {data && (
-          <p className="text-xs text-slate-500">
-            Davr:{" "}
-            <span className="font-medium text-slate-700 tabular-nums">
-              {formatDate(data.range.from)} – {formatDate(data.range.to)}
-            </span>
-            {rangeAdjusted && (
-              <span className="text-amber-700"> (tanlov muddatiga moslashtirildi)</span>
-            )}
-            <span aria-hidden> · </span>
-            Ma&apos;lumotlar {formatDateTime(data.dataUpdatedAt)} holatiga (har kuni yangilanadi)
-          </p>
-        )}
-      </div>
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-[28px] leading-tight font-semibold tracking-tight text-ink">Boshqaruv paneli</h1>
+          {data && (
+            <p className="mt-1 text-sm text-muted">
+              <span className="tabular-nums">
+                {formatDate(data.range.from)} – {formatDate(data.range.to)}
+              </span>
+              {rangeAdjusted && <span className="text-[#a7650f]"> (tanlov muddatiga moslashtirildi)</span>}
+              <span aria-hidden> · </span>
+              ma&apos;lumotlar {formatDateTime(data.dataUpdatedAt)} holatiga
+            </p>
+          )}
+        </div>
+        <PeriodSelect value={period} onChange={handlePeriodChange} today={today} minDate={data?.contest.startsOn} />
+      </header>
 
       {isPending ? (
         <DashboardSkeleton />
       ) : isError && !data ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <AlertTriangle className="size-8 text-amber-500" aria-hidden />
-            <p className="text-sm text-slate-600">{errorMessage(error)}</p>
+            <IosIcon icon={AlertTriangle} tint="orange" size={48} />
+            <p className="text-sm text-muted">{errorMessage(error)}</p>
             <Button variant="secondary" onClick={() => refetch()}>
               Qayta urinish
             </Button>
           </CardContent>
         </Card>
       ) : data ? (
-        <div
-          className={cn("space-y-6 transition-opacity", isFetching && "opacity-60")}
-          aria-busy={isFetching}
-        >
-          <StatsGrid stats={data} period={period} today={today} />
-          <DailyGrowthChart daily={data.daily} />
-        </div>
+        <Card className={cn("overflow-hidden transition-opacity", isFetching && "opacity-60")} aria-busy={isFetching}>
+          <KpiStrip stats={data} period={period} today={today} />
+          <div className="grid border-t border-line lg:grid-cols-2">
+            <ViewsChart daily={data.daily} />
+            <div className="border-t border-line lg:border-t-0 lg:border-l">
+              <TopPerformers stats={data} phrase={periodPhrase(period)} />
+            </div>
+            <div className="border-t border-line">
+              <ReelsBreakdown stats={data} phrase={periodPhrase(period)} />
+            </div>
+            <div className="border-t border-line lg:border-l">
+              <ContestMeters stats={data} today={today} />
+            </div>
+          </div>
+        </Card>
       ) : null}
     </div>
   );

@@ -89,9 +89,9 @@ export const TARGET_CASE_STATUS_TONES: Record<TargetCaseStatus, BadgeTone> = {
 };
 
 export const TARGET_METHOD_LABELS: Record<TargetDetectionMethod, string> = {
-  INSTAGRAM_API: "Instagram API",
+  AD_LIBRARY: "Meta reklama kutubxonasi",
   GROWTH_ANALYSIS: "AI: o'sish tahlili",
-  SCREENSHOT: "Skrinshot",
+  REPORT: "Ishtirokchi shikoyati",
 };
 
 export const TARGET_STATE_LABELS: Record<TargetState, string> = {
@@ -112,6 +112,7 @@ export const WINNER_CHECK_LABELS: Record<WinnerCheckKey, string> = {
   REEL_AVAILABLE: "Reel o'chirilmagan",
   NO_FAKE_VIEWS: "Soxta ko'rish belgisi yo'q",
   PURCHASE_CONFIRMED: "Mahsulot sotib olingan",
+  AD_TOOLS_REVIEWED: "Reklama tarixi yuzma-yuz ko'rilgan",
 };
 
 /** TZ 6: yuborildi, yetkazildi, o'qildi, o'qilmadi. */
@@ -250,9 +251,11 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "target.warn": "Target: ogohlantirish",
   "target.disqualify": "Target: diskvalifikatsiya",
   "target.dismiss": "Target: ro'yxatdan chiqarildi",
+  "target.check": "Target: reklama kutubxonasi tekshirildi",
   "telegram.resend": "Telegram: qayta yuborildi",
   "telegram.resend_unread": "Telegram: o'qilmaganlarga qayta yuborildi",
   "winner.purchase_check": "G'olib: xarid tekshiruvi",
+  "winner.ad_tools_check": "G'olib: reklama tarixi tekshiruvi",
   "winner.skip": "G'olib: nomzod rad etildi",
   "winner.confirm": "G'olib tasdiqlandi",
   "winner.unconfirm": "G'olib tasdig'i bekor qilindi",
@@ -268,6 +271,9 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "draw.confirm": "Random tanlov natijasini tasdiqladi",
   "draw.cancel": "Random tanlovni bekor qildi",
   "draw.send": "G'oliblarga bot orqali xabar yubordi",
+  "draw.period.create": "Random tanlov uchun davr yaratdi",
+  "draw.period.update": "Random tanlov davrini o'zgartirdi",
+  "draw.period.delete": "Random tanlov davrini o'chirdi",
 };
 
 const WINNER_VALUE_LABELS: Record<string, string> = {

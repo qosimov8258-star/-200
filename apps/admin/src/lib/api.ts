@@ -17,13 +17,17 @@ import { listAuditLog, recordAudit } from "./mock/audit";
 import { buildDailyRating } from "./mock/daily-rating";
 import {
   cancelDraw as mockCancelDraw,
+  createDrawPeriod as mockCreateDrawPeriod,
+  deleteDrawPeriod as mockDeleteDrawPeriod,
   confirmDraw as mockConfirmDraw,
   getDraw as mockGetDraw,
   getDrawSetup as mockGetDrawSetup,
+  getDrawStock as mockGetDrawStock,
   listDraws,
   previewDraw as mockPreviewDraw,
   replaceDrawWinner as mockReplaceDrawWinner,
   runDraw as mockRunDraw,
+  updateDrawPeriod as mockUpdateDrawPeriod,
   sendDraw as mockSendDraw,
 } from "./mock/draws";
 import { computeDashboardStats } from "./mock/dashboard";
@@ -55,7 +59,13 @@ import {
   listSupportTickets,
   setSupportTicketStatus,
 } from "./mock/support";
-import { applyTargetAction, getTargetCaseDetail, listTargetCases } from "./mock/targets";
+import {
+  applyTargetAction,
+  getTargetCaseDetail,
+  getTargetCheckStatus as mockGetTargetCheckStatus,
+  listTargetCases,
+  runTargetCheck,
+} from "./mock/targets";
 import {
   listTelegramMessages,
   resendTelegramMessage as mockResendTelegramMessage,
@@ -67,7 +77,7 @@ import {
   confirmWinner as mockConfirmWinner,
   getWinnerOverview as mockGetWinnerOverview,
   setMockContestEnded,
-  setPurchaseCheck,
+  setManualCheck,
   skipCandidate,
 } from "./mock/winner";
 import type {
@@ -87,7 +97,10 @@ import type {
   DrawPreview,
   DrawReplaceRequest,
   DrawSettings,
+  DrawPeriod,
+  DrawPeriodInput,
   DrawSetup,
+  DrawStock,
   LoginRequest,
   ManualReviewDecisionRequest,
   ManualReviewItem,
@@ -107,17 +120,19 @@ import type {
   SupportTicketListQuery,
   SupportTicketListResponse,
   TargetActionRequest,
+  TargetAdsCheckReport,
   TargetCaseDetail,
   TargetCaseListQuery,
   TargetCaseListResponse,
+  TargetCheckStatus,
   TelegramMessageListItem,
   TelegramMessageListQuery,
   TelegramMessageListResponse,
   TelegramResendUnreadRequest,
   WinnerOverview,
-  WinnerPurchaseCheckRequest,
   VoucherDraw,
   VoucherDrawSummary,
+  WinnerManualCheckRequest,
   WinnerSkipRequest,
 } from "./types";
 
@@ -419,6 +434,27 @@ export async function resolveTargetCase(
   return applyTargetAction(id, request.action, request.reason, requireRole("ADMIN"));
 }
 
+/**
+ * Meta reklama kutubxonasi tekshiruvining holati, oxirgi natijasi va keyingi rejadagi kun.
+ * Backend reyting yetakchilarini oyiga bir marta o'zi tekshiradi (tanlov boshidan har 30 kunda).
+ * @endpoint GET /api/v1/admin/targets/check
+ */
+export async function getTargetCheckStatus(): Promise<TargetCheckStatus> {
+  await delay(250);
+  requireRole("ADMIN");
+  return mockGetTargetCheckStatus();
+}
+
+/**
+ * Reklama kutubxonasini hoziroq tekshirish (reytingning yetakchilari, Apify orqali).
+ * Tekshiruv tugaguncha javob kutadi (odatda 1–3 daqiqa); yangi topilganlar ro'yxatga qo'shiladi.
+ * @endpoint POST /api/v1/admin/targets/check
+ */
+export async function checkTargetsNow(): Promise<TargetAdsCheckReport> {
+  await delay(1500);
+  return runTargetCheck(requireRole("ADMIN"));
+}
+
 // ---------------------------------------------------------------------------
 // Sozlamalar
 // ---------------------------------------------------------------------------
@@ -573,6 +609,47 @@ export async function runDraw(settings: DrawSettings): Promise<VoucherDraw> {
 }
 
 /**
+ * Kalendardan yangi davr yaratish (masalan, bayram bonusi). Tanlov muddati ichida bo'lishi shart.
+ * @endpoint POST /api/v1/admin/draws/periods
+ * @throws ApiError 400 — nom yoki sanalar noto'g'ri; 409 — shu sanalar uchun bosqich yoki davr bor
+ */
+export async function createDrawPeriod(input: DrawPeriodInput): Promise<DrawPeriod> {
+  await delay(400);
+  return mockCreateDrawPeriod(input, requireRole("ADMIN"));
+}
+
+/**
+ * Davr nomi yoki sanalarini o'zgartirish. O'tkazilgan tanlovlar o'z sanalarini saqlaydi.
+ * @endpoint PUT /api/v1/admin/draws/periods/:periodId
+ * @throws ApiError 400; 404 — davr topilmadi; 409 — shu sanalar uchun bosqich yoki davr bor
+ */
+export async function updateDrawPeriod(id: string, input: DrawPeriodInput): Promise<DrawPeriod> {
+  await delay(400);
+  return mockUpdateDrawPeriod(id, input, requireRole("ADMIN"));
+}
+
+/**
+ * Davrni o'chirish. Unda o'tkazilgan tanlovlar o'zgarmaydi.
+ * @endpoint DELETE /api/v1/admin/draws/periods/:periodId
+ * @throws ApiError 404 — davr topilmadi
+ */
+export async function deleteDrawPeriod(id: string): Promise<void> {
+  await delay(300);
+  mockDeleteDrawPeriod(id, requireRole("ADMIN"));
+}
+
+/**
+ * Oylik voucherlar qoldig'i: aksiya davomida jami, yuborilgan, tasdiqlangan, qoralamada va qolgani
+ * (bosqichlar bo'yicha ham). Bekor qilingan tanlovlar hisobga olinmaydi.
+ * @endpoint GET /api/v1/admin/draws/stock
+ */
+export async function getDrawStock(): Promise<DrawStock[]> {
+  await delay(200);
+  requireRole("ADMIN");
+  return mockGetDrawStock();
+}
+
+/**
  * O'tkazilgan tanlovlar, eng yangisi yuqorida.
  * @endpoint GET /api/v1/admin/draws
  */
@@ -662,15 +739,16 @@ export async function getWinnerOverview(): Promise<WinnerOverview> {
 }
 
 /**
- * Mahsulot xaridini qo'lda tekshirish natijasi (chek, buyurtma raqami — PLAN.md Q4).
- * @endpoint PUT /api/v1/admin/winner/purchase-check
- * @throws ApiError 400 — izoh yo'q; 404; 409 — g'olib e'lon qilingan
+ * Qo'lda tekshiriladigan band natijasi: mahsulot xaridi (chek, buyurtma raqami — PLAN.md Q4)
+ * yoki yuzma-yuz uchrashuvda Instagram "Reklama vositalari" (reklama tarixi) ko'rilgani.
+ * @endpoint PUT /api/v1/admin/winner/manual-check
+ * @throws ApiError 400 — izoh yo'q yoki band noto'g'ri; 404; 409 — g'olib e'lon qilingan
  */
-export async function setWinnerPurchaseCheck(
-  request: WinnerPurchaseCheckRequest,
+export async function setWinnerManualCheck(
+  request: WinnerManualCheckRequest,
 ): Promise<WinnerOverview> {
   await delay(400);
-  return setPurchaseCheck(request, requireRole("ADMIN"));
+  return setManualCheck(request, requireRole("ADMIN"));
 }
 
 /**

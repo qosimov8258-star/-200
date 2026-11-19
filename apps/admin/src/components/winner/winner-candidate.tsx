@@ -2,14 +2,29 @@
 
 import { CheckCircle2, Clock, Crown, ExternalLink, XCircle } from "lucide-react";
 
+import { IosIcon } from "@/components/ui/ios-icon";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { WINNER_CHECK_LABELS } from "@/lib/labels";
-import type { WinnerCheck, WinnerOverview } from "@/lib/types";
+import type { WinnerCheck, WinnerManualCheckKey, WinnerOverview } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-export type WinnerAction = "purchase-pass" | "purchase-fail" | "skip" | "confirm" | "unconfirm" | "announce";
+/** Qo'lda tekshiriladigan bandni belgilash: o'tdi / o'tmadi. */
+export interface ManualCheckAction {
+  check: WinnerManualCheckKey;
+  passed: boolean;
+}
+
+export type WinnerAction = "skip" | "confirm" | "unconfirm" | "announce" | ManualCheckAction;
+
+/** Qo'lda bandlar tugmalari: [o'tdi, o'tmadi]. */
+const MANUAL_BUTTONS: Record<WinnerManualCheckKey, [string, string]> = {
+  PURCHASE_CONFIRMED: ["Tasdiqlandi", "Tasdiqlanmadi"],
+  AD_TOOLS_REVIEWED: ["Reklama yo'q", "Reklama bor"],
+};
+
+const isManualKey = (key: WinnerCheck["key"]): key is WinnerManualCheckKey => key in MANUAL_BUTTONS;
 
 interface WinnerCandidateCardProps {
   overview: WinnerOverview;
@@ -39,7 +54,7 @@ export function WinnerCandidateCard({ overview, onAction }: WinnerCandidateCardP
   const name = `${candidate.participant.firstName} ${candidate.participant.lastName}`;
   const passed = candidate.checks.filter((check) => check.status === "PASSED").length;
   const allPassed = passed === candidate.checks.length;
-  const purchaseEditable = stage === "NOT_STARTED" || stage === "CANDIDATE";
+  const manualEditable = stage === "NOT_STARTED" || stage === "CANDIDATE";
 
   return (
     <Card>
@@ -48,9 +63,7 @@ export function WinnerCandidateCard({ overview, onAction }: WinnerCandidateCardP
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="flex flex-wrap items-start gap-4">
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-500">
-            <Crown className="size-6" aria-hidden />
-          </span>
+          <IosIcon icon={Crown} tint="yellow" size={48} />
           <div className="min-w-0 flex-1">
             <p className="text-xl font-semibold text-slate-900">{name}</p>
             <p className="text-sm text-slate-500">
@@ -89,7 +102,7 @@ export function WinnerCandidateCard({ overview, onAction }: WinnerCandidateCardP
               <CheckRow
                 key={check.key}
                 check={check}
-                editable={check.manual && purchaseEditable}
+                editable={check.manual && manualEditable}
                 onAction={onAction}
               />
             ))}
@@ -133,17 +146,30 @@ function CheckRow({
         </p>
         <p className="text-sm text-slate-600">{check.detail}</p>
       </div>
-      {editable && (
-        <div className="flex gap-2">
-          <Button variant="secondary" size="sm" onClick={() => onAction("purchase-pass")}>
-            Tasdiqlandi
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => onAction("purchase-fail")}>
-            Tasdiqlanmadi
-          </Button>
-        </div>
+      {editable && isManualKey(check.key) && (
+        <ManualButtons check={check.key} onAction={onAction} />
       )}
     </li>
+  );
+}
+
+function ManualButtons({
+  check,
+  onAction,
+}: {
+  check: WinnerManualCheckKey;
+  onAction: (action: WinnerAction) => void;
+}) {
+  const [passLabel, failLabel] = MANUAL_BUTTONS[check];
+  return (
+    <div className="flex gap-2">
+      <Button variant="secondary" size="sm" onClick={() => onAction({ check, passed: true })}>
+        {passLabel}
+      </Button>
+      <Button variant="ghost" size="sm" onClick={() => onAction({ check, passed: false })}>
+        {failLabel}
+      </Button>
+    </div>
   );
 }
 
@@ -161,7 +187,8 @@ function StageActions({
       return (
         <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
           Tasdiqlash tanlov tugagach ochiladi. Hozir yetakchini oldindan tekshirib, xarid
-          hujjatini tasdiqlab qo&apos;yishingiz mumkin.
+          hujjatini tasdiqlab qo&apos;yishingiz mumkin. Reklama tarixi esa g&apos;olib bilan
+          yuzma-yuz uchrashuvda ko&apos;riladi.
         </p>
       );
     case "CANDIDATE":

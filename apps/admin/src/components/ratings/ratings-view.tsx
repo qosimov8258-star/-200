@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { AlertTriangle, ListOrdered } from "lucide-react";
 
+import { IosIcon } from "@/components/ui/ios-icon";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
@@ -72,7 +73,7 @@ export function RatingsView() {
           <TableSkeleton rows={10} />
         ) : isError && !data ? (
           <div className="flex flex-col items-center gap-3 px-4 py-12 text-center">
-            <AlertTriangle className="size-8 text-amber-500" aria-hidden />
+            <IosIcon icon={AlertTriangle} tint="orange" size={48} />
             <p className="text-sm text-slate-600">{errorMessage(error)}</p>
             <Button variant="secondary" onClick={() => refetch()}>
               Qayta urinish
@@ -80,7 +81,7 @@ export function RatingsView() {
           </div>
         ) : data && data.items.length === 0 ? (
           <div className="flex flex-col items-center gap-3 px-4 py-12 text-center">
-            <ListOrdered className="size-8 text-slate-300" aria-hidden />
+            <IosIcon icon={ListOrdered} tint="gray" size={48} />
             <p className="text-sm text-slate-600">
               {formatDate(data.date)} kuni reytingda hali hech kim yo&apos;q.
             </p>

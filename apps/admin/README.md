@@ -60,10 +60,9 @@ Jamoa tasdiqlagan, backend ham shu qoidalar bo'yicha ishlashi kerak:
 - **Diskvalifikatsiya** panel orqali bekor qilinmaydi (bloklashdan farqli o'laroq).
 - **Ko'rishlar teng bo'lsa**, Reelni oldinroq yuborgan ishtirokchi reytingda yuqorida turadi.
 - **Support:** "Yangi" murojaatga birinchi javob yozilganda u avtomatik "Ko'rilmoqda" holatiga o'tadi.
-- **Collab videolar ruxsat etiladi** — Instagramda boshqa akkaunt bilan hamkorlikda (Collab)
-  joylangan Reel ham qabul qilinadi, chunki muhimi — ko'rishlar soni. Bitta Reel (bitta link)
-  faqat bitta ishtirokchiga hisoblanadi: linkni birinchi yuborganga. Panelda bunday Reellar
-  "Collab: @hamkor" belgisi bilan ko'rinadi.
+- **Collab videolar alohida aniqlanmaydi** — Instagramda boshqa akkaunt bilan hamkorlikda (Collab)
+  joylangan Reel oddiy Reel kabi qabul qilinadi, chunki muhimi — ko'rishlar soni. Bitta Reel
+  (bitta link) faqat bitta ishtirokchiga hisoblanadi: linkni birinchi yuborganga.
 
 Panelda shunday qilingan, lekin hali jamoa bilan kelishilishi kerak (PLAN.md Q11, Q12):
 

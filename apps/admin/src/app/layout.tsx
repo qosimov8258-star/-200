@@ -1,6 +1,14 @@
 import type { Metadata } from "next";
+import { Lexend } from "next/font/google";
 
 import "./globals.css";
+
+/** CareOps uslubidagi yumaloq geometrik shrift; o'zbek lotini uchun latin-ext. */
+const lexend = Lexend({
+  subsets: ["latin", "latin-ext"],
+  variable: "--font-lexend",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: {
@@ -13,7 +21,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="uz">
+    <html lang="uz" className={lexend.variable}>
       <body>{children}</body>
     </html>
   );

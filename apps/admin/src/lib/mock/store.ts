@@ -14,7 +14,9 @@ import type {
   ParticipantStatus,
   Prize,
   SupportTicketStatus,
+  DrawPeriod,
   VoucherDraw,
+  TargetAdsCheckReport,
   TargetCaseStatus,
 } from "../types";
 import type { MockSupportMessage } from "./contest";
@@ -49,6 +51,8 @@ export interface MockStore {
   targetCaseStatus: Record<string, TargetCaseStatus>;
   /** Qo'lda tekshiruv (Reel shortcode) -> admin qarori. */
   manualReviews: Record<string, MockManualDecision>;
+  /** Oxirgi reklama kutubxonasi tekshiruvi; null — hali tekshirilmagan. */
+  targetCheck: TargetAdsCheckReport | null;
   /** Telegram xabari id -> qayta yuborishlar. */
   telegramResends: Record<string, { attempts: number; lastSentAt: string }>;
   winner: MockWinnerState;
@@ -60,6 +64,8 @@ export interface MockStore {
   prizes: Prize[] | null;
   /** Oylik voucherlar uchun o'tkazilgan random tanlovlar. */
   draws: VoucherDraw[];
+  /** Admin kalendardan yaratgan davrlar (Random tanlov). */
+  drawPeriods: DrawPeriod[];
   audit: MockAuditEntry[];
 }
 
@@ -76,11 +82,23 @@ export interface MockSettingsOverride extends ContestSettingsUpdate {
   updatedBy: string;
 }
 
+export interface MockManualCheck {
+  passed: boolean;
+  note: string;
+  at: string;
+  by: string;
+}
+
 export interface MockWinnerState {
   /** Faqat mock: tanlovni tugagan deb hisoblash (oqimni sinash uchun). */
   contestEnded: boolean;
   /** Ishtirokchi id -> mahsulot xaridi tekshiruvi. */
-  purchaseChecks: Record<string, { passed: boolean; note: string; at: string; by: string }>;
+  purchaseChecks: Record<string, MockManualCheck>;
+  /**
+   * Ishtirokchi id -> yuzma-yuz uchrashuvda Instagram "Reklama vositalari" ko'rildi.
+   * Keyin qo'shilgan — eski yozuvlarda bo'lmasligi mumkin.
+   */
+  adToolsChecks?: Record<string, MockManualCheck>;
   skipped: Array<{ participantId: string; reason: string; at: string; by: string }>;
   confirmed: { participantId: string; at: string; by: string } | null;
   announced: { at: string; by: string } | null;
@@ -98,10 +116,12 @@ function emptyStore(): MockStore {
     ticketReplies: {},
     targetCaseStatus: {},
     manualReviews: {},
+    targetCheck: null,
     telegramResends: {},
     winner: {
       contestEnded: false,
       purchaseChecks: {},
+      adToolsChecks: {},
       skipped: [],
       confirmed: null,
       announced: null,
@@ -110,6 +130,7 @@ function emptyStore(): MockStore {
     rules: null,
     prizes: null,
     draws: [],
+    drawPeriods: [],
     audit: [],
   };
 }

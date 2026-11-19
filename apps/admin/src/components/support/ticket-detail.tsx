@@ -13,6 +13,7 @@ import {
   UserRound,
 } from "lucide-react";
 
+import { IosIcon } from "@/components/ui/ios-icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -70,7 +71,7 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
   if (isError || !data) {
     return (
       <Card className="flex h-full flex-col items-center justify-center gap-3 px-4 py-16 text-center">
-        <AlertTriangle className="size-8 text-amber-500" aria-hidden />
+        <IosIcon icon={AlertTriangle} tint="orange" size={48} />
         <p className="text-sm text-slate-600">{errorMessage(error)}</p>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={onBack}>

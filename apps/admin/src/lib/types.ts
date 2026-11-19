@@ -84,8 +84,6 @@ export interface ParticipantListItem {
   reel: {
     url: string;
     status: ReelStatus;
-    /** Instagram Collab: hamkor akkaunt (ruxsat etiladi); oddiy Reel — null. */
-    collabWith: { username: string; isFactory: boolean } | null;
   } | null;
   /** Reelning oxirgi yig'ilgan ko'rishlari. */
   views: number;
@@ -115,8 +113,13 @@ export interface ParticipantActionRequest {
 /** Reel uchun target holati (TZ 5.2): yoqilgan / yoqilmagan / aniqlanmadi. */
 export type TargetState = "ON" | "OFF" | "UNKNOWN";
 
-/** Target qanday aniqlangan (TZ 5.2, Faza 0 da yakunlanadi). */
-export type TargetDetectionMethod = "INSTAGRAM_API" | "GROWTH_ANALYSIS" | "SCREENSHOT";
+/**
+ * Target qanday aniqlangan (TZ 5.2):
+ * AD_LIBRARY — Meta reklama kutubxonasida faol reklama topildi (Apify, reyting yetakchilari);
+ * GROWTH_ANALYSIS — ko'rishlar keskin oshgan va/yoki layklar o'smagan (pullik reklamaga xos);
+ * REPORT — boshqa ishtirokchilar lentasida «Reklama» belgisi bilan ko'rib, skrinshot yuborgan.
+ */
+export type TargetDetectionMethod = "AD_LIBRARY" | "GROWTH_ANALYSIS" | "REPORT";
 
 /**
  * Target holatining (case) ko'rib chiqilish holati:
@@ -172,6 +175,42 @@ export interface TargetCaseDetail extends TargetCaseListItem {
   history: Array<{ date: IsoDate; state: TargetState; note: string }>;
   /** Dalil fayllari (masalan, reklama kabineti skrinshoti). */
   attachments: SupportAttachment[];
+  /** Dalil havolasi (masalan, Meta reklama kutubxonasidagi reklama sahifasi); yo'q bo'lsa — null. */
+  evidenceUrl: string | null;
+  /** REPORT usulida — shikoyatlar (boshqalarida bo'sh). Shikoyatchi faqat adminga ko'rinadi. */
+  reports: TargetCaseReport[];
+}
+
+/**
+ * Ishtirokchi shikoyati. Skrinshot — `attachments` dagi `attachmentId` li fayl:
+ * `GET /api/v1/admin/targets/:id/attachments/:attachmentId` (Bearer token bilan, rasm qaytadi).
+ */
+export interface TargetCaseReport {
+  id: string;
+  at: string;
+  comment: string | null;
+  attachmentId: string;
+  reporter: { id: string; fullName: string; phone: string };
+}
+
+/** Meta reklama kutubxonasi tekshiruvi natijasi (reyting yetakchilari). */
+export interface TargetAdsCheckReport {
+  /** "schedule" — har kungi ko'rishlar yig'ilgandan keyin; "admin" — qo'lda ishga tushirilgan. */
+  reason: "schedule" | "admin";
+  at: string;
+  /** Nechta akkaunt tekshirildi. */
+  checked: number;
+  /** Shu tekshiruvda faol reklamasi topilganlar. */
+  found: number;
+  /** Tekshiruv xato bilan tugagan bo'lsa — sababi. */
+  error: string | null;
+}
+
+export interface TargetCheckStatus {
+  running: boolean;
+  lastCheck: TargetAdsCheckReport | null;
+  /** Keyingi rejadagi avtomatik tekshiruv kuni (oyiga bir marta); rejada yo'q bo'lsa — null. */
+  nextCheckOn: IsoDate | null;
 }
 
 export interface TargetActionRequest {
@@ -399,9 +438,26 @@ export interface DrawPlaceholder {
   label: string;
 }
 
+/** Admin kalendardan yaratgan davr — bosqichlar yonida tanlanadi (masalan, bayram bonusi). */
+export interface DrawPeriod {
+  id: string;
+  title: string;
+  startsOn: IsoDate;
+  /** Shu kun ham kiradi. */
+  endsOn: IsoDate;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
+export type DrawPeriodInput = Pick<DrawPeriod, "title" | "startsOn" | "endsOn">;
+
 export interface DrawSetup {
   today: IsoDate;
   stages: DrawStage[];
+  /** Admin yaratgan davrlar, boshlanish sanasi bo'yicha. */
+  periods: DrawPeriod[];
   /** Oylik sovg'alar (random tanlov faqat ular uchun). */
   prizes: Array<Pick<Prize, "id" | "title" | "quantity" | "minViews" | "maxViews">>;
   /** Joriy (yoki eng oxirgi tugagan) bosqich va birinchi oylik sovg'a bo'yicha boshlang'ich sozlamalar. */
@@ -506,6 +562,32 @@ export interface VoucherDraw extends VoucherDrawSummary {
   cancelled: { at: string; by: string; reason: string } | null;
 }
 
+/** Bosqichdagi voucherlar: bosqich kvotasi va tanlovlar bo'yicha holati. */
+export interface DrawStockStage extends DrawStage {
+  /** Shu bosqichga ajratilgan voucherlar (oylik soni). */
+  quantity: number;
+  sent: number;
+  confirmed: number;
+  draft: number;
+}
+
+/** Oylik sovg'a qoldig'i: aksiya davomida jami, berilgani va qolgani. Bekor qilingan tanlovlar kirmaydi. */
+export interface DrawStock {
+  prizeId: string;
+  title: string;
+  /** Aksiya davomida jami (oylik soni × bosqichlar). */
+  total: number;
+  /** G'oliblarga bot orqali yuborilgan tanlovlardagi faol g'oliblar. */
+  sent: number;
+  /** Tasdiqlangan, hali yuborilmagan. */
+  confirmed: number;
+  /** Qoralamada (hali tasdiqlanmagan) — qoldiqdan ayrilmaydi. */
+  draft: number;
+  /** Hali taqsimlanmagan: jami − yuborilgan − tasdiqlangan. */
+  remaining: number;
+  stages: DrawStockStage[];
+}
+
 export interface DrawReplaceRequest {
   participantId: string;
   /** Audit logga yoziladi. */
@@ -570,7 +652,18 @@ export type AuditLogResponse = Paginated<AuditLogEntry>;
 export type WinnerStage = "NOT_STARTED" | "CANDIDATE" | "CONFIRMED" | "ANNOUNCED";
 
 /** TZ 5.3 tekshiruv ro'yxati. */
-export type WinnerCheckKey = "NO_TARGET" | "REEL_AVAILABLE" | "NO_FAKE_VIEWS" | "PURCHASE_CONFIRMED";
+export type WinnerCheckKey =
+  | "NO_TARGET"
+  | "REEL_AVAILABLE"
+  | "NO_FAKE_VIEWS"
+  | "PURCHASE_CONFIRMED"
+  | "AD_TOOLS_REVIEWED";
+
+/**
+ * Admin qo'lda belgilaydigan bandlar: mahsulot xaridi va g'olib bilan yuzma-yuz uchrashuvda
+ * Instagram'dagi "Reklama vositalari" (reklama tarixi) bo'limini ko'rish.
+ */
+export type WinnerManualCheckKey = "PURCHASE_CONFIRMED" | "AD_TOOLS_REVIEWED";
 
 /** PENDING — Admin qo'lda tekshirishi kerak. */
 export type WinnerCheckStatus = "PASSED" | "FAILED" | "PENDING";
@@ -580,7 +673,7 @@ export interface WinnerCheck {
   status: WinnerCheckStatus;
   /** Natija izohi, masalan "Target aniqlanmagan" yoki "Chek №123 tekshirildi". */
   detail: string;
-  /** Admin qo'lda belgilaydigan band (mahsulot xaridi). */
+  /** Admin qo'lda belgilaydigan band (mahsulot xaridi, reklama tarixi). */
   manual: boolean;
 }
 
@@ -627,10 +720,11 @@ export interface WinnerOverview {
   announced: { at: string; by: string } | null;
 }
 
-export interface WinnerPurchaseCheckRequest {
+export interface WinnerManualCheckRequest {
   participantId: string;
+  check: WinnerManualCheckKey;
   passed: boolean;
-  /** Masalan: chek raqami, tekshirish usuli. */
+  /** Masalan: chek raqami yoki "Reklama vositalari bo'sh, 2 ta xodim ko'rdi". */
   note: string;
 }
 

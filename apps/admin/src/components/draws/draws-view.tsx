@@ -22,6 +22,7 @@ import { DrawPoolCard } from "./draw-pool-card";
 import { DrawResult } from "./draw-result";
 import { DrawRollingDialog } from "./draw-rolling-dialog";
 import { DrawSettingsForm } from "./draw-settings-form";
+import { DrawStockSummary } from "./draw-stock-card";
 
 const PREVIEW_DEBOUNCE_MS = 400;
 
@@ -57,6 +58,8 @@ export function DrawsView() {
           </Button>
         )}
       </header>
+
+      <DrawStockSummary />
 
       <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0">
@@ -136,22 +139,15 @@ function NewDraw({ onCreated }: { onCreated: (draw: VoucherDraw) => void }) {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <Card>
-        <CardHeader>
-          <CardTitle>Sozlamalar</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <DrawSettingsForm
-            setup={setup.data}
-            value={value}
-            errors={errors}
-            onChange={setSettings}
-            disabled={rolling}
-          />
-        </CardContent>
-      </Card>
+      <DrawSettingsForm
+        setup={setup.data}
+        value={value}
+        errors={errors}
+        onChange={setSettings}
+        disabled={rolling}
+      />
 
-      <div className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+      <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">
         <DrawPoolCard
           preview={preview.data}
           loading={preview.isFetching}

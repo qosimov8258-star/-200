@@ -4,17 +4,20 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 
-import { Header } from "@/components/layout/header";
-import { Sidebar } from "@/components/layout/sidebar";
+import { TopNav } from "@/components/layout/top-nav";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { Button } from "@/components/ui/button";
+import { IosIcon } from "@/components/ui/ios-icon";
 import { FullScreenSpinner } from "@/components/ui/spinner";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
-import { canAccess, homePathForRole } from "@/lib/navigation";
+import { canAccess, findNavItem, homePathForRole } from "@/lib/navigation";
+
+/** O'z sarlavhasini (izoh, tugmalar bilan) o'zi chiqaradigan sahifalar. */
+const OWN_TITLE_PATHS = ["/dashboard", "/draws"];
 
 /**
  * Panelning umumiy layout'i: sessiya tekshiruvi, rolga qarab kirish huquqi,
- * yon menyu va sarlavha. Login sahifasi bu layout'dan tashqarida.
+ * tepadagi navigatsiya paneli va sahifa sarlavhasi. Login sahifasi bu layout'dan tashqarida.
  */
 export default function PanelLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
@@ -30,11 +33,13 @@ function PanelShell({ children }: { children: React.ReactNode }) {
   const { state, reload, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const [menuOpen, setMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
   const admin = state.status === "authenticated" ? state.admin : null;
   const allowed = admin ? canAccess(admin.role, pathname) : false;
+  // Dashboard va Random tanlov sarlavhasini o'zi chiqaradi — boshqa sahifalarda shu yerda.
+  const ownTitle = OWN_TITLE_PATHS.some((path) => pathname.startsWith(path));
+  const pageTitle = ownTitle ? null : (findNavItem(pathname)?.title ?? "Admin panel");
 
   // Sessiya yo'q — login sahifasiga (qaytish manzili bilan).
   useEffect(() => {
@@ -59,7 +64,7 @@ function PanelShell({ children }: { children: React.ReactNode }) {
   if (state.status === "error") {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-4 text-center">
-        <AlertTriangle className="size-8 text-amber-500" aria-hidden />
+        <IosIcon icon={AlertTriangle} tint="orange" size={48} />
         <p className="text-sm text-slate-600">{state.message}</p>
         <Button variant="secondary" onClick={reload}>
           Qayta urinish
@@ -82,17 +87,11 @@ function PanelShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen">
-      <Sidebar role={admin.role} open={menuOpen} onClose={() => setMenuOpen(false)} />
-
-      <div className="lg:pl-64">
-        <Header
-          admin={admin}
-          onMenuClick={() => setMenuOpen(true)}
-          onLogout={handleLogout}
-          loggingOut={loggingOut}
-        />
-        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">{children}</main>
-      </div>
+      <TopNav admin={admin} onLogout={handleLogout} loggingOut={loggingOut} />
+      <main className="mx-auto max-w-[1400px] px-4 pt-6 pb-10 sm:px-6 lg:pt-8">
+        {pageTitle && <h1 className="mb-6 text-2xl font-semibold tracking-tight text-ink">{pageTitle}</h1>}
+        {children}
+      </main>
     </div>
   );
 }
