@@ -4,12 +4,13 @@ import { ApiException } from "../common/api-exception";
 import { maskPhone, ParticipantsService } from "../participants/participants.service";
 import { RulesService } from "../rules/rules.service";
 import { StatsService } from "../stats/stats.service";
+import { TargetsService } from "../targets/targets.service";
 import type { TelegramIdentity } from "../telegram/init-data";
 import { contestSettings } from "./contest";
 import { contestPrizes } from "./prizes";
 import { canonicalReelUrl, parseReelShortcode } from "./reel-url";
 import { TelegramAuthGuard, TgUser } from "./telegram-auth.guard";
-import { parseRegister, parseUrl, parseVersion } from "./validation";
+import { parseRegister, parseTargetReport, parseUrl, parseVersion } from "./validation";
 
 /** Mini App grafigi uchun nechta kun beriladi. */
 const DAILY_DAYS = 30;
@@ -25,6 +26,7 @@ export class MiniappController {
     private readonly participants: ParticipantsService,
     private readonly rulesService: RulesService,
     private readonly stats: StatsService,
+    private readonly targets: TargetsService,
   ) {}
 
   @Get("me")
@@ -117,6 +119,16 @@ export class MiniappController {
     this.participants.submitReel(user.telegramId, canonicalReelUrl(shortcode), shortcode);
     this.stats.queueVerification(user.telegramId);
     return this.reel(user);
+  }
+
+  /**
+   * "Reklamani ko'rdim": boshqa ishtirokchining Reeli pullik reklama bilan ko'rsatilayotgani
+   * haqida skrinshotli shikoyat. Kim yuborgani faqat adminga ko'rinadi.
+   */
+  @Post("target-reports")
+  @HttpCode(204)
+  reportTarget(@TgUser() user: TelegramIdentity, @Body() body: unknown): void {
+    this.targets.report(user.telegramId, parseTargetReport(body));
   }
 
   /** Sovrinlar: oylik voucherlar, bosqichlar, asosiy sovrin toifalari. */

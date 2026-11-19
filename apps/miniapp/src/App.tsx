@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, Gift, Home, LayoutGrid, PlayCircle, Trophy, User, X } from "lucide-react";
+import { BookOpen, Gift, Home, LayoutGrid, Megaphone, PlayCircle, Trophy, User, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { GlassNav } from "./components/GlassNav";
@@ -16,12 +16,13 @@ import { ConsentScreen, ContactScreen, RegisterScreen, RulesContent, StatusScree
 import { ProfileScreen, WinnerContent } from "./screens/ProfileScreen";
 import { RatingScreen } from "./screens/RatingScreen";
 import { WebLoginScreen } from "./screens/WebLoginScreen";
+import { ReportScreen } from "./screens/ReportScreen";
 
 type Tab = "rating" | "reel" | "profile" | "prizes";
 /** Pastki menyuga sig'masdan "Ko'proq" ichida turadigan bo'limlar. */
 type OverflowTab = Extract<Tab, "prizes">;
 type NavKey = Exclude<Tab, OverflowTab> | "more";
-type SubPage = "rules" | "winner" | null;
+type SubPage = "rules" | "winner" | "report" | null;
 
 const isOverflow = (tab: Tab): tab is OverflowTab => tab === "prizes";
 
@@ -101,6 +102,10 @@ function MainShell({ me }: { me: Me }) {
           <SubPageLayout title={t.winnerTitle} onBack={() => setSub(null)}>
             <WinnerContent />
           </SubPageLayout>
+        ) : sub === "report" ? (
+          <SubPageLayout title={t.reportTitle} onBack={() => setSub(null)}>
+            <ReportScreen onBack={() => open({ tab: "rating" })} />
+          </SubPageLayout>
         ) : tab === "rating" ? (
           <RatingScreen
             firstName={me.profile!.firstName}
@@ -150,6 +155,15 @@ function MainShell({ me }: { me: Me }) {
             tone: "bg-[linear-gradient(135deg,#f3cf6b,#c8922a)]",
             active: sub === "winner",
             onSelect: () => open({ sub: "winner" }),
+          },
+          {
+            key: "report",
+            label: t.menuReport,
+            hint: t.moreReportHint,
+            icon: Megaphone,
+            tone: "bg-[linear-gradient(135deg,#ff8a5b,#e2457a)]",
+            active: sub === "report",
+            onSelect: () => open({ sub: "report" }),
           },
         ]}
       />
