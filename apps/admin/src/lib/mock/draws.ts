@@ -472,7 +472,7 @@ export function previewDraw(input: DrawSettings): DrawPreview {
   }
   if (prize && prize.quantity !== settings.winnersCount) {
     warnings.push(
-      `Sovg'a bo'limida oyiga ${formatNumber(prize.quantity)} ta deb belgilangan, siz ${formatNumber(settings.winnersCount)} ta g'olib tanlayapsiz.`,
+      `Bu sovg'a oyiga ${formatNumber(prize.quantity)} ta, siz ${formatNumber(settings.winnersCount)} ta g'olib tanlayapsiz.`,
     );
   }
 

@@ -374,22 +374,6 @@ export interface Prize {
   updatedBy: string | null;
 }
 
-export type PrizeInput = Pick<
-  Prize,
-  "title" | "description" | "imageUrl" | "quantity" | "kind" | "minViews" | "maxViews"
->;
-
-export type PrizeMoveDirection = "up" | "down";
-
-export interface PrizeMoveRequest {
-  direction: PrizeMoveDirection;
-}
-
-export interface PrizeImageUpload {
-  /** Yuklangan rasmning manzili — `PrizeInput.imageUrl` ga yoziladi. */
-  url: string;
-}
-
 // ---------------------------------------------------------------------------
 // Random tanlov — oylik voucher g'oliblari (Aksiya qoidalari: tasodifiy tanlov)
 // ---------------------------------------------------------------------------

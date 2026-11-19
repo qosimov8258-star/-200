@@ -149,7 +149,7 @@ export function DrawSettingsForm({ setup, value, errors, onChange, disabled = fa
               ))}
             </Select>
             {setup.prizes.length === 0 && (
-              <p className="text-sm text-amber-700">Sovg&apos;alar bo&apos;limida oylik sovg&apos;a yo&apos;q — avval qo&apos;shing.</p>
+              <p className="text-sm text-amber-700">Oylik sovg&apos;a topilmadi.</p>
             )}
           </Section>
 

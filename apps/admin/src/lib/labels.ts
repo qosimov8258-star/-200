@@ -8,7 +8,6 @@ import type {
   ManualReviewRejectReason,
   ManualReviewStatus,
   ParticipantStatus,
-  PrizeKind,
   ReelStatus,
   SupportTicketStatus,
   TargetCaseStatus,
@@ -161,16 +160,6 @@ export const SUPPORT_STATUS_TONES: Record<SupportTicketStatus, BadgeTone> = {
 // ---------------------------------------------------------------------------
 // Sovg'alar
 // ---------------------------------------------------------------------------
-
-export const PRIZE_KIND_LABELS: Record<PrizeKind, string> = {
-  MAIN: "Asosiy sovrin",
-  MONTHLY: "Oylik sovrin",
-};
-
-export const PRIZE_KIND_TONES: Record<PrizeKind, BadgeTone> = {
-  MAIN: "brand",
-  MONTHLY: "success",
-};
 
 // ---------------------------------------------------------------------------
 // Random tanlov
