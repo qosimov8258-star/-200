@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 #
 # Backend (NestJS): Mini App API, admin API, Telegram bot va ko'rishlar worker'i.
-# Build context — apps/backend (deploy/compose.yml), keraksiz fayllar
-# deploy/Dockerfile.backend.dockerignore orqali chiqarib tashlanadi.
+# Build context — apps/backend (deploy/compose.yml), keraksiz fayllar (node_modules, .env, data)
+# apps/backend/.dockerignore orqali chiqarib tashlanadi.
 
 FROM node:24-alpine AS build
 WORKDIR /app

@@ -1,5 +1,5 @@
 # Repo ildizi build context bo'lganda (deploy/Dockerfile.web) yuborilmaydigan fayllar.
-# Backend context'i (apps/backend) uchun — deploy/Dockerfile.backend.dockerignore.
+# Backend context'i (apps/backend) uchun — apps/backend/.dockerignore.
 
 # Git va muharrirlar
 .git

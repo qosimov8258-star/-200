@@ -7,7 +7,7 @@ repo ichida saqlanadi — serverdagi qo'lda yozilgan nusxalar o'rniga.
 |---|---|
 | [`compose.yml`](compose.yml) | `konkurs` loyihasi: `backend` (NestJS) va `web` (nginx) |
 | [`Dockerfile.backend`](Dockerfile.backend) | Backend image (context — `apps/backend`) |
-| [`Dockerfile.backend.dockerignore`](Dockerfile.backend.dockerignore) | Backend context'idan chiqariladigan fayllar |
+| [`../apps/backend/.dockerignore`](../apps/backend/.dockerignore) | Backend context'idan chiqariladigan fayllar (serverdagi eski builder faqat context ildizidagini o'qiydi) |
 | [`Dockerfile.web`](Dockerfile.web) | Mini App (Vite) + admin panel (Next.js statik eksport) → nginx |
 | [`web.conf`](web.conf) | nginx: `/` Mini App, `/admin/` admin panel, `/api/` backend |
 | [`../.dockerignore`](../.dockerignore) | Repo ildizi context bo'lganda (`Dockerfile.web`) chiqariladigan fayllar |
@@ -71,9 +71,9 @@ Ular endi shu papkadagi fayllar bilan almashadi.
 
 4. Eski `shared/compose.yml` va `shared/web.conf` ni o'chirmasdan `*.old` qilib qoldiring (qaytish uchun).
 
-5. Mezon nginx'ida `konkurs.mezon.site` uchun `proxy_read_timeout` kamida `300s` bo'lsin: admin
-   panelidagi "Reklama kutubxonasini hoziroq tekshirish" javobi 1–3 daqiqa kutadi (`web.conf` da
-   ham 300s). `client_max_body_size` kamida `10m` bo'lsin (shikoyat skrinshotlari).
+5. Mezon nginx'iga tegish shart emas: unda `client_max_body_size 10m` bor, standart 60 soniyalik
+   `proxy_read_timeout` ham yetadi — "Reklama kutubxonasini hoziroq tekshirish" 45 soniyadan
+   cho'zilsa, backend "davom etmoqda" deb javob beradi, tekshiruv esa fonda tugaydi.
 
 ## Deploy
 
