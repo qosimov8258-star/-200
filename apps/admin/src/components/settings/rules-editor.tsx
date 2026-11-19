@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, AlertTriangle, ArrowDown, ArrowUp, CheckCircle2, Info, Plus, Smartphone, Trash2 } from "lucide-react";
 
+import { IosIcon } from "@/components/ui/ios-icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -65,7 +66,7 @@ export function RulesEditor() {
   if (isError || !data) {
     return (
       <Card className="flex flex-col items-center gap-3 px-4 py-12 text-center">
-        <AlertTriangle className="size-8 text-amber-500" aria-hidden />
+        <IosIcon icon={AlertTriangle} tint="orange" size={48} />
         <p className="text-sm text-slate-600">{errorMessage(error)}</p>
         <Button variant="secondary" onClick={() => refetch()}>
           Qayta urinish
@@ -160,7 +161,7 @@ function RulesForm({
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="flex items-start gap-2 text-sm text-slate-600">
-              <Info className="mt-0.5 size-4 shrink-0 text-slate-400" aria-hidden />
+              <IosIcon icon={Info} tint="blue" size={22} />
               Qoidalar ishtirokchiga Telegram Mini App&apos;da ro&apos;yxatdan o&apos;tishda va
               &quot;Tanlov qoidalari&quot; sahifasida ko&apos;rsatiladi. Rozilik bermasdan ishtirok
               etib bo&apos;lmaydi.
@@ -320,7 +321,7 @@ function RulesForm({
 /** Ishtirokchi Mini App'da qanday ko'rishini taxminan ko'rsatadi. */
 function Preview({ sections }: { sections: RulesSection[] }) {
   return (
-    <aside className="lg:sticky lg:top-4">
+    <aside className="lg:sticky lg:top-24">
       <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-slate-500 uppercase">
         <Smartphone className="size-3.5" aria-hidden />
         Ilovada ko&apos;rinishi

@@ -60,10 +60,9 @@ Jamoa tasdiqlagan, backend ham shu qoidalar bo'yicha ishlashi kerak:
 - **Diskvalifikatsiya** panel orqali bekor qilinmaydi (bloklashdan farqli o'laroq).
 - **Ko'rishlar teng bo'lsa**, Reelni oldinroq yuborgan ishtirokchi reytingda yuqorida turadi.
 - **Support:** "Yangi" murojaatga birinchi javob yozilganda u avtomatik "Ko'rilmoqda" holatiga o'tadi.
-- **Collab videolar ruxsat etiladi** — Instagramda boshqa akkaunt bilan hamkorlikda (Collab)
-  joylangan Reel ham qabul qilinadi, chunki muhimi — ko'rishlar soni. Bitta Reel (bitta link)
-  faqat bitta ishtirokchiga hisoblanadi: linkni birinchi yuborganga. Panelda bunday Reellar
-  "Collab: @hamkor" belgisi bilan ko'rinadi.
+- **Collab videolar alohida aniqlanmaydi** — Instagramda boshqa akkaunt bilan hamkorlikda (Collab)
+  joylangan Reel oddiy Reel kabi qabul qilinadi, chunki muhimi — ko'rishlar soni. Bitta Reel
+  (bitta link) faqat bitta ishtirokchiga hisoblanadi: linkni birinchi yuborganga.
 
 Panelda shunday qilingan, lekin hali jamoa bilan kelishilishi kerak (PLAN.md Q11, Q12):
 
@@ -100,7 +99,6 @@ src/
 │   ├── providers/        # TanStack Query provayderi
 │   ├── ratings/          # kunlik reyting: sana tanlash, jadval, o'rin o'zgarishi
 │   ├── support/          # murojaatlar ro'yxati, yozishma, javob va holat
-│   ├── prizes/           # sovg'alar: rasm, nom, soni, ko'rishlar sharti, tartib
 │   ├── targets/          # target yoqqanlar: ro'yxat, dalil oynasi, qarorlar
 │   ├── telegram/         # xabarlar holati (yuborildi/yetkazildi/o'qildi), qayta yuborish
 │   ├── winner/           # g'olib: nomzod, tekshiruv ro'yxati, tasdiqlash, e'lon
@@ -114,8 +112,6 @@ src/
     ├── auth-context.tsx  # joriy xodim va chiqish
     ├── dates.ts          # tanlov kunlari (Asia/Tashkent)
     ├── format.ts         # raqam va sana formatlari
-    ├── image.ts          # rasmni yuklashdan oldin kichraytirish
-    ├── prize-rules.ts    # sovg'a maydonlari tekshiruvi va ko'rinishi
     ├── labels.ts         # holatlar nomlari va ranglari
     ├── navigation.ts     # menyu, rollar
     ├── period.ts         # dashboard davri (URL bilan)

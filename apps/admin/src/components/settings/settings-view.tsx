@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 
+import { IosIcon } from "@/components/ui/ios-icon";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
@@ -39,7 +40,7 @@ export function SettingsView() {
   if (isError || !data) {
     return (
       <Card className="flex flex-col items-center gap-3 px-4 py-12 text-center">
-        <AlertTriangle className="size-8 text-amber-500" aria-hidden />
+        <IosIcon icon={AlertTriangle} tint="orange" size={48} />
         <p className="text-sm text-slate-600">{errorMessage(error)}</p>
         <Button variant="secondary" onClick={() => refetch()}>
           Qayta urinish

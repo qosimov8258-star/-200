@@ -17,13 +17,17 @@ import { listAuditLog, recordAudit } from "./mock/audit";
 import { buildDailyRating } from "./mock/daily-rating";
 import {
   cancelDraw as mockCancelDraw,
+  createDrawPeriod as mockCreateDrawPeriod,
+  deleteDrawPeriod as mockDeleteDrawPeriod,
   confirmDraw as mockConfirmDraw,
   getDraw as mockGetDraw,
   getDrawSetup as mockGetDrawSetup,
+  getDrawStock as mockGetDrawStock,
   listDraws,
   previewDraw as mockPreviewDraw,
   replaceDrawWinner as mockReplaceDrawWinner,
   runDraw as mockRunDraw,
+  updateDrawPeriod as mockUpdateDrawPeriod,
   sendDraw as mockSendDraw,
 } from "./mock/draws";
 import { computeDashboardStats } from "./mock/dashboard";
@@ -33,14 +37,6 @@ import {
   listManualReviews,
 } from "./mock/manual-review";
 import { applyParticipantAction, listParticipants } from "./mock/participants";
-import {
-  createPrize as mockCreatePrize,
-  deletePrize as mockDeletePrize,
-  listPrizes,
-  movePrize as mockMovePrize,
-  updatePrize as mockUpdatePrize,
-  uploadPrizeImage as mockUploadPrizeImage,
-} from "./mock/prizes";
 import {
   getContestRules as mockGetContestRules,
   updateContestRules as mockUpdateContestRules,
@@ -55,7 +51,13 @@ import {
   listSupportTickets,
   setSupportTicketStatus,
 } from "./mock/support";
-import { applyTargetAction, getTargetCaseDetail, listTargetCases } from "./mock/targets";
+import {
+  applyTargetAction,
+  getTargetCaseDetail,
+  getTargetCheckStatus as mockGetTargetCheckStatus,
+  listTargetCases,
+  runTargetCheck,
+} from "./mock/targets";
 import {
   listTelegramMessages,
   resendTelegramMessage as mockResendTelegramMessage,
@@ -67,7 +69,7 @@ import {
   confirmWinner as mockConfirmWinner,
   getWinnerOverview as mockGetWinnerOverview,
   setMockContestEnded,
-  setPurchaseCheck,
+  setManualCheck,
   skipCandidate,
 } from "./mock/winner";
 import type {
@@ -87,7 +89,10 @@ import type {
   DrawPreview,
   DrawReplaceRequest,
   DrawSettings,
+  DrawPeriod,
+  DrawPeriodInput,
   DrawSetup,
+  DrawStock,
   LoginRequest,
   ManualReviewDecisionRequest,
   ManualReviewItem,
@@ -97,27 +102,25 @@ import type {
   ParticipantListItem,
   ParticipantListQuery,
   ParticipantListResponse,
-  Prize,
-  PrizeImageUpload,
-  PrizeInput,
-  PrizeMoveRequest,
   SupportReplyRequest,
   SupportStatusRequest,
   SupportTicketDetail,
   SupportTicketListQuery,
   SupportTicketListResponse,
   TargetActionRequest,
+  TargetAdsCheckReport,
   TargetCaseDetail,
   TargetCaseListQuery,
   TargetCaseListResponse,
+  TargetCheckStatus,
   TelegramMessageListItem,
   TelegramMessageListQuery,
   TelegramMessageListResponse,
   TelegramResendUnreadRequest,
   WinnerOverview,
-  WinnerPurchaseCheckRequest,
   VoucherDraw,
   VoucherDrawSummary,
+  WinnerManualCheckRequest,
   WinnerSkipRequest,
 } from "./types";
 
@@ -419,6 +422,27 @@ export async function resolveTargetCase(
   return applyTargetAction(id, request.action, request.reason, requireRole("ADMIN"));
 }
 
+/**
+ * Meta reklama kutubxonasi tekshiruvining holati, oxirgi natijasi va keyingi rejadagi kun.
+ * Backend reyting yetakchilarini oyiga bir marta o'zi tekshiradi (tanlov boshidan har 30 kunda).
+ * @endpoint GET /api/v1/admin/targets/check
+ */
+export async function getTargetCheckStatus(): Promise<TargetCheckStatus> {
+  await delay(250);
+  requireRole("ADMIN");
+  return mockGetTargetCheckStatus();
+}
+
+/**
+ * Reklama kutubxonasini hoziroq tekshirish (reytingning yetakchilari, Apify orqali).
+ * Tekshiruv tugaguncha javob kutadi (odatda 1–3 daqiqa); yangi topilganlar ro'yxatga qo'shiladi.
+ * @endpoint POST /api/v1/admin/targets/check
+ */
+export async function checkTargetsNow(): Promise<TargetAdsCheckReport> {
+  await delay(1500);
+  return runTargetCheck(requireRole("ADMIN"));
+}
+
 // ---------------------------------------------------------------------------
 // Sozlamalar
 // ---------------------------------------------------------------------------
@@ -471,72 +495,6 @@ export async function updateContestRules(update: ContestRulesUpdate): Promise<Co
 }
 
 // ---------------------------------------------------------------------------
-// Sovg'alar (ilova va Telegram botda shu ro'yxat, shu tartibda ko'rsatiladi)
-// ---------------------------------------------------------------------------
-
-/**
- * Aksiya sovg'alari, ko'rsatish tartibi bo'yicha.
- * @endpoint GET /api/v1/admin/prizes
- */
-export async function getPrizes(): Promise<Prize[]> {
-  await delay(300);
-  requireRole("ADMIN");
-  return listPrizes();
-}
-
-/**
- * Sovg'a rasmini yuklash (oldin brauzerda kichraytiriladi — `lib/image.ts`).
- * Qaytgan `url` sovg'ani saqlashda `imageUrl` ga yoziladi.
- * @endpoint POST /api/v1/admin/uploads/prize-image (multipart/form-data, maydon: `file`)
- * @throws ApiError 400 — rasm turi noto'g'ri; 413 — hajmi katta
- */
-export async function uploadPrizeImage(file: Blob): Promise<PrizeImageUpload> {
-  await delay(500);
-  requireRole("ADMIN");
-  return mockUploadPrizeImage(file);
-}
-
-/**
- * Yangi sovg'a qo'shish (ro'yxat oxiriga).
- * @endpoint POST /api/v1/admin/prizes
- * @throws ApiError 400 — maydon noto'g'ri (nom, soni, ko'rishlar oralig'i)
- */
-export async function createPrize(input: PrizeInput): Promise<Prize> {
-  await delay(500);
-  return mockCreatePrize(input, requireRole("ADMIN"));
-}
-
-/**
- * Sovg'ani tahrirlash.
- * @endpoint PUT /api/v1/admin/prizes/:id
- * @throws ApiError 400 | 404
- */
-export async function updatePrize(id: string, input: PrizeInput): Promise<Prize> {
-  await delay(500);
-  return mockUpdatePrize(id, input, requireRole("ADMIN"));
-}
-
-/**
- * Sovg'ani o'chirish.
- * @endpoint DELETE /api/v1/admin/prizes/:id
- * @throws ApiError 404
- */
-export async function deletePrize(id: string): Promise<void> {
-  await delay(400);
-  mockDeletePrize(id, requireRole("ADMIN"));
-}
-
-/**
- * Sovg'ani o'z turi (asosiy/oylik) ichida yuqoriga yoki pastga surish.
- * @endpoint POST /api/v1/admin/prizes/:id/move
- * @throws ApiError 404; 409 — allaqachon eng yuqorida/pastda
- */
-export async function movePrize(id: string, request: PrizeMoveRequest): Promise<Prize[]> {
-  await delay(250);
-  return mockMovePrize(id, request.direction, requireRole("ADMIN"));
-}
-
-// ---------------------------------------------------------------------------
 // Random tanlov (oylik voucherlar)
 // ---------------------------------------------------------------------------
 
@@ -570,6 +528,47 @@ export async function previewDraw(settings: DrawSettings): Promise<DrawPreview> 
 export async function runDraw(settings: DrawSettings): Promise<VoucherDraw> {
   await delay(900);
   return mockRunDraw(settings, requireRole("ADMIN"));
+}
+
+/**
+ * Kalendardan yangi davr yaratish (masalan, bayram bonusi). Tanlov muddati ichida bo'lishi shart.
+ * @endpoint POST /api/v1/admin/draws/periods
+ * @throws ApiError 400 — nom yoki sanalar noto'g'ri; 409 — shu sanalar uchun bosqich yoki davr bor
+ */
+export async function createDrawPeriod(input: DrawPeriodInput): Promise<DrawPeriod> {
+  await delay(400);
+  return mockCreateDrawPeriod(input, requireRole("ADMIN"));
+}
+
+/**
+ * Davr nomi yoki sanalarini o'zgartirish. O'tkazilgan tanlovlar o'z sanalarini saqlaydi.
+ * @endpoint PUT /api/v1/admin/draws/periods/:periodId
+ * @throws ApiError 400; 404 — davr topilmadi; 409 — shu sanalar uchun bosqich yoki davr bor
+ */
+export async function updateDrawPeriod(id: string, input: DrawPeriodInput): Promise<DrawPeriod> {
+  await delay(400);
+  return mockUpdateDrawPeriod(id, input, requireRole("ADMIN"));
+}
+
+/**
+ * Davrni o'chirish. Unda o'tkazilgan tanlovlar o'zgarmaydi.
+ * @endpoint DELETE /api/v1/admin/draws/periods/:periodId
+ * @throws ApiError 404 — davr topilmadi
+ */
+export async function deleteDrawPeriod(id: string): Promise<void> {
+  await delay(300);
+  mockDeleteDrawPeriod(id, requireRole("ADMIN"));
+}
+
+/**
+ * Oylik voucherlar qoldig'i: aksiya davomida jami, yuborilgan, tasdiqlangan, qoralamada va qolgani
+ * (bosqichlar bo'yicha ham). Bekor qilingan tanlovlar hisobga olinmaydi.
+ * @endpoint GET /api/v1/admin/draws/stock
+ */
+export async function getDrawStock(): Promise<DrawStock[]> {
+  await delay(200);
+  requireRole("ADMIN");
+  return mockGetDrawStock();
 }
 
 /**
@@ -662,15 +661,16 @@ export async function getWinnerOverview(): Promise<WinnerOverview> {
 }
 
 /**
- * Mahsulot xaridini qo'lda tekshirish natijasi (chek, buyurtma raqami — PLAN.md Q4).
- * @endpoint PUT /api/v1/admin/winner/purchase-check
- * @throws ApiError 400 — izoh yo'q; 404; 409 — g'olib e'lon qilingan
+ * Qo'lda tekshiriladigan band natijasi: mahsulot xaridi (chek, buyurtma raqami — PLAN.md Q4)
+ * yoki yuzma-yuz uchrashuvda Instagram "Reklama vositalari" (reklama tarixi) ko'rilgani.
+ * @endpoint PUT /api/v1/admin/winner/manual-check
+ * @throws ApiError 400 — izoh yo'q yoki band noto'g'ri; 404; 409 — g'olib e'lon qilingan
  */
-export async function setWinnerPurchaseCheck(
-  request: WinnerPurchaseCheckRequest,
+export async function setWinnerManualCheck(
+  request: WinnerManualCheckRequest,
 ): Promise<WinnerOverview> {
   await delay(400);
-  return setPurchaseCheck(request, requireRole("ADMIN"));
+  return setManualCheck(request, requireRole("ADMIN"));
 }
 
 /**

@@ -4,19 +4,28 @@ import { ApiException } from "../common/api-exception";
 import { maskPhone, ParticipantsService } from "../participants/participants.service";
 import { RulesService } from "../rules/rules.service";
 import { StatsService } from "../stats/stats.service";
+import { SupportRelay } from "../support/support-relay";
+import { SupportService } from "../support/support.service";
+import { TargetsService } from "../targets/targets.service";
 import type { TelegramIdentity } from "../telegram/init-data";
 import { contestSettings } from "./contest";
 import { contestPrizes } from "./prizes";
 import { canonicalReelUrl, parseReelShortcode } from "./reel-url";
-import { TelegramAuthGuard, TgUser } from "./telegram-auth.guard";
-import { parseRegister, parseUrl, parseVersion } from "./validation";
+import { Public, TelegramAuthGuard, TgUser, TgUserOptional } from "./telegram-auth.guard";
+import { parseRegister, parseSupportMessage, parseTargetReport, parseUrl, parseVersion } from "./validation";
 
 /** Mini App grafigi uchun nechta kun beriladi. */
 const DAILY_DAYS = 30;
+/** Support: shu vaqt ichida ko'pi bilan shuncha xabar (spamdan himoya). */
+const SUPPORT_WINDOW_MS = 10 * 60 * 1000;
+const SUPPORT_MAX_IN_WINDOW = 5;
 
 /**
  * Mini App API. Javob shakllari `apps/miniapp/src/lib/types.ts` bilan bir xil;
  * yo'llar `apps/miniapp/src/lib/api.ts` dagi `@endpoint` izohlariga mos.
+ *
+ * `@Public()` yo'llar (tanlov, qoidalar, reyting, sovg'alar, g'olib) veb-saytga kirmagan
+ * mehmonga ham ochiq — u bosh sahifani ko'radi, ro'yxatdan o'tishni "Profil" da boshlaydi.
  */
 @Controller("miniapp")
 @UseGuards(TelegramAuthGuard)
@@ -25,6 +34,9 @@ export class MiniappController {
     private readonly participants: ParticipantsService,
     private readonly rulesService: RulesService,
     private readonly stats: StatsService,
+    private readonly targets: TargetsService,
+    private readonly support: SupportService,
+    private readonly supportRelay: SupportRelay,
   ) {}
 
   @Get("me")
@@ -49,6 +61,7 @@ export class MiniappController {
     this.participants.register(user.telegramId, firstName, lastName, age);
   }
 
+  @Public()
   @Get("contest")
   contest() {
     const participants = this.participants
@@ -57,6 +70,7 @@ export class MiniappController {
     return { ...contestSettings, participants };
   }
 
+  @Public()
   @Get("rules")
   rules() {
     const { version, sections } = this.rulesService.get();
@@ -70,14 +84,15 @@ export class MiniappController {
   }
 
   /** Ommaviy reyting — telefon raqamlarisiz. Ko'rishlarni worker (StatsService) yig'adi. */
+  @Public()
   @Get("rating")
-  rating(@TgUser() user: TelegramIdentity) {
+  rating(@TgUserOptional() user: TelegramIdentity | null) {
     return this.stats.ranking().map((e) => ({
       rank: e.rank,
       fullName: `${e.participant.firstName} ${e.participant.lastName}`,
       views: e.views,
       rankDelta: e.rankDelta,
-      isMe: e.participant.telegramId === user.telegramId,
+      isMe: user !== null && e.participant.telegramId === user.telegramId,
     }));
   }
 
@@ -119,12 +134,60 @@ export class MiniappController {
     return this.reel(user);
   }
 
+  /**
+   * "Reklamani ko'rdim": boshqa ishtirokchining Reeli pullik reklama bilan ko'rsatilayotgani
+   * haqida skrinshotli shikoyat. Kim yuborgani faqat adminga ko'rinadi.
+   */
+  @Post("target-reports")
+  @HttpCode(204)
+  reportTarget(@TgUser() user: TelegramIdentity, @Body() body: unknown): void {
+    this.targets.report(user.telegramId, parseTargetReport(body));
+  }
+
   /** Sovrinlar: oylik voucherlar, bosqichlar, asosiy sovrin toifalari. */
+  /** Support yozishmasi (ilova va sayt): ishtirokchi xabarlari va operator javoblari. */
+  @Get("support")
+  supportThread(@TgUser() user: TelegramIdentity) {
+    return { messages: this.threadOf(user.telegramId) };
+  }
+
+  /**
+   * Saytdan yoki ilovadan support'ga yozish — botdagidek murojaat ochiladi va operatorlar
+   * guruhiga boradi. Raqam ulashilmagan bo'lsa — 403 (ishtirokchi hali aniqlanmagan).
+   */
+  @Post("support")
+  async writeSupport(@TgUser() user: TelegramIdentity, @Body() body: unknown) {
+    const text = parseSupportMessage(body);
+    const p = this.participants.get(user.telegramId);
+    if (!p?.phone) throw new ApiException(403, "UNAUTHORIZED");
+    if (this.support.recentParticipantMessages(p.telegramId, SUPPORT_WINDOW_MS) >= SUPPORT_MAX_IN_WINDOW) {
+      throw new ApiException(429, "SUPPORT_LIMIT");
+    }
+    const ticket = this.support.addParticipantMessage(p.telegramId, text, null);
+    const name = p.firstName ? `${p.firstName} ${p.lastName ?? ""}`.trim() : `ID ${p.telegramId}`;
+    try {
+      await this.supportRelay.forward(p.telegramId, `🆘 Murojaat #${ticket.id} — ${name} (ilova/sayt)`, text);
+    } catch {
+      // Guruhga yetmasa ham xabar saqlangan — operator admin panelda ko'radi.
+    }
+    return { messages: this.threadOf(p.telegramId) };
+  }
+
+  private threadOf(telegramId: number) {
+    return this.support.thread(telegramId).map((m) => ({
+      from: m.from,
+      text: m.text,
+      createdAt: m.createdAt.toISOString(),
+    }));
+  }
+
+  @Public()
   @Get("prizes")
   prizes() {
     return contestPrizes;
   }
 
+  @Public()
   @Get("winner")
   winner() {
     return null;

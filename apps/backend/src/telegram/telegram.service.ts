@@ -3,6 +3,7 @@ import { Bot, InlineKeyboard, Keyboard, type Context } from "grammy";
 
 import { config } from "../config/config";
 import { ParticipantsService } from "../participants/participants.service";
+import type { SupportRelay } from "../support/support-relay";
 import { SupportService } from "../support/support.service";
 import type { ParticipantNotifier } from "./notifier";
 import { texts } from "./texts";
@@ -21,7 +22,7 @@ const WEB_START_PAYLOAD = "web";
  */
 @Injectable()
 export class TelegramService
-  implements OnApplicationBootstrap, OnApplicationShutdown, ParticipantNotifier
+  implements OnApplicationBootstrap, OnApplicationShutdown, ParticipantNotifier, SupportRelay
 {
   private readonly logger = new Logger(TelegramService.name);
   private bot: Bot | null = null;
@@ -67,6 +68,20 @@ export class TelegramService
     // Bot ishlamasa — xato: chaqiruvchi xabarni "yuborildi" deb hisoblamasin.
     if (!this.bot) throw new Error("Telegram bot ishga tushmagan");
     await this.bot.api.sendMessage(chatId, text);
+  }
+
+  /**
+   * Ilova/saytdan yozilgan support xabarini operatorlar guruhiga yuboradi. Operator shu xabarga
+   * "Reply" qilsa — javob odatdagidek bot orqali ishtirokchiga boradi (pastdagi handler).
+   */
+  async forward(telegramId: number, header: string, text: string): Promise<void> {
+    const supportChatId = config.telegram.supportChatId ? Number(config.telegram.supportChatId) : null;
+    if (!this.bot || supportChatId === null) {
+      this.logger.warn("Support guruhi ulanmagan — xabar faqat saqlandi.");
+      return;
+    }
+    const sent = await this.bot.api.sendMessage(supportChatId, `${header}\n\n${text}`);
+    this.support.rememberGroupMessage(sent.message_id, telegramId);
   }
 
   // -------------------------------------------------------------------------

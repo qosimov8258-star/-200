@@ -8,7 +8,7 @@
  * `seed` va nomzodlar ro'yxati saqlanadi — natijani istalgan payt qayta hisoblab tekshirish mumkin.
  */
 import { addDays, isIsoDate } from "./dates";
-import type { DrawPlaceholder, DrawSettings, DrawStage, IsoDate } from "./types";
+import type { DrawPeriodInput, DrawPlaceholder, DrawSettings, DrawStage, IsoDate } from "./types";
 
 export const DRAW_LIMITS = {
   winnersMax: 10_000,
@@ -116,6 +116,29 @@ const dmy = (iso: IsoDate) => {
   return `${d}.${m}.${y}`;
 };
 const groupDigits = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+
+export const DRAW_PERIOD_LIMITS = { titleMin: 2, titleMax: 60 } as const;
+
+export type DrawPeriodErrors = Partial<Record<keyof DrawPeriodInput, string>>;
+
+/**
+ * Admin yaratadigan davr: nom 2–60 belgi, sanalar to'g'ri, tugash boshlanishdan oldin emas va
+ * ikkalasi ham tanlov muddati ichida. Backend `validateDrawPeriod` bilan bir xil qoida.
+ */
+export function validateDrawPeriod(input: DrawPeriodInput, bounds: { min: IsoDate; max: IsoDate }): DrawPeriodErrors {
+  const errors: DrawPeriodErrors = {};
+  const title = input.title.trim();
+  if (title.length < DRAW_PERIOD_LIMITS.titleMin || title.length > DRAW_PERIOD_LIMITS.titleMax) {
+    errors.title = `Davr nomi ${DRAW_PERIOD_LIMITS.titleMin}–${DRAW_PERIOD_LIMITS.titleMax} belgi bo'lsin.`;
+  }
+  if (!isIsoDate(input.startsOn)) errors.startsOn = "Boshlanish kunini tanlang.";
+  else if (!isIsoDate(input.endsOn)) errors.endsOn = "Tugash kunini tanlang.";
+  else if (input.endsOn < input.startsOn) errors.endsOn = "Tugash sanasi boshlanishdan oldin bo'lmasin.";
+  else if (input.startsOn < bounds.min || input.endsOn > bounds.max) {
+    errors.endsOn = `Davr tanlov muddati ichida bo'lsin: ${periodLabel(bounds.min, bounds.max)}.`;
+  }
+  return errors;
+}
 
 export function stageLabel(stage: number | null): string {
   return stage === null ? "maxsus davr" : `${stage}-bosqich`;

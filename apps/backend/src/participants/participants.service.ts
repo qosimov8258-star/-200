@@ -33,6 +33,11 @@ export type ReelFlagType =
   | "LOW_ENGAGEMENT"
   /** Ko'rishlar bir kunda keskin (o'n barobardan ko'p) oshgan. */
   | "VIEW_SPIKE"
+  /**
+   * Ko'rishlar bir kunda sezilarli oshgan, layklar esa deyarli oshmagan — pullik reklamaga xos
+   * (reklama begona auditoriyaga ko'rsatiladi, ular kam layk bosadi).
+   */
+  | "ENGAGEMENT_GAP"
   /** Ko'rishlar kamaygan — Instagram sun'iy ko'rishlarni tozalaganda shunday bo'ladi. */
   | "VIEW_DROP";
 
@@ -243,6 +248,12 @@ export class ParticipantsService {
       if (p.reel?.shortcode === shortcode) return { participant: p, reel: p.reel };
     }
     return null;
+  }
+
+  /** Qoidabuzarlik (masalan, target) uchun tanlovdan chetlatish — faqat admin qaroridan keyin. */
+  disqualify(telegramId: number): void {
+    const p = this.get(telegramId);
+    if (p) p.status = "DISQUALIFIED";
   }
 
   /** Ishtirokni bekor qilish (do'kon talabi: akkauntni o'chirish). */

@@ -5,7 +5,7 @@ import type { DailyViews } from "../lib/types";
 
 const BAR_AREA = 120;
 
-/** Kunlik ko'rishlar ustunli diagrammasi; oxirgi kun (bugun) ajratilgan. */
+/** Kunlik ko'rishlar ustunli diagrammasi; oxirgi kun (bugun) brend qizilida ajratilgan. */
 export function ViewsChart({ days }: { days: DailyViews[] }) {
   const max = Math.max(1, ...days.map((d) => d.views));
   return (
@@ -19,14 +19,19 @@ export function ViewsChart({ days }: { days: DailyViews[] }) {
             aria-label={`${formatDayMonth(d.date)}: ${formatCount(d.views)}`}
             className="flex flex-1 flex-col items-center px-[3px]"
           >
-            <span className={clsx("text-[11px] font-semibold", last ? "text-ink" : "text-muted")}>
+            <span className={clsx("text-[11px] font-semibold", last ? "text-[#c22a24]" : "text-muted")}>
               {formatShort(d.views)}
             </span>
             <div
-              className={clsx("mt-1 w-full rounded-[10px]", last ? "bg-ink" : "bg-line")}
+              className={clsx(
+                "mt-1 w-full rounded-[10px]",
+                last ? "bg-[linear-gradient(180deg,#f2583f,#df3425)]" : "bg-[#eceef2]",
+              )}
               style={{ height: Math.max(6, (BAR_AREA * d.views) / max) }}
             />
-            <span className="mt-1.5 text-[10px] text-muted">{formatDayMonth(d.date)}</span>
+            <span className={clsx("mt-1.5 text-[10px]", last ? "font-semibold text-[#c22a24]" : "text-muted")}>
+              {formatDayMonth(d.date)}
+            </span>
           </div>
         );
       })}

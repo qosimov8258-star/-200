@@ -181,3 +181,65 @@ test("previous winners can be excluded from the next stage", () => {
   assert.equal(preview.eligibleCount, 2);
   assert.equal(preview.excluded.PREVIOUS_WINNER, 2);
 });
+
+test("stock: drafts do not reduce the remaining vouchers, confirmed and sent ones do; cancelled are ignored", async () => {
+  const { draws, add, settings } = setup();
+  for (let id = 1; id <= 6; id++) add(id);
+
+  const fresh = draws.stock()[0];
+  assert.equal(fresh.total, 900);
+  assert.equal(fresh.remaining, 900);
+  assert.deepEqual(
+    fresh.stages.map((s) => [s.index, s.quantity, s.finished]),
+    [
+      [1, 300, true],
+      [2, 300, false],
+      [3, 300, false],
+    ],
+  );
+
+  const draft = draws.run(settings({ reservesCount: 0 }), "Admin");
+  let stock = draws.stock()[0];
+  assert.deepEqual([stock.draft, stock.remaining], [3, 900]);
+  assert.equal(stock.stages[0].draft, 3);
+
+  draws.confirm(draft.id, "Admin");
+  stock = draws.stock()[0];
+  assert.deepEqual([stock.draft, stock.confirmed, stock.remaining], [0, 3, 897]);
+
+  await draws.send(draft.id, "Admin");
+  stock = draws.stock()[0];
+  assert.deepEqual([stock.confirmed, stock.sent, stock.remaining], [0, 3, 897]);
+  assert.equal(stock.stages[0].sent, 3);
+
+  // Boshqa davr uchun qoralama bekor qilinsa — hisobga kirmaydi.
+  const other = draws.run(settings({ stage: null, periodFrom: "2026-11-25", periodTo: "2026-12-25", reservesCount: 0 }), "Admin");
+  draws.cancel(other.id, "Sinov uchun edi", "Admin");
+  assert.deepEqual(draws.stock()[0], stock);
+});
+
+test("admin-made periods: validated inside the contest, no duplicates, listed in setup, editable and deletable", () => {
+  const { draws } = setup();
+  const created = draws.createPeriod({ title: "  Yangi yil bonusi ", startsOn: "2026-12-20", endsOn: "2027-01-10" }, "Admin");
+  assert.equal(created.title, "Yangi yil bonusi");
+  assert.deepEqual(draws.setup().periods.map((p) => p.id), [created.id]);
+
+  // Nom qisqa, sanalar teskari, muddatdan tashqarida — 400; bosqich yoki boshqa davr bilan bir xil — 409.
+  assert.equal(status(() => draws.createPeriod({ title: "A", startsOn: "2026-12-01", endsOn: "2026-12-05" }, "Admin")), 400);
+  assert.equal(status(() => draws.createPeriod({ title: "Teskari", startsOn: "2026-12-05", endsOn: "2026-12-01" }, "Admin")), 400);
+  assert.equal(status(() => draws.createPeriod({ title: "Erta", startsOn: "2026-11-01", endsOn: "2026-11-30" }, "Admin")), 400);
+  assert.equal(status(() => draws.createPeriod({ title: "Bosqich", startsOn: "2026-11-25", endsOn: "2026-12-24" }, "Admin")), 409);
+  assert.equal(status(() => draws.createPeriod({ title: "Takror", startsOn: "2026-12-20", endsOn: "2027-01-10" }, "Admin")), 409);
+
+  const early = draws.createPeriod({ title: "Dekabr boshi", startsOn: "2026-12-01", endsOn: "2026-12-10" }, "Admin");
+  assert.deepEqual(draws.listPeriods().map((p) => p.title), ["Dekabr boshi", "Yangi yil bonusi"]);
+
+  // O'zini o'zi bilan solishtirmaydi: shu sanalar bilan nomini o'zgartirish mumkin.
+  const renamed = draws.updatePeriod(early.id, { title: "Dekabr 1-dekada", startsOn: "2026-12-01", endsOn: "2026-12-10" }, "Admin");
+  assert.equal(renamed.title, "Dekabr 1-dekada");
+  assert.equal(renamed.updatedBy, "Admin");
+
+  draws.deletePeriod(created.id, "Admin");
+  assert.deepEqual(draws.listPeriods().map((p) => p.id), [early.id]);
+  assert.equal(status(() => draws.deletePeriod(created.id, "Admin")), 404);
+});

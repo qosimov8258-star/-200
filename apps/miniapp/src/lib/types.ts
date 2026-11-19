@@ -133,6 +133,17 @@ export interface TelegramLoginUser {
   hash: string;
 }
 
+/** Support yozishmasi: ishtirokchi xabarlari va operator javoblari (eskisidan yangisiga). */
+export interface SupportMessage {
+  from: "PARTICIPANT" | "OPERATOR";
+  text: string;
+  createdAt: string;
+}
+
+export interface SupportThread {
+  messages: SupportMessage[];
+}
+
 export interface Winner {
   fullName: string;
   finalViews: number;
@@ -148,8 +159,33 @@ export type ApiErrorCode =
   | "INVALID_PROFILE"
   | "PROFILE_LOCKED"
   | "RULES_OUTDATED"
+  /** Shikoyat: Reel linki yoki @username noto'g'ri yozilgan. */
+  | "REPORT_TARGET_INVALID"
+  /** Shikoyat: bu Reel yoki akkaunt tanlov ishtirokchisi emas. */
+  | "REPORT_NOT_FOUND"
+  /** Shikoyat: o'zingiz haqingizda. */
+  | "REPORT_SELF"
+  /** Shikoyat: bugun shu ishtirokchi haqida allaqachon yuborgansiz. */
+  | "REPORT_DUPLICATE"
+  /** Shikoyat: bugungi chegara tugadi. */
+  | "REPORT_LIMIT"
+  /** Skrinshot yaroqsiz (rasm emas yoki juda katta). */
+  | "INVALID_IMAGE"
+  /** Support: xabar bo'sh yoki juda uzun. */
+  | "SUPPORT_INVALID"
+  /** Support: qisqa vaqtda juda ko'p xabar. */
+  | "SUPPORT_LIMIT"
   | "UNAUTHORIZED"
   | "SERVER";
+
+/** "Reklamani ko'rdim": boshqa ishtirokchining Reeli target bilan ko'rsatilayotgani haqida. */
+export interface TargetReportRequest {
+  /** Reel linki, profil linki yoki @username. */
+  target: string;
+  /** Siqilgan skrinshot: `data:image/jpeg;base64,...` (≤ 2 MB). */
+  screenshot: string;
+  comment?: string;
+}
 
 /** Asosiy sovrin toifasi (aksiya yakunida, jami ko'rishlar bo'yicha). */
 export type PrizeTierKind = "tablet" | "phone" | "travel" | "car";

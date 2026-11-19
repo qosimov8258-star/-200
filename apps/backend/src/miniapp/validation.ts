@@ -1,4 +1,6 @@
 import { ApiException } from "../common/api-exception";
+import { parseScreenshot } from "../targets/screenshot";
+import type { TargetReportInput } from "../targets/targets.service";
 
 /**
  * Kiruvchi ma'lumot tekshiruvi. CLAUDE.md: noma'lum maydonlar rad etiladi.
@@ -42,4 +44,32 @@ export function parseUrl(body: unknown): string {
   const b = object(body, ["url"]);
   if (typeof b.url !== "string" || b.url.length > 500) throw new ApiException(422, "INVALID_LINK");
   return b.url;
+}
+
+const MAX_REPORT_TARGET = 300;
+const MAX_REPORT_COMMENT = 500;
+
+/** Shikoyat: `{ target, screenshot, comment? }` — skrinshot `data:image/...;base64,...`. */
+export function parseTargetReport(body: unknown): TargetReportInput {
+  const b = object(body, ["target", "screenshot", "comment"]);
+  if (typeof b.target !== "string" || !b.target.trim() || b.target.length > MAX_REPORT_TARGET) {
+    throw new ApiException(422, "REPORT_TARGET_INVALID");
+  }
+  const screenshot = typeof b.screenshot === "string" ? parseScreenshot(b.screenshot) : null;
+  if (!screenshot) throw new ApiException(422, "INVALID_IMAGE");
+  if (b.comment !== undefined && b.comment !== null && typeof b.comment !== "string") {
+    throw new ApiException(400, "SERVER");
+  }
+  const comment = typeof b.comment === "string" ? b.comment.trim().slice(0, MAX_REPORT_COMMENT) : "";
+  return { target: b.target.trim(), screenshot, comment: comment || null };
+}
+
+/** Support xabari: 1–1000 belgi (bo'shliqlar olib tashlanadi), boshqa maydon yo'q. */
+export const MAX_SUPPORT_TEXT = 1000;
+
+export function parseSupportMessage(body: unknown): string {
+  const b = object(body, ["text"]);
+  const text = typeof b.text === "string" ? b.text.trim() : "";
+  if (!text || text.length > MAX_SUPPORT_TEXT) throw new ApiException(422, "SUPPORT_INVALID");
+  return text;
 }

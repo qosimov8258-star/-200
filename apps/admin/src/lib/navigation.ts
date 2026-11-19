@@ -3,7 +3,6 @@ import {
   ClipboardCheck,
   Crosshair,
   Dices,
-  Gift,
   LayoutDashboard,
   LifeBuoy,
   ListOrdered,
@@ -26,22 +25,15 @@ export interface NavItem {
   ready: boolean;
 }
 
-/** Yon menyu — TZ 6-bo'limidagi admin panel bo'limlari. */
+/** Navigatsiya bandlari — TZ 6-bo'limidagi admin panel bo'limlari (tartibi — paneldagi tartib). */
 export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", title: "Dashboard", icon: LayoutDashboard, roles: ["ADMIN"], ready: true },
   { href: "/users", title: "Foydalanuvchilar", icon: Users, roles: ["ADMIN"], ready: true },
   { href: "/ratings", title: "Reyting", icon: ListOrdered, roles: ["ADMIN"], ready: true },
-  {
-    href: "/manual-review",
-    title: "Qo'lda tekshiruv",
-    icon: ClipboardCheck,
-    roles: ["ADMIN"],
-    ready: true,
-  },
+  { href: "/manual-review", title: "Qo'lda tekshiruv", icon: ClipboardCheck, roles: ["ADMIN"], ready: true },
   { href: "/support", title: "Support", icon: LifeBuoy, roles: ["ADMIN", "SUPPORT"], ready: true },
   { href: "/telegram", title: "Telegram", icon: Send, roles: ["ADMIN"], ready: true },
   { href: "/targets", title: "Target yoqqanlar", icon: Crosshair, roles: ["ADMIN"], ready: true },
-  { href: "/prizes", title: "Sovg'alar", icon: Gift, roles: ["ADMIN"], ready: true },
   { href: "/draws", title: "Random tanlov", icon: Dices, roles: ["ADMIN"], ready: true },
   { href: "/winner", title: "G'olib", icon: Award, roles: ["ADMIN"], ready: true },
   { href: "/settings", title: "Sozlamalar", icon: Settings, roles: ["ADMIN"], ready: true },

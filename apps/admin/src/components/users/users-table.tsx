@@ -9,7 +9,6 @@ import {
   Crown,
   ExternalLink,
   LockOpen,
-  Users2,
   UserX,
 } from "lucide-react";
 
@@ -198,18 +197,6 @@ function UserRow({
             >
               <ExternalLink className="size-4" aria-hidden />
             </a>
-            {item.reel.collabWith && (
-              <Badge
-                tone="brand"
-                className="gap-1"
-                title="Instagram Collab — hamkorlikda joylangan (ruxsat etiladi)"
-              >
-                <Users2 className="size-3" aria-hidden />
-                {item.reel.collabWith.isFactory
-                  ? "Collab: zavod"
-                  : `Collab: @${item.reel.collabWith.username}`}
-              </Badge>
-            )}
           </span>
         ) : (
           <span className="text-slate-400">Yuborilmagan</span>

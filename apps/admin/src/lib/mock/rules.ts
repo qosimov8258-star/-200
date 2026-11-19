@@ -20,7 +20,7 @@ export const DEFAULT_RULES_SECTIONS: RulesSection[] = [
   },
   {
     title: "3. Taqiqlar",
-    body: "Pullik reklama (target) va nakrutka (sotib olingan ko'rishlar, botlar) taqiqlanadi. Nakrutka aniqlansa, ishtirokchi tanlovdan chetlashtiriladi.",
+    body: "Pullik reklama (target) va nakrutka (sotib olingan ko'rishlar, botlar) taqiqlanadi. Reyting yetakchilarining akkauntlari Meta reklama kutubxonasida muntazam tekshiriladi. Sovrin topshirilishidan oldin g'olib Instagram ilovasidagi \"Reklama vositalari\" bo'limini tashkilotchilarga ko'rsatadi. Boshqa ishtirokchining reklamasini ko'rsangiz, ilovadagi \"Reklamani ko'rdim\" bo'limi orqali skrinshot yuboring. Target yoki nakrutka aniqlansa, ishtirokchi tanlovdan chetlashtiriladi.",
   },
   {
     title: "4. G'olibni aniqlash",

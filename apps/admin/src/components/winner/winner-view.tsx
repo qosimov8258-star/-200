@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CalendarClock, CheckCircle2, FlaskConical, Flag } from "lucide-react";
 
+import { IosIcon } from "@/components/ui/ios-icon";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -15,19 +16,58 @@ import {
   confirmWinner,
   getWinnerOverview,
   mockControls,
-  setWinnerPurchaseCheck,
+  setWinnerManualCheck,
   skipWinnerCandidate,
 } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
 import { formatDate } from "@/lib/format";
-import type { WinnerOverview } from "@/lib/types";
+import type { WinnerManualCheckKey, WinnerOverview } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-import { WinnerCandidateCard, type WinnerAction } from "./winner-candidate";
+import { WinnerCandidateCard, type ManualCheckAction, type WinnerAction } from "./winner-candidate";
 import { RunnersUpCard, SkippedCard } from "./winner-side";
 
 const QUERY_KEY = ["winner"];
 const NOTICE_TIMEOUT_MS = 5000;
+
+/** Qo'lda tekshiriladigan bandlar oynasining matnlari. */
+const MANUAL_DIALOGS: Record<
+  WinnerManualCheckKey,
+  {
+    title: [string, string];
+    question: React.ReactNode;
+    placeholder: [string, string];
+    confirmLabel: [string, string];
+    notice: string;
+  }
+> = {
+  PURCHASE_CONFIRMED: {
+    title: ["Xaridni tasdiqlash", "Xarid tasdiqlanmadi"],
+    question: <>zavod mahsulotini sotib olganini qanday tekshirdingiz? (chek, QR kod, buyurtma raqami)</>,
+    placeholder: [
+      "Masalan: Chek №4512, 02.11.2026, do'kon bilan tasdiqlandi",
+      "Masalan: Chek taqdim etilmadi, buyurtma raqami topilmadi",
+    ],
+    confirmLabel: ["Tasdiqlandi", "Tasdiqlanmadi"],
+    notice: "Xarid tekshiruvi saqlandi.",
+  },
+  AD_TOOLS_REVIEWED: {
+    title: ["Reklama tarixi toza", "Reklama topildi"],
+    question: (
+      <>
+        bilan uchrashuvda uning telefonida Instagram → Professional panel → &quot;Reklama
+        vositalari&quot; bo&apos;limini oching. Tanlov davrida Reel yoki akkaunt reklama
+        qilinganmi? Nimani ko&apos;rdingiz?
+      </>
+    ),
+    placeholder: [
+      "Masalan: Reklama vositalari bo'sh, 2 ta xodim ko'rdi, skrinshot olindi",
+      "Masalan: 12.12.2026 da Reel reklama qilingan, 3 kun, 150 000 so'm",
+    ],
+    confirmLabel: ["Reklama yo'q", "Reklama bor"],
+    notice: "Reklama tarixi tekshiruvi saqlandi.",
+  },
+};
 
 export function WinnerView() {
   const queryClient = useQueryClient();
@@ -70,7 +110,7 @@ export function WinnerView() {
   if (isError || !data) {
     return (
       <Card className="flex flex-col items-center gap-3 px-4 py-12 text-center">
-        <AlertTriangle className="size-8 text-amber-500" aria-hidden />
+        <IosIcon icon={AlertTriangle} tint="orange" size={48} />
         <p className="text-sm text-slate-600">{errorMessage(error)}</p>
         <Button variant="secondary" onClick={() => refetch()}>
           Qayta urinish
@@ -80,6 +120,7 @@ export function WinnerView() {
   }
 
   const candidate = data.candidate;
+  const manual = typeof action === "object" ? action : null;
   const candidateName = candidate
     ? `${candidate.participant.firstName} ${candidate.participant.lastName}`
     : "";
@@ -124,33 +165,20 @@ export function WinnerView() {
         </div>
       </div>
 
-      {candidate && (action === "purchase-pass" || action === "purchase-fail") && (
-        <ReasonDialog
-          title={action === "purchase-pass" ? "Xaridni tasdiqlash" : "Xarid tasdiqlanmadi"}
-          description={
-            <>
-              <strong className="font-medium text-slate-900">{candidateName}</strong> zavod
-              mahsulotini sotib olganini qanday tekshirdingiz? (chek, QR kod, buyurtma raqami)
-            </>
-          }
-          fieldLabel="Izoh"
-          placeholder={
-            action === "purchase-pass"
-              ? "Masalan: Chek №4512, 02.11.2026, do'kon bilan tasdiqlandi"
-              : "Masalan: Chek taqdim etilmadi, buyurtma raqami topilmadi"
-          }
-          confirmLabel={action === "purchase-pass" ? "Tasdiqlandi" : "Tasdiqlanmadi"}
-          variant={action === "purchase-pass" ? "primary" : "danger"}
+      {candidate && manual && (
+        <ManualCheckDialog
+          action={manual}
+          candidateName={candidateName}
           onConfirm={async (note) => {
-            const overview = await setWinnerPurchaseCheck({
+            const overview = await setWinnerManualCheck({
               participantId: candidate.participant.id,
-              passed: action === "purchase-pass",
+              check: manual.check,
+              passed: manual.passed,
               note,
             });
-            done(overview, "Xarid tekshiruvi saqlandi.");
+            done(overview, MANUAL_DIALOGS[manual.check].notice);
           }}
           onClose={() => setAction(null)}
-          onDone={() => undefined}
         />
       )}
 
@@ -234,20 +262,48 @@ export function WinnerView() {
   );
 }
 
+function ManualCheckDialog({
+  action,
+  candidateName,
+  onConfirm,
+  onClose,
+}: {
+  action: ManualCheckAction;
+  candidateName: string;
+  onConfirm: (note: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const texts = MANUAL_DIALOGS[action.check];
+  const pick = ([pass, fail]: [string, string]) => (action.passed ? pass : fail);
+  return (
+    <ReasonDialog
+      title={pick(texts.title)}
+      description={
+        <>
+          <strong className="font-medium text-slate-900">{candidateName}</strong> {texts.question}
+        </>
+      }
+      fieldLabel="Izoh"
+      placeholder={pick(texts.placeholder)}
+      confirmLabel={pick(texts.confirmLabel)}
+      variant={action.passed ? "primary" : "danger"}
+      onConfirm={onConfirm}
+      onClose={onClose}
+      onDone={() => undefined}
+    />
+  );
+}
+
 function ContestStatus({ overview }: { overview: WinnerOverview }) {
   const { contest } = overview;
   return (
     <Card>
       <CardContent className="flex flex-wrap items-center gap-3">
-        <span
-          className={cn(
-            "flex size-10 items-center justify-center rounded-full",
-            contest.ended ? "bg-green-50 text-green-600" : "bg-brand-50 text-brand-600",
-          )}
-          aria-hidden
-        >
-          {contest.ended ? <Flag className="size-5" /> : <CalendarClock className="size-5" />}
-        </span>
+        <IosIcon
+          icon={contest.ended ? Flag : CalendarClock}
+          tint={contest.ended ? "green" : "blue"}
+          size={40}
+        />
         <div className="min-w-0 flex-1">
           <p className="font-medium text-slate-900">
             {contest.ended ? "Tanlov tugadi" : `Tanlov davom etmoqda — tugashiga ${contest.daysLeft} kun`}

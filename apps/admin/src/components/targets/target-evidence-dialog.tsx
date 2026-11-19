@@ -9,7 +9,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { getTargetCase } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
-import { formatDate, formatFileSize, formatSigned } from "@/lib/format";
+import { formatDate, formatDateTime, formatFileSize, formatSigned } from "@/lib/format";
 import {
   TARGET_CASE_STATUS_LABELS,
   TARGET_CASE_STATUS_TONES,
@@ -108,7 +108,18 @@ function EvidenceBody({ detail }: { detail: TargetCaseDetail }) {
       <section>
         <h3 className="mb-1 text-xs font-medium tracking-wide text-slate-500 uppercase">Dalil</h3>
         <p className="rounded-md bg-amber-50 px-3 py-2 text-amber-900">{detail.evidence}</p>
-        {detail.attachments.length > 0 && (
+        {detail.evidenceUrl && (
+          <a
+            href={detail.evidenceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1 text-brand-700 hover:underline"
+          >
+            Reklamani kutubxonada ko&apos;rish
+            <ExternalLink className="size-3.5" aria-hidden />
+          </a>
+        )}
+        {detail.attachments.length > 0 && detail.reports.length === 0 && (
           <ul className="mt-2 flex flex-wrap gap-2">
             {detail.attachments.map((attachment) => (
               <li
@@ -124,6 +135,8 @@ function EvidenceBody({ detail }: { detail: TargetCaseDetail }) {
           </ul>
         )}
       </section>
+
+      {detail.reports.length > 0 && <ReportsSection detail={detail} />}
 
       <section>
         <h3 className="mb-1 text-xs font-medium tracking-wide text-slate-500 uppercase">
@@ -188,6 +201,54 @@ function EvidenceBody({ detail }: { detail: TargetCaseDetail }) {
         </ol>
       </section>
     </div>
+  );
+}
+
+/** Shikoyatlar: kim, qachon, izoh va skrinshot. Shikoyatchi ishtirokchiga ko'rsatilmaydi. */
+function ReportsSection({ detail }: { detail: TargetCaseDetail }) {
+  return (
+    <section>
+      <h3 className="mb-1 text-xs font-medium tracking-wide text-slate-500 uppercase">
+        Shikoyatlar ({detail.reports.length})
+      </h3>
+      <ul className="divide-y divide-slate-100 rounded-md border border-slate-200">
+        {detail.reports.map((report) => {
+          const file = detail.attachments.find((attachment) => attachment.id === report.attachmentId);
+          return (
+            <li key={report.id} className="flex gap-3 px-3 py-2.5">
+              {/* Haqiqiy backendda rasm Bearer token bilan yuklanadi (`url` — API yo'li). */}
+              {file?.url ? (
+                <a href={file.url} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={file.url} alt={file.fileName} className="h-16 w-11 rounded object-cover object-top" />
+                </a>
+              ) : (
+                <span
+                  className="grid h-16 w-11 shrink-0 place-items-center rounded bg-slate-100 text-slate-400"
+                  title="Mock rejimda fayl mavjud emas"
+                >
+                  <ImageIcon className="size-4" aria-hidden />
+                </span>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-slate-900">
+                  <span className="font-medium">{report.reporter.fullName}</span>
+                  {report.reporter.phone && (
+                    <span className="ml-2 text-slate-500 tabular-nums">{report.reporter.phone}</span>
+                  )}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {formatDateTime(report.at)}
+                  {file && ` · ${file.fileName}, ${formatFileSize(file.sizeBytes)}`}
+                </p>
+                {report.comment && <p className="mt-1 text-slate-700">«{report.comment}»</p>}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-1.5 text-xs text-slate-500">Shikoyatchilar ishtirokchiga ko&apos;rsatilmaydi.</p>
+    </section>
   );
 }
 

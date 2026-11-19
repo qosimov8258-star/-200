@@ -21,6 +21,7 @@ import {
   periodLabel,
   seededShuffle,
   stageLabel,
+  validateDrawPeriod,
   validateDrawSettings,
 } from "../draw-rules";
 import { formatNumber } from "../format";
@@ -29,11 +30,15 @@ import type {
   DrawCancelRequest,
   DrawCandidate,
   DrawEntry,
+  DrawPeriod,
+  DrawPeriodInput,
   DrawExclusion,
   DrawPreview,
   DrawReplaceRequest,
   DrawSettings,
   DrawSetup,
+  DrawStatus,
+  DrawStock,
   IsoDate,
   Prize,
   VoucherDraw,
@@ -320,7 +325,121 @@ export function getDrawSetup(): DrawSetup {
       messageTemplate: DEFAULT_DRAW_MESSAGE,
     },
     placeholders: DRAW_PLACEHOLDERS,
+    periods: periodsOf(store),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Admin kalendardan yaratadigan davrlar
+// ---------------------------------------------------------------------------
+
+function periodsOf(store: MockStore): DrawPeriod[] {
+  return [...(store.drawPeriods ?? [])].sort(
+    (a, b) => a.startsOn.localeCompare(b.startsOn) || a.title.localeCompare(b.title),
+  );
+}
+
+const describePeriod = (period: DrawPeriodInput) => `${period.title} (${periodLabel(period.startsOn, period.endsOn)})`;
+
+/** Tanlov muddati ichida, bosqich yoki boshqa davr bilan sanalari bir xil emas (backend bilan bir xil). */
+function checkPeriod(store: MockStore, input: DrawPeriodInput, exceptId?: string): DrawPeriodInput {
+  const allStages = stages(store);
+  const bounds = { min: allStages[0]?.startsOn ?? input.startsOn, max: allStages.at(-1)?.endsOn ?? input.endsOn };
+  const errors = validateDrawPeriod(input, bounds);
+  const first = Object.values(errors)[0];
+  if (first) throw new ApiError(400, first);
+  const clean = { title: input.title.trim(), startsOn: input.startsOn, endsOn: input.endsOn };
+  const sameDates = (item: { startsOn: IsoDate; endsOn: IsoDate }) =>
+    item.startsOn === clean.startsOn && item.endsOn === clean.endsOn;
+  const stage = allStages.find(sameDates);
+  if (stage) throw new ApiError(409, `Bu sanalar ${stage.index}-bosqich bilan bir xil — bosqichni tanlang.`);
+  const twin = periodsOf(store).find((item) => item.id !== exceptId && sameDates(item));
+  if (twin) throw new ApiError(409, `Bu sanalar uchun «${twin.title}» davri allaqachon bor.`);
+  return clean;
+}
+
+function savePeriods(
+  store: MockStore,
+  drawPeriods: DrawPeriod[],
+  audit: Omit<MockStore["audit"][number], "id" | "at">,
+): void {
+  writeStore({
+    ...store,
+    drawPeriods,
+    audit: [...store.audit, { ...audit, id: auditId(), at: new Date().toISOString() }],
+  });
+}
+
+export function createDrawPeriod(input: DrawPeriodInput, actor: AdminUser): DrawPeriod {
+  const store = readStore();
+  const clean = checkPeriod(store, input);
+  const period: DrawPeriod = {
+    id: `per_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+    ...clean,
+    createdAt: new Date().toISOString(),
+    createdBy: actor.fullName,
+    updatedAt: null,
+    updatedBy: null,
+  };
+  savePeriods(store, [...(store.drawPeriods ?? []), period], {
+    actorId: actor.id,
+    actorName: actor.fullName,
+    action: "draw.period.create",
+    entity: "voucher_draw",
+    entityId: period.id,
+    before: "",
+    after: describePeriod(period),
+    reason: "",
+  });
+  return period;
+}
+
+export function updateDrawPeriod(id: string, input: DrawPeriodInput, actor: AdminUser): DrawPeriod {
+  const store = readStore();
+  const old = periodsOf(store).find((item) => item.id === id);
+  if (!old) throw new ApiError(404, "Davr topilmadi.");
+  const next: DrawPeriod = {
+    ...old,
+    ...checkPeriod(store, input, id),
+    updatedAt: new Date().toISOString(),
+    updatedBy: actor.fullName,
+  };
+  savePeriods(
+    store,
+    (store.drawPeriods ?? []).map((item) => (item.id === id ? next : item)),
+    {
+      actorId: actor.id,
+      actorName: actor.fullName,
+      action: "draw.period.update",
+      entity: "voucher_draw",
+      entityId: id,
+      before: describePeriod(old),
+      after: describePeriod(next),
+      reason: "",
+    },
+  );
+  return next;
+}
+
+/** O'tkazilgan tanlovlar o'z sanalarini saqlaydi — davr o'chsa ham ular o'zgarmaydi. */
+export function deleteDrawPeriod(id: string, actor: AdminUser): void {
+  const store = readStore();
+  const old = periodsOf(store).find((item) => item.id === id);
+  if (!old) throw new ApiError(404, "Davr topilmadi.");
+  savePeriods(
+    store,
+    (store.drawPeriods ?? []).filter((item) => item.id !== id),
+    {
+      actorId: actor.id,
+      actorName: actor.fullName,
+      action: "draw.period.delete",
+      entity: "voucher_draw",
+      entityId: id,
+      before: describePeriod(old),
+      after: "",
+      reason: "",
+    },
+  );
 }
 
 export function previewDraw(input: DrawSettings): DrawPreview {
@@ -353,7 +472,7 @@ export function previewDraw(input: DrawSettings): DrawPreview {
   }
   if (prize && prize.quantity !== settings.winnersCount) {
     warnings.push(
-      `Sovg'a bo'limida oyiga ${formatNumber(prize.quantity)} ta deb belgilangan, siz ${formatNumber(settings.winnersCount)} ta g'olib tanlayapsiz.`,
+      `Bu sovg'a oyiga ${formatNumber(prize.quantity)} ta, siz ${formatNumber(settings.winnersCount)} ta g'olib tanlayapsiz.`,
     );
   }
 
@@ -430,6 +549,42 @@ export function runDraw(input: DrawSettings, actor: AdminUser): VoucherDraw {
     before: "",
     after: `${describe(draw)}: ${formatNumber(winners.length)} g'olib, ${formatNumber(reserves.length)} zaxira, ${formatNumber(pool.eligible.length)} nomzod`,
     reason: `seed ${seed}`,
+  });
+}
+
+/** Voucherlar qoldig'i — har bir oylik sovg'a uchun (bosqichlar bo'yicha ham). */
+export function getDrawStock(): DrawStock[] {
+  const store = readStore();
+  const allStages = stages(store);
+  const live = drawsOf(store)
+    .map(withSummary)
+    .filter((draw) => draw.status !== "CANCELLED");
+
+  return monthlyPrizes(store).map((prize) => {
+    const own = live.filter((draw) => draw.settings.prizeId === prize.id);
+    const count = (status: DrawStatus, stage?: number) =>
+      own
+        .filter((draw) => draw.status === status && (stage === undefined || draw.stage === stage))
+        .reduce((sum, draw) => sum + draw.winners, 0);
+    const total = prize.quantity * allStages.length;
+    const sent = count("SENT");
+    const confirmed = count("CONFIRMED");
+    return {
+      prizeId: prize.id,
+      title: prize.title,
+      total,
+      sent,
+      confirmed,
+      draft: count("DRAFT"),
+      remaining: Math.max(0, total - sent - confirmed),
+      stages: allStages.map((stage) => ({
+        ...stage,
+        quantity: prize.quantity,
+        sent: count("SENT", stage.index),
+        confirmed: count("CONFIRMED", stage.index),
+        draft: count("DRAFT", stage.index),
+      })),
+    };
   });
 }
 

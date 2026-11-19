@@ -5,14 +5,15 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, ClipboardCheck, Info } from "lucide-react";
 
+import { IosIcon } from "@/components/ui/ios-icon";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
 import { SearchInput } from "@/components/ui/search-input";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { Segmented } from "@/components/ui/segmented";
 import { getManualReviews } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
-import { formatNumber } from "@/lib/format";
 import { MANUAL_REVIEW_STATUS_LABELS } from "@/lib/labels";
 import type { ManualReviewItem, ManualReviewStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -81,7 +82,7 @@ export function ManualReviewView() {
   return (
     <div className="space-y-4">
       <p className="flex items-start gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
-        <Info className="mt-0.5 size-4 shrink-0 text-slate-400" aria-hidden />
+        <IosIcon icon={Info} tint="blue" size={22} />
         <span>
           Apify videoni ketma-ket 3 marta topa olmasa, ishtirokchiga xabar boriladi va video shu
           yerga tushadi. Linkni ochib tekshiring: video ochiq va mahsulot haqida bo&apos;lsa —
@@ -107,38 +108,17 @@ export function ManualReviewView() {
           label="Qo'lda tekshiruvdagi videolarni qidirish"
           className="w-full sm:w-80"
         />
-        <div role="group" aria-label="Holat bo'yicha filtr" className="flex flex-wrap gap-2">
-          {FILTER_TABS.map((tab) => {
-            const active = tab.value === filter;
-            const count = data?.statusCounts[tab.value];
-            return (
-              <button
-                key={tab.value}
-                type="button"
-                aria-pressed={active}
-                onClick={() => navigate({ filter: tab.value })}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors",
-                  active
-                    ? "border-brand-600 bg-brand-600 text-white"
-                    : "border-slate-300 bg-white text-slate-600 hover:bg-slate-100",
-                )}
-              >
-                {tab.label}
-                {count !== undefined && (
-                  <span
-                    className={cn(
-                      "rounded-full px-1.5 text-xs tabular-nums",
-                      active ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500",
-                    )}
-                  >
-                    {formatNumber(count)}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+        <Segmented
+          label="Holat bo'yicha filtr"
+          value={filter}
+          onChange={(value) => navigate({ filter: value })}
+          options={FILTER_TABS.map((tab) => ({
+            value: tab.value,
+            label: tab.label,
+            count: data?.statusCounts[tab.value],
+            attention: tab.value === "OPEN",
+          }))}
+        />
       </div>
 
       <Card className="overflow-hidden">
@@ -146,7 +126,7 @@ export function ManualReviewView() {
           <TableSkeleton rows={6} />
         ) : isError && !data ? (
           <div className="flex flex-col items-center gap-3 px-4 py-12 text-center">
-            <AlertTriangle className="size-8 text-amber-500" aria-hidden />
+            <IosIcon icon={AlertTriangle} tint="orange" size={48} />
             <p className="text-sm text-slate-600">{errorMessage(error)}</p>
             <Button variant="secondary" onClick={() => refetch()}>
               Qayta urinish
@@ -154,7 +134,7 @@ export function ManualReviewView() {
           </div>
         ) : data && data.items.length === 0 ? (
           <div className="flex flex-col items-center gap-2 px-4 py-12 text-center">
-            <ClipboardCheck className="size-8 text-slate-300" aria-hidden />
+            <IosIcon icon={ClipboardCheck} tint="gray" size={48} />
             <p className="text-sm text-slate-600">
               {filter === "OPEN" ? "Tekshiruv kutayotgan video yo'q." : "Bu bo'limda video yo'q."}
             </p>

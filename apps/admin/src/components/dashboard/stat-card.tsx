@@ -1,6 +1,7 @@
 import { ArrowDownRight, ArrowUpRight, type LucideIcon } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
+import { IosIcon, type IosTint } from "@/components/ui/ios-icon";
 import { formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -8,29 +9,21 @@ interface StatCardProps {
   label: string;
   value: string;
   icon: LucideIcon;
-  /** `attention` — e'tibor talab qiladigan ko'rsatkich (masalan, target). */
-  tone?: "neutral" | "attention";
+  /** iOS uslubidagi ikonka rangi. */
+  tint?: IosTint;
   /** Qiymat ostidagi izoh (davr ichidagi o'zgarish, tarkib). */
   children?: React.ReactNode;
 }
 
-export function StatCard({ label, value, icon: Icon, tone = "neutral", children }: StatCardProps) {
+export function StatCard({ label, value, icon, tint = "blue", children }: StatCardProps) {
   return (
     <Card className="flex flex-col p-5">
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-sm font-medium text-slate-500">{label}</h3>
-        <span
-          className={cn(
-            "flex size-9 shrink-0 items-center justify-center rounded-lg",
-            tone === "attention" ? "bg-amber-50 text-amber-600" : "bg-slate-100 text-slate-500",
-          )}
-          aria-hidden
-        >
-          <Icon className="size-4.5" />
-        </span>
+        <h3 className="text-[13px] font-medium text-muted">{label}</h3>
+        <IosIcon icon={icon} tint={tint} size={36} />
       </div>
-      <p className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">{value}</p>
-      {children && <div className="mt-2 text-sm text-slate-500">{children}</div>}
+      <p className="mt-1 text-[28px] font-semibold tracking-tight text-ink tabular-nums">{value}</p>
+      {children && <div className="mt-2 text-xs text-muted">{children}</div>}
     </Card>
   );
 }

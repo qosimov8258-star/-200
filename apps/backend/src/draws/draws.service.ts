@@ -13,7 +13,9 @@ import {
   renderDrawMessage,
   seededShuffle,
   stageLabel,
+  validateDrawPeriod,
   validateDrawSettings,
+  type DrawPeriodInput,
   type DrawSettings,
 } from "./draw-rules";
 
@@ -81,6 +83,48 @@ export type VoucherDrawSummary = Omit<
   "settings" | "viewsAsOf" | "seed" | "poolHash" | "winnerEntries" | "reserveEntries" | "confirmed" | "sent" | "cancelled"
 >;
 
+/** Admin yaratgan davr — "Random tanlov" da bosqichlar yonida tanlanadi. */
+export interface DrawPeriod {
+  id: string;
+  title: string;
+  startsOn: string;
+  endsOn: string;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
+/** Bosqich bo'yicha voucherlar: kvota va tanlovlar holati. */
+export interface DrawStockStage {
+  index: number;
+  startsOn: string;
+  endsOn: string;
+  finished: boolean;
+  /** Shu bosqichga ajratilgan voucherlar (oylik soni). */
+  quantity: number;
+  sent: number;
+  confirmed: number;
+  draft: number;
+}
+
+/** Oylik sovg'a qoldig'i — admin panel "Random tanlov" tepasidagi karta. */
+export interface DrawStock {
+  prizeId: string;
+  title: string;
+  /** Aksiya davomida jami. */
+  total: number;
+  /** G'oliblarga bot orqali yuborilgan tanlovlardagi faol g'oliblar. */
+  sent: number;
+  /** Tasdiqlangan, hali yuborilmagan. */
+  confirmed: number;
+  /** Qoralamada (tasdiqlanmagan) — qoldiqdan ayrilmaydi. */
+  draft: number;
+  /** Hali taqsimlanmagan: jami − yuborilgan − tasdiqlangan. */
+  remaining: number;
+  stages: DrawStockStage[];
+}
+
 export interface DrawsOptions {
   clock?: () => Date;
   /** Telegram cheklovi (~30 xabar/soniya) uchun xabarlar orasidagi tanaffus. */
@@ -119,6 +163,8 @@ const MONTHLY_PRIZE_ID = "monthly";
 export class DrawsService {
   private readonly logger = new Logger(DrawsService.name);
   private readonly draws: VoucherDraw[] = [];
+  private readonly periods: DrawPeriod[] = [];
+  private periodSeq = 0;
   private readonly now: () => Date;
   private readonly sendIntervalMs: number;
 
@@ -172,6 +218,7 @@ export class DrawsService {
         messageTemplate: DEFAULT_DRAW_MESSAGE,
       } satisfies DrawSettings,
       placeholders: DRAW_PLACEHOLDERS,
+      periods: this.listPeriods(),
     };
   }
 
@@ -254,6 +301,104 @@ export class DrawsService {
         `${draw.winners} g'olib, ${draw.reserves} zaxira, ${draw.poolSize} nomzod; seed ${seed}`,
     );
     return draw;
+  }
+
+  // -------------------------------------------------------------------------
+  // Admin yaratadigan davrlar (kalendardan)
+  // -------------------------------------------------------------------------
+
+  /** Boshlanish sanasi bo'yicha. */
+  listPeriods(): DrawPeriod[] {
+    return [...this.periods].sort((a, b) => a.startsOn.localeCompare(b.startsOn) || a.title.localeCompare(b.title));
+  }
+
+  createPeriod(input: DrawPeriodInput, actor: string): DrawPeriod {
+    const clean = this.checkPeriod(input);
+    this.periodSeq += 1;
+    const period: DrawPeriod = {
+      id: `per_${this.periodSeq}`,
+      ...clean,
+      createdAt: this.now().toISOString(),
+      createdBy: actor,
+      updatedAt: null,
+      updatedBy: null,
+    };
+    this.periods.push(period);
+    this.logger.log(`${actor}: davr yaratildi — ${period.title} (${periodLabel(period.startsOn, period.endsOn)})`);
+    return period;
+  }
+
+  updatePeriod(id: string, input: DrawPeriodInput, actor: string): DrawPeriod {
+    const period = this.findPeriod(id);
+    const before = `${period.title} (${periodLabel(period.startsOn, period.endsOn)})`;
+    Object.assign(period, this.checkPeriod(input, id), { updatedAt: this.now().toISOString(), updatedBy: actor });
+    this.logger.log(`${actor}: davr o'zgartirildi — ${before} → ${period.title} (${periodLabel(period.startsOn, period.endsOn)})`);
+    return period;
+  }
+
+  /** O'tkazilgan tanlovlar o'z sanalarini saqlaydi — davr o'chsa ham ular o'zgarmaydi. */
+  deletePeriod(id: string, actor: string): void {
+    const period = this.findPeriod(id);
+    this.periods.splice(this.periods.indexOf(period), 1);
+    this.logger.log(`${actor}: davr o'chirildi — ${period.title} (${periodLabel(period.startsOn, period.endsOn)})`);
+  }
+
+  private findPeriod(id: string): DrawPeriod {
+    const period = this.periods.find((item) => item.id === id);
+    if (!period) throw fail(404, "Davr topilmadi.");
+    return period;
+  }
+
+  /** Tanlov muddati ichida va boshqa davr yoki bosqich bilan sanalari bir xil emas. */
+  private checkPeriod(input: DrawPeriodInput, exceptId?: string): DrawPeriodInput {
+    const stages = contestPrizes.stages;
+    const bounds = { min: stages[0].startsOn, max: stages[stages.length - 1].endsOn };
+    const error = validateDrawPeriod(input, bounds);
+    if (error) throw fail(400, error);
+    const clean = { title: input.title.trim(), startsOn: input.startsOn, endsOn: input.endsOn };
+    const sameDates = (a: { startsOn: string; endsOn: string }) => a.startsOn === clean.startsOn && a.endsOn === clean.endsOn;
+    const stage = stages.findIndex(sameDates);
+    if (stage >= 0) throw fail(409, `Bu sanalar ${stage + 1}-bosqich bilan bir xil — bosqichni tanlang.`);
+    const twin = this.periods.find((item) => item.id !== exceptId && sameDates(item));
+    if (twin) throw fail(409, `Bu sanalar uchun «${twin.title}» davri allaqachon bor.`);
+    return clean;
+  }
+
+  /**
+   * Voucherlar qoldig'i: jami, yuborilgan, tasdiqlangan, qoralamada va qolgani (bosqichlar bo'yicha).
+   * Bekor qilingan tanlovlar hisobga olinmaydi; "boshqa davr" tanlovlari faqat umumiy sonlarda.
+   */
+  stock(): DrawStock[] {
+    const { monthly, stages } = contestPrizes;
+    const today = contestDay(this.now());
+    const live = this.draws.filter((d) => d.status !== "CANCELLED" && d.settings.prizeId === MONTHLY_PRIZE_ID);
+    const count = (status: DrawStatus, stage?: number) =>
+      live
+        .filter((d) => d.status === status && (stage === undefined || d.stage === stage))
+        .reduce((sum, d) => sum + d.winners, 0);
+    const sent = count("SENT");
+    const confirmed = count("CONFIRMED");
+    return [
+      {
+        prizeId: MONTHLY_PRIZE_ID,
+        title: monthly.title,
+        total: monthly.total,
+        sent,
+        confirmed,
+        draft: count("DRAFT"),
+        remaining: Math.max(0, monthly.total - sent - confirmed),
+        stages: stages.map((s, i) => ({
+          index: i + 1,
+          startsOn: s.startsOn,
+          endsOn: s.endsOn,
+          finished: s.endsOn < today,
+          quantity: monthly.perMonth,
+          sent: count("SENT", i + 1),
+          confirmed: count("CONFIRMED", i + 1),
+          draft: count("DRAFT", i + 1),
+        })),
+      },
+    ];
   }
 
   list(): VoucherDrawSummary[] {

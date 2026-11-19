@@ -1,18 +1,26 @@
 /**
- * MOCK backend: "Target yoqqanlar" ro'yxati (TZ 4, 5.2, 6-bo'limlar). Haqiqiy backendda:
+ * MOCK backend: "Target yoqqanlar" ro'yxati (TZ 4, 5.2, 6-bo'limlar). Haqiqiy backendda
+ * (`apps/backend/src/admin/admin-targets.controller.ts`):
  *   GET  /api/v1/admin/targets
+ *   GET  /api/v1/admin/targets/check
+ *   POST /api/v1/admin/targets/check
  *   GET  /api/v1/admin/targets/:id
  *   POST /api/v1/admin/targets/:id/resolve
- * va ma'lumot `target_checks` jadvalidan olinadi.
+ *
+ * Target uch qatlamda aniqlanadi: (1) Meta reklama kutubxonasi — reyting yetakchilari har kuni
+ * Apify orqali tekshiriladi; (2) ko'rishlar o'sishi tahlili; (3) g'olib bilan yuzma-yuz
+ * uchrashuvda Instagram "Reklama vositalari" bo'limi ko'riladi (G'olib bo'limi).
  */
 import { ApiError } from "../api-error";
-import { addDays, clampDate, eachDay } from "../dates";
-import { formatCompact, formatNumber } from "../format";
+import { addDays, clampDate, diffDays, eachDay } from "../dates";
+import { formatCompact, formatDate, formatNumber } from "../format";
 import type {
   AdminUser,
   IsoDate,
   ParticipantStatus,
   TargetAction,
+  TargetAdsCheckReport,
+  TargetCheckStatus,
   TargetCaseDetail,
   TargetCaseListItem,
   TargetCaseListQuery,
@@ -30,12 +38,17 @@ import {
   type MockTargetDetection,
 } from "./contest";
 import { computeRanking, effectiveStatus } from "./ranking";
+import { effectiveSettings } from "./settings";
 import { auditId, readStore, writeStore, type MockAuditEntry, type MockStore } from "./store";
 import { matchesPerson } from "./text";
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
 const MIN_REASON_LENGTH = 5;
+/** Reklama kutubxonasida reytingning nechta yetakchisi tekshiriladi (backend: TARGET_CHECK_TOP). */
+export const TARGET_CHECK_TOP = 30;
+/** Tanlov boshidan necha kunda bir avtomatik tekshiriladi — oyiga bir marta (backend: TARGET_CHECK_EVERY_DAYS). */
+export const TARGET_CHECK_EVERY_DAYS = 30;
 
 /** Har bir amal qaysi holatlardan qaysi holatga o'tkazadi. */
 const CASE_TRANSITIONS: Record<TargetAction, { from: TargetCaseStatus[]; to: TargetCaseStatus }> = {
@@ -85,10 +98,12 @@ function latestViews(reel: MockReel): number {
 
 function evidenceFor(target: MockTargetDetection, reel: MockReel): string {
   switch (target.method) {
-    case "INSTAGRAM_API":
-      return "Instagram API: Reel uchun faol reklama (boost) topildi";
-    case "SCREENSHOT":
-      return "Ishtirokchi yuborgan reklama kabineti skrinshoti";
+    case "AD_LIBRARY":
+      return `Meta reklama kutubxonasi: 1 ta faol reklama (${formatDate(addDays(target.detectedOn, -1))} dan)`;
+    case "REPORT": {
+      const people = new Set(target.reports.map((report) => report.reporterId)).size;
+      return `Ishtirokchilar shikoyati: ${target.reports.length} ta skrinshot (${people} kishidan)`;
+    }
     case "GROWTH_ANALYSIS": {
       const spike = growthOn(reel, target.detectedOn);
       // Taqqoslash uchun reklamadan oldingi 3 kun.
@@ -126,18 +141,24 @@ function historyFor(
   }
 
   const detectionNotes: Record<MockTargetDetection["method"], string> = {
-    INSTAGRAM_API: "Instagram API: reklama (boost) faol",
+    AD_LIBRARY: "Meta reklama kutubxonasida faol reklama topildi",
     GROWTH_ANALYSIS: "AI: o'sish tezligi pullik reklamaga xos",
-    SCREENSHOT: "Reklama kabineti skrinshoti bilan tasdiqlandi",
+    REPORT: "Shikoyat: lentada reklama sifatida ko'rilgan",
   };
   history.push({ date: target.detectedOn, state: "ON", note: detectionNotes[target.method] });
+  target.reports.slice(1).forEach((report, index) => {
+    if (report.on <= today) {
+      history.push({ date: report.on, state: "ON", note: `Yana bir shikoyat (jami ${index + 2})` });
+    }
+  });
 
   const stoppedOn = addDays(target.detectedOn, BOOST_END_OFFSET);
   if (stoppedOn <= today) {
     history.push({ date: stoppedOn, state: "OFF", note: "Reklama to'xtatilgan" });
   }
 
-  return history;
+  // Barqaror saralash: bir kundagi yozuvlar qo'shilgan tartibda qoladi.
+  return history.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 // ---------------------------------------------------------------------------
@@ -212,16 +233,28 @@ function toDetail(target: MockTargetDetection, context: CaseContext): TargetCase
       flagged: isBoostDay(target.detectedOn, date),
     })),
     history: historyFor(target, reel, context.today),
-    attachments: target.screenshot
-      ? [
-          {
-            id: `${target.id}_a1`,
-            fileName: target.screenshot.fileName,
-            sizeBytes: target.screenshot.sizeBytes,
-            url: null,
-          },
-        ]
-      : [],
+    attachments: target.reports.map((report, index) => ({
+      id: `${target.id}_a${index + 1}`,
+      fileName: `shikoyat-${index + 1}.jpg`,
+      sizeBytes: report.sizeBytes,
+      url: null,
+    })),
+    evidenceUrl: target.adId ? `https://www.facebook.com/ads/library/?id=${target.adId}` : null,
+    reports: target.reports.map((report, index) => {
+      const reporter = context.participantsById.get(report.reporterId);
+      return {
+        id: `${target.id}_r${index + 1}`,
+        // Mock: shikoyat kunning kechki soatida kelgan.
+        at: `${report.on}T${String(14 + index * 3).padStart(2, "0")}:2${index}:00+05:00`,
+        comment: report.comment,
+        attachmentId: `${target.id}_a${index + 1}`,
+        reporter: {
+          id: report.reporterId,
+          fullName: reporter ? `${reporter.firstName} ${reporter.lastName}` : "O'chirilgan foydalanuvchi",
+          phone: reporter?.phone ?? "",
+        },
+      };
+    }),
   };
 }
 
@@ -276,6 +309,58 @@ export function listTargetCases(query: TargetCaseListQuery): TargetCaseListRespo
     pageSize,
     statusCounts,
   };
+}
+
+export function getTargetCheckStatus(): TargetCheckStatus {
+  const store = readStore();
+  const { startsOn, endsOn } = effectiveSettings(store);
+  const { today } = getContestData();
+  const k = Math.floor(diffDays(startsOn, today) / TARGET_CHECK_EVERY_DAYS) + 1;
+  const next = addDays(startsOn, Math.max(1, k) * TARGET_CHECK_EVERY_DAYS);
+  return { running: false, lastCheck: store.targetCheck, nextCheckOn: next <= endsOn ? next : null };
+}
+
+/**
+ * Reklama kutubxonasini hoziroq tekshirish. Mock: yangi reklama topilmaydi — mavjud
+ * "Yoqilgan" holatdagi reklama kutubxonasi holatlari sanaladi.
+ */
+export function runTargetCheck(actor: AdminUser): TargetAdsCheckReport {
+  const store = readStore();
+  const context = buildContext(store);
+  const leaders = computeRanking(context.today, store).slice(0, TARGET_CHECK_TOP);
+  const leaderIds = new Set(leaders.map((entry) => entry.participantId));
+  const found = getContestData()
+    .targets.filter((target) => target.method === "AD_LIBRARY" && leaderIds.has(target.participantId))
+    .map((target) => toListItem(target, context))
+    .filter((item) => item?.currentState === "ON").length;
+
+  const report: TargetAdsCheckReport = {
+    reason: "admin",
+    at: new Date().toISOString(),
+    checked: leaders.length,
+    found,
+    error: null,
+  };
+  writeStore({
+    ...store,
+    targetCheck: report,
+    audit: [
+      ...store.audit,
+      {
+        id: auditId(),
+        at: report.at,
+        actorId: actor.id,
+        actorName: actor.fullName,
+        action: "target.check",
+        entity: "target_case",
+        entityId: "ad_library",
+        before: "",
+        after: `${report.checked} ta tekshirildi, ${report.found} ta faol reklama`,
+        reason: "",
+      },
+    ],
+  });
+  return report;
 }
 
 export function getTargetCaseDetail(id: string): TargetCaseDetail {

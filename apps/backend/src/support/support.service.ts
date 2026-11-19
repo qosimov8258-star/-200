@@ -65,6 +65,23 @@ export class SupportService {
     return this.groupMessageOwner.get(groupMessageId) ?? null;
   }
 
+  /** Ishtirokchining barcha murojaatlaridagi xabarlar, eskisidan yangisiga (oxirgi `limit` tasi). */
+  thread(telegramId: number, limit = 100): SupportMessage[] {
+    return [...this.tickets.values()]
+      .filter((t) => t.telegramId === telegramId)
+      .flatMap((t) => t.messages)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .slice(-limit);
+  }
+
+  /** So'nggi `windowMs` ichida ishtirokchi nechta xabar yozgan (spamdan himoya). */
+  recentParticipantMessages(telegramId: number, windowMs: number, now = new Date()): number {
+    const since = now.getTime() - windowMs;
+    return this.thread(telegramId, Number.MAX_SAFE_INTEGER).filter(
+      (m) => m.from === "PARTICIPANT" && m.createdAt.getTime() >= since,
+    ).length;
+  }
+
   list(): SupportTicket[] {
     return [...this.tickets.values()].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   }

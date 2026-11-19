@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { MessagesSquare } from "lucide-react";
 
+import { IosIcon } from "@/components/ui/ios-icon";
 import { Card } from "@/components/ui/card";
 import { getSupportTickets } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
@@ -110,7 +111,7 @@ export function SupportView() {
           />
         ) : (
           <Card className="flex h-full flex-col items-center justify-center gap-2 px-4 py-16 text-center">
-            <MessagesSquare className="size-8 text-slate-300" aria-hidden />
+            <IosIcon icon={MessagesSquare} tint="gray" size={48} />
             <p className="text-sm text-slate-500">
               Javob berish uchun chap tomondagi ro&apos;yxatdan murojaatni tanlang.
             </p>

@@ -6,12 +6,12 @@ import { cn } from "@/lib/utils";
 export function Logo({ className }: { className?: string }) {
   return (
     <div className={cn("flex items-center gap-2.5", className)}>
-      <span className="flex size-9 items-center justify-center rounded-lg bg-brand-600 text-white">
+      <span className="flex size-9 items-center justify-center rounded-xl bg-[linear-gradient(135deg,#937ed6,#7c62db)] text-white shadow-[0_6px_14px_-6px_rgba(124,98,219,0.9)]">
         <Trophy className="size-5" aria-hidden />
       </span>
       <span className="leading-tight">
-        <span className="block text-sm font-semibold text-slate-900">Reels tanlov</span>
-        <span className="block text-xs text-slate-500">Admin panel</span>
+        <span className="block text-sm font-semibold text-ink">Reels tanlov</span>
+        <span className="block text-xs text-muted">Admin panel</span>
       </span>
     </div>
   );

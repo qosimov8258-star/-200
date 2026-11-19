@@ -1,21 +1,36 @@
 @import "tailwindcss";
 
 /*
- * Dizayn tokenlari. Brend ranglari zavod bilan kelishilgach shu yerda
- * almashtiriladi (TZ, 7-bo'lim). Admin panel ataylab sodda: Yangi yil
- * elementlari faqat logotip va sarlavhada bo'ladi (Faza 4).
+ * Dizayn tokenlari — CareOps uslubi (Dribbble, Phenomenon Studio): bitta asosiy lavanda rang,
+ * yorug' fon, nozik chegarali oq kartalar, katta yumaloq burchaklar. `brand-*` — butun panel
+ * shu shkaladan foydalanadi; zavod brendi kelishilsa, shu yerda almashtiriladi.
  */
 @theme {
-  --color-brand-50: #eff6ff;
-  --color-brand-100: #dbeafe;
-  --color-brand-200: #bfdbfe;
-  --color-brand-500: #3b82f6;
-  --color-brand-600: #2563eb;
-  --color-brand-700: #1d4ed8;
+  --color-brand-50: #f5f3fc;
+  --color-brand-100: #ebe7f8;
+  --color-brand-200: #c5b9ea;
+  --color-brand-300: #ac9ce0;
+  --color-brand-400: #937ed6;
+  --color-brand-500: #7c62db;
+  --color-brand-600: #6b50cf;
+  --color-brand-700: #5a40b8;
+
+  /* Sahifa foni, chegaralar, matn */
+  --color-canvas: #f6f5fa;
+  --color-line: #ecebf2;
+  --color-ink: #272627;
+  --color-muted: #8a8893;
+
+  /* O'sish (yashil) va pasayish (qizil) */
+  --color-up: #3f9b5b;
+  --color-up-bar: #5cc085;
+  --color-down: #e0583f;
+
+  --radius-panel: 20px;
 
   --font-sans:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-    sans-serif;
+    var(--font-lexend), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
 }
 
 @layer base {
@@ -24,7 +39,7 @@
   }
 
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    @apply bg-canvas text-ink antialiased;
   }
 
   :focus-visible {
@@ -62,4 +77,13 @@
   .animate-confetti {
     animation: none;
   }
+}
+
+/* Diagramma ustunlaridagi "sig'im" chiziqlari (CareOps: bo'sh qism chiziqlangan). */
+@utility bg-hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(39, 38, 39, 0.07) 0 1.5px,
+    transparent 1.5px 7px
+  );
 }
