@@ -183,7 +183,7 @@ export interface TargetCaseDetail extends TargetCaseListItem {
 
 /**
  * Ishtirokchi shikoyati. Skrinshot — `attachments` dagi `attachmentId` li fayl:
- * `GET /api/v1/admin/targets/:id/attachments/:attachmentId` (Bearer token bilan, rasm qaytadi).
+ * `GET /api/v1/admin/targets/:id/attachments/:attachmentId` (sessiya cookie'si bilan, rasm qaytadi).
  */
 export interface TargetCaseReport {
   id: string;
@@ -728,13 +728,21 @@ export interface WinnerSkipRequest {
  */
 export type TelegramDeliveryStatus = "SENT" | "DELIVERED" | "READ" | "UNREAD" | "FAILED";
 
-/** Telegram orqali boradigan xabarnomalar (TZ 3.5). */
+/**
+ * Telegram orqali boradigan xabarnomalar (TZ 3.5).
+ * REEL_REVIEW — video qo'lda tekshiruvga o'tdi yoki tiklandi; VOUCHER_WIN — random tanlov
+ * (oylik voucher) g'olibi xabari; WINNER — asosiy g'olib xabari; OTHER — boshqa xabarlar.
+ */
 export type TelegramMessageKind =
   | "REEL_ACCEPTED"
   | "REEL_REJECTED"
+  | "REEL_REVIEW"
   | "RANK_CHANGED"
   | "WARNING"
-  | "SUPPORT_REPLY";
+  | "SUPPORT_REPLY"
+  | "VOUCHER_WIN"
+  | "WINNER"
+  | "OTHER";
 
 /** BOT_BLOCKED — ishtirokchi botni bloklagan; NETWORK — vaqtinchalik xato. */
 export type TelegramFailureReason = "BOT_BLOCKED" | "NETWORK";
@@ -837,7 +845,11 @@ export interface SupportAttachment {
   id: string;
   fileName: string;
   sizeBytes: number;
-  /** Faylni ochish manzili; mock rejimda — null. */
+  /**
+   * Faylni ochish manzili — backend nisbiy yo'l bilan beradi (masalan,
+   * `/api/v1/admin/support/tickets/:id/attachments/:attachmentId`), sessiya cookie'si bilan
+   * ochiladi. Mock rejimda — null.
+   */
   url: string | null;
 }
 

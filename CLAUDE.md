@@ -24,19 +24,23 @@ eng ko'p ko'rish yig'gan ishtirokchi avtomobil yutadi (g'olibni Admin tasdiqlayd
 ## Papka tuzilmasi
 
 ```text
-apps/backend   NestJS: Mini App API + Telegram bot + ko'rishlar worker'i (Apify; ma'lumotlar xotirada)
+apps/backend   NestJS: Mini App API + admin API + Telegram bot + ko'rishlar worker'i (Apify;
+               ma'lumotlar xotirada, `DATA_DIR/state.json` ga saqlanadi)
 apps/miniapp   Telegram Mini App (React + Vite)
-apps/admin     Next.js admin panel
+apps/admin     Next.js admin panel (statik eksport, serverda /admin)
 apps/mobile    Flutter ilova — to'xtatilgan
 packages/      backend va admin uchun umumiy kod: shared, api-client, config (rejada)
 docs/          tz.pdf va boshqa hujjatlar
+deploy/        serverdagi Docker Compose, Dockerfile'lar va nginx sozlamasi (deploy/README.md)
 ```
 
-Hozircha bor: `apps/admin` (mock API bilan), `apps/miniapp` (mock yoki backend bilan),
-`apps/backend` (bot va Mini App API, bazasiz), `apps/mobile` (to'xtatilgan). `packages/` va
-pnpm workspace keyin.
+Hozircha bor: `apps/admin` (backend bilan yoki mock), `apps/miniapp` (mock yoki backend bilan),
+`apps/backend` (bot, Mini App va admin API; bazasiz — holat fayli), `apps/mobile` (to'xtatilgan).
+`packages/` va pnpm workspace keyin.
 
-Admin panel backend bilan faqat `apps/admin/src/lib/api.ts` orqali gaplashadi (hozir mock);
+Admin panel backend bilan faqat `apps/admin/src/lib/api.ts` orqali gaplashadi (`api.http.ts` —
+haqiqiy, `api.mock.ts` — soxta; `NEXT_PUBLIC_API_MODE`). Xodimlar login/parol bilan kiradi
+(`ADMIN_USERS`), sessiya — `HttpOnly` cookie, har bir amal audit log'ga yoziladi;
 Mini App va veb-sayt esa faqat `apps/miniapp/src/lib/api.ts` orqali. Ishtirokchi parol/SMS'siz
 tanilgan: Telegram ichida — `X-Telegram-Init-Data` imzosi, saytda — Telegram Login Widget'dan
 keyingi `HttpOnly` sessiya cookie'si. Ikkalasi ham bitta `telegramId`.
@@ -52,7 +56,8 @@ admin uchun batafsil — `apps/admin/README.md`):
 
 | Vazifa | Buyruq | Holat |
 |---|---|---|
-| Admin panel (3001-port) | `cd apps/admin`, `npm install`, `npm run dev` | ✅ |
+| Admin panel (3001-port) | `cd apps/admin`, `npm install`, `npm run dev` (mock) yoki `npm run dev:http` (backend bilan) | ✅ |
+| Admin: statik eksport | `ADMIN_BASE_PATH=/admin npm run build` → `out/` | ✅ |
 | Admin: tekshiruv | `npm run lint`, `npm run typecheck`, `npm run build` | ✅ |
 | Bog'liqliklarni o'rnatish | `pnpm install` | TODO |
 | Lokal DB, Redis, MinIO | `docker compose up -d` | TODO |

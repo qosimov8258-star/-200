@@ -23,8 +23,14 @@ export const texts = {
   supportUnavailable: "Support hozircha ulanmagan. Keyinroq urinib ko'ring.",
   operatorPrefix: "💬 Support javobi:\n\n",
   operatorDelivered: "✅ Ishtirokchiga yuborildi",
+  operatorBlocked: "❌ Yetkazilmadi: ishtirokchi botni bloklagan.",
+  operatorFailed: "❌ Yetkazilmadi: Telegram xatosi. Birozdan keyin qayta yozib ko'ring.",
   operatorUnknownTarget:
     "Bu xabar qaysi ishtirokchiga tegishli ekanini topa olmadim. Ishtirokchi xabariga «Reply» qilib javob yozing.",
+
+  // Xabarnomalar ostidagi tugma: bosilsa — xabar "o'qildi" (admin panel → Telegram).
+  readButton: "✅ O'qidim",
+  readThanks: "Rahmat! Xabar o'qildi deb belgilandi.",
 
   // Video tekshiruvi (StatsService)
   reelAccepted: (views: string) =>

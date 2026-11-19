@@ -1,0 +1,37 @@
+# Repo ildizi build context bo'lganda (deploy/Dockerfile.web) yuborilmaydigan fayllar.
+# Backend context'i (apps/backend) uchun — apps/backend/.dockerignore.
+
+# Git va muharrirlar
+.git
+.github
+.claude
+.idea
+.vscode
+**/.DS_Store
+
+# Bog'liqliklar va build natijalari — konteyner ichida qaytadan yig'iladi
+**/node_modules
+**/.next
+**/out
+**/dist
+**/build
+**/coverage
+**/.turbo
+**/*.tsbuildinfo
+**/next-env.d.ts
+
+# Maxfiy ma'lumotlar
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+
+# Loglar
+**/*.log
+
+# Veb image'ga kerak bo'lmagan qismlar
+apps/mobile
+apps/backend
+docs
+deploy/*.md
+PLAN.md

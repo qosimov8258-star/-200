@@ -5,18 +5,32 @@ import { config } from "../config/config";
 import { ParticipantsService } from "../participants/participants.service";
 import type { SupportRelay } from "../support/support-relay";
 import { SupportService } from "../support/support.service";
-import type { ParticipantNotifier } from "./notifier";
+import { failureReasonOf, MessageLogService } from "./message-log.service";
+import type { ParticipantNotifier, TelegramMessageKind } from "./notifier";
 import { texts } from "./texts";
 
 /** Sayt botga shu parametr bilan yuboradi: `https://t.me/<bot>?start=web`. */
 const WEB_START_PAYLOAD = "web";
+/** Xabarnoma ostidagi "✅ O'qidim" tugmasi: `read:<jurnal yozuvi ID si>`. */
+const READ_PREFIX = "read:";
+/** Bot API orqali yuklab olinadigan fayl chegarasi (`getFile` — 20 MB gacha). */
+const MAX_FILE_BYTES = 20 * 1024 * 1024;
+const FILE_TIMEOUT_MS = 15_000;
+
+/** Telegram'dan yuklab olingan fayl (support skrinshoti). */
+export interface DownloadedFile {
+  data: Buffer;
+  /** Fayl boshidagi baytlar bo'yicha; rasm bo'lmasa — `application/octet-stream`. */
+  mime: string;
+}
 
 /**
  * Telegram bot:
  * - /start — salomlashadi va raqam ulashishni so'raydi (yoki Mini App tugmasini beradi);
  * - raqam (kontakt) — faqat o'z raqami qabul qilinadi, keyin Mini App tugmasi;
  * - shaxsiy chatdagi boshqa har qanday xabar — support murojaati, operatorlar guruhiga boradi;
- * - operator guruhda ishtirokchi xabariga "Reply" qilsa — javob ishtirokchiga yetkaziladi.
+ * - operator guruhda ishtirokchi xabariga "Reply" qilsa — javob ishtirokchiga yetkaziladi;
+ * - xabarnomalar ("✅ O'qidim" tugmasi bilan) — Telegram jurnaliga yoziladi (MessageLogService).
  *
  * Lokal ishlab chiqishda long polling; prod da webhook'ga o'tkaziladi.
  */
@@ -32,6 +46,7 @@ export class TelegramService
   constructor(
     private readonly participants: ParticipantsService,
     private readonly support: SupportService,
+    private readonly log: MessageLogService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -48,26 +63,36 @@ export class TelegramService
     this.register(bot);
     bot.catch((err) => this.logger.error(`Bot xatosi: ${err.message}`, err.stack));
     this.bot = bot;
+    this.log.setMessenger({
+      send: async (chatId, text, logId) => {
+        await bot.api.sendMessage(chatId, text, {
+          reply_markup: new InlineKeyboard().text(texts.readButton, `${READ_PREFIX}${logId}`),
+        });
+      },
+    });
 
     void this.configureMenuButton(bot);
     // `start` bot to'xtaguncha tugamaydi — kutmaymiz.
     void bot
       .start({
         onStart: (me) => this.logger.log(`Bot ishga tushdi: @${me.username}`),
-        allowed_updates: ["message"],
+        allowed_updates: ["message", "callback_query"],
       })
       .catch((err: Error) => this.logger.error(`Polling to'xtadi: ${err.message}`));
   }
 
   async onApplicationShutdown(): Promise<void> {
+    this.log.setMessenger(null);
     await this.bot?.stop();
   }
 
-  /** Ishtirokchiga bot orqali xabar (xabarnomalar, support javoblari). */
-  async notify(chatId: number, text: string): Promise<void> {
-    // Bot ishlamasa — xato: chaqiruvchi xabarni "yuborildi" deb hisoblamasin.
-    if (!this.bot) throw new Error("Telegram bot ishga tushmagan");
-    await this.bot.api.sendMessage(chatId, text);
+  /**
+   * Ishtirokchiga bot orqali xabar (xabarnomalar, support javoblari) — Telegram jurnaliga
+   * `kind` bilan yoziladi. Bot ishlamasa yoki Telegram rad etsa — xato: chaqiruvchi xabarni
+   * "yuborildi" deb hisoblamasin.
+   */
+  async notify(chatId: number, text: string, kind: TelegramMessageKind = "OTHER"): Promise<void> {
+    await this.log.send(chatId, text, kind);
   }
 
   /**
@@ -84,6 +109,34 @@ export class TelegramService
     this.support.rememberGroupMessage(sent.message_id, telegramId);
   }
 
+  /**
+   * Telegram'dagi faylni (support skrinshoti) bot orqali yuklab oladi. Bot ishlamasa yoki
+   * yuklab bo'lmasa — null. Bot tokeni yuklash manzilida bor — u javobga ham, logga ham chiqmaydi.
+   */
+  async downloadFile(fileId: string): Promise<DownloadedFile | null> {
+    const token = config.telegram.botToken;
+    if (!this.bot || !token) return null;
+    try {
+      const file = await this.bot.api.getFile(fileId);
+      if (!file.file_path || (file.file_size ?? 0) > MAX_FILE_BYTES) return null;
+      const res = await fetch(`https://api.telegram.org/file/bot${token}/${file.file_path}`, {
+        signal: AbortSignal.timeout(FILE_TIMEOUT_MS),
+      });
+      if (!res.ok) {
+        this.logger.warn(`Telegram faylini yuklab bo'lmadi: HTTP ${res.status}`);
+        return null;
+      }
+      if (Number(res.headers.get("content-length") ?? 0) > MAX_FILE_BYTES) return null;
+      const data = Buffer.from(await res.arrayBuffer());
+      if (data.length > MAX_FILE_BYTES) return null;
+      return { data, mime: sniffMime(data) };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Telegram faylini yuklab bo'lmadi: ${message.split(token).join("***")}`);
+      return null;
+    }
+  }
+
   // -------------------------------------------------------------------------
 
   private register(bot: Bot): void {
@@ -92,6 +145,22 @@ export class TelegramService
       : null;
     const isSupportChat = (ctx: Context) => supportChatId !== null && ctx.chat?.id === supportChatId;
     const isPrivate = (ctx: Context) => ctx.chat?.type === "private";
+
+    // Ishtirokchining @username i — Telegram jurnalida ko'rsatish uchun.
+    bot.use(async (ctx, next) => {
+      if (ctx.from && isPrivate(ctx)) this.log.noteUsername(ctx.from.id, ctx.from.username ?? null);
+      await next();
+    });
+
+    // "✅ O'qidim": xabar o'qilgan deb belgilanadi, tugma olib tashlanadi.
+    bot.callbackQuery(new RegExp(`^${READ_PREFIX}`), async (ctx) => {
+      const id = ctx.callbackQuery.data.slice(READ_PREFIX.length);
+      const marked = this.log.markRead(id, ctx.from.id);
+      await ctx.answerCallbackQuery(marked ? { text: texts.readThanks } : undefined);
+      await ctx.editMessageReplyMarkup().catch(() => undefined);
+    });
+    // Eski yoki noma'lum tugmalar — Telegram'dagi "yuklanmoqda" belgisi osilib qolmasin.
+    bot.on("callback_query", (ctx) => ctx.answerCallbackQuery());
 
     bot.command("start", async (ctx) => {
       if (!isPrivate(ctx) || !ctx.from) return;
@@ -136,19 +205,22 @@ export class TelegramService
       const replyTo = ctx.message.reply_to_message?.message_id;
       const text = ctx.message.text ?? ctx.message.caption;
       if (!replyTo || !text) return;
+      const quote = { reply_parameters: { message_id: ctx.message.message_id } };
       const telegramId = this.support.ownerOfGroupMessage(replyTo);
       const participant = telegramId === null ? null : this.participants.get(telegramId);
       if (!participant?.chatId) {
-        await ctx.reply(texts.operatorUnknownTarget, {
-          reply_parameters: { message_id: ctx.message.message_id },
-        });
+        await ctx.reply(texts.operatorUnknownTarget, quote);
+        return;
+      }
+      // Avval yuboriladi — yetkazilmagan javob yozishmaga tushmaydi.
+      try {
+        await this.notify(participant.chatId, texts.operatorPrefix + text, "SUPPORT_REPLY");
+      } catch (err) {
+        await ctx.reply(failureReasonOf(err) === "BOT_BLOCKED" ? texts.operatorBlocked : texts.operatorFailed, quote);
         return;
       }
       this.support.addOperatorReply(participant.telegramId, text);
-      await ctx.api.sendMessage(participant.chatId, texts.operatorPrefix + text);
-      await ctx.reply(texts.operatorDelivered, {
-        reply_parameters: { message_id: ctx.message.message_id },
-      });
+      await ctx.reply(texts.operatorDelivered, quote);
     });
 
     // Shaxsiy chatdagi qolgan xabarlar — support murojaati.
@@ -160,9 +232,9 @@ export class TelegramService
         return;
       }
       const text = ctx.message.text ?? ctx.message.caption ?? "";
-      const photo = ctx.message.photo?.at(-1)?.file_id ?? null;
+      const photo = ctx.message.photo?.at(-1) ?? null;
       if (!text && !photo) return;
-      const ticket = this.support.addParticipantMessage(p.telegramId, text, photo);
+      const ticket = this.support.addParticipantMessage(p.telegramId, text, photo?.file_id ?? null, photo?.file_size);
 
       if (supportChatId === null) {
         await ctx.reply(texts.supportUnavailable);
@@ -172,7 +244,7 @@ export class TelegramService
       const header = `🆘 Murojaat #${ticket.id} — ${name}`;
       // Operator aynan shu xabarga "Reply" qiladi.
       const sent = photo
-        ? await ctx.api.sendPhoto(supportChatId, photo, { caption: `${header}\n\n${text}`.trim() })
+        ? await ctx.api.sendPhoto(supportChatId, photo.file_id, { caption: `${header}\n\n${text}`.trim() })
         : await ctx.api.sendMessage(supportChatId, `${header}\n\n${text}`);
       this.support.rememberGroupMessage(sent.message_id, p.telegramId);
       await ctx.reply(texts.supportReceived);
@@ -204,4 +276,13 @@ export class TelegramService
       this.logger.warn(`Menyu tugmasini o'rnatib bo'lmadi: ${(err as Error).message}`);
     }
   }
+}
+
+/** Fayl turi boshidagi baytlar bo'yicha (Telegram fayl serveri turini ishonchli bermaydi). */
+function sniffMime(data: Buffer): string {
+  if (data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) return "image/jpeg";
+  if (data.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "image/png";
+  if (data.toString("latin1", 0, 4) === "RIFF" && data.toString("latin1", 8, 12) === "WEBP") return "image/webp";
+  if (data.toString("latin1", 0, 4) === "GIF8") return "image/gif";
+  return "application/octet-stream";
 }

@@ -1,8 +1,11 @@
-import { Controller, Get, HttpCode, Logger, Post, UseGuards } from "@nestjs/common";
+import { Controller, Get, HttpCode, Post, UseGuards } from "@nestjs/common";
 
+import { AuditService } from "../audit/audit.service";
 import { ParticipantsService } from "../participants/participants.service";
 import { StatsService } from "../stats/stats.service";
-import { AdminTokenGuard } from "./admin-token.guard";
+import type { AdminUser } from "./auth/admin-accounts";
+import { AdminAuthGuard, CurrentAdmin } from "./auth/admin-auth.guard";
+import { actorOf } from "./auth/admin-auth.service";
 
 /**
  * Ko'rishlar va videolar (admin panel → Videolar / Reyting).
@@ -11,13 +14,12 @@ import { AdminTokenGuard } from "./admin-token.guard";
  * yig'ishni navbatdan tashqari ishga tushira oladi.
  */
 @Controller("admin")
-@UseGuards(AdminTokenGuard)
+@UseGuards(AdminAuthGuard)
 export class AdminStatsController {
-  private readonly logger = new Logger(AdminStatsController.name);
-
   constructor(
     private readonly participants: ParticipantsService,
     private readonly stats: StatsService,
+    private readonly audit: AuditService,
   ) {}
 
   /** Yig'ish jadvali, oxirgi natija va videolar soni holatlar bo'yicha. */
@@ -29,10 +31,20 @@ export class AdminStatsController {
   /** Ko'rishlarni hoziroq yig'ish. Fon rejimida ishlaydi; natija — `GET /admin/stats`. */
   @Post("stats/sync")
   @HttpCode(202)
-  sync() {
+  sync(@CurrentAdmin() admin: AdminUser) {
     const alreadyRunning = this.stats.isSyncing;
-    // Admin login qurilgach — xodim nomi bilan audit log yozuvi.
-    if (!alreadyRunning) this.logger.log("Admin: ko'rishlarni yig'ish qo'lda boshlandi.");
+    if (!alreadyRunning) {
+      this.audit.record({
+        actor: actorOf(admin),
+        action: "stats.sync",
+        entity: "reel",
+        entityId: "all",
+        entityLabel: "Ko'rishlarni yig'ish",
+        before: "",
+        after: "Qo'lda boshlandi",
+        reason: "",
+      });
+    }
     void this.stats.syncAll("admin");
     return { started: !alreadyRunning, running: true };
   }

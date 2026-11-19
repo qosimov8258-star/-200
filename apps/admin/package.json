@@ -3,10 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "description": "Reels tanlov ilovasi — admin panel (Next.js)",
+  "sideEffects": [
+    "*.css"
+  ],
   "scripts": {
     "dev": "next dev --port 3001",
+    "dev:http": "NEXT_PUBLIC_API_MODE=http next dev --port 3001",
     "build": "next build",
-    "start": "next start --port 3001",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit"
   },

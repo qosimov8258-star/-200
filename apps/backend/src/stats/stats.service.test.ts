@@ -390,3 +390,18 @@ test("a failed sync is not retried immediately", async () => {
   setNow("2026-12-01 06:31");
   assert.equal(stats.dueReason(), "schedule");
 });
+
+test("the final sync after the end is recorded on the last contest day", async () => {
+  const s = setup({ endsAt: "2026-12-21 00:00" });
+  s.setNow("2026-12-10 10:00");
+  s.provider.set("FINAL1", { owner: "ali", views: 1_000 });
+  s.join(1, "FINAL1");
+  await s.stats.flushVerification();
+  s.provider.set("FINAL1", { owner: "ali", views: 9_000 });
+  s.setNow("2026-12-21 06:00");
+  assert.equal(s.stats.dueReason(), "final");
+  await s.stats.syncAll("final");
+  const last = s.reel(1)?.history.at(-1);
+  assert.equal(last?.date, "2026-12-20", "oxirgi tanlov kuni");
+  assert.equal(last?.views, 9_000);
+});

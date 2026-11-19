@@ -1,0 +1,35 @@
+# syntax=docker/dockerfile:1
+#
+# Veb image: Mini App / sayt (Vite) va admin panel (Next.js statik eksport) bitta nginx'da.
+#   https://konkurs.mezon.site/        → Mini App (/usr/share/nginx/html)
+#   https://konkurs.mezon.site/admin/  → admin panel (/usr/share/nginx/html/admin)
+#   https://konkurs.mezon.site/api/    → backend (deploy/web.conf)
+# Build context — repo ildizi (deploy/compose.yml), keraksiz fayllar — ildizdagi .dockerignore.
+
+# --- 1. Mini App (Vite) ---
+FROM node:24-alpine AS miniapp
+WORKDIR /build
+COPY apps/miniapp/package.json apps/miniapp/package-lock.json ./
+RUN npm ci
+COPY apps/miniapp/ ./
+ARG VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL}
+RUN npm run build
+
+# --- 2. Admin panel (Next.js → out/) ---
+FROM node:24-alpine AS admin
+WORKDIR /build
+ENV NEXT_TELEMETRY_DISABLED=1
+COPY apps/admin/package.json apps/admin/package-lock.json ./
+RUN npm ci
+COPY apps/admin/ ./
+# /admin ostida, haqiqiy backend bilan (mock kod bundle'ga kirmaydi).
+ENV ADMIN_BASE_PATH=/admin \
+    NEXT_PUBLIC_API_MODE=http
+RUN npm run build && test -f out/index.html && test -f out/dashboard/index.html
+
+# --- 3. nginx ---
+FROM nginx:1.27-alpine
+COPY --from=miniapp /build/dist /usr/share/nginx/html
+COPY --from=admin /build/out /usr/share/nginx/html/admin
+# Sozlama (default.conf) compose orqali ulanadi: deploy/web.conf.

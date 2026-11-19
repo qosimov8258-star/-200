@@ -8,6 +8,7 @@ import { formatDayTime } from "@/lib/format";
 import {
   TELEGRAM_FAILURE_LABELS,
   TELEGRAM_KIND_LABELS,
+  TELEGRAM_KIND_TONES,
   TELEGRAM_STATUS_LABELS,
   TELEGRAM_STATUS_TONES,
 } from "@/lib/labels";
@@ -81,7 +82,7 @@ function TelegramRow({
       </td>
 
       <td className="max-w-md px-4 py-3">
-        <Badge tone="neutral">{TELEGRAM_KIND_LABELS[item.kind]}</Badge>
+        <Badge tone={TELEGRAM_KIND_TONES[item.kind]}>{TELEGRAM_KIND_LABELS[item.kind]}</Badge>
         <p className="mt-1 text-slate-700">{item.text}</p>
       </td>
 

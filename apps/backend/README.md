@@ -2,8 +2,12 @@
 
 NestJS: Telegram bot, Mini App API, admin API va Reel ko'rishlarini yig'uvchi worker.
 
-> **Hozirgi holat — skelet.** Ma'lumotlar **xotirada** saqlanadi (server qayta ishga
-> tushsa, yo'qoladi). PostgreSQL + Prisma va BullMQ (Redis) navbati hali yo'q.
+> **Ma'lumotlar** xotirada ishlaydi va har 5 soniyada `DATA_DIR` dagi `state.json` ga yoziladi
+> (server to'xtaganda ham) — qayta ishga tushganda o'qiladi. Kunlik va har ishga tushishdagi
+> zaxiralar `DATA_DIR/backups/`, shikoyat skrinshotlari `DATA_DIR/files/` da
+> ([`src/persistence/state-store.ts`](src/persistence/state-store.ts)). Fayl buzilgan bo'lsa —
+> eng yangi zaxiradan o'qiladi; ikkalasi ham yaroqsiz bo'lsa server bo'sh holat bilan ishga
+> tushmaydi. PostgreSQL + Prisma va BullMQ (Redis) navbati hali yo'q.
 
 ## Ishga tushirish
 
@@ -37,12 +41,17 @@ TypeScript 6 da qoladi: Nest CLI hozircha TypeScript 7 bilan ishlamaydi.
 | `TELEGRAM_MODE` | `polling` (lokal) yoki `off` (faqat API) |
 | `APIFY_API_TOKEN` | Apify Console → Settings → API & Integrations. **Maxfiy** |
 | `STATS_PROVIDER` | `apify` (haqiqiy) yoki `mock` (lokal sinov — SOXTA ko'rishlar) |
-| `STATS_SYNC_TIME` | Ko'rishlar soat nechada yig'iladi, Toshkent vaqti (standart `06:00`) |
-| `STATS_SYNC_EVERY_DAYS` | Tanlov boshidan (`contest.ts` → `startsOn`, 25-noyabr) necha kunda bir: `10` (standart) — 5, 15, 25-dekabr…; `1` — har kuni; `0` — o'chiq |
+| `STATS_SYNC_TIME` | Ko'rishlar soat nechada yig'iladi, Toshkent vaqti (standart `06:00`). Faqat birinchi ishga tushishda — keyin admin panel → Sozlamalar |
+| `STATS_SYNC_EVERY_DAYS` | Tanlov boshidan (Sozlamalar → boshlanish sanasi, 25-noyabr) necha kunda bir: `10` (standart) — 5, 15, 25-dekabr…; `1` — har kuni; `0` — o'chiq |
 | `STATS_VERIFY_DELAY_MS` | Yangi videolar shuncha yig'ilib, bitta so'rovda tekshiriladi (standart `5000`) |
 | `TARGET_CHECK_TOP` | Reklama kutubxonasida reytingning nechta yetakchisi tekshiriladi (standart `30`) |
 | `TARGET_CHECK_EVERY_DAYS` | Tanlov boshidan necha kunda bir tekshiriladi (standart `30` — oyiga bir marta; `0` — faqat qo'lda) |
-| `ADMIN_API_TOKEN` | VAQTINCHA admin API kaliti (admin login qurilguncha). Bo'sh — admin API yopiq |
+| `DATA_DIR` | Ma'lumotlar papkasi (standart `data`; Docker'da volume — `/app/data`) |
+| `ADMIN_USERS` | Admin panel xodimlari: `login\|ROL\|Ism Familiya\|parol`, bir nechta — `;` bilan (ROL: `ADMIN` yoki `SUPPORT`, parol ≥ 10 belgi). **Maxfiy** |
+| `ADMIN_SESSION_SECRET` | Sessiya imzosi kaliti (`openssl rand -base64 32`). **Maxfiy** |
+| `ADMIN_SESSION_TTL_HOURS` | Sessiya muddati, soat (standart `12`) |
+| `ADMIN_COOKIE_SECURE` | Cookie faqat https orqali (production'da standart `true`) |
+| `ADMIN_API_TOKEN` | Skriptlar uchun admin API kaliti (`Authorization: Bearer`). Bo'sh — kalit bilan kirish yopiq |
 
 Bot tokeni bo'lmasa, bot ishga tushmaydi va Mini App API barcha so'rovlarni rad etadi.
 Apify tokeni bo'lmasa, videolar PENDING holida qoladi (soxta ma'lumotga jim o'tilmaydi).
@@ -111,7 +120,7 @@ Instagram boshqa akkauntning reklama tarixini bermaydi, shuning uchun to'rt qatl
    ko'rilgan videoning skrinshoti va akkaunt nomi (yoki Reel linki). Bitta ishtirokchiga ochiq
    `REPORT` holati bitta, yangi shikoyatlar unga qo'shiladi. Cheklovlar: kuniga 5 ta, bir kunda bir
    kishi haqida bitta, o'zi haqida yo'q. Skrinshot Mini App'da JPEG ga siqiladi (≤ 2 MB, EXIF
-   olib tashlanadi), server turini baytlar bo'yicha tekshiradi. VAQTINCHA xotirada (keyin MinIO).
+   olib tashlanadi), server turini baytlar bo'yicha tekshiradi. Diskda — `DATA_DIR/files/` (keyin MinIO).
    Shikoyatchini faqat admin ko'radi.
 4. **Yuzma-yuz tekshiruv** — sovrin topshirilishidan oldin g'olib telefonida Instagram →
    Professional panel → "Reklama vositalari" ko'riladi (admin panel → G'olib → tekshiruv ro'yxati).
@@ -138,10 +147,19 @@ bot xabari) yoki ro'yxatdan chiqarishni Admin hal qiladi.
   Widget ishlashi uchun **@BotFather → `/setdomain`** da sayt domeni ko'rsatilishi shart.
   Saytdagi "Botda raqamni ulashish" botni `t.me/<bot>?start=web` bilan ochadi — bot raqamdan
   keyin "saytga qayting" deydi.
-- **Admin** — `Authorization: Bearer <ADMIN_API_TOKEN>`:
+- **Admin** — admin panel xodimi `POST /admin/auth/login` (`{ login, password }`) bilan kiradi;
+  sessiya `reels_admin` cookie'da (HttpOnly, SameSite=Strict, `Path=/api/v1/admin`). 5 marta
+  ketma-ket xato parol — login 15 daqiqaga qulflanadi. Rollar: `ADMIN` — hammasi, `SUPPORT` —
+  faqat murojaatlar. Skriptlar `Authorization: Bearer <ADMIN_API_TOKEN>` bilan ham kira oladi.
+  Har bir o'zgartiruvchi amal audit log'ga yoziladi (kim, nima, qachon, oldin/keyin, sabab).
+  Kontrakt — `apps/admin/src/lib/api.ts` dagi `@endpoint` lar va `apps/admin/src/lib/types.ts`.
 
 | So'rov | Vazifa |
 |---|---|
+| `POST /admin/auth/login`, `POST /admin/auth/logout`, `GET /admin/auth/me` | Kirish, chiqish, joriy xodim |
+| `GET /admin/settings`, `PUT /admin/settings` | Tanlov muddati, ko'rishlar yig'ish vaqti, minimal yosh (boshlangach boshlanish sanasi qulflanadi) |
+| `GET /admin/audit-log` | Audit log: `search`, `entity`, `actorRole`, `page`, `pageSize` |
+
 | `GET /admin/rules`, `PUT /admin/rules` | Tanlov qoidalari |
 | `GET /admin/reels` | Barcha videolar: holat, egasi, ko'rishlar tarixi, nakrutka belgilari |
 | `GET /admin/stats` | Yig'ish jadvali, oxirgi natija, holatlar bo'yicha soni |
@@ -172,8 +190,6 @@ Xabar botdagidek murojaat bo'lib `TELEGRAM_SUPPORT_CHAT_ID` guruhiga boradi; ope
 
 ## Keyingi qadamlar
 
-- PostgreSQL + Prisma (ma'lumotlar xotiradan bazaga), worker — BullMQ navbatiga
-- Admin login + audit log (hozir admin harakatlari faqat server logida)
-- Admin panel uchun API: support murojaatlari, botdan xabar yuborish (hammaga/tanlanganlarga),
-  bot matnlarini tahrirlash, ishtirokchini chetlatish
+- PostgreSQL + Prisma (holat faylidan bazaga), worker — BullMQ navbatiga
+- Admin 2FA; botdan xabar yuborish (hammaga/tanlanganlarga), bot matnlarini tahrirlash
 - Prod uchun webhook rejimi

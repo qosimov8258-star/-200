@@ -1,8 +1,11 @@
 # Admin panel (`apps/admin`)
 
 Reels tanlov ilovasining zavod xodimlari uchun veb admin paneli (TZ, 6-bo'lim).
-Stek: Next.js (App Router), TypeScript (strict), Tailwind CSS, TanStack Query,
+Stek: Next.js (App Router, statik eksport), TypeScript (strict), Tailwind CSS, TanStack Query,
 lucide-react ikonkalari.
+
+Serverda: **<https://konkurs.mezon.site/admin/>** (nginx statik fayllar sifatida beradi,
+API — shu domendagi `/api/v1`). Deploy — [`deploy/README.md`](../../deploy/README.md).
 
 ## Ishga tushirish
 
@@ -18,23 +21,69 @@ Panel: <http://localhost:3001> (3000-port backend uchun band qilingan).
 
 | Buyruq | Vazifa |
 |---|---|
-| `npm run dev` | Dev server (3001-port) |
-| `npm run build` | Production build |
-| `npm run start` | Build'ni ishga tushirish (3001-port) |
+| `npm run dev` | Dev server (3001-port), mock ma'lumotlar bilan |
+| `npm run dev:http` | Dev server lokal backend bilan (`/api/v1` → `BACKEND_URL`, standart `http://localhost:3000`) |
+| `npm run build` | Statik eksport → `out/` |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | TypeScript tekshiruvi |
 
 > Hozircha panel alohida npm loyihasi. Repo ildizida pnpm workspace sozlangach
 > (PLAN.md, Faza 0) buyruqlar `pnpm --filter admin <buyruq>` ga o'tadi.
 
+### Env o'zgaruvchilar
+
+| O'zgaruvchi | Qayerda | Qiymat |
+|---|---|---|
+| `NEXT_PUBLIC_API_MODE` | build / dev | `http` — haqiqiy backend, `mock` — soxta ma'lumotlar. Berilmasa: `next build` da `http`, `next dev` da `mock` |
+| `ADMIN_BASE_PATH` | build / dev | Panel yo'li: serverda `/admin`, lokal — bo'sh |
+| `BACKEND_URL` | faqat `next dev` (`http` rejim) | `/api/v1/*` uzatiladigan backend, standart `http://localhost:3000` |
+
+### Production build
+
+`next build` har doim **statik eksport** qiladi (`output: "export"`, `trailingSlash: true`):
+natija `out/` papkasida, Node.js server kerak emas. Server uchun:
+
+```bash
+ADMIN_BASE_PATH=/admin NEXT_PUBLIC_API_MODE=http npm run build
+```
+
+Bu buyruqni [`deploy/Dockerfile.web`](../../deploy/Dockerfile.web) bajaradi va `out/` ni nginx'ga
+`/usr/share/nginx/html/admin` qilib qo'yadi. `next start` statik eksportda ishlamaydi; `out/` ni
+ko'rish uchun istalgan statik server yetadi (masalan, `npx serve out` — `ADMIN_BASE_PATH` bo'sh bo'lsa).
+
+`basePath` bilan ishlash qoidalari:
+
+- ichki havolalar — faqat `next/link` va `router.push/replace` (ular `/admin` ni o'zi qo'shadi);
+  `window.location` ga yoki `<a href="/...">` ga yo'l qo'lda yozilmaydi;
+- server funksiyalari (`redirect()`, route handler, `cookies()`) ishlatilmaydi — statik eksport;
+- API manzillari (`/api/v1/...`) domen ildizida — ularga `basePath` qo'shilmaydi.
+
+## API qatlami
+
+Komponentlar backendga to'g'ridan-to'g'ri `fetch` qilmaydi — faqat [`src/lib/api.ts`](src/lib/api.ts)
+orqali. U ikki implementatsiyadan birini tanlaydi:
+
+- [`src/lib/api.http.ts`](src/lib/api.http.ts) — haqiqiy backend. So'rovlar nisbiy `/api/v1/...`,
+  `credentials: "same-origin"`; sessiya — backend qo'yadigan `HttpOnly` cookie (JavaScript uni
+  ko'rmaydi). Xato javoblari (`{ message }`, `{ code }`, Nest `{ statusCode, message }`)
+  `ApiError(status, message)` ga aylanadi; tushunarli matn bo'lmasa — status bo'yicha o'zbekcha matn.
+- [`src/lib/api.mock.ts`](src/lib/api.mock.ts) — soxta ma'lumotlar ([`src/lib/mock/`](src/lib/mock/)).
+
+Ikkala faylda funksiyalar nomi va imzosi bir xil (buni `api.ts` dagi tip tekshiradi), har bir
+funksiyaning JSDoc idagi `@endpoint` — backend manzili (kontrakt). Tiplar —
+[`src/lib/types.ts`](src/lib/types.ts), xatolar — [`src/lib/api-error.ts`](src/lib/api-error.ts).
+`NEXT_PUBLIC_API_MODE` build vaqtida kodga yoziladi, shuning uchun `http` build'ga mock kod va
+mock parollar kirmaydi.
+
+Sessiya tugasa (istalgan so'rov yoki amal 401 qaytarsa) panel login sahifasiga o'tadi va kirgandan
+keyin o'sha bo'limga qaytaradi.
+
 ## Mock rejim
 
-Backend hali tayyor emas, shuning uchun panel **mock (soxta) ma'lumotlar** bilan ishlaydi.
+Backendsiz ishlash uchun (`npm run dev` da standart):
 
-- Barcha API chaqiruvlari faqat [`src/lib/api.ts`](src/lib/api.ts) da. Komponentlar
-  backendga to'g'ridan-to'g'ri `fetch` qilmaydi.
-- Mock ma'lumotlar [`src/lib/mock/`](src/lib/mock/) da. Test login ma'lumotlari
-  [`src/lib/mock/db.ts`](src/lib/mock/db.ts) da (faqat lokal mock uchun).
+- Test login ma'lumotlari [`src/lib/mock/db.ts`](src/lib/mock/db.ts) da (faqat lokal mock uchun);
+  login sahifasida yo'riqnoma faqat mock rejimda ko'rinadi.
 - Tanlov ma'lumotlari ([`src/lib/mock/contest.ts`](src/lib/mock/contest.ts)) deterministik
   generatsiya qilinadi va bugungi sanaga bog'lanadi: tanlov 24 kun oldin boshlangan,
   140 ta o'ylab topilgan ishtirokchi, Reellar, kunlik ko'rishlar, target va murojaatlar.
@@ -44,14 +93,8 @@ Backend hali tayyor emas, shuning uchun panel **mock (soxta) ma'lumotlar** bilan
   (`reels-admin:mock-store` kaliti). Mock ma'lumotlarni boshlang'ich holatga qaytarish uchun
   shu kalitni o'chiring.
 
-**Backend tayyor bo'lganda:** faqat `src/lib/api.ts` almashtiriladi — funksiya nomlari va
-imzolari saqlanadi, har bir funksiya ustidagi `@endpoint` backend manzilini ko'rsatadi.
-Keyin `IS_MOCK_API = false`, `mockControls = null` qilinadi va `src/lib/mock/` papkasi o'chiriladi.
-
 **Mock boshqaruvlari:** G'olib sahifasida "Tanlovni tugagan deb ko'rish" tugmasi bor — mock'da
-tanlov hali tugamagan, oqimni sinash uchun. U faqat `mockControls` bo'lsa ko'rinadi.
-Tiplar ([`src/lib/types.ts`](src/lib/types.ts)) va xatolar
-([`src/lib/api-error.ts`](src/lib/api-error.ts)) umumiy qoladi.
+tanlov hali tugamagan, oqimni sinash uchun. U faqat `mockControls` bo'lsa (mock rejimda) ko'rinadi.
 
 ## Qabul qilingan qarorlar (17.11.2026)
 
@@ -107,9 +150,11 @@ src/
 │   ├── users/            # ishtirokchilar jadvali, filtrlar, amal oynasi
 │   └── ui/               # tugma, input, select, dialog, amallar menyusi, sahifalash...
 └── lib/
-    ├── api.ts            # YAGONA API qatlami (hozir mock)
+    ├── api.ts            # YAGONA API qatlami: http yoki mock implementatsiyani tanlaydi
+    ├── api.http.ts       # haqiqiy backend (fetch, cookie sessiya)
+    ├── api.mock.ts       # mock implementatsiya
     ├── api-error.ts
-    ├── auth-context.tsx  # joriy xodim va chiqish
+    ├── auth-context.tsx  # joriy xodim, chiqish, 401 da login sahifasiga
     ├── dates.ts          # tanlov kunlari (Asia/Tashkent)
     ├── format.ts         # raqam va sana formatlari
     ├── labels.ts         # holatlar nomlari va ranglari

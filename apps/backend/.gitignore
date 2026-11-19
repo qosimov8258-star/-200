@@ -5,3 +5,5 @@ brightdata-result.csv
 reels.txt
 brightdata-raw-*.json
 apify-raw.json
+# Lokal holat fayli va zaxiralar (DATA_DIR) — ishtirokchilarning shaxsiy ma'lumotlari, commit qilinmaydi
+data/

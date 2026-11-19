@@ -5,9 +5,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { ApiError } from "@/lib/api-error";
 
-/** 4xx xatolarni qayta urinish ma'nosiz (so'rov o'zi noto'g'ri). */
+/**
+ * 4xx xatolarni qayta urinish ma'nosiz (so'rov o'zi noto'g'ri). Tarmoq xatosi (status 0)
+ * va 5xx — bir marta qayta urinamiz.
+ */
 function shouldRetry(failureCount: number, error: unknown): boolean {
-  if (error instanceof ApiError && error.status < 500) {
+  if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
     return false;
   }
   return failureCount < 1;

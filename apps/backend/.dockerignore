@@ -1,0 +1,12 @@
+# Backend image build context'i (deploy/Dockerfile.backend). Serverdagi Docker'da BuildKit yo'q —
+# eski builder faqat context ildizidagi .dockerignore ni o'qiydi.
+node_modules
+dist
+data
+coverage
+*.log
+.env
+.env.*
+brightdata-*
+apify-raw.json
+reels.txt

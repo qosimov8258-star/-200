@@ -1,6 +1,6 @@
 /**
- * MOCK (soxta) ma'lumotlar bazasi — faqat `src/lib/api.ts` dagi mock
- * implementatsiya ishlatadi. Backend ulanganda bu papka o'chiriladi.
+ * MOCK (soxta) ma'lumotlar bazasi — faqat `src/lib/api.mock.ts` ishlatadi
+ * (`NEXT_PUBLIC_API_MODE=mock`). Production (`http`) build'ga kirmaydi.
  *
  * Quyidagi login/parollar FAQAT lokal mock rejim uchun. Ular haqiqiy
  * tizimda ishlamaydi va hech qayerda haqiqiy parol sifatida ishlatilmasin.

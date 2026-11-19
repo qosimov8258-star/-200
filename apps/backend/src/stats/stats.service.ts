@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from "@nestjs/common";
@@ -18,7 +19,8 @@ import {
   type ReelFlagType,
   type ReelRejectReason,
 } from "../participants/participants.service";
-import { ParticipantNotifier } from "../telegram/notifier";
+import { StateStore } from "../persistence/state-store";
+import { ParticipantNotifier, type TelegramMessageKind } from "../telegram/notifier";
 import { texts } from "../telegram/texts";
 
 export interface StatsOptions {
@@ -142,11 +144,26 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
     private readonly provider: ReelStatsProvider,
     private readonly notifier: ParticipantNotifier,
     @Inject(STATS_OPTIONS) private readonly options: StatsOptions,
+    @Optional() @Inject(StateStore) store: StateStore | null = null,
   ) {
     this.now = options.clock ?? (() => new Date());
+    const saved = store?.attach("stats", () => ({
+      lastSync: this.lastSync,
+      lastSuccessAt: this.lastSuccessAt,
+      previousRanks: [...this.previousRanks],
+    }));
+    if (saved) {
+      this.lastSync = saved.lastSync;
+      this.lastSuccessAt = saved.lastSuccessAt;
+      this.previousRanks = new Map(saved.previousRanks);
+    }
   }
 
   onApplicationBootstrap(): void {
+    // Qayta ishga tushganda: tekshiruvi chala qolgan videolar navbatga qaytadi (taymerlar saqlanmaydi).
+    for (const p of this.participants.all()) {
+      if (p.reel && (p.reel.status === "PENDING" || isRechecking(p.reel))) this.queueVerification(p.telegramId);
+    }
     const { everyDays, syncTime } = this.options;
     if (this.provider.name === "mock") {
       this.logger.warn("STATS_PROVIDER=mock — ko'rishlar SOXTA, faqat lokal sinov uchun.");
@@ -297,18 +314,18 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
     reel.rejectReason = null;
     reel.misses = 0;
     this.record(reel, s.views, s, now);
-    this.notify(p, texts.reelAccepted(formatCount(s.views)));
+    this.notify(p, texts.reelAccepted(formatCount(s.views)), "REEL_ACCEPTED");
   }
 
   private reject(p: Participant, reel: Reel, reason: ReelRejectReason): void {
     reel.status = "REJECTED";
     reel.rejectReason = reason;
-    this.notify(p, texts.reelRejected[reason]);
+    this.notify(p, texts.reelRejected[reason], "REEL_REJECTED");
   }
 
   /** Avval ishtirokchiga xabar, so'ng video admin paneldagi qo'lda tekshiruv ro'yxatiga tushadi. */
   private toManualReview(p: Participant, reel: Reel, kind: ManualReview["kind"]): void {
-    this.notify(p, texts.reelManualReview[kind]);
+    this.notify(p, texts.reelManualReview[kind], "REEL_REVIEW");
     reel.status = "MANUAL_REVIEW";
     reel.review = { kind, requestedAt: this.now(), attempts: reel.misses, decision: null };
     this.logger.warn(
@@ -324,7 +341,7 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
       reel.status = "ACCEPTED";
       reel.lastFoundAt = now;
       this.record(reel, views, s, now);
-      this.notify(p, texts.reelRestored);
+      this.notify(p, texts.reelRestored, "REEL_REVIEW");
     } else {
       this.applyFound(p, reel, s, now);
     }
@@ -381,7 +398,7 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
       reel.rejectReason = null;
       reel.misses = 0;
       review.decision = { approved: true, reason: null, note: decision.note, by: actor, at: now };
-      this.notify(p, texts.reelManualApproved);
+      this.notify(p, texts.reelManualApproved, "REEL_REVIEW");
     } else {
       review.decision = { approved: false, reason: decision.reason, note: decision.note, by: actor, at: now };
       this.reject(p, reel, decision.reason);
@@ -600,7 +617,12 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
 
   /** Kunlik holatni yozadi (bir kunga bitta — kun ichidagi takroriy yig'ish oxirgisini almashtiradi). */
   private record(reel: Reel, views: number, s: ReelStats, now: Date): void {
-    const snapshot = { date: contestDay(now), at: now, views, likes: s.likes, comments: s.comments };
+    // Tanlov tugagandan keyingi yakuniy yig'ish oxirgi tanlov kuniga yoziladi — g'olib aniqlanadigan
+    // ko'rishlar kunlik reyting va dashboard'da (ular tanlov muddati bilan cheklangan) ko'rinsin.
+    const lastDay = contestDay(new Date(this.options.contestEndsAt.getTime() - 1));
+    const today = contestDay(now);
+    const date = today > lastDay ? lastDay : today;
+    const snapshot = { date, at: now, views, likes: s.likes, comments: s.comments };
     const last = reel.history.at(-1);
     if (last?.date === snapshot.date) reel.history[reel.history.length - 1] = snapshot;
     else reel.history.push(snapshot);
@@ -611,9 +633,9 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
     return this.participants.get(p.telegramId) === p && p.reel === reel;
   }
 
-  private notify(p: Participant, text: string): void {
+  private notify(p: Participant, text: string, kind: TelegramMessageKind): void {
     if (p.chatId === null) return;
-    this.notifier.notify(p.chatId, text).catch((err: Error) => {
+    this.notifier.notify(p.chatId, text, kind).catch((err: Error) => {
       this.logger.warn(`Ishtirokchiga (${p.telegramId}) xabar yuborilmadi: ${err.message}`);
     });
   }
