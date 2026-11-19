@@ -242,6 +242,50 @@ export const RULES_LIMITS = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// Sovg'alar (Aksiya qoidalari, 6-bo'lim: sovrinlar jamg'armasi)
+// ---------------------------------------------------------------------------
+
+/** `MAIN` — aksiya yakunidagi asosiy sovrin; `MONTHLY` — har oylik bosqich sovrini. */
+export type PrizeKind = "MAIN" | "MONTHLY";
+
+export interface Prize {
+  id: string;
+  /** Sovg'a nomi, masalan "BYD Chazor avtomobili". */
+  title: string;
+  /** Qo'shimcha izoh (bo'lmasa — bo'sh). */
+  description: string;
+  /** Rasm manzili; rasm yuklanmagan bo'lsa — null. */
+  imageUrl: string | null;
+  /** Soni; oylik sovrin uchun — bir oydagi soni. */
+  quantity: number;
+  kind: PrizeKind;
+  /** Kerakli tasdiqlangan ko'rishlar: quyi chegara (null — chegara yo'q). */
+  minViews: number | null;
+  /** Yuqori chegara (null — "va undan ortiq"). */
+  maxViews: number | null;
+  /** Ilova va botda ko'rsatish tartibi (kichigi yuqorida). */
+  sortOrder: number;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
+export type PrizeInput = Pick<
+  Prize,
+  "title" | "description" | "imageUrl" | "quantity" | "kind" | "minViews" | "maxViews"
+>;
+
+export type PrizeMoveDirection = "up" | "down";
+
+export interface PrizeMoveRequest {
+  direction: PrizeMoveDirection;
+}
+
+export interface PrizeImageUpload {
+  /** Yuklangan rasmning manzili — `PrizeInput.imageUrl` ga yoziladi. */
+  url: string;
+}
+
+// ---------------------------------------------------------------------------
 // Audit log (TZ 2-bo'lim: barcha Admin va Support harakatlari — kim, nima, qachon)
 // ---------------------------------------------------------------------------
 
@@ -253,6 +297,7 @@ export type AuditEntity =
   | "telegram_message"
   | "winner"
   | "settings"
+  | "prize"
   | "auth";
 
 export interface AuditLogQuery {

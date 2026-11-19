@@ -1,6 +1,7 @@
 import type {
   AuditEntity,
   ParticipantStatus,
+  PrizeKind,
   ReelStatus,
   SupportTicketStatus,
   TargetCaseStatus,
@@ -126,6 +127,20 @@ export const SUPPORT_STATUS_TONES: Record<SupportTicketStatus, BadgeTone> = {
 };
 
 // ---------------------------------------------------------------------------
+// Sovg'alar
+// ---------------------------------------------------------------------------
+
+export const PRIZE_KIND_LABELS: Record<PrizeKind, string> = {
+  MAIN: "Asosiy sovrin",
+  MONTHLY: "Oylik sovrin",
+};
+
+export const PRIZE_KIND_TONES: Record<PrizeKind, BadgeTone> = {
+  MAIN: "brand",
+  MONTHLY: "success",
+};
+
+// ---------------------------------------------------------------------------
 // Audit log
 // ---------------------------------------------------------------------------
 
@@ -137,6 +152,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntity, string> = {
   telegram_message: "Telegram",
   winner: "G'olib",
   settings: "Sozlamalar",
+  prize: "Sovg'alar",
   auth: "Kirish",
 };
 
@@ -163,6 +179,10 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "winner.announce": "G'olib e'lon qilindi",
   "settings.update": "Sozlamalarni o'zgartirdi",
   "rules.update": "Tanlov qoidalarini o'zgartirdi",
+  "prize.create": "Sovg'a qo'shdi",
+  "prize.update": "Sovg'ani o'zgartirdi",
+  "prize.delete": "Sovg'ani o'chirdi",
+  "prize.move": "Sovg'alar tartibini o'zgartirdi",
 };
 
 const WINNER_VALUE_LABELS: Record<string, string> = {

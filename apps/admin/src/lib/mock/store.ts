@@ -11,6 +11,7 @@ import type {
   ContestRules,
   ContestSettingsUpdate,
   ParticipantStatus,
+  Prize,
   SupportTicketStatus,
   TargetCaseStatus,
 } from "../types";
@@ -51,6 +52,8 @@ export interface MockStore {
   settings: MockSettingsOverride | null;
   /** Admin tahrirlagan tanlov qoidalari; null — boshlang'ich matn. */
   rules: ContestRules | null;
+  /** Admin o'zgartirgan sovg'alar ro'yxati; null — boshlang'ich ro'yxat (`prizes.ts`). */
+  prizes: Prize[] | null;
   audit: MockAuditEntry[];
 }
 
@@ -90,6 +93,7 @@ function emptyStore(): MockStore {
     },
     settings: null,
     rules: null,
+    prizes: null,
     audit: [],
   };
 }
@@ -114,6 +118,16 @@ export function writeStore(store: MockStore): void {
   } catch {
     // Xotira yopiq — o'zgarish faqat `memoryStore` da, sahifa yangilanguncha qoladi.
   }
+}
+
+/**
+ * Brauzer xotirasi (`localStorage`) odatda ~5 MB. Rasmlar ham shu yerda saqlangani uchun
+ * yozishdan oldin hajm tekshiriladi — aks holda o'zgarish jimgina yo'qolardi.
+ */
+const MAX_STORE_CHARS = 4_500_000;
+
+export function storeFits(store: MockStore): boolean {
+  return JSON.stringify(store).length <= MAX_STORE_CHARS;
 }
 
 /** Audit yozuvi uchun noyob id. */
