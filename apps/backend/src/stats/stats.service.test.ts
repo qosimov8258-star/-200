@@ -482,6 +482,53 @@ test("every Reel of a participant is verified on its own; the most viewed one co
   assert.equal(stats.ranking()[0]?.views, 10_000);
 });
 
+test("video rating: every accepted Reel is its own row; a participant's place is their best Reel's", async () => {
+  const { provider, stats, join, submit, setNow } = setup();
+  provider.set("ALI001", { owner: "ali", views: 9_000 });
+  provider.set("ALI002", { owner: "ali", views: 7_000 });
+  provider.set("BOB001", { owner: "bob", views: 8_000 });
+  provider.set("ALI003", { owner: "ali", views: 1_000 });
+  join(1, "ALI001");
+  join(2, "BOB001");
+  submit(1, "ALI002");
+  submit(1, "ALI003");
+  await stats.flushVerification();
+
+  // 1-ishtirokchining 3 ta videosi — reytingda 3 joyda.
+  assert.deepEqual(
+    stats.reelRanking().map((e) => [e.rank, e.participant.telegramId, e.reel.shortcode, e.views, e.rankDelta]),
+    [
+      [1, 1, "ALI001", 9_000, 0],
+      [2, 2, "BOB001", 8_000, 0],
+      [3, 1, "ALI002", 7_000, 0],
+      [4, 1, "ALI003", 1_000, 0],
+    ],
+  );
+  // Ishtirokchilar (g'olib, sovrinlar) — bittadan; o'rni — eng ko'p ko'rilgan videosiniki.
+  assert.deepEqual(stats.ranking().map((e) => [e.participant.telegramId, e.rank, e.views]), [
+    [1, 1, 9_000],
+    [2, 2, 8_000],
+  ]);
+
+  setNow("2026-12-02 06:01");
+  provider.set("ALI003", { owner: "ali", views: 9_500 });
+  provider.set("BOB001", { owner: "bob", views: 9_200 });
+  await stats.syncAll("schedule");
+  assert.deepEqual(
+    stats.reelRanking().map((e) => [e.rank, e.reel.shortcode, e.rankDelta]),
+    [
+      [1, "ALI003", 3],
+      [2, "BOB001", 0],
+      [3, "ALI001", -2],
+      [4, "ALI002", -1],
+    ],
+  );
+  assert.deepEqual(stats.ranking().map((e) => [e.participant.telegramId, e.rank, e.views, e.rankDelta]), [
+    [1, 1, 9_500, 0],
+    [2, 2, 9_200, 0],
+  ]);
+});
+
 test("ranking: the most viewed Reel decides (no summing); ties go to the one whose best Reel came first", async () => {
   const { provider, stats, join, submit, reelOf, setNow } = setup();
   provider.set("TWO001", { owner: "b", views: 1_000 });

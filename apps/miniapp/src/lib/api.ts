@@ -100,14 +100,18 @@ export const acceptRules = (version: number): Promise<void> =>
     ? mock.acceptRules(version)
     : request("POST", "/miniapp/rules/accept", { version });
 
-/** @endpoint GET /miniapp/rating — ommaviy reyting, telefon raqamlarisiz. */
+/**
+ * @endpoint GET /miniapp/rating — ommaviy reyting, telefon raqamlari va video linklarisiz. Har bir
+ * qabul qilingan video — alohida qator: bir ism bir necha marta, `isMe` bir nechta qatorda bo'lishi mumkin.
+ */
 export const getRating = (): Promise<RatingEntry[]> =>
   IS_MOCK_API ? mock.getRating() : request("GET", "/miniapp/rating");
 
 /**
  * @endpoint GET /miniapp/reels — o'z videolari (eng ko'p ko'rilgan qabul qilingani tepada —
- * tartib `MyReels.reels` izohida) va natija: eng ko'p ko'rilgan bitta video bo'yicha
- * (`bestViews`, videolar ko'rishlari qo'shilmaydi); video yo'q bo'lsa ham obyekt (`reels: []`).
+ * tartib `MyReels.reels` izohida; har bir qabul qilinganida reytingdagi o'z o'rni — `rank`) va
+ * natija: eng ko'p ko'rilgan bitta video bo'yicha (`bestViews`, `rank` — shu videoning o'rni;
+ * videolar ko'rishlari qo'shilmaydi); video yo'q bo'lsa ham obyekt (`reels: []`).
  */
 export const getMyReels = (): Promise<MyReels> =>
   IS_MOCK_API ? mock.getMyReels() : request("GET", "/miniapp/reels");

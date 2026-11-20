@@ -13,14 +13,13 @@ import { addDays, contestDay, daysBetween, tashkentAt } from "../common/time";
 import { ReelStatsProvider, type ReelStats } from "../instagram/reel-stats";
 import {
   acceptedReels,
-  participantViews,
   ParticipantsService,
+  reelViews,
   type ManualReview,
   type Participant,
   type Reel,
   type ReelFlagType,
   type ReelRejectReason,
-  topReel,
 } from "../participants/participants.service";
 import { StateStore } from "../persistence/state-store";
 import { ParticipantNotifier, type TelegramMessageKind } from "../telegram/notifier";
@@ -82,14 +81,31 @@ export type ManualDecision =
 /** Apify o'zi topib, qo'lda tekshiruvni yopganda qaror muallifi. */
 export const AUTO_REVIEWER = "Avtomatik";
 
+/** Ishtirokchi reytingi (g'olib, sovrinlar, target tekshiruvi — bitta ishtirokchi bitta qator). */
 export interface RankedEntry {
   participant: Participant;
   /** Reytingga kirgan (ACCEPTED) videolari — yuborilish tartibida, kamida bittasi. */
   reels: Reel[];
+  /**
+   * Eng ko'p ko'rilgan videosining videolar reytingidagi o'rni (`reelRanking`). Bir ishtirokchining
+   * bir nechta videosi yuqorida bo'lishi mumkin, shuning uchun o'rinlar oralab ketishi mumkin (1, 4, 5…).
+   */
   rank: number;
   /** Eng ko'p ko'rilgan qabul qilingan videosining oxirgi ko'rishlari (videolar qo'shilmaydi). */
   views: number;
   /** Oldingi yig'ishdagi o'ringa nisbatan: musbat — ko'tarilgan. */
+  rankDelta: number;
+}
+
+/** Videolar reytingi (ommaviy reyting): har bir qabul qilingan video — alohida qator. */
+export interface RankedReel {
+  participant: Participant;
+  reel: Reel;
+  /** Shu videoning oxirgi ko'rishlari. */
+  views: number;
+  /** 1 dan boshlab, har bir videoga alohida. */
+  rank: number;
+  /** Shu videoning oldingi yig'ishdagi o'rniga nisbatan: musbat — ko'tarilgan; yangi video — 0. */
   rankDelta: number;
 }
 
@@ -165,8 +181,10 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
   private lastSync: SyncReport | null = null;
   /** Oxirgi muvaffaqiyatli yig'ish vaqti. */
   private lastSuccessAt: Date | null = null;
-  /** Oxirgi yig'ishdan oldingi o'rinlar (rankDelta uchun). */
+  /** Oxirgi yig'ishdan oldingi o'rinlar (rankDelta uchun): ishtirokchi → eng yaxshi videosi o'rni. */
   private previousRanks = new Map<number, number>();
+  /** Oxirgi yig'ishdan oldingi videolar o'rni: shortcode → o'rin. */
+  private previousReelRanks = new Map<string, number>();
   private scheduler: NodeJS.Timeout | null = null;
 
   constructor(
@@ -181,11 +199,14 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
       lastSync: this.lastSync,
       lastSuccessAt: this.lastSuccessAt,
       previousRanks: [...this.previousRanks],
+      previousReelRanks: [...this.previousReelRanks],
     }));
     if (saved) {
       this.lastSync = saved.lastSync;
       this.lastSuccessAt = saved.lastSuccessAt;
       this.previousRanks = new Map(saved.previousRanks);
+      // Eski holat faylida bo'lmaydi — birinchi yig'ishgacha videolar o'rni o'zgarishi 0.
+      this.previousReelRanks = new Map(saved.previousReelRanks ?? []);
     }
   }
 
@@ -625,6 +646,7 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
           : new Map<string, ReelStats | null>();
       const now = this.now();
       this.previousRanks = new Map(this.ranking().map((e) => [e.participant.telegramId, e.rank]));
+      this.previousReelRanks = new Map(this.reelRanking().map((e) => [e.reel.shortcode, e.rank]));
 
       for (const { p, reel } of targets) {
         if (!this.isCurrent(p, reel) || reel.status === "REJECTED" || !stats.has(reel.shortcode)) continue;
@@ -669,23 +691,50 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
   // --- Reyting va holat -----------------------------------------------------
 
   /**
-   * Reyting: kamida bitta qabul qilingan videosi bor faol (bloklanmagan, chetlatilmagan)
-   * ishtirokchilar; ko'rishlar — eng ko'p ko'rilgan qabul qilingan videosining oxirgi ko'rishlari
-   * (videolar ko'rishlari qo'shilmaydi). Teng ko'rishda — shu videoni oldinroq yuborgan yuqorida.
+   * Videolar reytingi (ommaviy reyting): faol (bloklanmagan, chetlatilmagan) ishtirokchilarning
+   * har bir qabul qilingan videosi — alohida qator; 4 ta videosi bo'lsa — 4 joyda. Ko'rishlar
+   * kamayishi bo'yicha; teng bo'lsa — oldinroq yuborilgan video yuqorida.
+   */
+  reelRanking(): RankedReel[] {
+    const rows = this.participants
+      .all()
+      .filter((p) => p.status === "ACTIVE" && p.firstName)
+      .flatMap((p) => acceptedReels(p).map((reel) => ({ participant: p, reel, views: reelViews(reel) })));
+    rows.sort(
+      (a, b) =>
+        b.views - a.views ||
+        a.reel.submittedAt.getTime() - b.reel.submittedAt.getTime() ||
+        a.participant.telegramId - b.participant.telegramId ||
+        a.reel.shortcode.localeCompare(b.reel.shortcode),
+    );
+    return rows.map((row, i) => {
+      const previous = this.previousReelRanks.get(row.reel.shortcode);
+      return { ...row, rank: i + 1, rankDelta: previous === undefined ? 0 : previous - (i + 1) };
+    });
+  }
+
+  /**
+   * Ishtirokchilar reytingi (g'olib, sovrinlar, target tekshiruvi): kamida bitta qabul qilingan
+   * videosi bor faol ishtirokchilar, eng ko'p ko'rilgan videosi bo'yicha (videolar ko'rishlari
+   * qo'shilmaydi). Tartib va o'rin — shu videoning videolar reytingidagi joyi (`reelRanking`).
    */
   ranking(): RankedEntry[] {
-    const rows = this.participants.all().flatMap((p) => {
-      const reels = acceptedReels(p);
-      const best = topReel(reels);
-      return best && p.status === "ACTIVE" && p.firstName
-        ? [{ participant: p, reels, views: participantViews(p), since: best.submittedAt.getTime() }]
-        : [];
-    });
-    rows.sort((a, b) => b.views - a.views || a.since - b.since || a.participant.telegramId - b.participant.telegramId);
-    return rows.map(({ participant, reels, views }, i) => {
-      const previous = this.previousRanks.get(participant.telegramId);
-      return { participant, reels, views, rank: i + 1, rankDelta: previous === undefined ? 0 : previous - (i + 1) };
-    });
+    const seen = new Set<number>();
+    const entries: RankedEntry[] = [];
+    for (const row of this.reelRanking()) {
+      const p = row.participant;
+      if (seen.has(p.telegramId)) continue;
+      seen.add(p.telegramId);
+      const previous = this.previousRanks.get(p.telegramId);
+      entries.push({
+        participant: p,
+        reels: acceptedReels(p),
+        views: row.views,
+        rank: row.rank,
+        rankDelta: previous === undefined ? 0 : previous - row.rank,
+      });
+    }
+    return entries;
   }
 
   status() {

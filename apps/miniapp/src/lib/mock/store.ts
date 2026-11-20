@@ -217,7 +217,7 @@ export async function getRules(): Promise<ContestRules> {
       },
       {
         title: "2. Video talablari",
-        body: "Mahsulot haqidagi Reel o'z Instagram akkauntingizda joylanadi, ochiq bo'ladi va unda zavod akkaunti belgilanadi. Reel linki shu ilova orqali yuboriladi; videolar soni cheklanmagan. Reytingda eng ko'p ko'rilgan bitta qabul qilingan videongiz hisoblanadi — videolar ko'rishlari qo'shilmaydi. Bitta Instagram akkaunt — bitta ishtirokchi.",
+        body: "Mahsulot haqidagi Reel o'z Instagram akkauntingizda joylanadi, ochiq bo'ladi va unda zavod akkaunti belgilanadi. Reel linki shu ilova orqali yuboriladi; videolar soni cheklanmagan. Reytingda har bir qabul qilingan videongiz alohida o'rin oladi; sizning o'rningiz va asosiy sovrin — eng ko'p ko'rilgan bitta videongiz bo'yicha, videolar ko'rishlari qo'shilmaydi. Bitta Instagram akkaunt — bitta ishtirokchi.",
       },
       {
         title: "3. Taqiqlar",
@@ -268,22 +268,36 @@ function mockNextSyncAt(now = new Date()): string | null {
   return null;
 }
 
-/** Boshqa (soxta) ishtirokchilar, ko'p ko'rishdan kamiga. */
-const OTHERS = NAMES.map((fullName, i) => ({
-  fullName,
-  views: Math.floor(250000 / (i + 1)) + 6400 - (i + 1) * 37,
-  rankDelta: DELTAS[i % DELTAS.length],
-}));
+/** Boshqa (soxta) ishtirokchilarning eng ko'p ko'rilgan videolari ko'rishlari, ko'pidan kamiga. */
+const OTHER_BEST_VIEWS = NAMES.map((_, i) => Math.floor(250000 / (i + 1)) + 6400 - (i + 1) * 37);
 
-/** Eng ko'p ko'rilgan video ko'rishlariga qarab soxta reytingdagi o'rin. */
-const mockRank = (views: number) => 1 + OTHERS.filter((o) => o.views >= views).length;
+/**
+ * Ba'zi soxta ishtirokchilarning qo'shimcha videolari: [ishtirokchi (`NAMES`) indeksi, eng yaxshi
+ * videosi ko'rishlariga nisbatan ulush]. Reyting har bir video bo'yicha — bir ism bir necha marta chiqadi.
+ */
+const OTHER_EXTRA_VIDEOS: ReadonlyArray<readonly [number, number]> = [
+  [0, 0.42], [0, 0.11], [1, 0.63], [3, 0.55], [3, 0.2], [6, 0.7], [10, 0.5], [13, 0.86],
+];
 
-/** Shortcode'dan barqaror koeffitsiyent (0.4–1.6) — videolar har xil ko'rish yig'adi. */
-function viewsFactor(shortcode: string): number {
+/** Soxta ishtirokchilarning barcha qabul qilingan videolari (reyting qatorlari, tartiblanmagan). */
+const OTHER_VIDEOS: Omit<RatingEntry, "rank" | "isMe">[] = [
+  ...NAMES.map((fullName, i) => ({ fullName, views: OTHER_BEST_VIEWS[i] })),
+  ...OTHER_EXTRA_VIDEOS.map(([i, share]) => ({ fullName: NAMES[i], views: Math.round(OTHER_BEST_VIEWS[i] * share) })),
+].map((video, k) => ({ ...video, rankDelta: DELTAS[k % DELTAS.length] }));
+
+/** Shortcode'dan barqaror xesh — mock videolar har xil ko'rish va o'rin o'zgarishi oladi. */
+function shortcodeHash(shortcode: string): number {
   let hash = 0;
   for (const ch of shortcode) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-  return 0.4 + (hash % 1201) / 1000;
+  return hash;
 }
+
+/** Shortcode'dan barqaror koeffitsiyent (0.4–1.6) — videolar har xil ko'rish yig'adi. */
+const viewsFactor = (shortcode: string) => 0.4 + (shortcodeHash(shortcode) % 1201) / 1000;
+
+/** O'z videoning oldingi yangilanishga nisbatan o'rin o'zgarishi (mock, barqaror). */
+const MY_DELTAS = [3, 0, 1, -2, 2, -1];
+const myRankDelta = (shortcode: string) => MY_DELTAS[shortcodeHash(shortcode) % MY_DELTAS.length];
 
 /** Mock'dagi video: avval PENDING, bir necha soniyadan keyin qabul yoki rad etiladi. */
 function reelStatus(reel: MockReel): { status: ReelStatus; rejectReason: ReelRejectReason | null } {
@@ -294,21 +308,70 @@ function reelStatus(reel: MockReel): { status: ReelStatus; rejectReason: ReelRej
   return { status: "ACCEPTED", rejectReason: null };
 }
 
+/** Qabul qilingan videoning kunlar bo'yicha ko'rishlari (kun oxirida); boshqa holatda — null. */
+function acceptedTotals(reel: MockReel): number[] | null {
+  if (reelStatus(reel).status !== "ACCEPTED") return null;
+  return SAMPLE_TOTALS.map((v) => Math.round(v * viewsFactor(reel.shortcode)));
+}
+
+/** Reyting qatori; o'z videomizda — shortcode (faqat mock ichida, tashqariga berilmaydi). */
+type MockRatingRow = RatingEntry & { shortcode: string | null };
+
+/**
+ * Backenddagi reyting kabi: har bir qabul qilingan video — alohida qator, bitta ishtirokchi bir
+ * necha marta chiqadi. Tartib: ko'rishlar bo'yicha kamayib; teng bo'lsa — oldinroq yuborilgan video
+ * (soxta ishtirokchilarniki har doim oldinroq deb olinadi). Profili to'ldirilmagan bo'lsa, o'z
+ * videolari reytingga kirmaydi.
+ */
+function mockRating(): MockRatingRow[] {
+  const rows: (Omit<MockRatingRow, "rank"> & { submittedAt: number })[] = OTHER_VIDEOS.map((video) => ({
+    ...video,
+    isMe: false,
+    shortcode: null,
+    submittedAt: 0,
+  }));
+  if (state.profile) {
+    const fullName = `${state.profile.firstName} ${state.profile.lastName}`;
+    for (const reel of state.reels) {
+      const totals = acceptedTotals(reel);
+      if (!totals) continue;
+      rows.push({
+        fullName,
+        views: totals[totals.length - 1],
+        rankDelta: myRankDelta(reel.shortcode),
+        isMe: true,
+        shortcode: reel.shortcode,
+        submittedAt: reel.submittedAt,
+      });
+    }
+  }
+  rows.sort((a, b) => b.views - a.views || a.submittedAt - b.submittedAt);
+  return rows.map((row, i) => ({
+    rank: i + 1,
+    fullName: row.fullName,
+    views: row.views,
+    rankDelta: row.rankDelta,
+    isMe: row.isMe,
+    shortcode: row.shortcode,
+  }));
+}
+
 /** Holat tartibi ro'yxatda: qabul qilinganlar → hal qilinmaganlar → rad etilganlar. */
 const STATUS_GROUP: Record<ReelStatus, number> = { ACCEPTED: 0, PENDING: 1, MANUAL_REVIEW: 1, REJECTED: 2 };
 
 /**
- * Backenddagi GET /miniapp/reels kabi: har bir video alohida. Natija (ko'rishlar, o'rin,
- * kunlik o'sish) — eng ko'p ko'rilgan bitta qabul qilingan video bo'yicha; videolar
- * ko'rishlari qo'shilmaydi. Ro'yxat tartibi `MyReels.reels` izohida.
+ * Backenddagi GET /miniapp/reels kabi: har bir video alohida, har birining reytingdagi o'z o'rni
+ * (`rank`). Natija (ko'rishlar, ishtirokchining o'rni, kunlik o'sish) — eng ko'p ko'rilgan bitta
+ * qabul qilingan video bo'yicha; videolar ko'rishlari qo'shilmaydi. Ro'yxat tartibi `MyReels.reels`
+ * izohida.
  */
 function currentReels(): MyReels {
   const t = today();
+  const myRows = new Map<string, MockRatingRow>();
+  for (const row of mockRating()) if (row.shortcode) myRows.set(row.shortcode, row);
   const items = state.reels.map((reel) => {
     const { status, rejectReason } = reelStatus(reel);
-    // Qabul qilingan videoning kunlar bo'yicha ko'rishlari (kun oxirida).
-    const totals =
-      status === "ACCEPTED" ? SAMPLE_TOTALS.map((v) => Math.round(v * viewsFactor(reel.shortcode))) : null;
+    const totals = acceptedTotals(reel);
     const item: MyReelItem = {
       url: canonicalReelUrl(reel.shortcode),
       shortcode: reel.shortcode,
@@ -317,6 +380,7 @@ function currentReels(): MyReels {
       views: totals ? totals[totals.length - 1] : 0,
       submittedAt: new Date(reel.submittedAt).toISOString(),
       best: false,
+      rank: myRows.get(reel.shortcode)?.rank ?? null,
     };
     return { reel, totals, item };
   });
@@ -342,14 +406,15 @@ function currentReels(): MyReels {
       daily.push({ date: isoDay(d), views: totals[i] - totals[i - 1] });
     }
   }
-  const bestViews = best ? best.item.views : 0;
+  // Ishtirokchining o'rni — eng yaxshi videosining qatori (reytingdagi birinchi `isMe` qatori).
+  const bestRow = best ? myRows.get(best.reel.shortcode) : undefined;
   const synced = new Date(t);
   synced.setHours(9);
   return {
-    bestViews,
+    bestViews: best ? best.item.views : 0,
     todayViews: best ? daily[daily.length - 1].views : 0,
-    rank: best ? mockRank(bestViews) : null,
-    rankDelta: best ? 3 : 0,
+    rank: bestRow?.rank ?? null,
+    rankDelta: bestRow?.rankDelta ?? 0,
     daily,
     lastSyncedAt: best ? synced.toISOString() : null,
     nextSyncAt: mockNextSyncAt(),
@@ -358,19 +423,10 @@ function currentReels(): MyReels {
   };
 }
 
+/** Har bir video — alohida qator; video linklari (shortcode) tashqariga berilmaydi. */
 export async function getRating(): Promise<RatingEntry[]> {
   await wait();
-  const mine = currentReels();
-  const entries: Omit<RatingEntry, "rank">[] = OTHERS.map((o) => ({ ...o, isMe: false }));
-  if (state.profile && mine.rank !== null) {
-    entries.splice(mine.rank - 1, 0, {
-      fullName: `${state.profile.firstName} ${state.profile.lastName}`,
-      views: mine.bestViews,
-      rankDelta: mine.rankDelta,
-      isMe: true,
-    });
-  }
-  return entries.map((entry, i) => ({ ...entry, rank: i + 1 }));
+  return mockRating().map(({ rank, fullName, views, rankDelta, isMe }) => ({ rank, fullName, views, rankDelta, isMe }));
 }
 
 /** Mock: kunlik chegara faqat sahifa ochiq turganda sanaladi. */

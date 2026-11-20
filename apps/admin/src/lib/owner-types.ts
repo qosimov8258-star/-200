@@ -82,7 +82,7 @@ export interface OwnerParticipant {
    * qo'shilmaydi); qabul qilingan video yo'q — 0.
    */
   views: number;
-  /** Joriy reytingdagi o'rni; reytingda yo'q — null. */
+  /** Joriy reytingdagi o'rni (eng ko'p ko'rilgan videosining o'rni); reytingda yo'q — null. */
   rank: number | null;
   /** Ochiq (NEW yoki WARNED) target holatlari. */
   openTargetCases: number;

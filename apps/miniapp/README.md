@@ -37,18 +37,21 @@ yuboradi, Mini App esa holat o'zgarguncha `GET /me` ni qayta so'raydi.
 ## Videolar ("Videom")
 
 Ishtirokchi **xohlagancha** Reel linki yuboradi (`GET`/`POST /miniapp/reels`). Har bir video
-alohida tekshiriladi va ko'rishlari alohida yig'iladi. Reyting, o'rin va asosiy sovrinlar uchun
-ishtirokchining **eng ko'p ko'rilgan bitta qabul qilingan** videosi hisoblanadi — videolar
-ko'rishlari **qo'shilmaydi** (`MyReels.bestViews`; bunday video yo'q bo'lsa — 0). Ikki video
-teng bo'lsa, oldinroq yuborilgani hisoblanadi.
+alohida tekshiriladi va ko'rishlari alohida yig'iladi. Reytingda **har bir qabul qilingan video —
+alohida qator** (pastda, "Reyting"). Ishtirokchining o'rni va asosiy sovrinlar uchun esa uning
+**eng ko'p ko'rilgan bitta qabul qilingan** videosi hisoblanadi — videolar ko'rishlari
+**qo'shilmaydi** (`MyReels.bestViews`; bunday video yo'q bo'lsa — 0; `MyReels.rank` — shu
+videoning reytingdagi o'rni). Ikki video teng bo'lsa, oldinroq yuborilgani hisoblanadi.
 
 Ekranda: natija (eng ko'p ko'rilgan video ko'rishlari, o'rin va uning o'zgarishi, oxirgi o'sish
 va kunlik o'sish grafigi — shu video bo'yicha), har doim ko'rinadigan "Yangi video qo'shing"
-maydoni va barcha videolar ro'yxati (holati, rad etilgan bo'lsa — sababi, ko'rishlari,
-Instagram'da ochiladigan link). Ro'yxat tartibi serverdan keladi:
+maydoni va barcha videolar ro'yxati (holati, rad etilgan bo'lsa — sababi, ko'rishlari, qabul
+qilinganida — reytingdagi o'z o'rni, masalan "12-o'rin" (`MyReelItem.rank`), Instagram'da
+ochiladigan link). Ro'yxat tartibi serverdan keladi:
 
 1. qabul qilinganlar — ko'rishlar bo'yicha kamayib (teng bo'lsa — oldinroq yuborilgani);
-   birinchisi reytingda hisoblanadi (`best: true`) va "Reytingda hisoblanadi" belgisi bilan ajratiladi;
+   birinchisi — eng yaxshi natija (`best: true`, o'rningiz shu bo'yicha) va "Eng yaxshi natija"
+   belgisi bilan ajratiladi;
 2. hali hal qilinmaganlar (tekshirilmoqda, qo'lda tekshirilmoqda) — yangisi tepada;
 3. rad etilganlar — yangisi tepada.
 
@@ -58,6 +61,19 @@ qayta so'raladi.
 Takror yuborish: o'zingizning hali rad etilmagan videongiz — `REEL_ALREADY_SUBMITTED`,
 boshqa ishtirokchiniki — `REEL_TAKEN`. Rad etilgan videoni qayta yuborish mumkin (eski yozuv
 almashtiriladi).
+
+## Reyting
+
+`GET /miniapp/rating` — **har bir qabul qilingan video alohida qator** (`RatingEntry`: o'rin,
+egasining ismi, shu videoning ko'rishlari va o'rin o'zgarishi). Shuning uchun bir ism bir necha
+marta chiqishi, o'zingizning har bir videongiz alohida "Siz" qatori bo'lishi mumkin; video
+linklari ommaviy reytingda berilmaydi. Qator kaliti — `rank` (ism takrorlanadi). Ekranda bu
+haqda izoh bor, har bir qatorda video belgisi.
+
+- "Mening o'rnim" va "Men atrofimda" — birinchi `isMe` qatori, ya'ni eng ko'p ko'rilgan videongiz.
+- Ishtirokchilarning o'rinlari orasida raqamlar tushib qolishi mumkin (masalan, 1, 4, 5…) —
+  bu kutilgan holat. Sovrinlar va g'olib baribir ishtirokchi bo'yicha (bitta ishtirokchi —
+  bitta asosiy sovrin).
 
 ## Backend bilan aloqa
 
@@ -69,7 +85,8 @@ almashtiriladi).
   `https://www.instagram.com/reel/notfound1/`) — "Qo'lda tekshirilmoqda", `photo` bilan —
   "Reel emas" deb rad etiladi, `taken` bilan — "boshqa ishtirokchi yuborgan" xatosi
   (`REEL_TAKEN`). O'zingiz yuborgan (rad etilmagan) linkni qayta yuborish —
-  `REEL_ALREADY_SUBMITTED`.
+  `REEL_ALREADY_SUBMITTED`. Mock reytingda ba'zi soxta ishtirokchilarning 2–3 ta videosi bor,
+  o'zingizning har bir qabul qilingan videongiz esa ko'rishlariga qarab alohida qator bo'lib qo'shiladi.
 - `VITE_API_URL=http://localhost:3000/api/v1` → haqiqiy backend. Telegram ichida har bir so'rov
   `X-Telegram-Init-Data` sarlavhasi bilan ketadi; backend uni bot tokeni bilan tekshiradi.
 

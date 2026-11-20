@@ -99,10 +99,14 @@ avtomatik `reels` ga o'tkaziladi.
    - **rad etadi** (sabab bilan) → `REJECTED`, ishtirokchi sababni oladi.
    Kutish paytida Apify videoni o'zi topsa — holat avtomatik yopiladi.
 4. **Tanlov tugagach** (`contest.ts` → `endsAt`) — bitta yakuniy yig'ish, keyin to'xtaydi.
-5. **Reyting** (qoidalar 7.1, 7.3) — ishtirokchining **eng ko'p ko'rilgan bitta** qabul qilingan
-   (`ACCEPTED`) videosi oxirgi ko'rishlari bo'yicha; videolar ko'rishlari **qo'shilmaydi**. Teng bo'lsa,
-   shu videoni oldinroq yuborgan yuqorida. O'rin o'zgarishi — oldingi yig'ishdagi o'ringa nisbatan.
-   Oylik random tanlovda (7.2) ham davrga kirgan videolardan eng ko'p ko'rilgani olinadi.
+5. **Reyting** (qoidalar 7.1, 7.3) — **videolar reytingi**: har bir qabul qilingan (`ACCEPTED`) video —
+   alohida qator (`StatsService.reelRanking`), 4 ta videosi bor ishtirokchi 4 joyda ko'rinadi; ko'rishlar
+   kamayishi bo'yicha, teng bo'lsa — oldinroq yuborilgan video yuqorida. Videolar ko'rishlari
+   **qo'shilmaydi**. Ishtirokchining natijasi va o'rni (g'olib, asosiy sovrinlar, target tekshiruvi —
+   `ranking()`, bitta ishtirokchi bitta qator) — **eng ko'p ko'rilgan** videosi va uning shu reytingdagi
+   joyi, shuning uchun ishtirokchilar o'rni oralab ketishi mumkin (1, 4, 5…). O'rin o'zgarishi — oldingi
+   yig'ishdagi o'ringa nisbatan (har bir video uchun alohida). Oylik random tanlovda (7.2) davrga kirgan
+   videolardan eng ko'p ko'rilgani olinadi.
 6. **Nakrutka belgilari** (faqat admin uchun, avtomatik jazo yo'q): `LOW_ENGAGEMENT`
    (layk/ko'rish < 0.3%), `VIEW_SPIKE` (bir kunda 10 barobardan ko'p o'sish), `ENGAGEMENT_GAP`
    (kuniga kamida +20 000 va 3 barobar o'sish, shu kungi layk ulushi odatdagidan 4 marta past),
@@ -151,7 +155,7 @@ bot xabari) yoki ro'yxatdan chiqarishni Admin hal qiladi.
 
 | So'rov | Vazifa |
 |---|---|
-| `GET /miniapp/reels` | "Mening videolarim" — `MyReels`: `bestViews` (eng ko'p ko'rilgan qabul qilingan video — reytingdagi natija), shu videoning bugungi va kunlik o'sishi (oxirgi 30 kun), o'rin va uning o'zgarishi, oxirgi va keyingi yig'ish, `reels` (avval qabul qilinganlar ko'rishlar kamayishi bo'yicha — birinchisi `best: true`, keyin tekshiruvdagilar, keyin rad etilganlar; holat, rad sababi, ko'rishlar). Video bo'lmasa ham obyekt (`reels: []`) |
+| `GET /miniapp/reels` | "Mening videolarim" — `MyReels`: `bestViews` (eng ko'p ko'rilgan qabul qilingan video — reytingdagi natija), shu videoning bugungi va kunlik o'sishi (oxirgi 30 kun), o'rin (eng ko'p ko'rilgan videosi joyi) va uning o'zgarishi, oxirgi va keyingi yig'ish, `reels` (avval qabul qilinganlar ko'rishlar kamayishi bo'yicha — birinchisi `best: true`, keyin tekshiruvdagilar, keyin rad etilganlar; holat, rad sababi, ko'rishlar, `rank` — videoning reytingdagi o'rni). Video bo'lmasa ham obyekt (`reels: []`) |
 | `POST /miniapp/reels` | `{ url }` — yangi video (soni cheklanmagan), javob — yangilangan `MyReels`. Xatolar: `422 INVALID_LINK`, `409 REEL_ALREADY_SUBMITTED`, `409 REEL_TAKEN`, `403 UNAUTHORIZED` |
 
   Ishtirokchi ikki yo'l bilan tanilgan, ikkalasi ham bitta `telegramId`
@@ -184,7 +188,7 @@ bot xabari) yoki ro'yxatdan chiqarishni Admin hal qiladi.
 | `GET /admin/audit-log` | Audit log: `search`, `entity`, `actorRole`, `page`, `pageSize` |
 | `GET /admin/rules`, `PUT /admin/rules` | Tanlov qoidalari |
 | `GET /admin/participants` | Foydalanuvchilar: `search` (ism, telefon, istalgan Instagram akkaunti), `status`, `reel` (`PENDING`/`ACCEPTED`/`REJECTED` — shu holatda kamida bitta videosi bor; `NONE` — videosi yo'q), `sort`, `order`, `page`, `pageSize`. Qatorda `reels` — videolar soni holatlar bo'yicha, `views` — eng ko'p ko'rilgan qabul qilingan videosi |
-| `GET /admin/participants/:id/reels` | Ishtirokchining barcha videolari (`/miniapp/reels` tartibida — eng ko'p ko'rilgani tepada, `best: true`; `bestViews`): holat, qo'lda tekshiruvdami, rad sababi, egasi, ko'rishlar, layklar, sanalar, nakrutka belgilari; `404` — ishtirokchi topilmadi |
+| `GET /admin/participants/:id/reels` | Ishtirokchining barcha videolari (`/miniapp/reels` tartibida — eng ko'p ko'rilgani tepada, `best: true`; `bestViews`; `rank` — videoning reytingdagi o'rni): holat, qo'lda tekshiruvdami, rad sababi, egasi, ko'rishlar, layklar, sanalar, nakrutka belgilari; `404` — ishtirokchi topilmadi |
 | `POST /admin/participants/:id/{block,unblock,disqualify}` | `{ reason }` — bloklash, blokdan chiqarish, diskvalifikatsiya |
 | `GET /admin/reels` | Barcha videolar (har bir ishtirokchining hammasi): holat, egasi, ko'rishlar tarixi, nakrutka belgilari |
 | `GET /admin/stats` | Yig'ish jadvali, oxirgi natija, holatlar bo'yicha soni |

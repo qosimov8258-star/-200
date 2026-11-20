@@ -32,7 +32,7 @@ import {
   type MockReel,
 } from "./contest";
 import { openManualReviewShortcodes } from "./manual-review";
-import { computeRanking, effectiveStatus } from "./ranking";
+import { computeRanking, computeVideoRanking, effectiveStatus } from "./ranking";
 import { effectiveSettings, lastSyncAt } from "./settings";
 import { auditId, readStore, writeStore, type MockStore } from "./store";
 import { activeTargetParticipants } from "./targets";
@@ -56,7 +56,10 @@ const TRANSITIONS: Record<ParticipantAction, { from: ParticipantStatus[]; to: Pa
 interface ListContext {
   store: MockStore;
   today: IsoDate;
+  /** Ishtirokchi -> o'rni: eng ko'p ko'rilgan videosining bugungi reytingdagi o'rni. */
   rankById: Map<string, number>;
+  /** Video (id) -> bugungi reytingdagi o'rni (har bir qabul qilingan video alohida qator). */
+  rankByReel: Map<string, number>;
   /** Ishtirokchi -> videolari (yuborilish tartibida). */
   reelsByParticipant: Map<string, MockReel[]>;
   targetParticipants: Set<string>;
@@ -78,6 +81,7 @@ function buildContext(store: MockStore): ListContext {
     rankById: new Map(
       computeRanking(data.today, store).map((entry) => [entry.participantId, entry.rank]),
     ),
+    rankByReel: new Map(computeVideoRanking(data.today, store).map((entry) => [entry.reelId, entry.rank])),
     reelsByParticipant,
     // Ro'yxatdan chiqarilgan (yolg'on signal deb topilgan) targetlar hisobga olinmaydi.
     targetParticipants: activeTargetParticipants(store),
@@ -92,8 +96,8 @@ function reelState(reel: MockReel, context: ListContext): { status: ReelStatus; 
 }
 
 /**
- * Reytingda hisoblanadigan video: qabul qilinganlar ichida eng ko'p ko'rilgani, teng bo'lsa —
- * oldinroq yuborilgani (backend bilan bir xil). Qabul qilingan video yo'q — null.
+ * Ishtirokchining eng ko'p ko'rilgan qabul qilingan videosi (teng bo'lsa — oldinroq yuborilgani,
+ * backend bilan bir xil) — uning natijasi va o'rni shu bo'yicha. Qabul qilingan video yo'q — null.
  */
 function bestReel(reels: MockReel[], context: ListContext): MockReel | null {
   let best: MockReel | null = null;
@@ -120,7 +124,7 @@ interface ReelSummary {
   counts: ParticipantReelCounts;
   /** Har bir videoning holati — Reel filtri uchun. */
   statuses: ReelStatus[];
-  /** Reytingda hisoblanadigan (eng ko'p ko'rilgan qabul qilingan) video; yo'q — null. */
+  /** Eng ko'p ko'rilgan qabul qilingan video (ishtirokchi o'rni shu bo'yicha); yo'q — null. */
   best: MockReel | null;
   /** Shu videoning ko'rishlari (videolar ko'rishlari qo'shilmaydi); yo'q — 0. */
   views: number;
@@ -208,6 +212,8 @@ function toAdminReel(reel: MockReel, context: ListContext, syncTime: string, bes
     rejectReason: status === "REJECTED" ? reel.rejectReason : null,
     owner: reel.owner,
     views,
+    // Reytingda faqat qabul qilingan videolar bor; har biri o'z o'rnida.
+    rank: status === "ACCEPTED" ? (context.rankByReel.get(reel.id) ?? null) : null,
     likes: snapshotDay ? Math.round(views * reel.likeRate) : null,
     submittedAt: reel.submittedAt,
     // Joylangan vaqt Instagram videoni topgandagina ma'lum bo'ladi (akkaunt bilan birga).
@@ -220,7 +226,7 @@ function toAdminReel(reel: MockReel, context: ListContext, syncTime: string, bes
 
 /**
  * "Videolar" oynasidagi tartib (backend bilan bir xil): qabul qilinganlar ko'rishlar kamayishi
- * bo'yicha (birinchisi — reytingdagi video), keyin tekshiruvdagilar, keyin rad etilgan va
+ * bo'yicha (birinchisi — eng ko'p ko'rilgani, `best`), keyin tekshiruvdagilar, keyin rad etilgan va
  * o'chirilganlar; oxirgi ikkalasida eng yangisi birinchi.
  */
 function compareForDisplay(a: MockReel, b: MockReel, context: ListContext): number {
