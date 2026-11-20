@@ -40,6 +40,7 @@ import type {
   IsoDate,
   ManualReviewItem,
   ParticipantStatus,
+  ReelStatus,
   TargetCaseListItem,
   TargetCaseListQuery,
   TargetCaseListResponse,
@@ -294,6 +295,16 @@ function latestViews(reel: MockReel): number {
   return latest;
 }
 
+function groupReels(reels: readonly MockReel[]): Map<string, MockReel[]> {
+  const grouped = new Map<string, MockReel[]>();
+  for (const reel of reels) {
+    const list = grouped.get(reel.participantId);
+    if (list) list.push(reel);
+    else grouped.set(reel.participantId, [reel]);
+  }
+  return grouped;
+}
+
 // ---------------------------------------------------------------------------
 // Kontekst: admin mock + ega o'zgartirishlari
 // ---------------------------------------------------------------------------
@@ -312,7 +323,8 @@ interface Context {
   people: Person[];
   byId: Map<string, Person>;
   bySource: Map<string, Person>;
-  reelBySource: Map<string, MockReel>;
+  /** Ishtirokchining barcha videolari (yuborilgan tartibda) — `sourceId` bo'yicha. */
+  reelsBySource: Map<string, MockReel[]>;
   rankBySource: Map<string, number>;
   /** Ochiq qo'lda tekshiruvlar (ishtirokchi `sourceId` bo'yicha). */
   openReviews: Map<string, ManualReviewItem>;
@@ -368,7 +380,7 @@ function buildContext(owner: OwnerStore = readOwnerStore()): Context {
     bySource: new Map(
       people.flatMap((person): Array<[string, Person]> => (person.sourceId ? [[person.sourceId, person]] : [])),
     ),
-    reelBySource: new Map(data.reels.map((reel) => [reel.participantId, reel])),
+    reelsBySource: groupReels(data.reels),
     rankBySource: new Map(computeRanking(data.today, virtual).map((entry) => [entry.participantId, entry.rank])),
     openReviews,
     risk: new Map(),
@@ -453,7 +465,7 @@ function videoSignals(): VideoSignals {
     clampDay(addDays(today, -(1 + (hashString(`${reel.id}:${salt}`) % 6))), reel);
 
   const accepted = data.reels.filter((reel) => reel.reviewOutcome === "ACCEPTED" && reel.growthByDay.size >= 5);
-  const candidates = accepted.map((reel) => reel.participantId).sort();
+  const candidates = [...new Set(accepted.map((reel) => reel.participantId))].sort();
   const random = createRandom(RISK_SEED);
   const pickSet = (count: number): Set<string> => {
     const picked = new Set<string>();
@@ -470,7 +482,16 @@ function videoSignals(): VideoSignals {
   const firstGap = [...gapSet][0];
   if (firstGap) lowSet.add(firstGap);
 
+  // Ishtirokchining bir nechta videosi bo'lishi mumkin: har bir belgi turi bir marta, eng
+  // oxirgi kuni bilan (backend: `owner/risk.ts`).
   const signals = new Map<string, RiskSignal[]>();
+  const mergeSignal = (participantId: string, signal: RiskSignal) => {
+    const list = signals.get(participantId) ?? [];
+    const index = list.findIndex((item) => item.kind === signal.kind);
+    if (index === -1) list.push(signal);
+    else if ((signal.at ?? "") > (list[index]?.at ?? "")) list[index] = signal;
+    signals.set(participantId, list);
+  };
   for (const reel of accepted) {
     const list: RiskSignal[] = [];
     const spike = findSpike(reel);
@@ -513,7 +534,7 @@ function videoSignals(): VideoSignals {
         points: SIGNAL_POINTS.VIEW_DROP,
       });
     }
-    if (list.length > 0) signals.set(reel.participantId, list);
+    for (const signal of list) mergeSignal(reel.participantId, signal);
   }
 
   // Shikoyatlar: target bo'limidagi skrinshotlar + bir nechta qo'shimcha.
@@ -585,12 +606,16 @@ function riskSignals(person: Person, context: Context): RiskSignal[] {
     });
   }
 
-  const reel = context.reelBySource.get(sourceId);
-  if (reel?.removedOn) {
+  const removedOn = (context.reelsBySource.get(sourceId) ?? [])
+    .map((reel) => reel.removedOn)
+    .filter((day): day is IsoDate => day !== null && day !== undefined && day <= context.today)
+    .sort()
+    .at(-1);
+  if (removedOn) {
     signals.push({
       kind: "NOT_FOUND",
       detail: "Oxirgi tekshiruvlarda video Instagram'da topilmadi",
-      at: reel.removedOn,
+      at: removedOn,
       points: SIGNAL_POINTS.NOT_FOUND,
     });
   }
@@ -609,17 +634,44 @@ function hiddenAsSafe(review: OwnerStore["reviews"][string] | undefined, signals
 // Javob elementlari
 // ---------------------------------------------------------------------------
 
+interface PersonReel {
+  reel: MockReel;
+  status: ReelStatus;
+}
+
+/** Bugungi kunda yuborilgan videolar va ularning holati. */
+function personReels(person: Person, context: Context): PersonReel[] {
+  if (!person.sourceId) return [];
+  return (context.reelsBySource.get(person.sourceId) ?? []).flatMap((reel) => {
+    const status = reelStatusOn(reel, context.today);
+    return status ? [{ reel, status }] : [];
+  });
+}
+
+const isLive = ({ status }: PersonReel) => status !== "REJECTED" && status !== "REMOVED";
+
+/**
+ * Asosiy video (backend: `owner.service.ts` → `mainReel`): eng ko'p ko'rishli qabul qilingani,
+ * bo'lmasa — oxirgi tirik video, u ham bo'lmasa — oxirgisi.
+ */
+function mainReel(reels: PersonReel[]): PersonReel | null {
+  const accepted = reels.filter((item) => item.status === "ACCEPTED");
+  if (accepted.length > 0) {
+    return accepted.reduce((best, item) => (latestViews(item.reel) > latestViews(best.reel) ? item : best));
+  }
+  return reels.filter(isLive).at(-1) ?? reels.at(-1) ?? null;
+}
+
 function ownerReel(person: Person, context: Context): OwnerParticipant["reel"] {
-  if (!person.sourceId) return null;
-  const reel = context.reelBySource.get(person.sourceId);
-  const status = reel ? reelStatusOn(reel, context.today) : null;
-  if (!reel || !status) return null;
-  const reelStatus: OwnerReelStatus = context.openReviews.has(person.sourceId)
-    ? "MANUAL_REVIEW"
-    : status === "REMOVED"
-      ? "REJECTED"
-      : status;
-  return { url: reel.url, status: reelStatus, submittedAt: eventTime(reel.submittedOn, reel.id) };
+  const main = mainReel(personReels(person, context));
+  if (!main || !person.sourceId) return null;
+  const reelStatus: OwnerReelStatus =
+    context.openReviews.has(person.sourceId) && main.status !== "ACCEPTED"
+      ? "MANUAL_REVIEW"
+      : main.status === "REMOVED"
+        ? "REJECTED"
+        : main.status;
+  return { url: main.reel.url, status: reelStatus, submittedAt: eventTime(main.reel.submittedOn, main.reel.id) };
 }
 
 function openTargetCount(person: Person, context: Context): number {
@@ -636,9 +688,11 @@ function participantTab(person: Person): OwnerParticipantFilter {
   return person.firstName === null ? "INCOMPLETE" : person.status;
 }
 
+/** Qabul qilingan videolar ko'rishlari yig'indisi — reyting va admin ro'yxati bilan bir xil. */
 function personViews(person: Person, context: Context): number {
-  const reel = person.sourceId ? context.reelBySource.get(person.sourceId) : undefined;
-  return reel ? latestViews(reel) : 0;
+  return personReels(person, context)
+    .filter((item) => item.status === "ACCEPTED")
+    .reduce((sum, item) => sum + latestViews(item.reel), 0);
 }
 
 function toOwnerParticipant(person: Person, context: Context): OwnerParticipant {
@@ -654,8 +708,7 @@ function toOwnerParticipant(person: Person, context: Context): OwnerParticipant 
     registeredAt: person.registeredAt,
     instagramUsername: person.instagramUsername,
     reel: ownerReel(person, context),
-    // Mock'da ega bo'limi har bir ishtirokchining asosiy videosini ko'radi.
-    reelCount: ownerReel(person, context) ? 1 : 0,
+    reelCount: personReels(person, context).filter(isLive).length,
     views: personViews(person, context),
     rank: person.sourceId ? (context.rankBySource.get(person.sourceId) ?? null) : null,
     openTargetCases: openTargetCount(person, context),
