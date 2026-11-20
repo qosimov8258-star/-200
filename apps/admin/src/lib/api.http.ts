@@ -5,7 +5,7 @@
  *   (kontrakt — har bir funksiyaning JSDoc idagi `@endpoint`); qaysi biri ishlatilishini
  *   `./api.ts` tanlaydi. Komponentlar faqat `@/lib/api` dan import qiladi.
  * - So'rovlar shu domen ichida nisbiy yo'l bilan ketadi (`/api/v1/...`): prod'da admin panel
- *   va API bitta nginx ortida (`https://konkurs.mezon.site/admin/` va `/api/v1`), lokal
+ *   va API bitta nginx ortida (`https://konkurs-olivia.uz/admin/` va `/api/v1`), lokal
  *   dev'da esa Next.js `rewrites` backendga uzatadi (`next.config.ts`).
  * - Sessiya — backend qo'yadigan `HttpOnly` cookie. JavaScript uni ko'rmaydi va saqlamaydi;
  *   brauzer uni `credentials: "same-origin"` bilan o'zi yuboradi.
