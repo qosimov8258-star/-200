@@ -30,6 +30,9 @@ export function buildDailyRating(query: DailyRatingQuery): DailyRatingResponse {
   const previousRankById = new Map(
     previousRanking.map((entry) => [entry.participantId, entry.rank]),
   );
+  const previousViewsById = new Map(
+    previousRanking.map((entry) => [entry.participantId, entry.views]),
+  );
 
   const participantsById = new Map(data.participants.map((item) => [item.id, item]));
   const reelsById = new Map(data.reels.map((reel) => [reel.id, reel]));
@@ -39,11 +42,9 @@ export function buildDailyRating(query: DailyRatingQuery): DailyRatingResponse {
   const entries: RatingEntry[] = ranking.map((entry) => {
     const participant = participantsById.get(entry.participantId);
     const topReel = reelsById.get(entry.topReelId);
-    // O'sish — shu kuni hisobga olingan barcha videolar bo'yicha.
-    const viewsGrowth = entry.reelIds.reduce(
-      (sum, reelId) => sum + (reelsById.get(reelId)?.growthByDay.get(date) ?? 0),
-      0,
-    );
+    // O'sish — natijaning o'zgarishi: shu kungi eng ko'p ko'rilgan video ko'rishlari minus oldingi
+    // kungisi (oldingi kun boshqa video eng ko'p ko'rilgan bo'lishi mumkin; reytingda yo'q — 0).
+    const viewsGrowth = entry.views - (previousViewsById.get(entry.participantId) ?? 0);
     return {
       rank: entry.rank,
       participantId: entry.participantId,

@@ -13,7 +13,6 @@ import { addDays, contestDay, daysBetween, tashkentAt } from "../common/time";
 import { ReelStatsProvider, type ReelStats } from "../instagram/reel-stats";
 import {
   acceptedReels,
-  firstSubmittedAt,
   participantViews,
   ParticipantsService,
   type ManualReview,
@@ -21,6 +20,7 @@ import {
   type Reel,
   type ReelFlagType,
   type ReelRejectReason,
+  topReel,
 } from "../participants/participants.service";
 import { StateStore } from "../persistence/state-store";
 import { ParticipantNotifier, type TelegramMessageKind } from "../telegram/notifier";
@@ -87,7 +87,7 @@ export interface RankedEntry {
   /** Reytingga kirgan (ACCEPTED) videolari — yuborilish tartibida, kamida bittasi. */
   reels: Reel[];
   rank: number;
-  /** Qabul qilingan videolar oxirgi ko'rishlari yig'indisi. */
+  /** Eng ko'p ko'rilgan qabul qilingan videosining oxirgi ko'rishlari (videolar qo'shilmaydi). */
   views: number;
   /** Oldingi yig'ishdagi o'ringa nisbatan: musbat — ko'tarilgan. */
   rankDelta: number;
@@ -135,7 +135,8 @@ export const FLAG_RULES = {
  * - Yangi video: bir necha soniyada (navbat bilan, bitta so'rovda) tekshiriladi — topildimi,
  *   Reel'mi, egasi boshqa ishtirokchida emasmi. Natija bot orqali xabar qilinadi.
  * - Ko'rishlar: har `everyDays` kunda soat `syncTime` da (Toshkent) rad etilmagan hamma videolar uchun.
- * - Reyting: ishtirokchining qabul qilingan videolari ko'rishlari yig'indisi bo'yicha.
+ * - Reyting: ishtirokchining eng ko'p ko'rilgan bitta qabul qilingan videosi bo'yicha (ko'rishlar
+ *   qo'shilmaydi).
  * - Apify videoni ketma-ket 3 marta topa olmasa (yangi yoki avval qabul qilingan) — ishtirokchiga
  *   xabar beriladi va video admin paneldagi "Qo'lda tekshiruv" bo'limiga o'tadi; admin linkni
  *   ochib tasdiqlaydi yoki rad etadi. Avtomatik "topilmadi" rad etish yo'q.
@@ -669,14 +670,15 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
 
   /**
    * Reyting: kamida bitta qabul qilingan videosi bor faol (bloklanmagan, chetlatilmagan)
-   * ishtirokchilar; ko'rishlar — qabul qilingan videolar oxirgi ko'rishlari yig'indisi.
-   * Teng ko'rishda — birinchi qabul qilingan videosini oldinroq yuborgan yuqorida.
+   * ishtirokchilar; ko'rishlar — eng ko'p ko'rilgan qabul qilingan videosining oxirgi ko'rishlari
+   * (videolar ko'rishlari qo'shilmaydi). Teng ko'rishda — shu videoni oldinroq yuborgan yuqorida.
    */
   ranking(): RankedEntry[] {
     const rows = this.participants.all().flatMap((p) => {
       const reels = acceptedReels(p);
-      return reels.length > 0 && p.status === "ACTIVE" && p.firstName
-        ? [{ participant: p, reels, views: participantViews(p), since: firstSubmittedAt(reels) }]
+      const best = topReel(reels);
+      return best && p.status === "ACTIVE" && p.firstName
+        ? [{ participant: p, reels, views: participantViews(p), since: best.submittedAt.getTime() }]
         : [];
     });
     rows.sort((a, b) => b.views - a.views || a.since - b.since || a.participant.telegramId - b.participant.telegramId);

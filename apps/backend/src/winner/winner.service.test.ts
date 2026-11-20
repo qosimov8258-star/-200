@@ -219,7 +219,7 @@ test("after the end the first place is the candidate; automatic checks see targe
   assert.match(check?.detail ?? "", /topilmadi \(1 marta/);
 });
 
-test("several Reels: the candidate's views are the sum; any lost or flagged live Reel fails its check", async () => {
+test("several Reels: the candidate's views are the most viewed Reel's; any lost or flagged live Reel fails its check", async () => {
   const { winner, participants, provider, stats, finish } = await setup();
   await finish();
   participants.submitReel(1, "https://www.instagram.com/reel/EXTRA1/", "EXTRA1");
@@ -234,7 +234,8 @@ test("several Reels: the candidate's views are the sum; any lost or flagged live
 
   const checksOf = () => new Map(winner.overview().candidate?.checks.map((c) => [c.key, c]));
   let o = winner.overview();
-  assert.equal(o.candidate?.views, 80_000);
+  // Ko'rishlar qo'shilmaydi: 30 000 + 50 000 emas, eng ko'p ko'rilgani — 50 000.
+  assert.equal(o.candidate?.views, 50_000);
   assert.equal(o.candidate?.reelUrl, "https://www.instagram.com/reel/EXTRA1/");
   assert.equal(o.candidate?.participant.instagramUsername, "user1.b");
   assert.equal(checksOf().get("REEL_AVAILABLE")?.status, "PASSED");
@@ -247,7 +248,7 @@ test("several Reels: the candidate's views are the sum; any lost or flagged live
   assert.match(checksOf().get("NO_FAKE_VIEWS")?.detail ?? "", /^CODE1x: /);
   first.flags.length = 0;
 
-  // Ikkinchi video Instagram'da yo'qoldi (qo'lda tekshiruvda) — ko'rishlardan chiqadi va band o'tmaydi.
+  // Boshqa video Instagram'da yo'qoldi (qo'lda tekshiruvda) — band o'tmaydi; natija eng ko'p ko'rilganniki.
   first.status = "MANUAL_REVIEW";
   first.review = { kind: "LOST_REEL", requestedAt: new Date(), attempts: 3, decision: null };
   o = winner.overview();

@@ -173,7 +173,7 @@ function buildPool(settings: DrawSettings, store: MockStore, exceptDrawId?: stri
   const eligible: DrawCandidate[] = [];
 
   // Ishtirokchi bo'yicha guruhlaymiz: nomzod ko'rishlari — davrga tushgan qabul qilingan
-  // videolari ko'rishlari yig'indisi (Aksiya qoidalari 7.2).
+  // videolari ichida eng ko'p ko'rilgan bittasiniki (Aksiya qoidalari 7.2; ko'rishlar qo'shilmaydi).
   const reelsByParticipant = new Map<string, MockReel[]>();
   for (const reel of data.reels) {
     const list = reelsByParticipant.get(reel.participantId);
@@ -200,7 +200,13 @@ function buildPool(settings: DrawSettings, store: MockStore, exceptDrawId?: stri
       exclude("OUT_OF_PERIOD");
       continue;
     }
-    const views = inPeriod.reduce((sum, reel) => sum + viewsOn(reel, viewsAsOf), 0);
+    // Davrdagi eng ko'p ko'rilgan video: havola, sanalar va ko'rishlar chegarasi — shuniki.
+    // Teng bo'lsa — oldinroq yuborilgani.
+    const top = inPeriod.reduce((best, reel) => {
+      const diff = viewsOn(reel, viewsAsOf) - viewsOn(best, viewsAsOf);
+      return diff > 0 || (diff === 0 && reel.submittedAt < best.submittedAt) ? reel : best;
+    });
+    const views = viewsOn(top, viewsAsOf);
     if (views < settings.minViews) {
       exclude("VIEWS_LOW");
       continue;
@@ -226,10 +232,6 @@ function buildPool(settings: DrawSettings, store: MockStore, exceptDrawId?: stri
       exclude("PREVIOUS_WINNER");
       continue;
     }
-    // Havola va sanalar — davrdagi eng ko'p ko'rishli videoniki.
-    const top = inPeriod.reduce((best, reel) =>
-      viewsOn(reel, viewsAsOf) > viewsOn(best, viewsAsOf) ? reel : best,
-    );
     eligible.push({
       participantId: participant.id,
       firstName: participant.firstName,

@@ -440,7 +440,7 @@ test("refreshing selected reels updates only them, leaves the schedule alone and
   assert.equal(s.stats.lastRefreshReport, report);
 });
 
-test("every Reel of a participant is verified on its own; views add up in the rating", async () => {
+test("every Reel of a participant is verified on its own; the most viewed one counts in the rating", async () => {
   const { provider, stats, sent, join, submit, reelOf, setNow } = setup();
   provider.set("AAAAA1", { owner: "ali", views: 1_000 });
   provider.set("PHOTO2", { owner: "ali", isVideo: false });
@@ -458,7 +458,8 @@ test("every Reel of a participant is verified on its own; views add up in the ra
   assert.equal(reelOf(1, "BBBBB3")?.status, "ACCEPTED", "o'zining ikkinchi akkaunti — OWNER_TAKEN emas");
   assert.equal(reelOf(1, "GONE04")?.status, "PENDING");
   assert.equal(reelOf(1, "GONE04")?.misses, 1);
-  assert.deepEqual(stats.ranking().map((e) => [e.participant.telegramId, e.views, e.reels.length]), [[1, 5_000, 2]]);
+  // Ko'rishlar qo'shilmaydi: 1 000 + 4 000 emas, eng ko'p ko'rilgani — 4 000.
+  assert.deepEqual(stats.ranking().map((e) => [e.participant.telegramId, e.views, e.reels.length]), [[1, 4_000, 2]]);
   // Har bir natija — alohida xabar, qaysi video ekani bilan.
   assert.equal(sent.length, 3);
   assert.ok(sent.some((m) => m.text.includes("/reel/PHOTO2/") && /Reel \(video\) emas/.test(m.text)));
@@ -478,26 +479,30 @@ test("every Reel of a participant is verified on its own; views add up in the ra
   assert.equal(report.total, 3);
   assert.deepEqual(provider.requests.at(-1)?.slice().sort(), ["AAAAA1", "BBBBB3", "GONE04"]);
   assert.equal(reelOf(1, "GONE04")?.status, "ACCEPTED");
-  assert.equal(stats.ranking()[0]?.views, 17_500);
+  assert.equal(stats.ranking()[0]?.views, 10_000);
 });
 
-test("ranking: sums decide, ties go to the earlier first accepted submission, rank delta compares sums", async () => {
-  const { provider, stats, join, submit, setNow } = setup();
+test("ranking: the most viewed Reel decides (no summing); ties go to the one whose best Reel came first", async () => {
+  const { provider, stats, join, submit, reelOf, setNow } = setup();
+  provider.set("TWO001", { owner: "b", views: 1_000 });
   provider.set("ONE001", { owner: "a", views: 6_000 });
-  provider.set("TWO001", { owner: "b", views: 4_000 });
-  provider.set("TWO002", { owner: "b", views: 2_000 });
-  join(1, "ONE001");
+  provider.set("TWO002", { owner: "b", views: 6_000 });
   join(2, "TWO001");
+  join(1, "ONE001");
   submit(2, "TWO002");
   await stats.flushVerification();
-  // 6 000 = 4 000 + 2 000 — teng: 1-ishtirokchi birinchi videosini oldinroq yuborgan.
+  // 2-ishtirokchi birinchi videosini oldinroq yuborgan, lekin tenglikni eng ko'p ko'rilgan video hal qiladi.
+  reelOf(2, "TWO001")!.submittedAt = tashkent("2026-11-25 10:00");
+  reelOf(1, "ONE001")!.submittedAt = tashkent("2026-11-26 10:00");
+  reelOf(2, "TWO002")!.submittedAt = tashkent("2026-11-27 10:00");
   assert.deepEqual(stats.ranking().map((e) => [e.participant.telegramId, e.rank, e.views]), [
     [1, 1, 6_000],
     [2, 2, 6_000],
   ]);
 
   setNow("2026-12-02 06:01");
-  provider.set("TWO002", { owner: "b", views: 2_500 });
+  provider.set("TWO001", { owner: "b", views: 5_000 }); // 5 000 + 6 500 qo'shilmaydi
+  provider.set("TWO002", { owner: "b", views: 6_500 });
   await stats.syncAll("schedule");
   assert.deepEqual(stats.ranking().map((e) => [e.participant.telegramId, e.rank, e.views, e.rankDelta]), [
     [2, 1, 6_500, 1],
@@ -505,14 +510,14 @@ test("ranking: sums decide, ties go to the earlier first accepted submission, ra
   ]);
 });
 
-test("a lost Reel leaves the sum and goes to manual review on its own; the others stay", async () => {
+test("a lost best Reel leaves the rating and goes to manual review on its own; the next most viewed counts", async () => {
   const { provider, stats, join, submit, reelOf, setNow } = setup();
   provider.set("KEEP01", { owner: "a", views: 1_000 });
   provider.set("LOST02", { owner: "a", views: 9_000 });
   join(1, "KEEP01");
   submit(1, "LOST02");
   await stats.flushVerification();
-  assert.equal(stats.ranking()[0]?.views, 10_000);
+  assert.equal(stats.ranking()[0]?.views, 9_000);
 
   provider.set("LOST02", null);
   setNow("2026-12-02 06:01");

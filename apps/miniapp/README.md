@@ -37,11 +37,21 @@ yuboradi, Mini App esa holat o'zgarguncha `GET /me` ni qayta so'raydi.
 ## Videolar ("Videom")
 
 Ishtirokchi **xohlagancha** Reel linki yuboradi (`GET`/`POST /miniapp/reels`). Har bir video
-alohida tekshiriladi va ko'rishlari alohida yig'iladi; reyting, o'rin va asosiy sovrinlar uchun
-**qabul qilingan** videolar ko'rishlari qo'shiladi. Ekranda: umumiy natija (jami ko'rishlar,
-o'rin va uning o'zgarishi, kunlik o'sish grafigi — barcha qabul qilingan videolar bo'yicha),
-har doim ko'rinadigan "Yangi video qo'shing" maydoni va barcha videolar ro'yxati (yangisi
-tepada: holati, rad etilgan bo'lsa — sababi, ko'rishlari, Instagram'da ochiladigan link).
+alohida tekshiriladi va ko'rishlari alohida yig'iladi. Reyting, o'rin va asosiy sovrinlar uchun
+ishtirokchining **eng ko'p ko'rilgan bitta qabul qilingan** videosi hisoblanadi — videolar
+ko'rishlari **qo'shilmaydi** (`MyReels.bestViews`; bunday video yo'q bo'lsa — 0). Ikki video
+teng bo'lsa, oldinroq yuborilgani hisoblanadi.
+
+Ekranda: natija (eng ko'p ko'rilgan video ko'rishlari, o'rin va uning o'zgarishi, oxirgi o'sish
+va kunlik o'sish grafigi — shu video bo'yicha), har doim ko'rinadigan "Yangi video qo'shing"
+maydoni va barcha videolar ro'yxati (holati, rad etilgan bo'lsa — sababi, ko'rishlari,
+Instagram'da ochiladigan link). Ro'yxat tartibi serverdan keladi:
+
+1. qabul qilinganlar — ko'rishlar bo'yicha kamayib (teng bo'lsa — oldinroq yuborilgani);
+   birinchisi reytingda hisoblanadi (`best: true`) va "Reytingda hisoblanadi" belgisi bilan ajratiladi;
+2. hali hal qilinmaganlar (tekshirilmoqda, qo'lda tekshirilmoqda) — yangisi tepada;
+3. rad etilganlar — yangisi tepada.
+
 Biror video tekshiruvda bo'lsa, ro'yxat har 5 soniyada (qo'lda tekshiruvda — har daqiqada)
 qayta so'raladi.
 

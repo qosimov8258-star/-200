@@ -105,8 +105,9 @@ export const getRating = (): Promise<RatingEntry[]> =>
   IS_MOCK_API ? mock.getRating() : request("GET", "/miniapp/rating");
 
 /**
- * @endpoint GET /miniapp/reels — o'z videolari (yangisidan eskisiga) va umumiy statistika;
- * video yo'q bo'lsa ham obyekt (`reels: []`).
+ * @endpoint GET /miniapp/reels — o'z videolari (eng ko'p ko'rilgan qabul qilingani tepada —
+ * tartib `MyReels.reels` izohida) va natija: eng ko'p ko'rilgan bitta video bo'yicha
+ * (`bestViews`, videolar ko'rishlari qo'shilmaydi); video yo'q bo'lsa ham obyekt (`reels: []`).
  */
 export const getMyReels = (): Promise<MyReels> =>
   IS_MOCK_API ? mock.getMyReels() : request("GET", "/miniapp/reels");

@@ -57,7 +57,7 @@ export const contestPrizes: ContestPrizes = {
     "Voucherlardan tashqari bitta asosiy sovrinni ham yutishingiz mumkin",
     "Bitta ishtirokchiga faqat bitta asosiy sovrin beriladi",
     "Oylik sovrin uchun faqat shu oyda yuklangan Reellar hisoblanadi",
-    "Asosiy sovrin uchun aksiya davomidagi barcha tasdiqlangan Reellaringiz ko'rishlari qo'shiladi",
+    "Asosiy sovrin uchun aksiya davomidagi eng ko'p ko'rilgan bitta tasdiqlangan Reelingiz hisoblanadi (videolar ko'rishlari qo'shilmaydi)",
     "Sovrinlar pulga almashtirilmaydi va boshqa odamga berilmaydi",
   ],
 };

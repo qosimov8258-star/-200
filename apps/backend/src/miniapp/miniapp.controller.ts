@@ -6,7 +6,9 @@ import { ApiException } from "../common/api-exception";
 import {
   maskPhone,
   ParticipantsService,
+  reelsForDisplay,
   reelViews,
+  topReel,
   type Reel,
   type ReelRejectReason,
   type ReelStatus,
@@ -27,19 +29,25 @@ const DAILY_DAYS = 30;
 
 /** "Mening videolarim" (`apps/miniapp/src/lib/types.ts` → MyReels). */
 export interface MyReels {
-  /** Qabul qilingan videolar oxirgi ko'rishlari yig'indisi. */
-  totalViews: number;
-  /** Oxirgi kundagi o'sish (barcha qabul qilinganlar bo'yicha). */
+  /**
+   * Eng ko'p ko'rilgan qabul qilingan videoning oxirgi ko'rishlari — reytingdagi natija
+   * (videolar ko'rishlari qo'shilmaydi). Qabul qilingan video yo'q — 0.
+   */
+  bestViews: number;
+  /** Shu videoning oxirgi kundagi o'sishi. */
   todayViews: number;
   rank: number | null;
   rankDelta: number;
-  /** Qabul qilingan videolarning kunlik o'sishi yig'indisi — eskidan yangiga, oxirgi `DAILY_DAYS` kun. */
+  /** Shu videoning kunlik o'sishi — eskidan yangiga, oxirgi `DAILY_DAYS` kun. */
   daily: { date: string; views: number }[];
   /** Videolar ichida eng oxirgi yig'ish vaqti (ISO). */
   lastSyncedAt: string | null;
   nextSyncAt: string | null;
   syncEveryDays: number;
-  /** Eng yangisi birinchi. */
+  /**
+   * Tartib (`reelsForDisplay`): qabul qilinganlar ko'rishlar kamayishi bo'yicha (birinchisi —
+   * reytingdagi video), keyin tekshiruvdagilar, keyin rad etilganlar (ikkalasida yangisi birinchi).
+   */
   reels: MyReelItem[];
 }
 
@@ -51,6 +59,8 @@ export interface MyReelItem {
   /** Shu videoning oxirgi ko'rishlari (hali yig'ilmagan — 0). */
   views: number;
   submittedAt: string;
+  /** Reytingda hisoblanadigan video (eng ko'p ko'rilgan qabul qilingani) — faqat bittasida true. */
+  best: boolean;
 }
 /** Support: shu vaqt ichida ko'pi bilan shuncha xabar (spamdan himoya). */
 const SUPPORT_WINDOW_MS = 10 * 60 * 1000;
@@ -142,22 +152,23 @@ export class MiniappController {
   }
 
   /**
-   * Ishtirokchining barcha videolari va jami statistikasi. Video bo'lmasa ham obyekt qaytadi
-   * (`reels: []`). Ko'rishlar, kunlik o'sish va o'rin — faqat qabul qilingan videolar bo'yicha.
+   * Ishtirokchining barcha videolari va natijasi. Video bo'lmasa ham obyekt qaytadi (`reels: []`).
+   * Ko'rishlar, kunlik o'sish va o'rin — eng ko'p ko'rilgan qabul qilingan video bo'yicha
+   * (videolar ko'rishlari qo'shilmaydi).
    */
   @Get("reels")
   reels(@TgUser() user: TelegramIdentity): MyReels {
     const p = this.participants.get(user.telegramId);
     const reels = p?.reels ?? [];
-    const accepted = reels.filter((r) => r.status === "ACCEPTED");
+    const best = topReel(reels.filter((r) => r.status === "ACCEPTED"));
     const entry = p ? (this.stats.ranking().find((e) => e.participant === p) ?? null) : null;
-    const daily = summedDailyGrowth(accepted);
+    const daily = best ? dailyGrowth(best) : [];
     const lastSyncedAt = reels.reduce<Date | null>((latest, r) => {
       const at = r.history.at(-1)?.at ?? null;
       return at !== null && (latest === null || at > latest) ? at : latest;
     }, null);
     return {
-      totalViews: accepted.reduce((sum, r) => sum + reelViews(r), 0),
+      bestViews: best ? reelViews(best) : 0,
       todayViews: daily.at(-1)?.views ?? 0,
       rank: entry?.rank ?? null,
       rankDelta: entry?.rankDelta ?? 0,
@@ -166,7 +177,7 @@ export class MiniappController {
       /** Keyingi rejadagi yangilanish (har `syncEveryDays` kunda); bo'lmasa — null. */
       nextSyncAt: this.stats.nextSyncAt()?.toISOString() ?? null,
       syncEveryDays: this.stats.syncEveryDays,
-      reels: [...reels].reverse().map(
+      reels: reelsForDisplay(reels).map(
         (r): MyReelItem => ({
           url: r.url,
           shortcode: r.shortcode,
@@ -174,6 +185,7 @@ export class MiniappController {
           rejectReason: r.status === "REJECTED" ? r.rejectReason : null,
           views: reelViews(r),
           submittedAt: r.submittedAt.toISOString(),
+          best: r === best,
         }),
       ),
     };
@@ -260,17 +272,10 @@ export class MiniappController {
 }
 
 /**
- * Kunlik o'sish: har bir video uchun kun oxiridagi jami − oldingi yozuv (birinchi yozuv o'sish
- * emas), so'ng sanalar bo'yicha qo'shiladi. Kamayish 0 deb ko'rsatiladi (ishtirokchiga; admin
- * VIEW_DROP belgisini ko'radi). Eskidan yangiga.
+ * Bitta videoning kunlik o'sishi: kun oxiridagi ko'rishlar − oldingi yozuv (birinchi yozuv o'sish
+ * emas). Kamayish 0 deb ko'rsatiladi (ishtirokchiga; admin VIEW_DROP belgisini ko'radi). Eskidan yangiga.
  */
-export function summedDailyGrowth(reels: readonly Reel[]): { date: string; views: number }[] {
-  const byDate = new Map<string, number>();
-  for (const { history: h } of reels) {
-    for (let i = 1; i < h.length; i++) {
-      const growth = Math.max(0, h[i].views - h[i - 1].views);
-      byDate.set(h[i].date, (byDate.get(h[i].date) ?? 0) + growth);
-    }
-  }
-  return [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, views]) => ({ date, views }));
+export function dailyGrowth(reel: Pick<Reel, "history">): { date: string; views: number }[] {
+  const h = reel.history;
+  return h.slice(1).map((s, i) => ({ date: s.date, views: Math.max(0, s.views - h[i].views) }));
 }

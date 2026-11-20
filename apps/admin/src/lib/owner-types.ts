@@ -77,7 +77,10 @@ export interface OwnerParticipant {
   reel: { url: string; status: OwnerReelStatus; submittedAt: string } | null;
   /** Rad etilmagan videolar soni (cheksiz video). */
   reelCount: number;
-  /** Oxirgi yig'ilgan ko'rishlar. */
+  /**
+   * Eng ko'p ko'rilgan qabul qilingan videosining oxirgi yig'ilgan ko'rishlari (videolar ko'rishlari
+   * qo'shilmaydi); qabul qilingan video yo'q — 0.
+   */
   views: number;
   /** Joriy reytingdagi o'rni; reytingda yo'q — null. */
   rank: number | null;

@@ -268,6 +268,10 @@ export function DrawSettingsForm({ setup, value, errors, onChange, disabled = fa
                 <NumberInput value={value.maxViews} onChange={(n) => set("maxViews", n)} invalid={Boolean(errors.maxViews)} />
               </Field>
             </div>
+            <p className="text-xs text-slate-500">
+              Ishtirokchining davrdagi eng ko&apos;p ko&apos;rilgan bitta tasdiqlangan videosi hisoblanadi
+              (videolar ko&apos;rishlari qo&apos;shilmaydi).
+            </p>
           </Section>
 
           {/* G'oliblar */}

@@ -176,25 +176,27 @@ test("hasTarget counts cases detected by that day and ignores dismissed ones", (
   assert.deepEqual(flags("2026-12-04")[0], ["1", true]);
 });
 
-test("several Reels: views and growth are sums of accepted Reels; the link is the most viewed one", () => {
+test("several Reels: views and growth are the most viewed accepted Reel's (no summing); the link is that Reel", () => {
   const people = [
     person(1, [
-      reel("A1", { "2026-12-01": 1_000, "2026-12-08": 1_200 }, { submittedAt: at("2026-11-28") }),
-      // 8-dekabrda birinchi marta yig'ilgan — o'sishga to'liq qo'shiladi.
+      // Eng birinchi yuborilgan (20-noyabr), lekin eng ko'p ko'rilgani emas — tenglikni u hal qilmaydi.
+      reel("A1", { "2026-12-01": 1_000, "2026-12-08": 1_200 }, { submittedAt: at("2026-11-20") }),
+      // 8-dekabrda birinchi marta yig'ilgan va eng ko'p ko'rilganiga aylangan.
       reel("A2", { "2026-12-08": 2_000 }, { submittedAt: at("2026-12-05") }),
       reel("A3", { "2026-12-01": 50_000 }, { status: "REJECTED" }),
       reel("A4", { "2026-12-01": 40_000 }, { status: "MANUAL_REVIEW" }),
     ]),
-    // Teng ko'rish — birinchi qabul qilingan videosi oldinroq yuborilgan (26-noyabr) yuqorida.
+    // Teng ko'rish — eng ko'p ko'rilgan videosi oldinroq yuborilgan (26-noyabr < 5-dekabr) yuqorida.
     person(2, [
       reel("B1", { "2026-12-08": 1_200 }, { submittedAt: at("2026-12-07") }),
       reel("B2", { "2026-12-08": 2_000 }, { submittedAt: at("2026-11-26") }),
     ]),
   ];
   const r = buildDailyRating(base(people, { date: "2026-12-08" }));
+  // O'sish — eng ko'p ko'rilgan videoning bugungi va kechagi qiymati farqi (1-ishtirokchi: 2 000 − 1 000).
   assert.deepEqual(rows(r), [
-    ["2", 1, 3_200, 3_200, null],
-    ["1", 2, 3_200, 2_200, 1],
+    ["2", 1, 2_000, 2_000, null],
+    ["1", 2, 2_000, 1_000, 1],
   ]);
   assert.deepEqual(
     r.entries.map((e) => [e.participantId, e.reelUrl, e.instagramUsername]),

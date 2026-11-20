@@ -77,8 +77,9 @@ export function PrizesScreen({ onOpenReel, guest = false }: { onOpenReel: () => 
           <MonthlySection prizes={prizes.data} style={rise(1)} />
           <TierLadder
             tiers={prizes.data.tiers}
-            // Qabul qilingan videolar ko'rishlari yig'indisi; birorta ham video yo'q bo'lsa — null.
-            views={reels.data && reels.data.reels.length > 0 ? reels.data.totalViews : null}
+            // Eng ko'p ko'rilgan qabul qilingan video ko'rishlari (videolar qo'shilmaydi);
+            // birorta ham video yo'q bo'lsa — null.
+            views={reels.data && reels.data.reels.length > 0 ? reels.data.bestViews : null}
             loading={!guest && reels.isPending}
             onOpenReel={onOpenReel}
             style={rise(2)}
@@ -336,8 +337,8 @@ const rangeLabel = (tier: PrizeTier) =>
     : `${formatCount(tier.minViews)} – ${formatCount(tier.maxViews)} ${t.viewsWord}`;
 
 /**
- * Pastdan yuqoriga "cho'qqiga chiqish": eng pastda — ishtirokchining ko'rishlari,
- * tepada — bosh sovrin. Tugunlar orasidagi chiziq ko'rishlar soniga qarab to'ladi.
+ * Pastdan yuqoriga "cho'qqiga chiqish": eng pastda — ishtirokchining eng ko'p ko'rilgan videosi
+ * ko'rishlari, tepada — bosh sovrin. Tugunlar orasidagi chiziq ko'rishlar soniga qarab to'ladi.
  */
 function TierLadder({
   tiers,

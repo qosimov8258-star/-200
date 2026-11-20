@@ -144,7 +144,7 @@ test("the list validates query values, paginates and counts statuses", () => {
   assert.equal(controller.list(undefined, undefined, undefined, "0", "").total, 3);
 });
 
-test("GET /admin/participants/:id/reels lists every video newest first; unknown → 404 NOT_FOUND", () => {
+test("GET /admin/participants/:id/reels lists every video, the most viewed on top; unknown → 404 NOT_FOUND", () => {
   const { participants, controller } = setup();
   const first = participants.submitReel(1, "https://www.instagram.com/reel/AAAAA1/", "AAAAA1");
   first.status = "ACCEPTED";
@@ -153,19 +153,28 @@ test("GET /admin/participants/:id/reels lists every video newest first; unknown 
   const second = participants.submitReel(1, "https://www.instagram.com/reel/BBBBB2/", "BBBBB2");
   second.submittedAt = new Date(first.submittedAt.getTime() + 1_000);
   second.status = "MANUAL_REVIEW";
+  const third = participants.submitReel(1, "https://www.instagram.com/reel/CCCCC3/", "CCCCC3");
+  third.submittedAt = new Date(first.submittedAt.getTime() + 2_000);
+  third.status = "ACCEPTED";
+  third.owner = "ism1";
+  third.history.push({ date: "2026-12-01", at: new Date("2026-12-01T01:00:00Z"), views: 800, likes: 10, comments: 0 });
 
   const result = controller.reels("1");
   assert.deepEqual(result.participant, { id: "1", fullName: "Ism1 Familiya1", instagramUsernames: ["ism1"] });
-  assert.equal(result.totalViews, 1_200);
+  // Ko'rishlar qo'shilmaydi: 1 200 + 800 emas, eng ko'p ko'rilgani — 1 200.
+  assert.equal(result.bestViews, 1_200);
   assert.deepEqual(
-    result.reels.map((r) => [r.shortcode, r.status, r.manualReview, r.views, r.likes, r.lastSyncedAt]),
+    result.reels.map((r) => [r.shortcode, r.status, r.manualReview, r.views, r.likes, r.lastSyncedAt, r.best]),
     [
-      ["BBBBB2", "PENDING", true, 0, null, null],
-      ["AAAAA1", "ACCEPTED", false, 1_200, 30, "2026-12-01T01:00:00.000Z"],
+      ["AAAAA1", "ACCEPTED", false, 1_200, 30, "2026-12-01T01:00:00.000Z", true],
+      ["CCCCC3", "ACCEPTED", false, 800, 10, "2026-12-01T01:00:00.000Z", false],
+      ["BBBBB2", "PENDING", true, 0, null, null, false],
     ],
   );
   assert.deepEqual(controller.reels("2").reels, []);
-  assert.deepEqual(controller.list().items.find((i) => i.id === "1")?.reels, { total: 2, accepted: 1, pending: 1, rejected: 0 });
+  const item = controller.list().items.find((i) => i.id === "1");
+  assert.deepEqual(item?.reels, { total: 3, accepted: 2, pending: 1, rejected: 0 });
+  assert.equal(item?.views, 1_200);
 
   for (const id of ["999", "abc", "4"]) {
     try {

@@ -13,7 +13,7 @@ import type { TargetsService } from "../targets/targets.service";
 import type { TelegramIdentity } from "../telegram/init-data";
 import type { ParticipantNotifier } from "../telegram/notifier";
 import type { WinnerService } from "../winner/winner.service";
-import { MiniappController, summedDailyGrowth } from "./miniapp.controller";
+import { dailyGrowth, MiniappController } from "./miniapp.controller";
 
 /** Toshkent vaqti bo'yicha soat (UTC+5): "2026-12-01 07:00" → Date. */
 const tashkent = (s: string) => new Date(`${s.replace(" ", "T")}:00+05:00`);
@@ -72,7 +72,7 @@ test("GET /miniapp/reels always returns an object; without videos the list is em
     assert.deepEqual(
       { ...mine, nextSyncAt: null },
       {
-        totalViews: 0,
+        bestViews: 0,
         todayViews: 0,
         rank: null,
         rankDelta: 0,
@@ -86,7 +86,7 @@ test("GET /miniapp/reels always returns an object; without videos the list is em
   }
 });
 
-test("POST /miniapp/reels adds any number of videos, newest first; duplicates are refused", async () => {
+test("POST /miniapp/reels adds any number of videos; the most viewed is on top; duplicates are refused", async () => {
   const { controller, provider, stats, submit } = setup();
   provider.set("AAAAA1", { owner: "ali", views: 1_000 });
   provider.set("BBBBB2", { owner: "ali.ikki", views: 2_500 });
@@ -108,21 +108,22 @@ test("POST /miniapp/reels adds any number of videos, newest first; duplicates ar
 
   await stats.flushVerification();
   const mine = controller.reels(user(1));
-  assert.equal(mine.totalViews, 3_500);
+  // Ko'rishlar qo'shilmaydi: natija — eng ko'p ko'rilgan bitta video.
+  assert.equal(mine.bestViews, 2_500);
   assert.equal(mine.rank, 1);
   assert.deepEqual(
-    mine.reels.map((r) => [r.shortcode, r.status, r.rejectReason, r.views]),
+    mine.reels.map((r) => [r.shortcode, r.status, r.rejectReason, r.views, r.best]),
     [
-      ["PHOTO3", "REJECTED", "NOT_A_VIDEO", 0],
-      ["BBBBB2", "ACCEPTED", null, 2_500],
-      ["AAAAA1", "ACCEPTED", null, 1_000],
+      ["BBBBB2", "ACCEPTED", null, 2_500, true],
+      ["AAAAA1", "ACCEPTED", null, 1_000, false],
+      ["PHOTO3", "REJECTED", "NOT_A_VIDEO", 0, false],
     ],
   );
   assert.equal(mine.lastSyncedAt, tashkent("2026-12-01 07:00").toISOString());
   assert.ok(mine.reels.every((r) => typeof r.submittedAt === "string"));
 });
 
-test("daily growth is summed across accepted videos; today is the last day's sum", async () => {
+test("daily growth and today are the most viewed video's; the best video can change", async () => {
   const { controller, provider, stats, submit, setNow } = setup();
   provider.set("AAAAA1", { owner: "ali", views: 1_000 });
   provider.set("BBBBB2", { owner: "ali", views: 500 });
@@ -140,26 +141,35 @@ test("daily growth is summed across accepted videos; today is the last day's sum
   await stats.syncAll("schedule");
 
   const mine = controller.reels(user(1));
-  assert.equal(mine.totalViews, 2_150);
+  assert.equal(mine.bestViews, 1_350);
   assert.deepEqual(mine.daily, [
-    { date: "2026-12-02", views: 700 },
+    { date: "2026-12-02", views: 300 },
     { date: "2026-12-03", views: 50 },
   ]);
   assert.equal(mine.todayViews, 50);
   assert.equal(mine.lastSyncedAt, tashkent("2026-12-03 06:01").toISOString());
+
+  // Ikkinchi video o'zib ketdi — natija, grafik va ro'yxat tepasi endi uniki.
+  setNow("2026-12-04 06:01");
+  provider.set("AAAAA1", { owner: "ali", views: 1_400 });
+  provider.set("BBBBB2", { owner: "ali", views: 5_000 });
+  await stats.syncAll("schedule");
+  const after = controller.reels(user(1));
+  assert.equal(after.bestViews, 5_000);
+  assert.deepEqual(after.daily.map((d) => d.views), [400, 0, 4_200]);
+  assert.equal(after.todayViews, 4_200);
+  assert.deepEqual(after.reels.map((r) => [r.shortcode, r.best]), [["BBBBB2", true], ["AAAAA1", false]]);
 });
 
-test("summedDailyGrowth ignores the first snapshot of each video and sorts by date", () => {
+test("dailyGrowth ignores the first snapshot and shows a drop as 0", () => {
   const snap = (date: string, views: number) => ({ date, at: new Date(), views, likes: null, comments: null });
-  const reel = (history: ReturnType<typeof snap>[]) => ({ history }) as Parameters<typeof summedDailyGrowth>[0][number];
+  assert.deepEqual(dailyGrowth({ history: [] }), []);
   assert.deepEqual(
-    summedDailyGrowth([
-      reel([snap("2026-12-05", 100), snap("2026-12-07", 400)]),
-      reel([snap("2026-12-01", 10), snap("2026-12-05", 30), snap("2026-12-07", 35)]),
-    ]),
+    dailyGrowth({ history: [snap("2026-12-01", 10), snap("2026-12-05", 30), snap("2026-12-07", 25), snap("2026-12-08", 40)] }),
     [
       { date: "2026-12-05", views: 20 },
-      { date: "2026-12-07", views: 305 },
+      { date: "2026-12-07", views: 0 },
+      { date: "2026-12-08", views: 15 },
     ],
   );
 });

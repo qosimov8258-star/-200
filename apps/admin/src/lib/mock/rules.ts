@@ -24,7 +24,7 @@ export const DEFAULT_RULES_SECTIONS: RulesSection[] = [
   },
   {
     title: "4. G'olibni aniqlash",
-    body: "Ko'rishlar har kuni avtomatik yig'iladi. Tanlov yakunida eng ko'p ko'rish yig'gan ishtirokchi tekshiruvdan so'ng g'olib deb e'lon qilinadi.",
+    body: "Ko'rishlar har kuni avtomatik yig'iladi. Reytingda har bir ishtirokchining eng ko'p ko'rilgan bitta qabul qilingan videosi hisoblanadi — videolar ko'rishlari qo'shilmaydi. Tanlov yakunida videosi eng ko'p ko'rilgan ishtirokchi tekshiruvdan so'ng g'olib deb e'lon qilinadi.",
   },
   {
     title: "5. Shaxsiy ma'lumotlar",
