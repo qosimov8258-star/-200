@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
 #
 # Veb image: Mini App / sayt (Vite) va admin panel (Next.js statik eksport) bitta nginx'da.
-#   https://konkurs.mezon.site/        → Mini App (/usr/share/nginx/html)
-#   https://konkurs.mezon.site/admin/  → admin panel (/usr/share/nginx/html/admin)
-#   https://konkurs.mezon.site/api/    → backend (deploy/web.conf)
+#   https://konkurs-olivia.uz/        → Mini App (/usr/share/nginx/html)
+#   https://konkurs-olivia.uz/admin/  → admin panel (/usr/share/nginx/html/admin)
+#   https://konkurs-olivia.uz/api/    → backend (deploy/web.conf)
 # Build context — repo ildizi (deploy/compose.yml), keraksiz fayllar — ildizdagi .dockerignore.
 
 # --- 1. Mini App (Vite) ---

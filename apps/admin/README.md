@@ -4,7 +4,7 @@ Reels tanlov ilovasining zavod xodimlari uchun veb admin paneli (TZ, 6-bo'lim).
 Stek: Next.js (App Router, statik eksport), TypeScript (strict), Tailwind CSS, TanStack Query,
 lucide-react ikonkalari.
 
-Serverda: **<https://konkurs.mezon.site/admin/>** (nginx statik fayllar sifatida beradi,
+Serverda: **<https://konkurs-olivia.uz/admin/>** (nginx statik fayllar sifatida beradi,
 API — shu domendagi `/api/v1`). Deploy — [`deploy/README.md`](../../deploy/README.md).
 
 ## Ishga tushirish

@@ -1,6 +1,6 @@
 # Serverga chiqarish (`deploy/`)
 
-Reels tanlov `https://konkurs.mezon.site` da ishlaydi. Bu papkada serverdagi Docker sozlamasi
+Reels tanlov `https://konkurs-olivia.uz` da ishlaydi. Bu papkada serverdagi Docker sozlamasi
 repo ichida saqlanadi — serverdagi qo'lda yozilgan nusxalar o'rniga.
 
 | Fayl | Vazifasi |
@@ -22,10 +22,27 @@ Internet ─► Mezon nginx (80/443, TLS) ─► konkurs-web (nginx, mezon_defau
 backend ─► /app/data  =  host: /srv/konkurs/data   (ishtirokchilar, reellar, support, audit...)
 ```
 
-- Admin panel: **<https://konkurs.mezon.site/admin/>**. U statik fayllar (server kodi yo'q) va API'ga
+- Admin panel: **<https://konkurs-olivia.uz/admin/>**. U statik fayllar (server kodi yo'q) va API'ga
   shu domendagi `/api/v1` orqali murojaat qiladi — CORS kerak emas, sessiya `HttpOnly` cookie'da.
 - Serverda faqat 80/443 ochiq va ular Mezon nginx'iga tegishli, shuning uchun admin panel alohida
   port yoki subdomen emas, `/admin/` yo'lida.
+
+## Domen
+
+| Nima | Qayerda |
+|---|---|
+| DNS | `konkurs-olivia.uz` va `www` — A yozuvi `134.209.252.152` (eskiz.uz paneli) |
+| Sertifikat | certbot webroot: `/etc/letsencrypt/live/konkurs-olivia.uz` (`www` ham), avtomatik yangilanadi |
+| Mezon nginx | `/srv/mezon/shared/nginx.conf` — `konkurs-olivia.uz` bloki (→ `konkurs-web`), `www` → asosiy domenga 301 |
+| Eski domen | `konkurs.mezon.site` → `https://konkurs-olivia.uz` ga 301 (eski havolalar ishlaydi) |
+| Bot | `TELEGRAM_MINIAPP_URL=https://konkurs-olivia.uz` (`shared/backend.env`) — menyu va "Ilovani ochish" tugmalari |
+| Telegram Login | @BotFather → `/setdomain` → `konkurs-olivia.uz` (Login faqat bitta domenda ishlaydi) |
+
+- Mini App va admin panel API'ga nisbiy `/api/v1` orqali murojaat qiladi (`compose.yml` →
+  `VITE_API_URL`), shuning uchun domen almashsa ham qayta sozlash kerak emas.
+- `nginx.conf` Mezon nginx konteyneriga **bitta fayl** bo'lib bind-mount qilingan: uni faqat joyida
+  tahrirlang (masalan, `cat >>` yoki faylni qayta ochib yozish). `sed -i` faylni almashtiradi — konteyner
+  eski nusxani ko'raveradi. Keyin: `docker exec mezon-nginx-1 nginx -t` va `nginx -s reload`.
 
 ## Serverdagi papkalar
 
@@ -98,9 +115,9 @@ Backend `stop_grace_period: 30s` bilan to'xtatiladi — ma'lumotlarni diskka yoz
 ```bash
 docker compose -f /srv/konkurs/app/deploy/compose.yml ps
 docker compose -f /srv/konkurs/app/deploy/compose.yml logs --tail=100 backend
-curl -sI https://konkurs.mezon.site/admin/          # 200, Cache-Control: no-store
-curl -sI https://konkurs.mezon.site/admin           # 301 → /admin/
-curl -s  https://konkurs.mezon.site/api/v1/admin/auth/me   # 401 (sessiyasiz) — API ishlayapti
+curl -sI https://konkurs-olivia.uz/admin/          # 200, Cache-Control: no-store
+curl -sI https://konkurs-olivia.uz/admin           # 301 → /admin/
+curl -s  https://konkurs-olivia.uz/api/v1/admin/auth/me   # 401 (sessiyasiz) — API ishlayapti
 ```
 
 ### Ortga qaytish
@@ -144,7 +161,7 @@ Zaxiralarni vaqti-vaqti bilan serverdan tashqariga ham ko'chiring (server diski 
 Repo ildizidan:
 
 ```bash
-docker build -f deploy/Dockerfile.web --build-arg VITE_API_URL=https://konkurs.mezon.site/api/v1 -t konkurs-web .
+docker build -f deploy/Dockerfile.web --build-arg VITE_API_URL=/api/v1 -t konkurs-web .
 docker build -f deploy/Dockerfile.backend apps/backend
 ```
 

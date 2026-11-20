@@ -5,7 +5,7 @@ import { PHASE_PRODUCTION_BUILD } from "next/constants";
  * Admin panel sozlamalari.
  *
  * - `next build` — statik eksport (`out/`): server kerak emas, nginx beradi.
- *   Serverda `https://konkurs.mezon.site/admin/` ostida turadi (`ADMIN_BASE_PATH=/admin`,
+ *   Serverda `https://konkurs-olivia.uz/admin/` ostida turadi (`ADMIN_BASE_PATH=/admin`,
  *   `deploy/Dockerfile.web`), API esa shu domenda `/api/v1`.
  * - `next dev` — oddiy Next.js dev server. `NEXT_PUBLIC_API_MODE=http` bo'lsa,
  *   `/api/v1/*` so'rovlari `BACKEND_URL` (standart: http://localhost:3000) ga uzatiladi —
