@@ -118,6 +118,19 @@ export interface Participant {
   createdAt: Date;
 }
 
+/** `ownerUpdate` uchun o'zgarishlar (faqat berilganlari yoziladi). */
+export interface OwnerParticipantPatch {
+  firstName?: string;
+  lastName?: string;
+  age?: number;
+  /** Istalgan ko'rinishda — "+998901234567" ga normallashtiriladi. */
+  phone?: string;
+  status?: Participant["status"];
+}
+
+/** `ownerUpdate` rad etish sababi. */
+export type OwnerUpdateError = "NOT_FOUND" | "PHONE_TAKEN" | "PROFILE_INCOMPLETE";
+
 /**
  * Diskdagi ko'rinish: ilgari ishtirokchida bitta `reel` bo'lgan, endi — `reels` (cheksiz).
  * Holat faylini o'qishda `migrateParticipant` bilan yangi ko'rinishga o'tkaziladi.
@@ -178,7 +191,9 @@ export function topReel(reels: readonly Reel[], views: (reel: Reel) => number = 
  * yo'qolmaydi). Faza 1 da shu interfeys saqlangan holda Prisma + PostgreSQL ga ko'chiriladi.
  *
  * Qoidalar (CLAUDE.md): ism, familiya, yosh bir marta yoziladi — ularni yangilovchi
- * metod yo'q; bitta telefon raqami — bitta ishtirokchi.
+ * metod yo'q; bitta telefon raqami — bitta ishtirokchi. Yagona istisno — `ownerUpdate`:
+ * uni FAQAT tashkilot egalari bo'limi chaqiradi (`src/owner/` va ega nomidan ishlaydigan
+ * `TargetsService.ownerSetStatus`) — egalar qarori.
  */
 @Injectable()
 export class ParticipantsService {
@@ -351,6 +366,38 @@ export class ParticipantsService {
     if (!p || p.status !== "BLOCKED") return false;
     p.status = "ACTIVE";
     return true;
+  }
+
+  /**
+   * FAQAT TASHKILOT EGALARI BO'LIMI CHAQIRADI — `src/owner/` va ega nomidan ishlaydigan
+   * `TargetsService.ownerSetStatus` (chetlatishni bekor qilish). Boshqa joyda ishlatilmaydi.
+   *
+   * CLAUDE.md dagi "ism, familiya va yoshni o'zgartirib bo'lmaydi" qoidasidan yagona istisno
+   * (egalar qarori): ega ism, familiya, yosh, telefon va holatni (istalgan tomonga, chetlatishni
+   * bekor qilish ham) o'zgartira oladi. Qiymatlar chaqiruvchida tekshirilgan bo'ladi; bu yerda
+   * faqat ombor qoidalari: bitta telefon — bitta ishtirokchi, ism bilan birga familiya va yosh.
+   * Hammasi tekshirilgach birdaniga yoziladi (yarim o'zgarish qolmaydi). Ko'rishlar va video
+   * bu metod orqali o'zgarmaydi.
+   */
+  ownerUpdate(telegramId: number, patch: OwnerParticipantPatch): Participant | OwnerUpdateError {
+    const p = this.get(telegramId);
+    if (!p) return "NOT_FOUND";
+    const phone = patch.phone === undefined ? undefined : normalizePhone(patch.phone);
+    if (phone !== undefined && this.all().some((o) => o.telegramId !== telegramId && o.phone === phone)) {
+      return "PHONE_TAKEN";
+    }
+    const firstName = patch.firstName ?? p.firstName;
+    const lastName = patch.lastName ?? p.lastName;
+    const age = patch.age ?? p.age;
+    // Ro'yxatdan o'tmagan ishtirokchiga faqat ism yozilsa — u o'zi ro'yxatdan o'ta olmay qoladi.
+    if (firstName !== null && (lastName === null || age === null)) return "PROFILE_INCOMPLETE";
+
+    p.firstName = firstName;
+    p.lastName = lastName;
+    p.age = age;
+    if (phone !== undefined) p.phone = phone;
+    if (patch.status !== undefined) p.status = patch.status;
+    return p;
   }
 
   /** Ishtirokni bekor qilish (do'kon talabi: akkauntni o'chirish). */

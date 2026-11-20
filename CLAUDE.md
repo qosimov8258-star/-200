@@ -83,10 +83,13 @@ Buyruq paydo bo'lganda shu jadvalni yangilang (TODO o'rniga haqiqiy holat).
   foydalanuvchiga ko'rinadigan matnlar faqat ARB fayllarida.
 - Har bir DTO validatsiya qilinadi (class-validator yoki zod — Faza 0 da tanlanadi);
   noma'lum maydonlar rad etiladi, validatsiyasiz kiruvchi ma'lumot qabul qilinmaydi.
-- Ism, familiya va yoshni **serverda ham** o'zgartirib bo'lmaydi: ro'yxatdan o'tgandan keyin
-  ularni yangilovchi endpoint ham, servis metodi ham bo'lmaydi. Faqat UI da bloklash yetarli emas.
+- Ism, familiya va yoshni ishtirokchi ham, Admin/Support ham **serverda ham** o'zgartira olmaydi:
+  ular uchun yangilovchi endpoint yo'q. Faqat UI da bloklash yetarli emas. Yagona istisno —
+  tashkilot egalarining yashirin bo'limi (`apps/backend/src/owner/`, alohida `OWNER_USERS` hisoblari):
+  shu bo'limdagi metoddan boshqa joyda foydalanilmaydi.
 - Instagram ko'rishlarini qo'lda o'zgartiruvchi endpoint yo'q — ularni faqat worker yozadi.
 - Instagram tokenlari shifrlangan holda saqlanadi; Admin/Support harakatlari audit logga yoziladi.
+  Ega (yashirin bo'lim) amallari egalar qarori bilan audit logga ham, server logiga ham yozilmaydi.
 - Vaqt DB da UTC; "tanlov kuni" `Asia/Tashkent` bo'yicha hisoblanadi.
 - Yangi env o'zgaruvchi qo'shilsa — [.env.example](.env.example) ham yangilanadi.
 

@@ -3,7 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { HttpException, Inject, Injectable, Logger, Optional } from "@nestjs/common";
 
 import { contestDay } from "../common/time";
-import { contestPrizes } from "../miniapp/prizes";
+import { contestPrizes, type ContestPrizes } from "../miniapp/prizes";
 import { StateStore } from "../persistence/state-store";
 import { ParticipantsService, topReel, type Participant, type Reel } from "../participants/participants.service";
 import { ParticipantNotifier } from "../telegram/notifier";
@@ -165,6 +165,8 @@ export class DrawsService {
   private readonly draws: VoucherDraw[] = [];
   private readonly periods: DrawPeriod[] = [];
   private periodSeq = 0;
+  /** Admin o'chirgan bosqichlar (raqamlari). Raqamlar o'zgarmaydi — tanlovlar ularga bog'langan. */
+  private removedStages: number[] = [];
   private readonly now: () => Date;
   private readonly sendIntervalMs: number;
 
@@ -176,22 +178,35 @@ export class DrawsService {
   ) {
     this.now = options?.clock ?? (() => new Date());
     this.sendIntervalMs = options?.sendIntervalMs ?? DEFAULT_SEND_INTERVAL_MS;
-    const saved = store?.attach("draws", () => ({ draws: this.draws, periods: this.periods, periodSeq: this.periodSeq }));
+    const saved = store?.attach("draws", () => ({
+      draws: this.draws,
+      periods: this.periods,
+      periodSeq: this.periodSeq,
+      removedStages: this.removedStages,
+    }));
     if (saved) {
       this.draws.push(...saved.draws);
       this.periods.push(...saved.periods);
       this.periodSeq = saved.periodSeq;
+      // Eski saqlangan holatda bu maydon yo'q.
+      this.removedStages = saved.removedStages ?? [];
     }
+  }
+
+  /** Barcha bosqichlar (`prizes.ts`), raqami bilan. */
+  private allStages(): { index: number; startsOn: string; endsOn: string }[] {
+    return contestPrizes.stages.map((s, i) => ({ index: i + 1, startsOn: s.startsOn, endsOn: s.endsOn }));
+  }
+
+  /** Amaldagi (o'chirilmagan) bosqichlar. */
+  private activeStages(): { index: number; startsOn: string; endsOn: string }[] {
+    return this.allStages().filter((s) => !this.removedStages.includes(s.index));
   }
 
   setup() {
     const today = contestDay(this.now());
-    const stages = contestPrizes.stages.map((s, i) => ({
-      index: i + 1,
-      startsOn: s.startsOn,
-      endsOn: s.endsOn,
-      finished: s.endsOn < today,
-    }));
+    const withState = (s: { index: number; startsOn: string; endsOn: string }) => ({ ...s, finished: s.endsOn < today });
+    const stages = this.activeStages().map(withState);
     const stage =
       [...stages].reverse().find((s) => s.finished) ??
       stages.find((s) => s.startsOn <= today && today <= s.endsOn) ??
@@ -200,6 +215,9 @@ export class DrawsService {
     return {
       today,
       stages,
+      removedStages: this.allStages()
+        .filter((s) => this.removedStages.includes(s.index))
+        .map(withState),
       prizes: [
         {
           id: MONTHLY_PRIZE_ID,
@@ -358,17 +376,55 @@ export class DrawsService {
 
   /** Tanlov muddati ichida va boshqa davr yoki bosqich bilan sanalari bir xil emas. */
   private checkPeriod(input: DrawPeriodInput, exceptId?: string): DrawPeriodInput {
-    const stages = contestPrizes.stages;
-    const bounds = { min: stages[0].startsOn, max: stages[stages.length - 1].endsOn };
+    // Chegaralar — butun aksiya muddati (o'chirilgan bosqichlar ham kiradi).
+    const all = this.allStages();
+    const bounds = { min: all[0].startsOn, max: all[all.length - 1].endsOn };
     const error = validateDrawPeriod(input, bounds);
     if (error) throw fail(400, error);
     const clean = { title: input.title.trim(), startsOn: input.startsOn, endsOn: input.endsOn };
     const sameDates = (a: { startsOn: string; endsOn: string }) => a.startsOn === clean.startsOn && a.endsOn === clean.endsOn;
-    const stage = stages.findIndex(sameDates);
-    if (stage >= 0) throw fail(409, `Bu sanalar ${stage + 1}-bosqich bilan bir xil — bosqichni tanlang.`);
+    const stage = this.activeStages().find(sameDates);
+    if (stage) throw fail(409, `Bu sanalar ${stage.index}-bosqich bilan bir xil — bosqichni tanlang.`);
     const twin = this.periods.find((item) => item.id !== exceptId && sameDates(item));
     if (twin) throw fail(409, `Bu sanalar uchun «${twin.title}» davri allaqachon bor.`);
     return clean;
+  }
+
+  /**
+   * Bosqichni o'chirish: random tanlovda tanlab bo'lmaydi, voucherlar jami shu bosqich kvotasiga
+   * kamayadi, Mini App'dagi sovg'alar sahifasidan ham yo'qoladi. Unda tanlov o'tkazilgan bo'lsa
+   * (bekor qilinmagan) — o'chirilmaydi; kamida bitta bosqich qolishi shart. Tiklash mumkin.
+   */
+  deleteStage(index: number, actor: string): { index: number; startsOn: string; endsOn: string } {
+    const stage = this.activeStages().find((s) => s.index === index);
+    if (!stage) throw fail(404, "Bosqich topilmadi.");
+    if (this.activeStages().length <= 1) throw fail(409, "Kamida bitta bosqich qolishi kerak.");
+    const used = this.draws.find((d) => d.status !== "CANCELLED" && d.stage === index);
+    if (used) throw fail(409, `Bu bosqichda #${used.number} tanlov o'tkazilgan — avval uni bekor qiling.`);
+    this.removedStages.push(index);
+    this.removedStages.sort((a, b) => a - b);
+    this.logger.log(`${actor}: ${index}-bosqich o'chirildi.`);
+    return stage;
+  }
+
+  restoreStage(index: number, actor: string): { index: number; startsOn: string; endsOn: string } {
+    const stage = this.allStages().find((s) => s.index === index);
+    if (!stage || !this.removedStages.includes(index)) throw fail(404, "O'chirilgan bosqich topilmadi.");
+    const twin = this.periods.find((p) => p.startsOn === stage.startsOn && p.endsOn === stage.endsOn);
+    if (twin) throw fail(409, `Bu sanalar uchun «${twin.title}» davri bor — avval uni o'chiring.`);
+    this.removedStages = this.removedStages.filter((i) => i !== index);
+    this.logger.log(`${actor}: ${index}-bosqich tiklandi.`);
+    return stage;
+  }
+
+  /** Mini App'dagi sovg'alar: faqat amaldagi bosqichlar, voucherlar jami — shularga qarab. */
+  publicPrizes(): ContestPrizes {
+    const stages = this.activeStages();
+    return {
+      ...contestPrizes,
+      monthly: { ...contestPrizes.monthly, total: contestPrizes.monthly.perMonth * stages.length },
+      stages: stages.map(({ startsOn, endsOn }) => ({ startsOn, endsOn })),
+    };
   }
 
   /**
@@ -376,7 +432,9 @@ export class DrawsService {
    * Bekor qilingan tanlovlar hisobga olinmaydi; "boshqa davr" tanlovlari faqat umumiy sonlarda.
    */
   stock(): DrawStock[] {
-    const { monthly, stages } = contestPrizes;
+    const { monthly } = contestPrizes;
+    const stages = this.activeStages();
+    const total = monthly.perMonth * stages.length;
     const today = contestDay(this.now());
     const live = this.draws.filter((d) => d.status !== "CANCELLED" && d.settings.prizeId === MONTHLY_PRIZE_ID);
     const count = (status: DrawStatus, stage?: number) =>
@@ -389,20 +447,20 @@ export class DrawsService {
       {
         prizeId: MONTHLY_PRIZE_ID,
         title: monthly.title,
-        total: monthly.total,
+        total,
         sent,
         confirmed,
         draft: count("DRAFT"),
-        remaining: Math.max(0, monthly.total - sent - confirmed),
-        stages: stages.map((s, i) => ({
-          index: i + 1,
+        remaining: Math.max(0, total - sent - confirmed),
+        stages: stages.map((s) => ({
+          index: s.index,
           startsOn: s.startsOn,
           endsOn: s.endsOn,
           finished: s.endsOn < today,
           quantity: monthly.perMonth,
-          sent: count("SENT", i + 1),
-          confirmed: count("CONFIRMED", i + 1),
-          draft: count("DRAFT", i + 1),
+          sent: count("SENT", s.index),
+          confirmed: count("CONFIRMED", s.index),
+          draft: count("DRAFT", s.index),
         })),
       },
     ];
@@ -516,7 +574,9 @@ export class DrawsService {
     const error = validateDrawSettings(settings);
     if (error) throw fail(400, error);
     if (settings.prizeId !== MONTHLY_PRIZE_ID) throw fail(400, "Oylik sovg'a tanlanmagan.");
-    if (settings.stage !== null && !contestPrizes.stages[settings.stage - 1]) throw fail(400, "Bunday bosqich yo'q.");
+    if (settings.stage !== null && !this.activeStages().some((s) => s.index === settings.stage)) {
+      throw fail(400, "Bunday bosqich yo'q.");
+    }
   }
 
   private activeFor(settings: DrawSettings): VoucherDraw | null {

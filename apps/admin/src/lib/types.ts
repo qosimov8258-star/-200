@@ -82,6 +82,9 @@ export interface ParticipantListQuery {
    * "NONE" — umuman video yubormaganlar.
    */
   reel?: ReelStatus | "NONE";
+  /** Ko'rishlar oralig'i (ikkala chegara ham kiradi); berilmasa — chegara yo'q. */
+  minViews?: number;
+  maxViews?: number;
   sort?: ParticipantSort;
   order?: SortOrder;
   page?: number;
@@ -121,8 +124,41 @@ export interface ParticipantReelCounts {
 }
 
 export interface ParticipantListResponse extends Paginated<ParticipantListItem> {
-  /** Holat bo'yicha sonlar (qidiruv va Reel filtri hisobga olingan, holat filtri — yo'q). */
+  /** Holat bo'yicha sonlar (qidiruv, Reel va ko'rishlar filtri hisobga olingan, holat filtri — yo'q). */
   statusCounts: Record<ParticipantStatus | "ALL", number>;
+}
+
+/**
+ * "Ko'rishlarni yangilash": oraliqdagi videolar Instagram'dan hoziroq qayta o'qiladi (Apify).
+ * `includeNear` — pastki chegaradan 20% pastdagilar ham (shu orada chegaradan o'tgan bo'lishi mumkin).
+ */
+export interface ViewsRefreshRequest {
+  minViews: number | null;
+  maxViews: number | null;
+  includeNear: boolean;
+}
+
+export interface ViewsRefreshReport {
+  startedAt: string;
+  /** Hali tugamagan bo'lsa — null. */
+  finishedAt: string | null;
+  requested: number;
+  updated: number;
+  /** Instagram'da topilmaganlar. */
+  missing: number;
+  error: string | null;
+}
+
+export interface ViewsRefreshPreview {
+  /** Nechta video yangilanadi. */
+  count: number;
+  /** Amalda qo'llanadigan chegaralar (yaqinlar qo'shilgan holda). */
+  range: { from: number | null; to: number | null };
+  /** Oxirgi umumiy (rejadagi) yig'ish vaqti. */
+  lastSyncAt: string | null;
+  /** Yig'ish yoki yangilash hozir ketyaptimi. */
+  running: boolean;
+  lastReport: ViewsRefreshReport | null;
 }
 
 /** Ishtirokchining barcha yuborgan videolari ("Videolar" oynasi). */
@@ -507,6 +543,8 @@ export interface DrawSetup {
   stages: DrawStage[];
   /** Admin yaratgan davrlar, boshlanish sanasi bo'yicha. */
   periods: DrawPeriod[];
+  /** Admin o'chirgan bosqichlar (tiklash mumkin). Raqamlari o'zgarmaydi. */
+  removedStages: DrawStage[];
   /** Oylik sovg'alar (random tanlov faqat ular uchun). */
   prizes: Array<Pick<Prize, "id" | "title" | "quantity" | "minViews" | "maxViews">>;
   /** Joriy (yoki eng oxirgi tugagan) bosqich va birinchi oylik sovg'a bo'yicha boshlang'ich sozlamalar. */

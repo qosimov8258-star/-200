@@ -66,6 +66,8 @@ export interface MockStore {
   draws: VoucherDraw[];
   /** Admin kalendardan yaratgan davrlar (Random tanlov). */
   drawPeriods: DrawPeriod[];
+  /** Admin o'chirgan bosqichlar (raqamlari). */
+  removedStages: number[];
   audit: MockAuditEntry[];
 }
 
@@ -131,6 +133,7 @@ function emptyStore(): MockStore {
     prizes: null,
     draws: [],
     drawPeriods: [],
+    removedStages: [],
     audit: [],
   };
 }

@@ -48,6 +48,8 @@ export const getDashboardStats = impl.getDashboardStats;
 
 // Ishtirokchilar
 export const getParticipants = impl.getParticipants;
+export const getViewsRefreshPreview = impl.getViewsRefreshPreview;
+export const startViewsRefresh = impl.startViewsRefresh;
 export const getParticipantReels = impl.getParticipantReels;
 export const blockParticipant = impl.blockParticipant;
 export const unblockParticipant = impl.unblockParticipant;
@@ -80,6 +82,8 @@ export const runDraw = impl.runDraw;
 export const createDrawPeriod = impl.createDrawPeriod;
 export const updateDrawPeriod = impl.updateDrawPeriod;
 export const deleteDrawPeriod = impl.deleteDrawPeriod;
+export const deleteDrawStage = impl.deleteDrawStage;
+export const restoreDrawStage = impl.restoreDrawStage;
 export const getDrawStock = impl.getDrawStock;
 export const getDraws = impl.getDraws;
 export const getDraw = impl.getDraw;

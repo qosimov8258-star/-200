@@ -311,6 +311,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "draw.period.create": "Random tanlov uchun davr yaratdi",
   "draw.period.update": "Random tanlov davrini o'zgartirdi",
   "draw.period.delete": "Random tanlov davrini o'chirdi",
+  "draw.stage.delete": "Random tanlov bosqichini o'chirdi",
+  "draw.stage.restore": "Random tanlov bosqichini tikladi",
 };
 
 const WINNER_VALUE_LABELS: Record<string, string> = {

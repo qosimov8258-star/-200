@@ -27,6 +27,7 @@ import { ParticipantReelsDialog } from "./participant-reels-dialog";
 import { UsersTable } from "./users-table";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { UsersToolbar } from "./users-toolbar";
+import { ViewsRefreshDialog } from "./views-refresh-dialog";
 
 const NOTICE_TIMEOUT_MS = 5000;
 
@@ -52,6 +53,7 @@ export function UsersView() {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [reelsFor, setReelsFor] = useState<ParticipantListItem | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [refreshOpen, setRefreshOpen] = useState(false);
 
   useEffect(() => {
     if (!notice) return;
@@ -77,7 +79,7 @@ export function UsersView() {
   }
 
   function clearFilters() {
-    updateFilters({ search: "", status: "ALL", reel: "ALL" });
+    updateFilters({ search: "", status: "ALL", reel: "ALL", minViews: null, maxViews: null });
   }
 
   return (
@@ -97,8 +99,19 @@ export function UsersView() {
         onSearchChange={(search) => updateFilters({ search })}
         onStatusChange={(status) => updateFilters({ status })}
         onReelChange={(reel) => updateFilters({ reel })}
+        onViewsChange={({ min, max }) => updateFilters({ minViews: min, maxViews: max })}
+        onRefreshViews={() => setRefreshOpen(true)}
         onClear={clearFilters}
       />
+
+      {refreshOpen && (
+        <ViewsRefreshDialog
+          open
+          onClose={() => setRefreshOpen(false)}
+          initialMin={filters.minViews}
+          initialMax={filters.maxViews}
+        />
+      )}
 
       <Card className="overflow-hidden">
         {isPending ? (

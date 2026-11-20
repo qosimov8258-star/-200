@@ -1,11 +1,40 @@
-import { Controller, Get, HttpCode, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Post, Query, UseGuards } from "@nestjs/common";
 
 import { AuditService } from "../audit/audit.service";
 import { ParticipantsService } from "../participants/participants.service";
+import { effectiveRange, refreshCandidates, type RefreshRange } from "../reports/views-refresh";
 import { StatsService } from "../stats/stats.service";
 import type { AdminUser } from "./auth/admin-accounts";
 import { AdminAuthGuard, CurrentAdmin } from "./auth/admin-auth.guard";
 import { actorOf } from "./auth/admin-auth.service";
+import { adminError, objectBody } from "./admin-http";
+
+const MAX_VIEWS = 1_000_000_000_000;
+
+/** Ko'rishlar chegarasi: null yoki manfiy bo'lmagan butun son. */
+function viewsBound(value: unknown, name: string): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = typeof value === "string" ? Number(value) : value;
+  if (typeof n !== "number" || !Number.isInteger(n) || n < 0 || n > MAX_VIEWS) {
+    throw adminError(400, `${name} manfiy bo'lmagan butun son bo'lishi kerak.`);
+  }
+  return n;
+}
+
+function parseRange(minViews: unknown, maxViews: unknown, includeNear: unknown): RefreshRange {
+  const range: RefreshRange = {
+    minViews: viewsBound(minViews, "Ko'rishlar (dan)"),
+    maxViews: viewsBound(maxViews, "Ko'rishlar (gacha)"),
+    includeNear: includeNear === true || includeNear === "true" || includeNear === "1",
+  };
+  if (range.minViews !== null && range.maxViews !== null && range.minViews > range.maxViews) {
+    throw adminError(400, "Ko'rishlar oralig'i noto'g'ri: «dan» «gacha»dan katta.");
+  }
+  return range;
+}
+
+const rangeLabel = ({ minViews, maxViews }: RefreshRange) =>
+  `${minViews ?? 0} – ${maxViews === null ? "∞" : maxViews} ko'rish`;
 
 /**
  * Ko'rishlar va videolar (admin panel → Videolar / Reyting).
@@ -47,6 +76,63 @@ export class AdminStatsController {
     }
     void this.stats.syncAll("admin");
     return { started: !alreadyRunning, running: true };
+  }
+
+  /**
+   * "Ko'rishlarni yangilash" oynasi: oraliq bo'yicha nechta video yangilanadi, oxirgi umumiy yig'ish
+   * va oxirgi yangilash natijasi. `GET /admin/stats/refresh?minViews=&maxViews=&includeNear=true`
+   */
+  @Get("stats/refresh")
+  refreshPreview(
+    @Query("minViews") minViews?: string,
+    @Query("maxViews") maxViews?: string,
+    @Query("includeNear") includeNear?: string,
+  ) {
+    const range = parseRange(minViews, maxViews, includeNear);
+    const report = this.stats.lastRefreshReport;
+    return {
+      count: refreshCandidates(this.participants.all(), range).videos,
+      range: effectiveRange(range),
+      lastSyncAt: this.stats.status().lastSuccessAt,
+      running: this.stats.isRefreshing || this.stats.isSyncing,
+      lastReport: report && {
+        startedAt: report.startedAt.toISOString(),
+        finishedAt: report.finishedAt?.toISOString() ?? null,
+        requested: report.requested,
+        updated: report.updated,
+        missing: report.missing,
+        error: report.error,
+      },
+    };
+  }
+
+  /**
+   * Oraliqdagi videolarni hoziroq qayta o'qish (Apify — pullik). Fonda ishlaydi; natija —
+   * `GET /admin/stats/refresh` dagi `lastReport`. Body: `{ minViews, maxViews, includeNear }`.
+   */
+  @Post("stats/refresh")
+  @HttpCode(202)
+  refresh(@Body() body: unknown, @CurrentAdmin() admin: AdminUser) {
+    const b = objectBody(body, ["minViews", "maxViews", "includeNear"]);
+    if (b.includeNear !== undefined && typeof b.includeNear !== "boolean") throw adminError(400, "includeNear — true yoki false.");
+    const range = parseRange(b.minViews, b.maxViews, b.includeNear);
+    const { ids, videos } = refreshCandidates(this.participants.all(), range);
+    if (ids.length === 0) throw adminError(422, "Bu oraliqda yangilanadigan video yo'q.");
+    const job = this.stats.refreshReels(ids, `${admin.fullName}: ${rangeLabel(range)}`);
+    if (!job) throw adminError(409, "Ko'rishlar hozir yig'ilmoqda — tugashini kuting.");
+    void job.catch(() => undefined);
+    const { from, to } = effectiveRange(range);
+    this.audit.record({
+      actor: actorOf(admin),
+      action: "stats.refresh",
+      entity: "reel",
+      entityId: "range",
+      entityLabel: "Ko'rishlarni yangilash",
+      before: "",
+      after: `${videos} ta video (${ids.length} ishtirokchi): ${from ?? 0} – ${to === null ? "∞" : to} ko'rish${range.includeNear ? " (yaqinlar bilan)" : ""}`,
+      reason: "",
+    });
+    return { started: true, count: videos };
   }
 
   /**

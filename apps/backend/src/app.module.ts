@@ -22,6 +22,12 @@ import { createAdLibraryProvider, createReelStatsProvider } from "./instagram/pr
 import { ReelStatsProvider } from "./instagram/reel-stats";
 import { DrawsService } from "./draws/draws.service";
 import { MiniappController } from "./miniapp/miniapp.controller";
+import { OwnerAuthController } from "./owner/auth/owner-auth.controller";
+import { OwnerAuthService } from "./owner/auth/owner-auth.service";
+import { OwnerParticipantsController } from "./owner/owner-participants.controller";
+import { OwnerRiskController } from "./owner/owner-risk.controller";
+import { OwnerTargetsController } from "./owner/owner-targets.controller";
+import { OwnerService } from "./owner/owner.service";
 import { ParticipantsService } from "./participants/participants.service";
 import { STATE_STORE_OPTIONS, StateStore } from "./persistence/state-store";
 import { RulesService } from "./rules/rules.service";
@@ -95,6 +101,11 @@ function targetsOptions(contest: ContestSettingsService): TargetsOptions {
     AdminManualReviewController,
     AdminDrawsController,
     AdminTargetsController,
+    // Tashkilot egalari — yashirin bo'lim (alohida kirish, audit log'siz).
+    OwnerAuthController,
+    OwnerParticipantsController,
+    OwnerTargetsController,
+    OwnerRiskController,
   ],
   providers: [
     {
@@ -120,6 +131,8 @@ function targetsOptions(contest: ContestSettingsService): TargetsOptions {
     { provide: TARGETS_OPTIONS, useFactory: targetsOptions, inject: [ContestSettingsService] },
     TargetsService,
     WinnerService,
+    OwnerAuthService,
+    OwnerService,
   ],
 })
 export class AppModule {}

@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Post, UseGuards } from "@nestjs/common";
 
 import { ContestSettingsService } from "../contest/contest-settings.service";
+import { DrawsService } from "../draws/draws.service";
 import { ApiException } from "../common/api-exception";
 import {
   maskPhone,
@@ -17,7 +18,6 @@ import { SupportService } from "../support/support.service";
 import { TargetsService } from "../targets/targets.service";
 import type { TelegramIdentity } from "../telegram/init-data";
 import { WinnerService } from "../winner/winner.service";
-import { contestPrizes } from "./prizes";
 import { canonicalReelUrl, parseReelShortcode } from "./reel-url";
 import { Public, TelegramAuthGuard, TgUser, TgUserOptional } from "./telegram-auth.guard";
 import { parseRegister, parseSupportMessage, parseTargetReport, parseUrl, parseVersion } from "./validation";
@@ -74,6 +74,7 @@ export class MiniappController {
     private readonly support: SupportService,
     private readonly supportRelay: SupportRelay,
     private readonly contestSettings: ContestSettingsService,
+    private readonly draws: DrawsService,
     private readonly winnerService: WinnerService,
   ) {}
 
@@ -241,7 +242,7 @@ export class MiniappController {
   @Public()
   @Get("prizes")
   prizes() {
-    return contestPrizes;
+    return this.draws.publicPrizes();
   }
 
   /** G'olib e'loni: faqat e'lon qilingandan keyin — ism, yakuniy ko'rishlar, sana (telefonsiz). */

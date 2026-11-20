@@ -57,6 +57,12 @@ function parsePeriod(body: unknown): DrawPeriodInput {
   return b as unknown as DrawPeriodInput;
 }
 
+function stageIndex(raw: string): number {
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1 || n > 100) throw bad("Bosqich raqami noto'g'ri.");
+  return n;
+}
+
 function parseReason(body: unknown, extra: string[] = []): Record<string, unknown> & { reason: string } {
   const b = objectOf(body, ["reason", ...extra]);
   if (typeof b.reason !== "string") throw bad("Sabab yozilmagan.");
@@ -133,6 +139,29 @@ export class AdminDrawsController {
     this.draws.deletePeriod(periodId, admin.fullName);
     this.log(admin, "draw.period.delete", periodId, before?.title ?? periodId, {
       before: before ? `${before.startsOn} – ${before.endsOn}` : "",
+    });
+  }
+
+  /** Bosqichni o'chirish: random tanlovda va Mini App'da ko'rinmaydi, voucherlar jami kamayadi. */
+  @Delete("stages/:index")
+  @HttpCode(204)
+  deleteStage(@Param("index") index: string, @CurrentAdmin() admin: AdminUser) {
+    const n = stageIndex(index);
+    const stage = this.draws.deleteStage(n, admin.fullName);
+    this.log(admin, "draw.stage.delete", `stage-${n}`, `${n}-bosqich`, {
+      before: `${stage.startsOn} – ${stage.endsOn}`,
+      after: "O'chirildi",
+    });
+  }
+
+  @Post("stages/:index/restore")
+  @HttpCode(204)
+  restoreStage(@Param("index") index: string, @CurrentAdmin() admin: AdminUser) {
+    const n = stageIndex(index);
+    const stage = this.draws.restoreStage(n, admin.fullName);
+    this.log(admin, "draw.stage.restore", `stage-${n}`, `${n}-bosqich`, {
+      before: "O'chirilgan",
+      after: `${stage.startsOn} – ${stage.endsOn}`,
     });
   }
 

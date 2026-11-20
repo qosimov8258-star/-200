@@ -121,6 +121,14 @@ const TRANSITIONS: Record<TargetAction, { from: TargetCaseStatus[]; to: TargetCa
 
 const fail = (status: number, message: string) => new HttpException({ message }, status);
 
+/** Holat tarixidagi yozuv uchun (ega o'zgartirganda). */
+const CASE_STATUS_LABELS: Record<TargetCaseStatus, string> = {
+  NEW: "Yangi",
+  WARNED: "Ogohlantirilgan",
+  DISQUALIFIED: "Diskvalifikatsiya qilingan",
+  DISMISSED: "Ro'yxatdan chiqarilgan",
+};
+
 /**
  * Target (pullik reklama) holatlari:
  *
@@ -587,6 +595,39 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
     if (action === "disqualify") this.notify(p, texts.targetDisqualified, "WARNING");
     this.logger.log(`${actor}: target ${c.id} (${p.firstName} ${p.lastName}) — ${rule.label}: ${why}`);
     return this.get(id);
+  }
+
+  // --- Ega (yashirin bo'lim) -------------------------------------------------
+
+  /**
+   * FAQAT TASHKILOT EGALARI BO'LIMI (`src/owner/`) CHAQIRADI — boshqa joyda ishlatilmaydi.
+   *
+   * Holatni istalgan tomonga o'zgartiradi (`act()` dagi cheklovlarsiz, qaytarish ham mumkin).
+   * Holat tarixiga yozuv qo'shiladi (sana, holat, izoh; kim o'zgartirgani yozilmaydi).
+   * Ishtirokchi: DISQUALIFIED ga o'tsa — u ham chetlatiladi; DISQUALIFIED dan chiqsa va boshqa
+   * DISQUALIFIED holati qolmasa — chetlatilgan ishtirokchi ACTIVE ga qaytadi. Bot xabari
+   * yuborilmaydi, server log'iga yozilmaydi. Holat o'zi bo'lsa — hech narsa o'zgarmaydi.
+   */
+  ownerSetStatus(id: string, status: TargetCaseStatus, note: string | null) {
+    const c = this.find(id);
+    const p = this.participants.get(c.telegramId);
+    if (!p) throw fail(404, "Ishtirokchi topilmadi.");
+    if (c.status !== status) {
+      const from = c.status;
+      c.status = status;
+      const label = `Holat o'zgartirildi: ${CASE_STATUS_LABELS[from]} → ${CASE_STATUS_LABELS[status]}`;
+      c.history.push({ date: contestDay(this.now()), state: c.currentState, note: note ? `${label}. ${note}` : label });
+      if (status === "DISQUALIFIED") {
+        this.participants.disqualify(p.telegramId);
+      } else if (
+        from === "DISQUALIFIED" &&
+        p.status === "DISQUALIFIED" &&
+        !this.cases.some((o) => o.telegramId === p.telegramId && o.status === "DISQUALIFIED")
+      ) {
+        this.participants.ownerUpdate(p.telegramId, { status: "ACTIVE" });
+      }
+    }
+    return this.toItem(c, p, this.rankMap());
   }
 
   // -------------------------------------------------------------------------

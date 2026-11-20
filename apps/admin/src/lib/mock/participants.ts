@@ -18,6 +18,9 @@ import type {
   ParticipantReels,
   ParticipantStatus,
   ReelStatus,
+  ViewsRefreshPreview,
+  ViewsRefreshReport,
+  ViewsRefreshRequest,
 } from "../types";
 import {
   eventTime,
@@ -244,6 +247,8 @@ export function listParticipants(query: ParticipantListQuery): ParticipantListRe
           : summary.statuses.includes(reelFilter),
     )
     .map(({ participant, summary }) => toListItem(participant, context, summary));
+  if (query.minViews !== undefined) items = items.filter((item) => item.views >= (query.minViews ?? 0));
+  if (query.maxViews !== undefined) items = items.filter((item) => item.views <= (query.maxViews ?? Infinity));
 
   const statusCounts: ParticipantListResponse["statusCounts"] = {
     ALL: items.length,
@@ -348,4 +353,75 @@ export function applyParticipantAction(
   writeStore(nextStore);
 
   return toListItem(participant, buildContext(nextStore));
+}
+
+// ---------------------------------------------------------------------------
+// "Ko'rishlarni yangilash" (mock): tanlov backend bilan bir xil, yangilash taqlid qilinadi
+// ---------------------------------------------------------------------------
+
+/** Pastki chegaradan shuncha pastdagilar ham olinadi (backend: `reports/views-refresh.ts`). */
+const NEAR_MARGIN = 0.2;
+const MOCK_REFRESH_MS = 2500;
+
+let mockRefresh: ViewsRefreshReport | null = null;
+
+function refreshRange(request: ViewsRefreshRequest): { from: number | null; to: number | null } {
+  const from =
+    request.minViews === null
+      ? null
+      : request.includeNear
+        ? Math.floor(request.minViews * (1 - NEAR_MARGIN))
+        : request.minViews;
+  return { from, to: request.maxViews };
+}
+
+/** Tanlangan ishtirokchilarning qabul qilingan videolari soni (backend: `reports/views-refresh.ts`). */
+function refreshVideoCount(request: ViewsRefreshRequest): number {
+  const context = buildContext(readStore());
+  const { from, to } = refreshRange(request);
+  return getContestData()
+    .participants.map((participant) => toListItem(participant, context))
+    .filter(
+      (item) =>
+        item.status !== "BLOCKED" &&
+        item.status !== "DISQUALIFIED" &&
+        item.reels.accepted > 0 &&
+        (from === null || item.views >= from) &&
+        (to === null || item.views <= to),
+    )
+    .reduce((sum, item) => sum + item.reels.accepted, 0);
+}
+
+export function viewsRefreshPreview(request: ViewsRefreshRequest): ViewsRefreshPreview {
+  const running = mockRefresh !== null && mockRefresh.finishedAt === null;
+  return {
+    count: refreshVideoCount(request),
+    range: refreshRange(request),
+    // Mock'da ko'rishlar har kuni ertalab "yig'ilgan" deb olinadi.
+    lastSyncAt: `${getContestData().today}T01:00:00.000Z`,
+    running,
+    lastReport: mockRefresh,
+  };
+}
+
+/** Mock: Instagram yo'q — bir necha soniyadan keyin "hammasi yangilandi" deb tugaydi. */
+export function startMockViewsRefresh(request: ViewsRefreshRequest): { started: boolean; count: number } {
+  if (mockRefresh !== null && mockRefresh.finishedAt === null) {
+    throw new ApiError(409, "Ko'rishlar hozir yig'ilmoqda — tugashini kuting.");
+  }
+  const count = refreshVideoCount(request);
+  if (count === 0) throw new ApiError(422, "Bu oraliqda yangilanadigan video yo'q.");
+  const report: ViewsRefreshReport = {
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    requested: count,
+    updated: 0,
+    missing: 0,
+    error: null,
+  };
+  mockRefresh = report;
+  setTimeout(() => {
+    mockRefresh = { ...report, finishedAt: new Date().toISOString(), updated: count };
+  }, MOCK_REFRESH_MS);
+  return { started: true, count };
 }

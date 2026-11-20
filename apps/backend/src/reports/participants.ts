@@ -114,6 +114,9 @@ export interface ParticipantFilter {
   search: string;
   status?: AdminParticipantStatus;
   reel?: ReelFilter;
+  /** Ko'rishlar oralig'i (ikkala chegara ham kiradi); berilmasa — chegara yo'q. */
+  minViews?: number;
+  maxViews?: number;
   sort?: ParticipantSort;
   order?: SortOrder;
 }
@@ -274,6 +277,8 @@ export function listParticipants(
     .map(({ item }) => item);
 
   if (reelFilter) items = items.filter((item) => matchesReelFilter(item.reels, reelFilter));
+  if (filter.minViews !== undefined) items = items.filter((item) => item.views >= (filter.minViews ?? 0));
+  if (filter.maxViews !== undefined) items = items.filter((item) => item.views <= (filter.maxViews ?? Infinity));
 
   const statusCounts: StatusCounts = { ALL: items.length, ACTIVE: 0, WARNED: 0, BLOCKED: 0, DISQUALIFIED: 0 };
   for (const item of items) statusCounts[item.status] += 1;

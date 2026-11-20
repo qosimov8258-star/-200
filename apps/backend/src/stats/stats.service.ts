@@ -60,6 +60,20 @@ export interface SyncReport {
   error: string | null;
 }
 
+/** Tanlangan videolarni navbatdan tashqari yangilash (admin: "Ko'rishlarni yangilash"). */
+export interface RefreshReport {
+  startedAt: Date;
+  finishedAt: Date | null;
+  /** So'ralgan videolar (ishtirokchilarning barcha qabul qilingan videolari). */
+  requested: number;
+  updated: number;
+  /** Instagram'da topilmaganlar (odatdagidek qayta tekshiriladi / qo'lda tekshiruvga o'tadi). */
+  missing: number;
+  error: string | null;
+  /** Kim va qaysi oraliq uchun (log va admin panel uchun). */
+  label: string;
+}
+
 /** Admin qarori (qo'lda tekshiruv). */
 export type ManualDecision =
   | { approve: true; note: string }
@@ -145,6 +159,8 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
   private verifyFailures = 0;
 
   private syncing: Promise<SyncReport> | null = null;
+  private refreshing: Promise<RefreshReport> | null = null;
+  private lastRefresh: RefreshReport | null = null;
   private lastSync: SyncReport | null = null;
   /** Oxirgi muvaffaqiyatli yig'ish vaqti. */
   private lastSuccessAt: Date | null = null;
@@ -485,7 +501,8 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
 
   /** Hozir yig'ish vaqti keldimi; kelgan bo'lsa — sababi. */
   dueReason(): "schedule" | "final" | null {
-    if (this.syncing) return null;
+    // Qisman yangilash tugashini kutamiz — ikkita so'rov bir vaqtda Apify'ga ketmasin.
+    if (this.syncing || this.refreshing) return null;
     const now = this.now();
     const last = this.lastSync;
     // Muvaffaqiyatsiz urinishdan keyin darrov qayta urinmaymiz (pul va limitlar).
@@ -524,6 +541,61 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
       this.syncing = null;
     });
     return this.syncing;
+  }
+
+  get isRefreshing(): boolean {
+    return this.refreshing !== null;
+  }
+
+  get lastRefreshReport(): RefreshReport | null {
+    return this.lastRefresh;
+  }
+
+  /**
+   * Tanlangan ishtirokchilarning qabul qilingan videolarini hoziroq qayta o'qiydi (masalan,
+   * sovg'a topshirishdan oldin). Rejadagi yig'ish jadvaliga ta'sir qilmaydi. Bir vaqtda faqat
+   * bitta yig'ish yoki yangilash ishlaydi — band bo'lsa `null`.
+   */
+  refreshReels(telegramIds: readonly number[], label: string): Promise<RefreshReport> | null {
+    if (this.syncing || this.refreshing) return null;
+    this.refreshing = this.runRefresh(telegramIds, label).finally(() => {
+      this.refreshing = null;
+    });
+    return this.refreshing;
+  }
+
+  private async runRefresh(telegramIds: readonly number[], label: string): Promise<RefreshReport> {
+    // Har bir ishtirokchining barcha qabul qilingan videolari (cheksiz video).
+    const targets = telegramIds.flatMap((id) => {
+      const p = this.participants.get(id);
+      return p ? acceptedReels(p).map((reel) => ({ p, reel })) : [];
+    });
+    const report: RefreshReport = {
+      startedAt: this.now(),
+      finishedAt: null,
+      requested: targets.length,
+      updated: 0,
+      missing: 0,
+      error: null,
+      label,
+    };
+    try {
+      const stats = targets.length > 0 ? await this.provider.fetch(targets.map((t) => t.reel.shortcode)) : new Map();
+      const now = this.now();
+      for (const { p, reel } of targets) {
+        if (!this.isCurrent(p, reel) || reel.status !== "ACCEPTED" || !stats.has(reel.shortcode)) continue;
+        const result = this.applyAcceptedResult(p, reel, stats.get(reel.shortcode) ?? null, now);
+        if (result === "updated") report.updated += 1;
+        else report.missing += 1;
+      }
+    } catch (err) {
+      report.error = (err as Error).message;
+    }
+    report.finishedAt = this.now();
+    this.lastRefresh = report;
+    if (report.error) this.logger.error(`Ko'rishlarni yangilab bo'lmadi (${label}): ${report.error}`);
+    else this.logger.log(`Ko'rishlar yangilandi (${label}): ${report.updated}/${report.requested}, ${report.missing} topilmadi.`);
+    return report;
   }
 
   private async runSync(reason: SyncReport["reason"]): Promise<SyncReport> {

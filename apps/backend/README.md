@@ -52,6 +52,8 @@ TypeScript 6 da qoladi: Nest CLI hozircha TypeScript 7 bilan ishlamaydi.
 | `ADMIN_SESSION_TTL_HOURS` | Sessiya muddati, soat (standart `12`) |
 | `ADMIN_COOKIE_SECURE` | Cookie faqat https orqali (production'da standart `true`) |
 | `ADMIN_API_TOKEN` | Skriptlar uchun admin API kaliti (`Authorization: Bearer`). Bo'sh — kalit bilan kirish yopiq |
+| `OWNER_USERS` | Tashkilot egalari (yashirin bo'lim): `login\|Ism Familiya\|parol`, bir nechta — `;` bilan (parol ≥ 12 belgi; xato yozuv — server ishga tushmaydi). **Maxfiy** |
+| `OWNER_SESSION_TTL_MINUTES` | Ega sessiyasi muddati, daqiqa (standart `120`) |
 
 Bot tokeni bo'lmasa, bot ishga tushmaydi va Mini App API barcha so'rovlarni rad etadi.
 Apify tokeni bo'lmasa, videolar PENDING holida qoladi (soxta ma'lumotga jim o'tilmaydi).
@@ -186,6 +188,7 @@ bot xabari) yoki ro'yxatdan chiqarishni Admin hal qiladi.
 | `GET /admin/reels` | Barcha videolar (har bir ishtirokchining hammasi): holat, egasi, ko'rishlar tarixi, nakrutka belgilari |
 | `GET /admin/stats` | Yig'ish jadvali, oxirgi natija, holatlar bo'yicha soni |
 | `POST /admin/stats/sync` | Ko'rishlarni hoziroq yig'ish (fon rejimida) |
+| `GET /admin/stats/refresh?minViews=&maxViews=&includeNear=`, `POST /admin/stats/refresh` | Faqat oraliqdagi videolarni hoziroq qayta o'qish (sovg'a topshirishdan oldin): nechta video, oxirgi yig'ish / fonda boshlash. `includeNear` — pastki chegaradan 20% pastdagilar ham. Rejadagi jadvalga ta'sir qilmaydi |
 | `GET /admin/manual-reviews?status=OPEN\|APPROVED\|REJECTED` | Qo'lda tekshiruv ro'yxati |
 | `POST /admin/manual-reviews/:shortcode/decision` | `{ decision: "approve" }` yoki `{ decision: "reject", reason, note? }` |
 | `GET /admin/draws/setup` | Random tanlov: bosqichlar, oylik sovg'a, boshlang'ich sozlamalar |
@@ -194,6 +197,7 @@ bot xabari) yoki ro'yxatdan chiqarishni Admin hal qiladi.
 | `GET /admin/draws`, `GET /admin/draws/:id` | Tanlovlar tarixi va natija |
 | `GET /admin/draws/stock` | Voucherlar qoldig'i: jami, yuborilgan, tasdiqlangan, qoralamada, qolgan (bosqichlar bo'yicha) |
 | `GET\|POST /admin/draws/periods`, `PUT\|DELETE /admin/draws/periods/:periodId` | Admin kalendardan yaratadigan davrlar (`{title, startsOn, endsOn}`, tanlov muddati ichida) |
+| `DELETE /admin/draws/stages/:index`, `POST /admin/draws/stages/:index/restore` | Bosqichni o'chirish / tiklash: tanlovda va Mini App'da ko'rinmaydi, voucherlar jami kamayadi (tanlov o'tkazilgan bosqich va oxirgi bosqich o'chirilmaydi) |
 | `POST /admin/draws/:id/{replace,confirm,cancel}` | G'olibni zaxira bilan almashtirish, tasdiqlash, bekor qilish |
 | `POST /admin/draws/:id/send` | G'oliblarga Telegram bot orqali tabrik (faqat tasdiqlangandan keyin) |
 | `GET /admin/targets` | Target holatlari: `status` (`NEW`/`WARNED`/`DISQUALIFIED`/`DISMISSED`/`OPEN`), `search`, `page`, `pageSize` |
@@ -201,6 +205,22 @@ bot xabari) yoki ro'yxatdan chiqarishni Admin hal qiladi.
 | `POST /admin/targets/:id/resolve` | `{ action: "warn" \| "disqualify" \| "dismiss", reason }` — Admin qarori |
 | `GET /admin/targets/check`, `POST /admin/targets/check` | Reklama kutubxonasi: oxirgi tekshiruv va keyingi rejadagi kun (`nextCheckOn`) / hoziroq tekshirish (tugashini kutadi) |
 | `GET /admin/targets/:id/attachments/:attachmentId` | Shikoyat skrinshoti (rasm) |
+
+- **Ega (tashkilot egalari, yashirin bo'lim)** — [`src/owner/`](src/owner/). Admin kirishidan alohida:
+  `POST /owner/auth/login` (`OWNER_USERS`), sessiya `reels_owner` cookie'da (HttpOnly, SameSite=Strict,
+  `Path=/api/v1/owner`, standart 2 soat); imzo `ADMIN_SESSION_SECRET` dan boshqa kontekst bilan olingan
+  kalitda — admin sessiyasi va `ADMIN_API_TOKEN` bu yerda yaroqsiz (va aksincha). 5 marta xato parol —
+  15 daqiqa qulf. Ega amallari audit log'ga ham, server log'iga ham **yozilmaydi**, bot xabari
+  yuborilmaydi, ko'rishlarni o'zgartiruvchi endpoint yo'q. Kontrakt — `apps/admin/src/lib/owner-types.ts`.
+
+| So'rov | Vazifa |
+|---|---|
+| `POST /owner/auth/login`, `POST /owner/auth/logout`, `GET /owner/auth/me` | Kirish, chiqish (sessiyasiz ham cookie o'chadi), joriy ega |
+| `GET /owner/participants?search=&status=&page=&pageSize=` | Barcha ishtirokchilar, ro'yxatdan to'liq o'tmaganlar ham (`status`: `ACTIVE`/`BLOCKED`/`DISQUALIFIED`/`INCOMPLETE`) |
+| `PATCH /owner/participants/:id` | `{ firstName?, lastName?, age?, phone?, status? }` — ism, familiya, yosh, telefon, holat (istalgan tomonga). 409 — telefon band |
+| `DELETE /owner/participants/:id` | Ishtirokchi va uning videosi butunlay o'chadi |
+| `GET /owner/targets`, `PATCH /owner/targets/:id` | Target holatlari: `{ status, note? }` — istalgan holatga (qaytarish ham); DISQUALIFIED bilan ishtirokchi holati ham bog'lanadi |
+| `GET /owner/risk?level=&includeSafe=&search=`, `POST /owner/risk/:id/review` | Xavfga yaqin hisoblar (ball — [`src/owner/risk.ts`](src/owner/risk.ts)); belgi `{ verdict: "SAFE" \| "WATCH" \| null }` |
 
 Mini App'dagi shikoyat: `POST /miniapp/target-reports` — `{ target, screenshot, comment? }`,
 `screenshot` — `data:image/jpeg;base64,...`; JSON tanasi chegarasi 3 MB.

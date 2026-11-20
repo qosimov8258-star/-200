@@ -19,6 +19,8 @@ import {
   cancelDraw as mockCancelDraw,
   createDrawPeriod as mockCreateDrawPeriod,
   deleteDrawPeriod as mockDeleteDrawPeriod,
+  deleteDrawStage as mockDeleteDrawStage,
+  restoreDrawStage as mockRestoreDrawStage,
   confirmDraw as mockConfirmDraw,
   getDraw as mockGetDraw,
   getDrawSetup as mockGetDrawSetup,
@@ -40,6 +42,8 @@ import {
   applyParticipantAction,
   getParticipantReels as mockGetParticipantReels,
   listParticipants,
+  startMockViewsRefresh,
+  viewsRefreshPreview,
 } from "./mock/participants";
 import {
   getContestRules as mockGetContestRules,
@@ -122,6 +126,8 @@ import type {
   TelegramMessageListQuery,
   TelegramMessageListResponse,
   TelegramResendUnreadRequest,
+  ViewsRefreshPreview,
+  ViewsRefreshRequest,
   WinnerOverview,
   VoucherDraw,
   VoucherDrawSummary,
@@ -304,6 +310,26 @@ export async function getParticipants(query: ParticipantListQuery): Promise<Part
   await delay(350);
   requireRole("ADMIN");
   return listParticipants(query);
+}
+
+/**
+ * "Ko'rishlarni yangilash" oynasi.
+ * @endpoint GET /api/v1/admin/stats/refresh?minViews=&maxViews=&includeNear=
+ */
+export async function getViewsRefreshPreview(request: ViewsRefreshRequest): Promise<ViewsRefreshPreview> {
+  await delay(200);
+  requireRole("ADMIN");
+  return viewsRefreshPreview(request);
+}
+
+/**
+ * Oraliqdagi videolarni qayta o'qish (mock — taqlid).
+ * @endpoint POST /api/v1/admin/stats/refresh
+ */
+export async function startViewsRefresh(request: ViewsRefreshRequest): Promise<{ started: boolean; count: number }> {
+  await delay(400);
+  requireRole("ADMIN");
+  return startMockViewsRefresh(request);
 }
 
 /**
@@ -574,6 +600,24 @@ export async function updateDrawPeriod(id: string, input: DrawPeriodInput): Prom
 export async function deleteDrawPeriod(id: string): Promise<void> {
   await delay(300);
   mockDeleteDrawPeriod(id, requireRole("ADMIN"));
+}
+
+/**
+ * Bosqichni o'chirish.
+ * @endpoint DELETE /api/v1/admin/draws/stages/:index
+ */
+export async function deleteDrawStage(index: number): Promise<void> {
+  await delay(300);
+  mockDeleteDrawStage(index, requireRole("ADMIN"));
+}
+
+/**
+ * O'chirilgan bosqichni tiklash.
+ * @endpoint POST /api/v1/admin/draws/stages/:index/restore
+ */
+export async function restoreDrawStage(index: number): Promise<void> {
+  await delay(300);
+  mockRestoreDrawStage(index, requireRole("ADMIN"));
 }
 
 /**

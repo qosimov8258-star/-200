@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown, Loader2, LogOut, Menu, X } from "lucide-react";
 
@@ -26,6 +26,14 @@ const LG_VISIBLE = 4;
 const XL_VISIBLE = 5;
 
 type MenuName = "more" | "profile" | "mobile";
+
+/**
+ * Tashkilot egalari bo'limiga (`/owner`) yashirin kirish: logotipni ketma-ket shuncha marta,
+ * har bosish oldingisidan ko'pi bilan `SECRET_TAP_GAP_MS` ichida bosish kerak. Hech qanday
+ * ko'rinadigan ishora yo'q; oddiy bosish avvalgidek bosh sahifaga olib boradi.
+ */
+const SECRET_TAP_COUNT = 7;
+const SECRET_TAP_GAP_MS = 1200;
 
 /** Suzuvchi panelning "muzli shisha" foni (binafsha-kulrang). */
 const GLASS =
@@ -58,6 +66,28 @@ export function TopNav({ admin, onLogout, loggingOut }: TopNavProps) {
 
   const toggle = (name: MenuName) => setMenu(open === name ? null : { name, path: pathname });
   const close = () => setMenu(null);
+
+  const router = useRouter();
+  /** Logotip bosishlari: ketma-ket soni va oxirgisining vaqti (sahifalar almashganda ham saqlanadi). */
+  const logoTaps = useRef({ count: 0, last: 0 });
+
+  function handleLogoClick(event: React.MouseEvent<HTMLAnchorElement>) {
+    close();
+    // Yangi oynada ochish (Cmd/Ctrl/Shift bilan) — oddiy havola, sanalmaydi.
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      logoTaps.current.count = 0;
+      return;
+    }
+    const now = performance.now();
+    const taps = logoTaps.current;
+    taps.count = now - taps.last <= SECRET_TAP_GAP_MS ? taps.count + 1 : 1;
+    taps.last = now;
+    if (taps.count >= SECRET_TAP_COUNT) {
+      taps.count = 0;
+      event.preventDefault();
+      router.push("/owner");
+    }
+  }
 
   // Tashqariga bosilganda yoki Escape — yopiladi.
   useEffect(() => {
@@ -105,7 +135,7 @@ export function TopNav({ admin, onLogout, loggingOut }: TopNavProps) {
         {/* Brend logotipi (apps/logos/Olivia.png dan kesilgan) — keng yozuv, shuning uchun oq "pill" ichida. */}
         <Link
           href={homePathForRole(admin.role)}
-          onClick={close}
+          onClick={handleLogoClick}
           aria-label="Olivia — bosh sahifa"
           title="Olivia · Reels tanlov"
           className="relative flex h-12 shrink-0 items-center rounded-full bg-white px-4 shadow-[0_4px_12px_-4px_rgba(30,20,60,0.45)] transition-transform duration-200 hover:scale-[1.03] focus-visible:outline-white"

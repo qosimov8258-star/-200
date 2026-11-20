@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { RefreshCw, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { SearchInput } from "@/components/ui/search-input";
@@ -9,6 +9,8 @@ import { Segmented } from "@/components/ui/segmented";
 import { PARTICIPANT_STATUS_LABELS, REEL_FILTER_LABELS } from "@/lib/labels";
 import type { ParticipantListResponse, ParticipantStatus, ReelStatus } from "@/lib/types";
 import { hasActiveFilters, type UsersFilters } from "@/lib/users-filters";
+
+import { ViewsRangeFilter } from "./views-range-filter";
 
 const STATUS_TABS: Array<{ value: UsersFilters["status"]; label: string }> = [
   { value: "ALL", label: "Hammasi" },
@@ -32,6 +34,8 @@ interface UsersToolbarProps {
   onSearchChange: (search: string) => void;
   onStatusChange: (status: UsersFilters["status"]) => void;
   onReelChange: (reel: UsersFilters["reel"]) => void;
+  onViewsChange: (range: { min: number | null; max: number | null }) => void;
+  onRefreshViews: () => void;
   onClear: () => void;
 }
 
@@ -41,6 +45,8 @@ export function UsersToolbar({
   onSearchChange,
   onStatusChange,
   onReelChange,
+  onViewsChange,
+  onRefreshViews,
   onClear,
 }: UsersToolbarProps) {
   return (
@@ -66,6 +72,18 @@ export function UsersToolbar({
             </option>
           ))}
         </Select>
+
+        <ViewsRangeFilter
+          min={filters.minViews}
+          max={filters.maxViews}
+          onChange={onViewsChange}
+          className="w-full sm:w-72"
+        />
+
+        <Button variant="secondary" onClick={onRefreshViews} className="h-10 w-full sm:w-auto">
+          <RefreshCw className="size-4" aria-hidden />
+          Ko&apos;rishlarni yangilash
+        </Button>
 
         {hasActiveFilters(filters) && (
           <Button variant="ghost" size="sm" onClick={onClear}>
