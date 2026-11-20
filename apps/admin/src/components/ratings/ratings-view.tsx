@@ -83,7 +83,7 @@ export function RatingsView() {
           <div className="flex flex-col items-center gap-3 px-4 py-12 text-center">
             <IosIcon icon={ListOrdered} tint="gray" size={48} />
             <p className="text-sm text-slate-600">
-              {formatDate(data.date)} kuni reytingda hali hech kim yo&apos;q.
+              {formatDate(data.date)} kuni reytingda hali video yo&apos;q.
             </p>
           </div>
         ) : data ? (
@@ -115,18 +115,19 @@ export function RatingsView() {
 function RatingSummary({ data }: { data: DailyRatingResponse }) {
   const firstDay = data.date === data.availableRange.from;
   const items = [
-    { label: "Reytingda", value: `${formatNumber(data.summary.participants)} ishtirokchi` },
+    { label: "Ishtirokchilar", value: formatNumber(data.summary.participants) },
+    { label: "Videolar", value: formatNumber(data.summary.videos) },
     { label: "Jami ko'rishlar", value: formatNumber(data.summary.totalViews) },
     { label: "Shu kungi o'sish", value: formatSigned(data.summary.totalGrowth) },
     {
-      label: "Yangi kirganlar",
+      label: "Yangi kirgan videolar",
       value: firstDay ? "—" : formatNumber(data.summary.newEntries),
     },
   ];
 
   return (
     <Card className="px-5 py-4">
-      <dl className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {items.map((item) => (
           <div key={item.label}>
             <dt className="text-xs text-slate-500">{item.label}</dt>
@@ -135,6 +136,8 @@ function RatingSummary({ data }: { data: DailyRatingResponse }) {
         ))}
       </dl>
       <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
+        Har bir video alohida qator: ishtirokchining o&apos;rni — eng ko&apos;p ko&apos;rilgan videosining
+        o&apos;rni.{" "}
         {firstDay
           ? "Tanlovning birinchi kuni — o'rin o'zgarishi hisoblanmaydi."
           : `O'rin o'zgarishi ${formatDate(addDays(data.date, -1))} kuniga nisbatan.`}

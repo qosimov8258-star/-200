@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
-import { ChevronRight, Eye, Trophy } from "lucide-react";
+import { ChevronRight, Eye, PlayCircle, Trophy } from "lucide-react";
 import { useState } from "react";
 
 import { ChampionBackdrop } from "../components/ChampionBackdrop";
@@ -15,15 +15,21 @@ import type { RatingEntry } from "../lib/types";
 
 type Filter = "all" | "top10" | "nearMe";
 
+/**
+ * Reyting har bir video bo'yicha: bitta ishtirokchi bir necha qatorda chiqishi, bir nechta qator
+ * `isMe` bo'lishi mumkin. "Men atrofimda" — ishtirokchining o'rni atrofi, ya'ni birinchi `isMe`
+ * qatori (eng ko'p ko'rilgan videosi) va uning ±3 qo'shnisi.
+ */
 function applyFilter(entries: RatingEntry[], filter: Filter): RatingEntry[] {
   if (filter === "all") return entries;
   if (filter === "top10") return entries.slice(0, 10);
-  const me = entries.findIndex((e) => e.isMe);
-  return me < 0 ? [] : entries.slice(Math.max(0, me - 3), me + 4);
+  const best = entries.findIndex((e) => e.isMe);
+  return best < 0 ? [] : entries.slice(Math.max(0, best - 3), best + 4);
 }
 
 /**
- * "Reyting" bo'limi: 1-o'rin kartasi va ishtirokchilar ro'yxati (filtrlar bilan).
+ * "Reyting" bo'limi: 1-o'rin kartasi va videolar ro'yxati (filtrlar bilan). Har bir qator — bitta
+ * qabul qilingan video, shuning uchun bir ism (jumladan, o'zingiz) bir necha marta chiqishi mumkin.
  * Yangi yil uslubida: sarlavha yonida osilgan archa o'yinchog'i, konfet-tayoqcha filtrlar,
  * qor yog'ayotgan qishki tun sahnasi, ro'yxat ustida qor va top-3 uchun o'yinchoq-medallar.
  */
@@ -78,9 +84,14 @@ export function RatingScreen({ onOpenReel }: { onOpenReel: () => void }) {
         <>
           <LeaderCard
             leader={rating.data[0]}
+            // Ishtirokchining o'rni — eng ko'p ko'rilgan videosi, ya'ni birinchi `isMe` qatori.
             me={rating.data.find((e) => e.isMe) ?? null}
             onOpenReel={onOpenReel}
           />
+          <p className="flex items-start gap-2 px-1 text-[13px] leading-snug text-muted">
+            <PlayCircle className="mt-px size-4 shrink-0 text-[#df3425]" aria-hidden />
+            {t.ratingPerVideoHint}
+          </p>
           {(() => {
             const visible = applyFilter(rating.data, filter);
             if (visible.length === 0) {
@@ -92,6 +103,7 @@ export function RatingScreen({ onOpenReel }: { onOpenReel: () => void }) {
                 <ol>
                   {visible.map((entry, i) => (
                     <li
+                      // O'rin har bir qatorda (videoda) boshqa; ism takrorlanadi — kalit bo'lolmaydi.
                       key={entry.rank}
                       className={clsx(
                         "mx-[18px] flex items-center gap-3 py-3",
@@ -116,7 +128,10 @@ export function RatingScreen({ onOpenReel }: { onOpenReel: () => void }) {
                             </span>
                           )}
                         </span>
-                        <span className="block text-[13px] text-muted">
+                        {/* Qator — bitta video: uning o'z ko'rishlari. */}
+                        <span className="flex items-center gap-1 text-[13px] text-muted">
+                          <PlayCircle className="size-3.5 shrink-0" aria-hidden />
+                          <span className="sr-only">{t.ratingVideo}:</span>
                           {t.views(formatCount(entry.views))}
                         </span>
                       </span>

@@ -10,9 +10,9 @@ export type IsoDate = string;
 
 /**
  * Bitta videoning holati. PENDING — avtomatik tekshiruv; ACCEPTED — qabul qilingan (reytingda
- * ishtirokchining eng ko'p ko'rilgan bitta ACCEPTED videosi hisoblanadi); MANUAL_REVIEW —
- * Instagram'da 3 marta topilmadi, admin qo'lda tekshiradi; REJECTED — rad etilgan (hisobga
- * kirmaydi; shu linkni tuzatib qayta yuborish mumkin).
+ * alohida qator bo'lib chiqadi; ishtirokchining o'rni va asosiy sovrin — eng ko'p ko'rilgan bitta
+ * ACCEPTED videosi bo'yicha); MANUAL_REVIEW — Instagram'da 3 marta topilmadi, admin qo'lda
+ * tekshiradi; REJECTED — rad etilgan (hisobga kirmaydi; shu linkni tuzatib qayta yuborish mumkin).
  */
 export type ReelStatus = "PENDING" | "ACCEPTED" | "MANUAL_REVIEW" | "REJECTED";
 
@@ -70,13 +70,22 @@ export interface ContestRules {
   sections: RulesSection[];
 }
 
+/**
+ * Reytingning bitta qatori — bitta qabul qilingan VIDEO (ishtirokchi emas). Bitta ishtirokchining
+ * har bir ACCEPTED videosi alohida qator: bir xil `fullName` bir necha marta chiqishi va bir nechta
+ * qatorda `isMe: true` bo'lishi mumkin. Tartib: ko'rishlar bo'yicha kamayib (teng bo'lsa — oldinroq
+ * yuborilgan video). Video linklari ommaviy reytingda berilmaydi.
+ */
 export interface RatingEntry {
+  /** Qatorning (videoning) o'rni: 1..N, har bir qatorda boshqa — React kaliti sifatida ham shu. */
   rank: number;
+  /** Video egasining ismi — takrorlanishi mumkin (kalit sifatida ishlatilmaydi). */
   fullName: string;
-  /** Ishtirokchining eng ko'p ko'rilgan qabul qilingan videosi ko'rishlari (videolar qo'shilmaydi). */
+  /** Shu videoning ko'rishlari. */
   views: number;
-  /** Kechagiga nisbatan o'rin o'zgarishi: musbat — ko'tarilgan. */
+  /** Shu videoning oldingi yangilanishga nisbatan o'rin o'zgarishi: musbat — ko'tarilgan; yangi video — 0. */
   rankDelta: number;
+  /** Video joriy ishtirokchiniki. Birinchi shunday qator — uning eng yaxshi videosi (`MyReels.rank`). */
   isMe: boolean;
 }
 
@@ -108,24 +117,35 @@ export interface MyReelItem {
   /** Yuborilgan vaqt (UTC ISO). */
   submittedAt: string;
   /**
-   * Reytingda hisoblanadigan video: eng ko'p ko'rilgan ACCEPTED video (teng bo'lsa — oldinroq
-   * yuborilgani). Ro'yxatda faqat birinchi video va faqat ACCEPTED bo'lsa true.
+   * Eng yaxshi natija: eng ko'p ko'rilgan ACCEPTED video (teng bo'lsa — oldinroq yuborilgani);
+   * ishtirokchining o'rni (`MyReels.rank`) va asosiy sovrin shu video bo'yicha. Ro'yxatda faqat
+   * birinchi video va faqat ACCEPTED bo'lsa true.
    */
   best: boolean;
+  /**
+   * Shu videoning reytingdagi o'rni (har bir video alohida qator). Faqat reytingdagi ACCEPTED
+   * videoda raqam, qolganlarida — null.
+   */
+  rank: number | null;
 }
 
 /**
- * Ishtirokchining barcha videolari va natijasi. Videolar soni cheklanmagan; reyting, o'rin va
- * asosiy sovrinlar uchun ishtirokchining eng ko'p ko'rilgan bitta ACCEPTED videosi hisoblanadi —
- * videolar ko'rishlari qo'shilmaydi.
+ * Ishtirokchining barcha videolari va natijasi. Videolar soni cheklanmagan; reytingda har bir
+ * ACCEPTED video alohida qator, ishtirokchining o'rni va asosiy sovrinlar uchun esa eng ko'p
+ * ko'rilgan bitta ACCEPTED videosi hisoblanadi — videolar ko'rishlari qo'shilmaydi.
  */
 export interface MyReels {
   /** Eng ko'p ko'rilgan qabul qilingan video ko'rishlari; bunday video yo'q bo'lsa — 0. */
   bestViews: number;
   /** Eng ko'p ko'rilgan videoning oxirgi kundagi o'sishi. */
   todayViews: number;
-  /** Qabul qilingan video yo'q bo'lsa — null. */
+  /**
+   * Ishtirokchining o'rni — eng ko'p ko'rilgan videosining reytingdagi o'rni (reyting har bir video
+   * bo'yicha, shuning uchun ishtirokchilar o'rinlari orasida raqamlar tushib qolishi mumkin).
+   * Qabul qilingan video yo'q bo'lsa — null.
+   */
   rank: number | null;
+  /** Shu (eng yaxshi) o'rinning oldingi yangilanishga nisbatan o'zgarishi: musbat — ko'tarilgan. */
   rankDelta: number;
   /** Eng ko'p ko'rilgan videoning kunlik o'sishi, eskidan yangiga (oxirgi 30 kun). */
   daily: DailyViews[];

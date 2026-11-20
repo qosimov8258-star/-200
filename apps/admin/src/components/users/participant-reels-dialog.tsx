@@ -36,8 +36,9 @@ interface ParticipantReelsDialogProps {
 }
 
 /**
- * Ishtirokchining barcha yuborgan videolari: holati, ko'rishlari va shubha belgilari.
- * Reytingda eng ko'p ko'rilgan bitta qabul qilingan videosi hisoblanadi (ko'rishlar qo'shilmaydi).
+ * Ishtirokchining barcha yuborgan videolari: holati, reytingdagi o'rni, ko'rishlari va shubha
+ * belgilari. Reytingda har bir qabul qilingan video alohida qator; ishtirokchining natijasi va
+ * o'rni — eng ko'p ko'rilgan bitta videosi bo'yicha (ko'rishlar qo'shilmaydi).
  */
 export function ParticipantReelsDialog({ participant, onClose }: ParticipantReelsDialogProps) {
   const name = fullName(participant);
@@ -84,10 +85,10 @@ function countReels(reels: AdminReelItem[]): ParticipantReelCounts {
 }
 
 function ReelsBody({ data }: { data: ParticipantReels }) {
-  // Tartib backenddan: qabul qilinganlar ko'rishlar bo'yicha (birinchisi — reytingdagi video),
+  // Tartib backenddan: qabul qilinganlar ko'rishlar bo'yicha (birinchisi — eng ko'p ko'rilgani),
   // keyin tekshiruvdagilar, keyin rad etilganlar.
   const reels = data.reels;
-  const hasBest = reels.some((reel) => reel.best);
+  const best = reels.find((reel) => reel.best);
   const usernames = data.participant.instagramUsernames;
   const listTitleId = useId();
 
@@ -118,7 +119,11 @@ function ReelsBody({ data }: { data: ParticipantReels }) {
             {formatNumber(data.bestViews)}
           </dd>
           <dd className="text-xs text-slate-500">
-            {hasBest ? "reytingda shu hisoblanadi" : "qabul qilingan video yo'q"}
+            {!best
+              ? "qabul qilingan video yo'q"
+              : best.rank !== null
+                ? `ishtirokchi o'rni — ${best.rank}-o'rin`
+                : "reytingda emas"}
           </dd>
         </div>
         <div>
@@ -140,7 +145,7 @@ function ReelsBody({ data }: { data: ParticipantReels }) {
       ) : (
         <section aria-labelledby={listTitleId}>
           <h3 id={listTitleId} className="mb-1 text-xs font-medium tracking-wide text-slate-500 uppercase">
-            {hasBest ? "Yuborilgan videolar — eng ko'p ko'rilgani yuqorida" : "Yuborilgan videolar"}
+            {best ? "Yuborilgan videolar — eng ko'p ko'rilgani yuqorida" : "Yuborilgan videolar"}
           </h3>
           <ul className="max-h-[55vh] divide-y divide-slate-100 overflow-y-auto rounded-md border border-slate-200">
             {reels.map((reel) => (
@@ -170,6 +175,11 @@ function ReelRow({ reel }: { reel: AdminReelItem }) {
           <span className="sr-only">(Instagramda, yangi oynada)</span>
         </a>
         <span className="inline-flex flex-wrap items-center gap-1.5">
+          {reel.rank !== null && (
+            <Badge tone="neutral" className="tabular-nums" title="Reytingdagi o'rni (har bir video alohida qator)">
+              {reel.rank}-o&apos;rin
+            </Badge>
+          )}
           {reel.best && (
             <Badge tone="brand" className="gap-1">
               <Trophy className="size-3" aria-hidden />

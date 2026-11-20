@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Crosshair, Flame, Trophy } from "lucide-react";
+import { ArrowRight, Crosshair, ExternalLink, Flame, Trophy } from "lucide-react";
 
 import { getDailyRating } from "@/lib/api";
 import { formatCompact, formatNumber, formatPercent, formatSigned } from "@/lib/format";
@@ -20,7 +20,10 @@ const AVATAR_TONES = [
   "bg-[linear-gradient(135deg,#f6c99b,#e8955a)]",
 ];
 
-/** CareOps "Doctors performance": eng ko'p ko'rish yig'ganlar kartalarda va xulosa banneri. */
+/**
+ * CareOps "Doctors performance": reyting boshi kartalarda va xulosa banneri. Reytingda har bir
+ * video alohida qator, shuning uchun bir ishtirokchi bir necha kartada bo'lishi mumkin.
+ */
 export function TopPerformers({ stats, phrase }: { stats: DashboardStats; phrase: string }) {
   const date: IsoDate = stats.range.to;
   const [page, setPage] = useState(0);
@@ -35,8 +38,8 @@ export function TopPerformers({ stats, phrase }: { stats: DashboardStats; phrase
 
   return (
     <DashboardSection
-      title="Eng faol ishtirokchilar"
-      subtitle="Ko'rishlar bo'yicha reyting boshi"
+      title="Eng ko'p ko'rilgan videolar"
+      subtitle="Ko'rishlar bo'yicha reyting boshi — har bir video alohida"
       actions={<CarouselControls page={page} pages={pages} onPage={setPage} href="/ratings" />}
     >
       <div className="grid gap-3 sm:grid-cols-3">
@@ -44,7 +47,7 @@ export function TopPerformers({ stats, phrase }: { stats: DashboardStats; phrase
           ? Array.from({ length: PER_PAGE }, (_, i) => (
               <div key={i} className="h-[150px] animate-pulse rounded-2xl border border-line bg-[#fbfbfd]" />
             ))
-          : visible.map((entry, i) => <PerformerCard key={entry.participantId} entry={entry} tone={AVATAR_TONES[i % AVATAR_TONES.length]} />)}
+          : visible.map((entry, i) => <PerformerCard key={entry.shortcode} entry={entry} tone={AVATAR_TONES[i % AVATAR_TONES.length]} />)}
         {!rating.isPending && items.length === 0 && (
           <p className="col-span-full py-10 text-center text-sm text-muted">Reyting hali shakllanmagan</p>
         )}
@@ -91,6 +94,21 @@ function PerformerCard({ entry, tone }: { entry: RatingEntry; tone: string }) {
         </span>
       </div>
       <dl className="mt-3 space-y-1.5 border-t border-line pt-3 text-xs">
+        <div className="flex items-center justify-between gap-2">
+          <dt className="text-muted">Video</dt>
+          <dd className="min-w-0">
+            <a
+              href={entry.reelUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex max-w-full items-center gap-1 font-mono font-medium text-brand-600 hover:underline"
+            >
+              <span className="truncate">{entry.shortcode}</span>
+              <ExternalLink className="size-3 shrink-0" aria-hidden />
+              <span className="sr-only">({name} videosi, Instagramda, yangi oynada)</span>
+            </a>
+          </dd>
+        </div>
         <Row label="Ko'rishlar" value={formatNumber(entry.views)} />
         <Row label="Kunlik o'sish" value={formatSigned(entry.viewsGrowth)} valueClass="text-up" />
         <div className="flex items-center justify-between">

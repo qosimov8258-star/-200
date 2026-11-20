@@ -105,7 +105,12 @@ export class AdminParticipantsController {
   /** `GET /admin/participants/:id/reels` — ishtirokchi yuborgan barcha videolar (eng yangisi birinchi). */
   @Get(":id/reels")
   reels(@Param("id") id: string): ParticipantReels {
-    return toParticipantReels(this.find(id));
+    const p = this.find(id);
+    const reelRanks = this.stats
+      .reelRanking()
+      .filter((e) => e.participant === p)
+      .map((e): [string, number] => [e.reel.shortcode, e.rank]);
+    return toParticipantReels(p, new Map(reelRanks));
   }
 
   /** Bloklash: ilovaga kira olmaydi, reytingdan chiqadi. Body: `{ reason }`. */

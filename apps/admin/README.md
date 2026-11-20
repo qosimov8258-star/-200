@@ -87,9 +87,10 @@ Backendsiz ishlash uchun (`npm run dev` da standart):
 - Tanlov ma'lumotlari ([`src/lib/mock/contest.ts`](src/lib/mock/contest.ts)) deterministik
   generatsiya qilinadi va bugungi sanaga bog'lanadi: tanlov 24 kun oldin boshlangan,
   140 ta o'ylab topilgan ishtirokchi, har birida 0–6 ta video (turli holatlarda, ba'zilari
-  ikkinchi Instagram akkauntdan), kunlik ko'rishlar, target va murojaatlar. Ishtirokchi
-  natijasi — eng ko'p ko'rilgan bitta qabul qilingan videosining ko'rishlari, videolar
-  ko'rishlari qo'shilmaydi (reyting, g'olib, ega bo'limi va random tanlov ham shunday hisoblaydi).
+  ikkinchi Instagram akkauntdan), kunlik ko'rishlar, target va murojaatlar. Reytingda har bir
+  qabul qilingan video alohida qator; ishtirokchi natijasi va o'rni — eng ko'p ko'rilgan bitta
+  qabul qilingan videosi bo'yicha, videolar ko'rishlari qo'shilmaydi (g'olib, ega bo'limi va
+  random tanlov ham shunday hisoblaydi).
 - Mock sessiya brauzerning `localStorage` ida saqlanadi.
 - Admin amallari (bloklash, blokdan chiqarish, diskvalifikatsiya, support javoblari va
   holatlari, target bo'yicha qarorlar) va ularning audit yozuvlari ham `localStorage` da
@@ -104,7 +105,7 @@ tanlov hali tugamagan, oqimni sinash uchun. U faqat `mockControls` bo'lsa (mock 
 Jamoa tasdiqlagan, backend ham shu qoidalar bo'yicha ishlashi kerak:
 
 - **Diskvalifikatsiya** panel orqali bekor qilinmaydi (bloklashdan farqli o'laroq).
-- **Ko'rishlar teng bo'lsa**, Reelni oldinroq yuborgan ishtirokchi reytingda yuqorida turadi.
+- **Ko'rishlar teng bo'lsa**, oldinroq yuborilgan Reel reytingda yuqorida turadi.
 - **Support:** "Yangi" murojaatga birinchi javob yozilganda u avtomatik "Ko'rilmoqda" holatiga o'tadi.
 - **Collab videolar alohida aniqlanmaydi** — Instagramda boshqa akkaunt bilan hamkorlikda (Collab)
   joylangan Reel oddiy Reel kabi qabul qilinadi, chunki muhimi — ko'rishlar soni. Bitta Reel
@@ -118,15 +119,27 @@ Panelda shunday qilingan, lekin hali jamoa bilan kelishilishi kerak (PLAN.md Q11
 
 ## Foydalanuvchilar va videolar
 
-Ishtirokchi cheklovsiz Reel yuboradi; uning natijasi — qabul qilingan videolari ichida eng ko'p
-ko'rilgan **bittasining** ko'rishlari, videolar ko'rishlari qo'shilmaydi. Qabul qilingan video
-bo'lmasa — 0. Ishtirokchining videolari teng bo'lsa — oldinroq yuborilgani hisoblanadi;
-ishtirokchilar teng bo'lsa — shu videoni oldinroq yuborgan yuqorida.
+Ishtirokchi cheklovsiz Reel yuboradi. **Reytingda har bir qabul qilingan video alohida qator:**
+4 ta qabul qilingan videosi bor ishtirokchi reytingda 4 marta uchraydi, har qatorda — shu videoning
+ko'rishlari va o'rni. Tartib: ko'rishlar kamayishi bo'yicha; teng bo'lsa — oldinroq yuborilgan video,
+keyin ishtirokchi id, keyin shortcode. Bloklangan va diskvalifikatsiya qilinganlarning videolari
+reytingda yo'q.
 
-- Reyting, o'rin o'zgarishi, g'olib, ega bo'limi va jadvaldagi "Ko'rishlar" ustuni — shu qiymat.
-- Kunlik reyting: kun natijasi — shu kuni eng ko'p ko'rilgan video, "Kunlik o'sish" — shu kungi
-  natija minus oldingi kungisi. Sahifa xulosasidagi "Jami ko'rishlar" (qatorlar yig'indisi) va
-  dashboarddagi "Jami ko'rishlar" (barcha videolar) — umumiy ko'rsatkichlar, o'zgarmagan.
+Ishtirokchining natijasi — qabul qilingan videolari ichida eng ko'p ko'rilgan **bittasining**
+ko'rishlari (videolar ko'rishlari qo'shilmaydi; qabul qilingan video bo'lmasa — 0), o'rni — shu
+videoning reytingdagi o'rni. Shuning uchun ishtirokchilar o'rinlari oralab ketishi mumkin (1, 4, 5…).
+Sovg'alar esa ishtirokchi bo'yicha: g'olib — 1-o'rindagi video egasi, u rad etilsa — keyingi boshqa
+ishtirokchi; random tanlov va target tekshiruvi ham ishtirokchi bo'yicha.
+
+- Jadvaldagi "O'rin" va "Ko'rishlar" ustunlari, g'olib va ega bo'limi — shu qiymatlar.
+- Kunlik reyting (`GET /api/v1/admin/ratings/daily`): qator — video (kaliti `shortcode`, havolasi
+  "Video" ustunida). "Kunlik o'sish" — shu videoning shu kungi ko'rishlari minus oldingi kungisi
+  (oldingi kungacha yig'ilmagan bo'lsa — hammasi), o'rin o'zgarishi — shu videoning oldingi kundagi
+  o'rniga nisbatan (oldingi kuni reytingda bo'lmagan video — "Yangi"). Xulosada: turli ishtirokchilar
+  soni, videolar (qatorlar) soni, "Jami ko'rishlar" (qatorlar yig'indisi), kunlik o'sish va yangi
+  kirgan videolar. Dashboarddagi "Jami ko'rishlar" (barcha videolar) — umumiy ko'rsatkich.
+- Dashboarddagi "Eng ko'p ko'rilgan videolar" — reyting boshi: bir ishtirokchi bir necha kartada
+  bo'lishi mumkin.
 - Oylik random tanlov (Aksiya qoidalari 7.2): davrga tushgan qabul qilingan videolari ichida eng
   ko'p ko'rilgani; ko'rishlar chegarasi ham shunga qo'llanadi.
 
@@ -134,11 +147,13 @@ ishtirokchilar teng bo'lsa — shu videoni oldinroq yuborgan yuqorida.
   kutilmoqda — qo'lda tekshiruvdagilar bilan, rad etilgan); video bo'lmasa — "—".
 - Ism, video soni yoki qatorning bo'sh joyi bosilsa — "Videolar" oynasi
   (`GET /api/v1/admin/participants/:id/reels`): Instagram akkaunt(lar), "Eng ko'p ko'rilgan video"
-  (`bestViews` — jadvaldagi "Ko'rishlar" bilan bir xil) va barcha videolar — link, holat ("Qo'lda
+  (`bestViews` — jadvaldagi "Ko'rishlar" bilan bir xil, ostida ishtirokchi o'rni) va barcha videolar —
+  link, reytingdagi o'rni (qabul qilinganlarda, masalan «12-o'rin»; `rank`), holat ("Qo'lda
   tekshiruvda" ham), rad etish sababi, akkaunt, ko'rishlar, layklar, yuborilgan / joylangan / oxirgi
   yangilangan vaqt va shubha belgilari. Tartib backenddan keladi: avval qabul qilinganlar ko'rishlar
-  kamayishi bo'yicha — birinchisi reytingdagi video («Reytingda hisoblanadi» belgisi, `best: true`),
-  keyin tekshiruvdagilar, keyin rad etilgan / o'chirilganlar (oxirgi ikkalasida eng yangisi yuqorida).
+  kamayishi bo'yicha — birinchisi eng ko'p ko'rilgani («Eng ko'p ko'rilgan» belgisi, `best: true`;
+  ishtirokchi o'rni shu bo'yicha), keyin tekshiruvdagilar, keyin rad etilgan / o'chirilganlar (oxirgi
+  ikkalasida eng yangisi yuqorida).
 - Video filtri (`reel` URL parametri): "shu holatdagi videosi bor" yoki "Video yo'q".
 
 ## Rollar

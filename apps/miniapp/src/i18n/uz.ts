@@ -46,7 +46,7 @@ export const t = {
   guestJoinCta: "Ro'yxatdan o'tish",
   guestReelTitle: "Videongizni yuborish uchun ro'yxatdan o'ting",
   guestReelBody:
-    "Telegram orqali kiring — parol yoki SMS kerak emas. Keyin Reel linkini yuborasiz va eng ko'p ko'rilgan videongiz reytingda hisoblanadi.",
+    "Telegram orqali kiring — parol yoki SMS kerak emas. Keyin Reel linklarini yuborasiz — har bir qabul qilingan videongiz reytingda alohida o'rin oladi.",
   guestReportTitle: "Xabar yuborish uchun ro'yxatdan o'ting",
   guestReportBody: "Reklama haqida faqat tanlov ishtirokchilari xabar bera oladi. Telegram orqali kirish bir daqiqa oladi.",
   supportWebHint: "Support Telegram botda — ochilgan chatga savolingizni yozing.",
@@ -121,6 +121,10 @@ export const t = {
   you: "Siz",
   ratingEmpty: "Reyting hali shakllanmagan",
   nearMeEmpty: "Video yuborganingizdan keyin o'rningiz shu yerda ko'rinadi",
+  ratingPerVideoHint:
+    "Har bir video alohida o'rin oladi, shuning uchun bitta ishtirokchi bir necha marta chiqishi mumkin. Sizning o'rningiz — eng ko'p ko'rilgan videongiz o'rni.",
+  /** Ekran o'quvchi uchun: reyting qatori — bitta video. */
+  ratingVideo: "Video",
 
   // Mening videolarim
   reelTitle: "Mening videolarim",
@@ -130,12 +134,14 @@ export const t = {
     "Mahsulot haqidagi Reel linkini qo'ying. Video avtomatik tekshiriladi, ko'rishlar esa muntazam yangilanib boradi.",
   addReelTitle: "Yangi video qo'shing",
   addReelBody:
-    "Videolar soni cheklanmagan: har biri alohida tekshiriladi. Reytingda eng ko'p ko'rilgan bitta videongiz hisoblanadi — ko'rishlar qo'shilmaydi.",
+    "Videolar soni cheklanmagan: har biri alohida tekshiriladi va reytingda alohida o'rin oladi. Sizning o'rningiz — eng ko'p ko'rilgan videongiz o'rni, ko'rishlar qo'shilmaydi.",
   myReelsTitle: "Videolarim",
   myReelsCount: (accepted: number, total: number) =>
     accepted > 0 ? `${total} ta · ${accepted} tasi qabul qilingan` : `${total} ta`,
   reelSubmittedAt: (when: string) => `Yuborildi: ${when}`,
-  reelBestBadge: "Reytingda hisoblanadi",
+  reelBestBadge: "Eng yaxshi natija",
+  reelRank: (rank: number) => `${rank}-o'rin`,
+  reelRankHint: "Shu videoning reytingdagi o'rni",
   linkPlaceholder: "https://www.instagram.com/reel/...",
   paste: "Qo'yish",
   submit: "Yuborish",

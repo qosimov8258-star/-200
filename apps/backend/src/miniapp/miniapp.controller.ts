@@ -36,6 +36,7 @@ export interface MyReels {
   bestViews: number;
   /** Shu videoning oxirgi kundagi o'sishi. */
   todayViews: number;
+  /** Eng ko'p ko'rilgan videosining videolar reytingidagi o'rni (reytingda bo'lmasa — null). */
   rank: number | null;
   rankDelta: number;
   /** Shu videoning kunlik o'sishi — eskidan yangiga, oxirgi `DAILY_DAYS` kun. */
@@ -61,6 +62,8 @@ export interface MyReelItem {
   submittedAt: string;
   /** Reytingda hisoblanadigan video (eng ko'p ko'rilgan qabul qilingani) — faqat bittasida true. */
   best: boolean;
+  /** Shu videoning videolar reytingidagi o'rni; reytingda bo'lmasa (qabul qilinmagan) — null. */
+  rank: number | null;
 }
 /** Support: shu vaqt ichida ko'pi bilan shuncha xabar (spamdan himoya). */
 const SUPPORT_WINDOW_MS = 10 * 60 * 1000;
@@ -138,11 +141,14 @@ export class MiniappController {
     this.participants.acceptRules(user.telegramId, parseVersion(body));
   }
 
-  /** Ommaviy reyting — telefon raqamlarisiz. Ko'rishlarni worker (StatsService) yig'adi. */
+  /**
+   * Ommaviy reyting — har bir qabul qilingan video alohida qator (4 ta videosi bor ishtirokchi
+   * 4 joyda). Telefon raqamlari va video linklari berilmaydi. Ko'rishlarni worker (StatsService) yig'adi.
+   */
   @Public()
   @Get("rating")
   rating(@TgUserOptional() user: TelegramIdentity | null) {
-    return this.stats.ranking().map((e) => ({
+    return this.stats.reelRanking().map((e) => ({
       rank: e.rank,
       fullName: `${e.participant.firstName} ${e.participant.lastName}`,
       views: e.views,
@@ -162,6 +168,9 @@ export class MiniappController {
     const reels = p?.reels ?? [];
     const best = topReel(reels.filter((r) => r.status === "ACCEPTED"));
     const entry = p ? (this.stats.ranking().find((e) => e.participant === p) ?? null) : null;
+    const reelRanks = new Map(
+      p ? this.stats.reelRanking().filter((e) => e.participant === p).map((e) => [e.reel, e.rank]) : [],
+    );
     const daily = best ? dailyGrowth(best) : [];
     const lastSyncedAt = reels.reduce<Date | null>((latest, r) => {
       const at = r.history.at(-1)?.at ?? null;
@@ -186,6 +195,7 @@ export class MiniappController {
           views: reelViews(r),
           submittedAt: r.submittedAt.toISOString(),
           best: r === best,
+          rank: reelRanks.get(r) ?? null,
         }),
       ),
     };

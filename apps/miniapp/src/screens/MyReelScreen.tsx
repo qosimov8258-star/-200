@@ -9,6 +9,7 @@ import {
   Copy,
   Eye,
   LoaderCircle,
+  Medal,
   Play,
   RefreshCw,
   Snowflake,
@@ -43,9 +44,10 @@ const WAITING: ReadonlySet<ReelStatus> = new Set(["PENDING", "MANUAL_REVIEW"]);
 const rise = (i: number): CSSProperties => ({ animationDelay: `${i * 80}ms` });
 
 /**
- * "Videom": ishtirokchining barcha videolari (soni cheklanmagan). Yuqorida — reytingda
- * hisoblanadigan natija (eng ko'p ko'rilgan bitta qabul qilingan video; videolar ko'rishlari
- * qo'shilmaydi), keyin yangi link qo'shish va videolar ro'yxati (eng ko'p ko'rilgani tepada).
+ * "Videom": ishtirokchining barcha videolari (soni cheklanmagan). Yuqorida — natija (eng ko'p
+ * ko'rilgan bitta qabul qilingan video va uning reytingdagi o'rni; videolar ko'rishlari
+ * qo'shilmaydi), keyin yangi link qo'shish va videolar ro'yxati (eng ko'p ko'rilgani tepada;
+ * reyting har bir video bo'yicha, shuning uchun har bir qabul qilingan videoda o'z o'rni bor).
  */
 export function MyReelScreen() {
   const reels = useQuery({
@@ -125,7 +127,7 @@ function ReelsContent({ data }: { data: MyReels }) {
   );
 }
 
-/** Natija — reytingdagi kabi, eng ko'p ko'rilgan qabul qilingan video bo'yicha. */
+/** Natija — eng ko'p ko'rilgan qabul qilingan video bo'yicha; o'rin — shu videoning reytingdagi o'rni. */
 function SummaryTiles({ data }: { data: MyReels }) {
   const podium = data.rank !== null && data.rank <= 3 ? (data.rank as 1 | 2 | 3) : null;
   return (
@@ -297,7 +299,8 @@ const STATUS: Record<ReelStatus, { label: string; pill: string; note: string | n
 
 /**
  * Qishki tun kartasi: gulchambar, yog'ayotgan qor va barcha videolar — server tartibida:
- * eng ko'p ko'rilgani (reytingda hisoblanadigani) tepada, keyin tekshiruvdagilar va rad etilganlar.
+ * eng ko'p ko'rilgani (eng yaxshi natija) tepada, keyin tekshiruvdagilar va rad etilganlar.
+ * Har bir qabul qilingan video reytingda alohida qator — yonida o'z o'rni ko'rsatiladi.
  */
 function ReelList({ reels, accepted, style }: { reels: MyReelItem[]; accepted: number; style: CSSProperties }) {
   return (
@@ -367,7 +370,7 @@ function ReelRow({ reel }: { reel: MyReelItem }) {
                 )}
                 {status.label}
               </span>
-              {/* Reytingda faqat shu video hisoblanadi — archa tepasidagi tilla yulduz kabi ajratiladi. */}
+              {/* Eng yaxshi natija: o'rningiz va asosiy sovrin shu video bo'yicha — archa tepasidagi tilla yulduz kabi ajratiladi. */}
               {reel.best && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-[#f3c656]/20 px-2 py-0.5 text-[12px] font-semibold text-[#ffd96b] ring-1 ring-[#f3c656]/45">
                   <Star className="size-3 fill-current" aria-hidden />
@@ -388,6 +391,20 @@ function ReelRow({ reel }: { reel: MyReelItem }) {
                 >
                   <Eye className="size-3.5" aria-hidden />
                   {t.views(formatCount(reel.views))}
+                </span>
+              )}
+              {/* Reyting har bir video bo'yicha — shu videoning o'z o'rni. */}
+              {accepted && reel.rank !== null && (
+                <span
+                  title={t.reelRankHint}
+                  className={clsx(
+                    "inline-flex items-center gap-1 font-semibold tabular-nums",
+                    reel.best ? "text-[#ffd96b]" : "text-white/90",
+                  )}
+                >
+                  <Medal className="size-3.5" aria-hidden />
+                  <span className="sr-only">{t.reelRankHint}:</span>
+                  {t.reelRank(reel.rank)}
                 </span>
               )}
               <span>{t.reelSubmittedAt(formatDayMonthTime(reel.submittedAt))}</span>
@@ -430,7 +447,8 @@ function LinkText({ url }: { url: string }) {
 }
 
 /**
- * Eng ko'p ko'rilgan videoning ko'rishlari (reytingda shu hisoblanadi, videolar qo'shilmaydi) —
+ * Eng ko'p ko'rilgan videoning ko'rishlari (o'rningiz va asosiy sovrin shu bo'yicha, videolar
+ * qo'shilmaydi) —
  * brend qizilidagi bayram plitkasi: qor yog'adi, ortida katta qor parchasi.
  */
 function BestViewsTile({ views }: { views: number }) {

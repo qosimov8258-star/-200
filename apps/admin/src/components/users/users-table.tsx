@@ -55,7 +55,13 @@ export function UsersTable({
       <table className="w-full min-w-[960px] text-sm">
         <thead className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500">
           <tr>
-            <SortableHeader sort="rank" label="O'rin" className="w-20" {...sortProps} />
+            <SortableHeader
+              sort="rank"
+              label="O'rin"
+              hint="Eng ko'p ko'rilgan videosining reytingdagi o'rni (reytingda har bir video alohida qator)"
+              className="w-20"
+              {...sortProps}
+            />
             <SortableHeader sort="name" label="Ishtirokchi" {...sortProps} />
             <th scope="col" className="px-4 py-2.5 text-left font-medium">
               Telefon

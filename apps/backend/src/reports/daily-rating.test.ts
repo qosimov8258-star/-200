@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Participant, Reel, ReelStatus } from "../participants/participants.service";
-import { buildDailyRating, rankOn, type DailyRatingInput } from "./daily-rating";
+import { buildDailyRating, rankReelsOn, type DailyRatingInput } from "./daily-rating";
 import type { CaseInfo } from "./participants";
 
 const at = (day: string, time = "12:00") => new Date(`${day}T${time}:00+05:00`);
@@ -65,7 +65,7 @@ test("before the contest starts the response is empty, not an error", () => {
   assert.equal(r.date, "2026-11-25");
   assert.deepEqual(r.availableRange, { from: "2026-11-25", to: "2026-11-25" });
   assert.deepEqual(r.entries, []);
-  assert.deepEqual(r.summary, { participants: 0, totalViews: 0, totalGrowth: 0, newEntries: 0 });
+  assert.deepEqual(r.summary, { participants: 0, videos: 0, totalViews: 0, totalGrowth: 0, newEntries: 0 });
 });
 
 test("an empty contest gives an empty rating for today", () => {
@@ -91,7 +91,7 @@ test("views carry forward between syncs; equal views — the earlier submitted R
     person(3, reel("C", { "2026-12-01": 100, "2026-12-08": 900 })),
   ];
   assert.deepEqual(
-    rankOn(people, "2026-12-05").map((e) => [e.participant.telegramId, e.rank, e.views]),
+    rankReelsOn(people, "2026-12-05").map((e) => [e.participant.telegramId, e.rank, e.views]),
     [
       [2, 1, 300],
       [1, 2, 300],
@@ -99,7 +99,7 @@ test("views carry forward between syncs; equal views — the earlier submitted R
     ],
   );
   assert.deepEqual(
-    rankOn(people, "2026-12-08").map((e) => e.participant.telegramId),
+    rankReelsOn(people, "2026-12-08").map((e) => e.participant.telegramId),
     [3, 2, 1],
   );
 });
@@ -120,7 +120,7 @@ test("growth and previous rank compare with the day before; new entries are coun
     ["3", 3, 700, 700, null],
     ["4", 4, 600, -300, 2],
   ]);
-  assert.deepEqual(r.summary, { participants: 4, totalViews: 4_800, totalGrowth: 2_100, newEntries: 1 });
+  assert.deepEqual(r.summary, { participants: 4, videos: 4, totalViews: 4_800, totalGrowth: 2_100, newEntries: 1 });
 
   // Yig'ilmagan kun: o'sish 0, o'rinlar o'zgarmagan.
   const quiet = buildDailyRating(base(people, { date: "2026-12-09" }));
@@ -176,36 +176,41 @@ test("hasTarget counts cases detected by that day and ignores dismissed ones", (
   assert.deepEqual(flags("2026-12-04")[0], ["1", true]);
 });
 
-test("several Reels: views and growth are the most viewed accepted Reel's (no summing); the link is that Reel", () => {
+test("several Reels: every accepted Reel is its own row — a participant appears as many times", () => {
   const people = [
     person(1, [
-      // Eng birinchi yuborilgan (20-noyabr), lekin eng ko'p ko'rilgani emas — tenglikni u hal qilmaydi.
       reel("A1", { "2026-12-01": 1_000, "2026-12-08": 1_200 }, { submittedAt: at("2026-11-20") }),
-      // 8-dekabrda birinchi marta yig'ilgan va eng ko'p ko'rilganiga aylangan.
+      // 8-dekabrda birinchi marta yig'ilgan — oldingi kuni reytingda yo'q, o'sish to'liq.
       reel("A2", { "2026-12-08": 2_000 }, { submittedAt: at("2026-12-05") }),
       reel("A3", { "2026-12-01": 50_000 }, { status: "REJECTED" }),
       reel("A4", { "2026-12-01": 40_000 }, { status: "MANUAL_REVIEW" }),
     ]),
-    // Teng ko'rish — eng ko'p ko'rilgan videosi oldinroq yuborilgan (26-noyabr < 5-dekabr) yuqorida.
+    // Teng ko'rish (2 000) — oldinroq yuborilgan video (26-noyabr) yuqorida.
     person(2, [
       reel("B1", { "2026-12-08": 1_200 }, { submittedAt: at("2026-12-07") }),
       reel("B2", { "2026-12-08": 2_000 }, { submittedAt: at("2026-11-26") }),
     ]),
   ];
   const r = buildDailyRating(base(people, { date: "2026-12-08" }));
-  // O'sish — eng ko'p ko'rilgan videoning bugungi va kechagi qiymati farqi (1-ishtirokchi: 2 000 − 1 000).
-  assert.deepEqual(rows(r), [
-    ["2", 1, 2_000, 2_000, null],
-    ["1", 2, 2_000, 1_000, 1],
-  ]);
   assert.deepEqual(
-    r.entries.map((e) => [e.participantId, e.reelUrl, e.instagramUsername]),
+    r.entries.map((e) => [e.shortcode, e.participantId, e.rank, e.views, e.viewsGrowth, e.previousRank]),
     [
-      ["2", "https://www.instagram.com/reel/B2/", "b2"],
-      ["1", "https://www.instagram.com/reel/A2/", "a2"],
+      ["B2", "2", 1, 2_000, 2_000, null],
+      ["A2", "1", 2, 2_000, 2_000, null],
+      // Teng (1 200): A1 20-noyabrda, B1 7-dekabrda yuborilgan.
+      ["A1", "1", 3, 1_200, 200, 1],
+      ["B1", "2", 4, 1_200, 1_200, null],
     ],
   );
-  assert.deepEqual(rankOn(people, "2026-12-01").map((e) => [e.participant.telegramId, e.views, e.reels.length]), [
-    [1, 1_000, 2],
-  ]);
+  assert.deepEqual(
+    r.entries.map((e) => [e.shortcode, e.reelUrl, e.instagramUsername]),
+    [
+      ["B2", "https://www.instagram.com/reel/B2/", "b2"],
+      ["A2", "https://www.instagram.com/reel/A2/", "a2"],
+      ["A1", "https://www.instagram.com/reel/A1/", "a1"],
+      ["B1", "https://www.instagram.com/reel/B1/", "b1"],
+    ],
+  );
+  assert.deepEqual(r.summary, { participants: 2, videos: 4, totalViews: 6_400, totalGrowth: 5_400, newEntries: 3 });
+  assert.deepEqual(rankReelsOn(people, "2026-12-01").map((e) => [e.reel.shortcode, e.rank, e.views]), [["A1", 1, 1_000]]);
 });

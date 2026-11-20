@@ -173,3 +173,39 @@ test("dailyGrowth ignores the first snapshot and shows a drop as 0", () => {
     ],
   );
 });
+
+test("GET /miniapp/rating lists every accepted video separately; my place is my best video's", async () => {
+  const { controller, provider, stats, submit } = setup();
+  provider.set("AAAAA1", { owner: "ali", views: 5_000 });
+  provider.set("BBBBB2", { owner: "ali", views: 2_000 });
+  provider.set("CCCCC3", { owner: "vali", views: 7_000 });
+  provider.set("DDDDD4", { owner: "vali", views: 9_000 });
+  provider.set("PHOTO5", { owner: "ali", isVideo: false });
+  submit(1, "https://www.instagram.com/reel/AAAAA1/");
+  submit(1, "https://www.instagram.com/reel/BBBBB2/");
+  submit(1, "https://www.instagram.com/p/PHOTO5/");
+  submit(2, "https://www.instagram.com/reel/CCCCC3/");
+  submit(2, "https://www.instagram.com/reel/DDDDD4/");
+  await stats.flushVerification();
+
+  // Har bir qabul qilingan video — alohida qator; rad etilgani yo'q; linklar berilmaydi.
+  assert.deepEqual(controller.rating(user(1)), [
+    { rank: 1, fullName: "Ism2 Familiya2", views: 9_000, rankDelta: 0, isMe: false },
+    { rank: 2, fullName: "Ism2 Familiya2", views: 7_000, rankDelta: 0, isMe: false },
+    { rank: 3, fullName: "Ism1 Familiya1", views: 5_000, rankDelta: 0, isMe: true },
+    { rank: 4, fullName: "Ism1 Familiya1", views: 2_000, rankDelta: 0, isMe: true },
+  ]);
+  assert.ok(controller.rating(null).every((e) => !e.isMe));
+
+  // O'rnim — eng ko'p ko'rilgan videomniki (3-o'rin, 2-o'rin emas); har bir videoda o'z o'rni.
+  const mine = controller.reels(user(1));
+  assert.equal(mine.rank, 3);
+  assert.deepEqual(
+    mine.reels.map((r) => [r.shortcode, r.rank]),
+    [
+      ["AAAAA1", 3],
+      ["BBBBB2", 4],
+      ["PHOTO5", null],
+    ],
+  );
+});

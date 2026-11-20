@@ -56,7 +56,7 @@ export interface ParticipantListItem {
   reels: ReelCounts;
   /** Eng ko'p ko'rilgan qabul qilingan videosining oxirgi ko'rishlari (videolar qo'shilmaydi). */
   views: number;
-  /** Joriy reytingdagi o'rni; reytingda bo'lmasa — null. */
+  /** Eng ko'p ko'rilgan videosining joriy videolar reytingidagi o'rni; reytingda bo'lmasa — null. */
   rank: number | null;
   /** Ro'yxatdan chiqarilmagan (DISMISSED emas) target holati bormi. */
   hasTarget: boolean;
@@ -97,6 +97,8 @@ export interface AdminReelItem {
   flags: ReelFlagType[];
   /** Reytingda hisoblanadigan video (eng ko'p ko'rilgan qabul qilingani) — faqat bittasida true. */
   best: boolean;
+  /** Shu videoning videolar reytingidagi o'rni; reytingda bo'lmasa — null. */
+  rank: number | null;
 }
 
 export type StatusCounts = Record<AdminParticipantStatus | "ALL", number>;
@@ -182,7 +184,7 @@ export function toParticipantItem(p: Participant, ctx: ParticipantContext): Part
  * Ishtirokchining barcha videolari (admin panel → Foydalanuvchilar → ishtirokchi): eng ko'p
  * ko'rilgani tepada (`reelsForDisplay`).
  */
-export function toParticipantReels(p: Participant): ParticipantReels {
+export function toParticipantReels(p: Participant, reelRanks: ReadonlyMap<string, number> = new Map()): ParticipantReels {
   const best = bestReel(p);
   return {
     participant: {
@@ -207,6 +209,7 @@ export function toParticipantReels(p: Participant): ParticipantReels {
         lastSyncedAt: last?.at.toISOString() ?? null,
         flags: [...new Set(reel.flags.map((f) => f.type))],
         best: reel === best,
+        rank: reel.status === "ACCEPTED" ? (reelRanks.get(reel.shortcode) ?? null) : null,
       };
     }),
   };

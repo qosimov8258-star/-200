@@ -7,6 +7,10 @@ import { cn } from "@/lib/utils";
 
 import { RankChange } from "./rank-change";
 
+/**
+ * Kunlik reyting jadvali: har bir qator — bitta video, shuning uchun bir ishtirokchi bir necha
+ * marta uchrashi mumkin (qator kaliti — `shortcode`).
+ */
 export function RatingTable({ entries }: { entries: RatingEntry[] }) {
   return (
     <div className="relative overflow-x-auto">
@@ -23,7 +27,7 @@ export function RatingTable({ entries }: { entries: RatingEntry[] }) {
               Ishtirokchi
             </th>
             <th scope="col" className="px-4 py-2.5 text-left font-medium">
-              Reel
+              Video
             </th>
             <th scope="col" className="px-4 py-2.5 text-right font-medium">
               Ko&apos;rishlar
@@ -35,7 +39,7 @@ export function RatingTable({ entries }: { entries: RatingEntry[] }) {
         </thead>
         <tbody className="divide-y divide-slate-100">
           {entries.map((entry) => (
-            <RatingRow key={entry.participantId} entry={entry} />
+            <RatingRow key={entry.shortcode} entry={entry} />
           ))}
         </tbody>
       </table>
@@ -84,11 +88,11 @@ function RatingRow({ entry }: { entry: RatingEntry }) {
           href={entry.reelUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 whitespace-nowrap text-brand-700 hover:underline"
+          className="inline-flex items-center gap-1 font-mono text-[13px] whitespace-nowrap text-brand-700 hover:underline"
         >
-          Ochish
-          <ExternalLink className="size-3.5" aria-hidden />
-          <span className="sr-only">({name} Reeli, yangi oynada)</span>
+          {entry.shortcode}
+          <ExternalLink className="size-3.5 shrink-0" aria-hidden />
+          <span className="sr-only">({name} videosi, Instagramda, yangi oynada)</span>
         </a>
       </td>
 

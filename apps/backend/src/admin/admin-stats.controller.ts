@@ -137,16 +137,16 @@ export class AdminStatsController {
 
   /**
    * Barcha videolar (har bir ishtirokchining hammasi): holat, egasi, ko'rishlar tarixi, nakrutka
-   * belgilari. Avval reytingdagilar (o'rin — ishtirokchiniki), so'ng yangilari.
+   * belgilari. Avval reytingdagilar (o'rin — videoning o'zi, videolar reytingida), so'ng yangilari.
    */
   @Get("reels")
   reels() {
-    const ranked = new Map(this.stats.ranking().map((e) => [e.participant.telegramId, e]));
+    const ranked = new Map(this.stats.reelRanking().map((e) => [e.reel, e]));
     return this.participants
       .all()
       .flatMap((p) => {
-        const entry = ranked.get(p.telegramId);
         return p.reels.map((reel) => {
+          const entry = ranked.get(reel);
           const last = reel.history.at(-1);
           return {
             telegramId: p.telegramId,

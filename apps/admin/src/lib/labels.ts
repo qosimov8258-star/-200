@@ -54,8 +54,11 @@ export const REEL_STATUS_TONES: Record<ReelStatus, BadgeTone> = {
 /** Qo'lda tekshiruvdagi video (`AdminReelItem.manualReview`) holati o'rniga ko'rsatiladi. */
 export const MANUAL_REVIEW_REEL_LABEL = "Qo'lda tekshiruvda";
 
-/** Reytingda hisoblanadigan (eng ko'p ko'rilgan qabul qilingan) video — `AdminReelItem.best`. */
-export const BEST_REEL_LABEL = "Reytingda hisoblanadi";
+/**
+ * Ishtirokchining eng ko'p ko'rilgan qabul qilingan videosi — `AdminReelItem.best`. Reytingda har
+ * bir qabul qilingan video bor; ishtirokchining o'rni va g'olib shu video bo'yicha aniqlanadi.
+ */
+export const BEST_REEL_LABEL = "Eng ko'p ko'rilgan";
 
 /** Foydalanuvchilar bo'limidagi video filtri: "shu holatdagi videosi bor" / "video yo'q". */
 export const REEL_FILTER_LABELS: Record<ReelStatus | "NONE", string> = {

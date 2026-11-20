@@ -335,7 +335,8 @@ export async function startViewsRefresh(request: ViewsRefreshRequest): Promise<{
 /**
  * Ishtirokchining barcha yuborgan videolari va natijasi (`bestViews` — eng ko'p ko'rilgan qabul
  * qilingan videosi, ko'rishlar qo'shilmaydi). Tartib: qabul qilinganlar ko'rishlar bo'yicha
- * (birinchisi `best`), keyin tekshiruvdagilar, keyin rad etilganlar.
+ * (birinchisi `best`), keyin tekshiruvdagilar, keyin rad etilganlar. Har bir videoning `rank` i —
+ * uning reytingdagi o'rni (faqat qabul qilinganlarda).
  * @endpoint GET /api/v1/admin/participants/:id/reels
  * @throws ApiError 404 — ishtirokchi topilmadi
  */
@@ -389,7 +390,8 @@ export async function disqualifyParticipant(
 // ---------------------------------------------------------------------------
 
 /**
- * Tanlangan kunning reytingi va oldingi kunga nisbatan o'zgarish.
+ * Tanlangan kunning reytingi va oldingi kunga nisbatan o'zgarish. Har bir qabul qilingan video —
+ * alohida qator (kaliti `shortcode`): bir ishtirokchi bir necha marta uchrashi mumkin.
  * @endpoint GET /api/v1/admin/ratings/daily?date=YYYY-MM-DD&page=&pageSize=
  * @throws ApiError 400 — sana noto'g'ri formatda
  */

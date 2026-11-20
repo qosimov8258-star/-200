@@ -111,7 +111,11 @@ export interface ParticipantListItem {
    * (videolar ko'rishlari qo'shilmaydi). Qabul qilingan video yo'q — 0.
    */
   views: number;
-  /** Bugungi reytingdagi o'rni; reytingda bo'lmasa — null. */
+  /**
+   * Bugungi reytingdagi o'rni — eng ko'p ko'rilgan videosining o'rni. Reytingda har bir video
+   * alohida qator, shuning uchun ishtirokchilar o'rinlari oralab ketishi mumkin (1, 4, 5…).
+   * Reytingda bo'lmasa — null.
+   */
   rank: number | null;
   /** Target (pullik reklama) aniqlanganmi. */
   hasTarget: boolean;
@@ -179,7 +183,7 @@ export interface ParticipantReels {
   bestViews: number;
   /**
    * Tartib: qabul qilinganlar ko'rishlar kamayishi bo'yicha (teng bo'lsa — oldinroq yuborilgani;
-   * birinchisi — reytingdagi video), keyin tekshiruvdagilar (qo'lda tekshiruvdagilar ham),
+   * birinchisi — eng ko'p ko'rilgani, `best`), keyin tekshiruvdagilar (qo'lda tekshiruvdagilar ham),
    * keyin rad etilgan va o'chirilganlar; oxirgi ikkalasida eng yangisi birinchi.
    */
   reels: AdminReelItem[];
@@ -198,6 +202,11 @@ export interface AdminReelItem {
   owner: string | null;
   /** Oxirgi yig'ilgan ko'rishlar (hali yig'ilmagan bo'lsa — 0). */
   views: number;
+  /**
+   * Videoning bugungi reytingdagi o'rni (har bir qabul qilingan video — alohida qator).
+   * Faqat reytingdagi qabul qilingan videoda; boshqalarida (va ishtirokchi reytingda bo'lmasa) — null.
+   */
+  rank: number | null;
   likes: number | null;
   /** Ilovaga yuborilgan vaqt (UTC ISO). */
   submittedAt: string;
@@ -208,8 +217,9 @@ export interface AdminReelItem {
   /** Nakrutka shubhasi belgilari (`ReelFlagType` qiymatlari, takrorlanmaydi). */
   flags: string[];
   /**
-   * Reytingda hisoblanadigan video (eng ko'p ko'rilgan qabul qilingani): ro'yxatda birinchi turadi,
-   * faqat bittasida true; qabul qilingan video bo'lmasa — hammasida false.
+   * Eng ko'p ko'rilgan qabul qilingan video — ishtirokchining natijasi va o'rni (`ParticipantListItem`
+   * dagi `views`, `rank`) shu bo'yicha. Ro'yxatda birinchi turadi, faqat bittasida true; qabul
+   * qilingan video bo'lmasa — hammasida false.
    */
   best: boolean;
 }
@@ -276,7 +286,7 @@ export interface TargetCaseListItem {
   currentState: TargetState;
   status: TargetCaseStatus;
   views: number;
-  /** Bugungi reytingdagi o'rni; reytingda bo'lmasa — null. */
+  /** Bugungi reytingdagi o'rni (eng ko'p ko'rilgan videosining o'rni); reytingda bo'lmasa — null. */
   rank: number | null;
 }
 
@@ -792,6 +802,10 @@ export interface WinnerCandidate {
     phone: string;
     instagramUsername: string | null;
   };
+  /**
+   * Eng ko'p ko'rilgan videosining reytingdagi o'rni (reytingda har bir video alohida qator).
+   * G'olib — 1-o'rindagi video egasi; u rad etilsa — keyingi boshqa ishtirokchi.
+   */
   rank: number;
   /** Eng ko'p ko'rilgan qabul qilingan videosining ko'rishlari (videolar ko'rishlari qo'shilmaydi). */
   views: number;
@@ -813,8 +827,9 @@ export interface WinnerOverview {
   stage: WinnerStage;
   /** Nomzod: tanlov tugagan bo'lsa — yakuniy 1-o'rin, aks holda joriy yetakchi. */
   candidate: WinnerCandidate | null;
-  /** Keyingi o'rinlar (zaxira nomzodlar). */
+  /** Keyingi o'rinlar (zaxira nomzodlar) — har ishtirokchi bir marta. */
   runnersUp: Array<{
+    /** Eng ko'p ko'rilgan videosining reytingdagi o'rni (oralab ketishi mumkin). */
     rank: number;
     participantId: string;
     name: string;
@@ -1018,22 +1033,49 @@ export interface DailyRatingQuery {
   pageSize?: number;
 }
 
+/**
+ * Reyting qatori — bitta video. Reytingda faol ishtirokchilarning barcha qabul qilingan videolari
+ * alohida qator bo'ladi, shuning uchun bir ishtirokchi bir necha marta uchrashi mumkin.
+ * Tartib: ko'rishlar kamayishi bo'yicha; teng bo'lsa — oldinroq yuborilgan video, keyin
+ * ishtirokchi id, keyin shortcode.
+ */
 export interface RatingEntry {
+  /** Shu videoning o'rni (1..N, takrorlanmaydi). */
   rank: number;
+  /** Video shortcode'i — qatorning kaliti (takrorlanmaydi; `participantId` takrorlanishi mumkin). */
+  shortcode: string;
   participantId: string;
   firstName: string;
   lastName: string;
+  /** Shu videoning Instagram akkaunti. */
   instagramUsername: string | null;
-  /** Shu kuni eng ko'p ko'rilgan qabul qilingan videosi. */
+  /** Shu video. */
   reelUrl: string;
-  /** Shu videoning shu kungacha yig'ilgan ko'rishlari (videolar ko'rishlari qo'shilmaydi). */
+  /** Shu videoning shu kungacha yig'ilgan ko'rishlari. */
   views: number;
-  /** Shu kungi natija minus oldingi kungi natija (ikkalasi ham eng ko'p ko'rilgan video bo'yicha). */
+  /**
+   * Shu videoning shu kungi ko'rishlari minus oldingi kungisi; oldingi kungacha ko'rishlari
+   * yig'ilmagan bo'lsa — hammasi.
+   */
   viewsGrowth: number;
-  /** Oldingi kundagi o'rin; oldingi kuni reytingda bo'lmagan bo'lsa — null. */
+  /** Shu videoning oldingi kundagi o'rni; oldingi kuni reytingda bo'lmagan bo'lsa — null. */
   previousRank: number | null;
-  /** Shu kungacha target aniqlanganmi. */
+  /** Ishtirokchida shu kungacha target aniqlanganmi (ishtirokchi bo'yicha — barcha videolarida bir xil). */
   hasTarget: boolean;
+}
+
+/** Kunlik reyting xulosasi — barcha qatorlar (videolar) bo'yicha, sahifalashdan qat'i nazar. */
+export interface RatingSummary {
+  /** Reytingdagi turli ishtirokchilar soni (bir nechta videosi bo'lsa ham bir marta sanaladi). */
+  participants: number;
+  /** Reytingdagi videolar (qatorlar) soni. */
+  videos: number;
+  /** Qatorlar ko'rishlari yig'indisi. */
+  totalViews: number;
+  /** Qatorlar kunlik o'sishi yig'indisi. */
+  totalGrowth: number;
+  /** Oldingi kuni reytingda bo'lmagan videolar (`previousRank === null`). */
+  newEntries: number;
 }
 
 export interface DailyRatingResponse extends Paginated<RatingEntry> {
@@ -1043,13 +1085,7 @@ export interface DailyRatingResponse extends Paginated<RatingEntry> {
   availableRange: { from: IsoDate; to: IsoDate };
   /** Reyting qachon tuzilgan (ISO vaqt). */
   generatedAt: string;
-  summary: {
-    participants: number;
-    totalViews: number;
-    totalGrowth: number;
-    /** Oldingi kuni reytingda bo'lmaganlar. */
-    newEntries: number;
-  };
+  summary: RatingSummary;
 }
 
 // ---------------------------------------------------------------------------

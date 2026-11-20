@@ -4,9 +4,10 @@ import { test } from "node:test";
 import { HttpException } from "@nestjs/common";
 
 import { AuditService } from "../audit/audit.service";
+import { MockReelStatsProvider } from "../instagram/mock.provider";
 import { ParticipantsService } from "../participants/participants.service";
 import { RulesService } from "../rules/rules.service";
-import type { StatsService } from "../stats/stats.service";
+import { StatsService } from "../stats/stats.service";
 import type { TargetCase, TargetsService } from "../targets/targets.service";
 import { AdminParticipantsController } from "./admin-participants.controller";
 import type { AdminUser } from "./auth/admin-accounts";
@@ -25,13 +26,19 @@ function setup() {
   const cases: Pick<TargetCase, "telegramId" | "status" | "detectedOn">[] = [
     { telegramId: 2, status: "WARNED", detectedOn: "2026-12-01" },
   ];
-  // Reyting va target holatlari — faqat kerakli qismi (bu testda video yo'q, reyting bo'sh).
-  const stats: Pick<StatsService, "ranking"> = { ranking: () => [] };
+  // Reyting — haqiqiy servis (videolar test ichida qo'lda qabul qilinadi); target holatlari — faqat kerakli qismi.
+  const stats = new StatsService(participants, new MockReelStatsProvider(), { notify: () => Promise.resolve() }, {
+    syncTime: "06:00",
+    everyDays: 1,
+    verifyDelayMs: 0,
+    contestStartsOn: "2026-11-30",
+    contestEndsAt: new Date("2027-01-01T07:00:00Z"),
+  });
   const targets = { allCases: () => cases } as Pick<TargetsService, "allCases">;
   const audit = new AuditService();
   const controller = new AdminParticipantsController(
     participants,
-    stats as StatsService,
+    stats,
     targets as TargetsService,
     audit,
   );
@@ -164,11 +171,12 @@ test("GET /admin/participants/:id/reels lists every video, the most viewed on to
   // Ko'rishlar qo'shilmaydi: 1 200 + 800 emas, eng ko'p ko'rilgani — 1 200.
   assert.equal(result.bestViews, 1_200);
   assert.deepEqual(
-    result.reels.map((r) => [r.shortcode, r.status, r.manualReview, r.views, r.likes, r.lastSyncedAt, r.best]),
+    result.reels.map((r) => [r.shortcode, r.status, r.manualReview, r.views, r.likes, r.lastSyncedAt, r.best, r.rank]),
     [
-      ["AAAAA1", "ACCEPTED", false, 1_200, 30, "2026-12-01T01:00:00.000Z", true],
-      ["CCCCC3", "ACCEPTED", false, 800, 10, "2026-12-01T01:00:00.000Z", false],
-      ["BBBBB2", "PENDING", true, 0, null, null, false],
+      // Har bir qabul qilingan videoning o'z o'rni (videolar reytingida).
+      ["AAAAA1", "ACCEPTED", false, 1_200, 30, "2026-12-01T01:00:00.000Z", true, 1],
+      ["CCCCC3", "ACCEPTED", false, 800, 10, "2026-12-01T01:00:00.000Z", false, 2],
+      ["BBBBB2", "PENDING", true, 0, null, null, false, null],
     ],
   );
   assert.deepEqual(controller.reels("2").reels, []);
