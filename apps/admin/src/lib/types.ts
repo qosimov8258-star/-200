@@ -37,6 +37,20 @@ export type ParticipantStatus = "ACTIVE" | "WARNED" | "DISQUALIFIED" | "BLOCKED"
 
 export type ReelStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "REMOVED";
 
+/**
+ * Nega video qabul qilinmadi: NOT_FOUND — Instagramda topilmadi (o'chirilgan, yopiq akkaunt
+ * yoki noto'g'ri link); NOT_A_VIDEO — rasm yoki karusel; OWNER_TAKEN — shu Instagram akkaunt
+ * boshqa ishtirokchining videosida ishlatilgan.
+ */
+export type ReelRejectReason = "NOT_FOUND" | "NOT_A_VIDEO" | "OWNER_TAKEN";
+
+/**
+ * Nakrutka shubhasi belgisi (backend `ReelFlagType`) — admin ko'rib chiqishi uchun,
+ * reytingga o'zi ta'sir qilmaydi. API `flags: string[]` beradi: yangi tur qo'shilsa ham
+ * panel buzilmaydi (noma'lum belgi kodi o'zicha ko'rsatiladi).
+ */
+export type ReelFlagType = "LOW_ENGAGEMENT" | "VIEW_SPIKE" | "ENGAGEMENT_GAP" | "VIEW_DROP";
+
 export type SupportTicketStatus = "NEW" | "IN_PROGRESS" | "CLOSED";
 
 // ---------------------------------------------------------------------------
@@ -63,7 +77,10 @@ export interface ParticipantListQuery {
   /** Ism, familiya, telefon yoki Instagram username bo'yicha qidiruv. */
   search?: string;
   status?: ParticipantStatus;
-  /** Reel holati; "NONE" — Reel yubormaganlar. */
+  /**
+   * Kamida bitta videosi shu holatda bo'lganlar (`PENDING` — qo'lda tekshiruvdagilar bilan);
+   * "NONE" — umuman video yubormaganlar.
+   */
   reel?: ReelStatus | "NONE";
   sort?: ParticipantSort;
   order?: SortOrder;
@@ -77,15 +94,16 @@ export interface ParticipantListItem {
   lastName: string;
   age: number;
   phone: string;
-  /** Ulangan Instagram akkaunt; ulanmagan bo'lsa — null. */
+  /**
+   * Instagram akkaunt — rad etilmagan videolar ichida birinchi aniqlangani; hali aniqlanmagan
+   * bo'lsa — null. Ishtirokchining barcha akkauntlari — `ParticipantReels.participant`.
+   */
   instagramUsername: string | null;
   status: ParticipantStatus;
   registeredOn: IsoDate;
-  reel: {
-    url: string;
-    status: ReelStatus;
-  } | null;
-  /** Reelning oxirgi yig'ilgan ko'rishlari. */
+  /** Yuborilgan videolar soni holat bo'yicha. Videolarning o'zi — `getParticipantReels`. */
+  reels: ParticipantReelCounts;
+  /** Qabul qilingan barcha videolarning oxirgi yig'ilgan ko'rishlari yig'indisi. */
   views: number;
   /** Bugungi reytingdagi o'rni; reytingda bo'lmasa — null. */
   rank: number | null;
@@ -93,9 +111,56 @@ export interface ParticipantListItem {
   hasTarget: boolean;
 }
 
+/** Ishtirokchi videolari soni. Ishtirokchi videolarni cheklovsiz yuborishi mumkin. */
+export interface ParticipantReelCounts {
+  total: number;
+  accepted: number;
+  /** Tekshirilayotganlar, qo'lda tekshiruvdagilar ham shu yerda. */
+  pending: number;
+  rejected: number;
+}
+
 export interface ParticipantListResponse extends Paginated<ParticipantListItem> {
   /** Holat bo'yicha sonlar (qidiruv va Reel filtri hisobga olingan, holat filtri — yo'q). */
   statusCounts: Record<ParticipantStatus | "ALL", number>;
+}
+
+/** Ishtirokchining barcha yuborgan videolari ("Videolar" oynasi). */
+export interface ParticipantReels {
+  participant: {
+    id: string;
+    fullName: string;
+    /** Rad etilmagan videolardagi Instagram akkauntlar (takrorlanmaydi). */
+    instagramUsernames: string[];
+  };
+  /** Ro'yxatdagi `views` bilan bir xil: qabul qilingan videolar ko'rishlari yig'indisi. */
+  totalViews: number;
+  /** Eng yangisi birinchi. */
+  reels: AdminReelItem[];
+}
+
+export interface AdminReelItem {
+  shortcode: string;
+  url: string;
+  /** Qo'lda tekshiruvdagi video `PENDING` bo'lib keladi va `manualReview: true` bo'ladi. */
+  status: ReelStatus;
+  /** Apify videoni topa olmadi — admin "Qo'lda tekshiruv" bo'limida qaror qiladi. */
+  manualReview: boolean;
+  /** Faqat rad etilgan videoda; boshqalarida — null. */
+  rejectReason: ReelRejectReason | null;
+  /** Instagram akkaunt (username); hali aniqlanmagan bo'lsa — null. */
+  owner: string | null;
+  /** Oxirgi yig'ilgan ko'rishlar (hali yig'ilmagan bo'lsa — 0). */
+  views: number;
+  likes: number | null;
+  /** Ilovaga yuborilgan vaqt (UTC ISO). */
+  submittedAt: string;
+  /** Instagramda joylangan vaqt (UTC ISO); hali aniqlanmagan — null. */
+  postedAt: string | null;
+  /** Ko'rishlar oxirgi marta yig'ilgan vaqt (UTC ISO); hali yig'ilmagan — null. */
+  lastSyncedAt: string | null;
+  /** Nakrutka shubhasi belgilari (`ReelFlagType` qiymatlari, takrorlanmaydi). */
+  flags: string[];
 }
 
 /** Admin ishtirokchi ustida bajaradigan amallar. */
@@ -234,7 +299,7 @@ export type ManualReviewKind = "NEW_REEL" | "LOST_REEL";
 export type ManualReviewStatus = "OPEN" | "APPROVED" | "REJECTED";
 
 /** Rad etish sababi — ishtirokchiga bot orqali shunga mos matn yuboriladi. */
-export type ManualReviewRejectReason = "NOT_FOUND" | "NOT_A_VIDEO" | "OWNER_TAKEN";
+export type ManualReviewRejectReason = ReelRejectReason;
 
 export interface ManualReviewListQuery {
   status?: ManualReviewStatus;

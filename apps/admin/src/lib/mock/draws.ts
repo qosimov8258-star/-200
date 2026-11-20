@@ -11,7 +11,6 @@
  *   POST /api/v1/admin/draws/:id/send      (g'oliblarga Telegram bot orqali)
  */
 import { ApiError } from "../api-error";
-import { addDays } from "../dates";
 import {
   contestStages,
   createSeed,
@@ -44,7 +43,7 @@ import type {
   VoucherDraw,
   VoucherDrawSummary,
 } from "../types";
-import { getContestData, reelStatusOn, type MockReel } from "./contest";
+import { getContestData, reelStatusOn, viewsOn, type MockReel } from "./contest";
 import { effectivePrizes } from "./prizes";
 import { hashString } from "./random";
 import { effectiveStatus } from "./ranking";
@@ -82,21 +81,6 @@ function stages(store: MockStore) {
   const data = getContestData();
   const settings = effectiveSettings(store);
   return contestStages(settings.startsOn, settings.endsOn, data.today);
-}
-
-/** Mock'da Instagram'da joylangan sana yo'q — ilovaga yuborilishidan 0–2 kun oldin deb olamiz. */
-function postedOn(reel: MockReel): IsoDate {
-  return addDays(reel.submittedOn, -(hashString(reel.id) % 3));
-}
-
-/** `date` kunigacha (shu kun ham) yig'ilgan oxirgi ko'rishlar. */
-function viewsOn(reel: MockReel, date: IsoDate): number {
-  let views = 0;
-  for (const [day, total] of reel.viewsByDay) {
-    if (day > date) break;
-    views = total;
-  }
-  return views;
 }
 
 function drawsOf(store: MockStore): VoucherDraw[] {
@@ -169,7 +153,7 @@ interface Pool {
   excluded: Record<DrawExclusion, number>;
 }
 
-/** Talabga javob beradigan nomzodlar va chetda qolganlar soni (birinchi sabab bo'yicha). */
+/** Talabga javob beradigan nomzodlar va chetda qolgan ishtirokchilar soni (birinchi sabab bo'yicha). */
 function buildPool(settings: DrawSettings, store: MockStore, exceptDrawId?: string): Pool {
   const data = getContestData();
   const viewsAsOf = settings.periodTo < data.today ? settings.periodTo : data.today;
@@ -181,23 +165,35 @@ function buildPool(settings: DrawSettings, store: MockStore, exceptDrawId?: stri
   const excluded = Object.fromEntries(EXCLUSIONS.map((key) => [key, 0])) as Record<DrawExclusion, number>;
   const eligible: DrawCandidate[] = [];
 
+  // Ishtirokchi bo'yicha guruhlaymiz: nomzod ko'rishlari — davrga tushgan qabul qilingan
+  // videolari ko'rishlari yig'indisi (Aksiya qoidalari 7.2).
+  const reelsByParticipant = new Map<string, MockReel[]>();
   for (const reel of data.reels) {
-    const participant = participants.get(reel.participantId);
+    const list = reelsByParticipant.get(reel.participantId);
+    if (list) list.push(reel);
+    else reelsByParticipant.set(reel.participantId, [reel]);
+  }
+
+  for (const [participantId, reels] of reelsByParticipant) {
+    const participant = participants.get(participantId);
     if (!participant) continue;
     const exclude = (reason: DrawExclusion) => {
       excluded[reason] += 1;
     };
-    if (reelStatusOn(reel, viewsAsOf) !== "ACCEPTED") {
+    const accepted = reels.filter((reel) => reelStatusOn(reel, viewsAsOf) === "ACCEPTED");
+    if (accepted.length === 0) {
       exclude("NOT_ACCEPTED");
       continue;
     }
-    const posted = postedOn(reel);
-    const day = settings.dateBasis === "POSTED" ? posted : reel.submittedOn;
-    if (day < settings.periodFrom || day > settings.periodTo) {
+    const inPeriod = accepted.filter((reel) => {
+      const day = settings.dateBasis === "POSTED" ? reel.postedOn : reel.submittedOn;
+      return day >= settings.periodFrom && day <= settings.periodTo;
+    });
+    if (inPeriod.length === 0) {
       exclude("OUT_OF_PERIOD");
       continue;
     }
-    const views = viewsOn(reel, viewsAsOf);
+    const views = inPeriod.reduce((sum, reel) => sum + viewsOn(reel, viewsAsOf), 0);
     if (views < settings.minViews) {
       exclude("VIEWS_LOW");
       continue;
@@ -223,16 +219,20 @@ function buildPool(settings: DrawSettings, store: MockStore, exceptDrawId?: stri
       exclude("PREVIOUS_WINNER");
       continue;
     }
+    // Havola va sanalar — davrdagi eng ko'p ko'rishli videoniki.
+    const top = inPeriod.reduce((best, reel) =>
+      viewsOn(reel, viewsAsOf) > viewsOn(best, viewsAsOf) ? reel : best,
+    );
     eligible.push({
       participantId: participant.id,
       firstName: participant.firstName,
       lastName: participant.lastName,
       phone: participant.phone,
-      instagramUsername: participant.instagramUsername,
-      reelUrl: reel.url,
+      instagramUsername: top.owner ?? participant.instagramUsername,
+      reelUrl: top.url,
       views,
-      postedOn: posted,
-      submittedOn: reel.submittedOn,
+      postedOn: top.postedOn,
+      submittedOn: top.submittedOn,
     });
   }
 

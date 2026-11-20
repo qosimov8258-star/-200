@@ -11,10 +11,13 @@ import {
 import { ApiException } from "../common/api-exception";
 import { addDays, contestDay, daysBetween } from "../common/time";
 import { AdLibraryProvider, type AdHit } from "../instagram/ad-library";
-import { parseReelShortcode } from "../miniapp/reel-url";
+import { canonicalReelUrl, parseReelShortcode } from "../miniapp/reel-url";
 import {
+  instagramUsernames,
+  participantViews,
   ParticipantsService,
   type Participant,
+  type Reel,
   type ReelFlag,
   type ReelFlagType,
 } from "../participants/participants.service";
@@ -232,43 +235,51 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
   }
 
   /**
-   * O'sish tahlili: belgi qo'yilgan har bir kun — alohida holat (bir marta). Bir kunda ikkala
-   * belgi ham bo'lsa — bitta holat, dalilda ikkalasi.
+   * O'sish tahlili: har bir videoning belgi qo'yilgan har bir kuni — alohida holat (bir marta).
+   * Bir kunda ikkala belgi ham bo'lsa — bitta holat, dalilda ikkalasi.
    */
   scanGrowth(): number {
     let created = 0;
     for (const p of this.participants.all()) {
-      const reel = p.reel;
-      if (!reel) continue;
-      const byDate = new Map<string, ReelFlag[]>();
-      for (const flag of reel.flags) {
-        if (GROWTH_FLAGS.has(flag.type)) byDate.set(flag.date, [...(byDate.get(flag.date) ?? []), flag]);
+      for (const reel of p.reels) created += this.scanReelGrowth(p, reel);
+    }
+    return created;
+  }
+
+  private scanReelGrowth(p: Participant, reel: Reel): number {
+    let created = 0;
+    const byDate = new Map<string, ReelFlag[]>();
+    for (const flag of reel.flags) {
+      if (GROWTH_FLAGS.has(flag.type)) byDate.set(flag.date, [...(byDate.get(flag.date) ?? []), flag]);
+    }
+    for (const [date, flags] of byDate) {
+      const evidence = growthEvidence(flags);
+      const existing = this.cases.find(
+        (c) =>
+          c.method === "GROWTH_ANALYSIS" &&
+          c.telegramId === p.telegramId &&
+          c.shortcode === reel.shortcode &&
+          c.detectedOn === date,
+      );
+      if (existing) {
+        // Shu kun qayta yig'ilganda ikkinchi belgi qo'shilgan bo'lishi mumkin.
+        if (OPEN.includes(existing.status)) existing.evidence = evidence;
+        continue;
       }
-      for (const [date, flags] of byDate) {
-        const evidence = growthEvidence(flags);
-        const existing = this.cases.find(
-          (c) => c.method === "GROWTH_ANALYSIS" && c.telegramId === p.telegramId && c.detectedOn === date,
-        );
-        if (existing) {
-          // Shu kun qayta yig'ilganda ikkinchi belgi qo'shilgan bo'lishi mumkin.
-          if (OPEN.includes(existing.status)) existing.evidence = evidence;
-          continue;
-        }
-        this.cases.push({
-          id: this.nextId(),
-          telegramId: p.telegramId,
-          shortcode: reel.shortcode,
-          method: "GROWTH_ANALYSIS",
-          detectedOn: date,
-          evidence,
-          evidenceUrl: null,
-          currentState: "ON",
-          status: "NEW",
-          history: [{ date, state: "ON", note: evidence }],
-          reports: [],
-        });
-        created += 1;
-      }
+      this.cases.push({
+        id: this.nextId(),
+        telegramId: p.telegramId,
+        shortcode: reel.shortcode,
+        method: "GROWTH_ANALYSIS",
+        detectedOn: date,
+        evidence,
+        evidenceUrl: null,
+        currentState: "ON",
+        status: "NEW",
+        history: [{ date, state: "ON", note: evidence }],
+        reports: [],
+      });
+      created += 1;
     }
     return created;
   }
@@ -283,9 +294,10 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
     const reporter = this.participants.get(reporterId);
     if (!reporter || this.participants.stage(reporter) !== "ACTIVE") throw new ApiException(403, "UNAUTHORIZED");
 
-    const reported = this.resolveReported(input.target);
-    if (reported === "INVALID") throw new ApiException(422, "REPORT_TARGET_INVALID");
-    if (!reported?.reel) throw new ApiException(404, "REPORT_NOT_FOUND");
+    const found = this.resolveReported(input.target);
+    if (found === "INVALID") throw new ApiException(422, "REPORT_TARGET_INVALID");
+    if (!found) throw new ApiException(404, "REPORT_NOT_FOUND");
+    const { participant: reported, reel: reportedReel } = found;
     if (reported.telegramId === reporterId) throw new ApiException(422, "REPORT_SELF");
 
     const today = contestDay(this.now());
@@ -328,7 +340,7 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
       this.cases.push({
         id: this.nextId(),
         telegramId: reported.telegramId,
-        shortcode: reported.reel.shortcode,
+        shortcode: reportedReel.shortcode,
         method: "REPORT",
         detectedOn: today,
         evidence,
@@ -339,7 +351,7 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
         reports: [entry],
       });
     }
-    this.logger.log(`Shikoyat: ${reporterId} → ${reported.telegramId} (@${reported.reel.owner ?? "?"}).`);
+    this.logger.log(`Shikoyat: ${reporterId} → ${reported.telegramId} (@${reportedReel.owner ?? "?"}).`);
   }
 
   /** Shikoyat skrinshoti (admin ko'rishi uchun). */
@@ -354,8 +366,11 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
     return { mime: report.mime, data };
   }
 
-  /** Reel linki → shu Reel egasi; profil linki yoki @username → shu akkaunt egasi. */
-  private resolveReported(input: string): Participant | null | "INVALID" {
+  /**
+   * Reel linki → shu Reel egasi; profil linki yoki @username → shu akkauntdagi qabul qilingan
+   * video egasi. Natija — ishtirokchi va shikoyat qilingan (topilgan) video.
+   */
+  private resolveReported(input: string): { participant: Participant; reel: Reel } | null | "INVALID" {
     const raw = input.trim();
     const shortcode = parseReelShortcode(raw);
     let username: string | null = null;
@@ -371,16 +386,16 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
       username = username.toLowerCase();
       if (!USERNAME.test(username)) return "INVALID";
     }
-    return (
-      this.participants
-        .all()
-        .find(
-          (p) =>
-            p.status !== "DISQUALIFIED" &&
-            p.reel?.status === "ACCEPTED" &&
-            (shortcode ? p.reel.shortcode === shortcode : p.reel.owner?.toLowerCase() === username),
-        ) ?? null
-    );
+    for (const participant of this.participants.all()) {
+      if (participant.status === "DISQUALIFIED") continue;
+      const reel = participant.reels.find(
+        (r) =>
+          r.status === "ACCEPTED" &&
+          (shortcode ? r.shortcode === shortcode : r.owner?.toLowerCase() === username),
+      );
+      if (reel) return { participant, reel };
+    }
+    return null;
   }
 
   /** Reklama kutubxonasi: reyting yetakchilari akkauntlarida faol reklama bormi. Bir vaqtda bittasi. */
@@ -395,27 +410,37 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
     return this.checking !== null;
   }
 
+  /**
+   * Har bir yetakchining barcha akkauntlari (rad etilmagan videolari egalari) tekshiriladi.
+   * Holat ishtirokchi bo'yicha bitta: bir nechta akkauntda reklama bo'lsa — dalilda jami.
+   * `checked` va `found` — akkauntlar soni.
+   */
   private async runAdsCheck(reason: AdsCheckReport["reason"]): Promise<AdsCheckReport> {
     const today = contestDay(this.now());
     const leaders = this.stats
       .ranking()
       .slice(0, this.options.checkTop)
-      .filter((e) => e.reel.owner);
-    const report: AdsCheckReport = { reason, at: this.now().toISOString(), checked: leaders.length, found: 0, error: null };
+      .map((e) => ({ participant: e.participant, accounts: accountsOf(e.participant) }))
+      .filter((e) => e.accounts.length > 0);
+    const usernames = leaders.flatMap((e) => e.accounts.map((a) => a.username));
+    const report: AdsCheckReport = { reason, at: this.now().toISOString(), checked: usernames.length, found: 0, error: null };
     try {
-      const hits =
-        leaders.length > 0
-          ? await this.ads.check(leaders.map((e) => e.reel.owner ?? ""))
-          : new Map<string, AdHit[]>();
-      for (const { participant, reel } of leaders) {
-        const found = hits.get((reel.owner ?? "").toLowerCase()) ?? [];
+      const hits = usernames.length > 0 ? await this.ads.check(usernames) : new Map<string, AdHit[]>();
+      for (const { participant, accounts } of leaders) {
+        const withAds = accounts
+          .map((a) => ({ ...a, ads: hits.get(a.username.toLowerCase()) ?? [] }))
+          .filter((a) => a.ads.length > 0);
+        const found = withAds.flatMap((a) => a.ads);
         const open = this.cases.find(
           (c) => c.method === "AD_LIBRARY" && c.telegramId === participant.telegramId && OPEN.includes(c.status),
         );
         if (found.length > 0) {
-          report.found += 1;
+          report.found += withAds.length;
+          const reel = withAds[0].reel;
           const since = found.map((h) => h.startedOn).filter((d): d is string => d !== null).sort()[0];
-          const evidence = `Meta reklama kutubxonasi: ${found.length} ta faol reklama${since ? ` (${since.split("-").reverse().join(".")} dan)` : ""}`;
+          // Bir nechta akkauntida reklama topilsa — qaysilarida ekani ham.
+          const where = withAds.length > 1 ? ` — ${withAds.map((a) => `@${a.username}`).join(", ")}` : "";
+          const evidence = `Meta reklama kutubxonasi: ${found.length} ta faol reklama${since ? ` (${since.split("-").reverse().join(".")} dan)` : ""}${where}`;
           if (open) {
             if (open.currentState === "OFF") open.history.push({ date: today, state: "ON", note: "Reklama yana faol" });
             open.currentState = "ON";
@@ -474,7 +499,7 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
       .filter(({ c, p }) =>
         !needle
           ? true
-          : `${p.firstName ?? ""} ${p.lastName ?? ""} ${p.phone ?? ""} ${p.reel?.owner ?? ""} ${c.evidence}`
+          : `${p.firstName ?? ""} ${p.lastName ?? ""} ${p.phone ?? ""} ${instagramUsernames(p).join(" ")} ${c.evidence}`
               .toLowerCase()
               .includes(needle),
       );
@@ -509,7 +534,8 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
     const c = this.find(id);
     const p = this.participants.get(c.telegramId);
     if (!p) throw fail(404, "Ishtirokchi topilmadi.");
-    const history = p.reel?.history ?? [];
+    // Kunlik o'sish — holat qaysi video bo'yicha ochilgan bo'lsa, o'shaniki.
+    const history = reelOf(p, c)?.history ?? [];
     const dailyGrowth = history
       .slice(1)
       .map((s, i) => ({ date: s.date, viewsGrowth: Math.max(0, s.views - history[i].views), flagged: s.date === c.detectedOn }))
@@ -554,7 +580,10 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
     c.status = rule.to;
     c.history.push({ date: contestDay(this.now()), state: c.currentState, note: `${rule.label}: ${why}` });
     if (action === "disqualify") this.participants.disqualify(p.telegramId);
-    if (action === "warn") this.notify(p, texts.targetWarning, "WARNING");
+    if (action === "warn") {
+      const url = reelOf(p, c)?.url ?? canonicalReelUrl(c.shortcode);
+      this.notify(p, `${texts.targetWarning}\n\n${texts.reelLink(url)}`, "WARNING");
+    }
     if (action === "disqualify") this.notify(p, texts.targetDisqualified, "WARNING");
     this.logger.log(`${actor}: target ${c.id} (${p.firstName} ${p.lastName}) — ${rule.label}: ${why}`);
     return this.get(id);
@@ -564,6 +593,7 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
 
   private toItem(c: TargetCase, p: Participant, ranks: Map<number, { rank: number; views: number }>) {
     const r = ranks.get(p.telegramId);
+    const reel = reelOf(p, c);
     return {
       id: c.id,
       participant: {
@@ -571,16 +601,16 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
         firstName: p.firstName ?? "",
         lastName: p.lastName ?? "",
         phone: p.phone ?? "",
-        instagramUsername: p.reel?.owner ?? null,
+        instagramUsername: reel?.owner ?? instagramUsernames(p)[0] ?? null,
         status: p.status,
       },
-      reelUrl: p.reel?.url ?? `https://www.instagram.com/reel/${c.shortcode}/`,
+      reelUrl: reel?.url ?? canonicalReelUrl(c.shortcode),
       detectedOn: c.detectedOn,
       method: c.method,
       evidence: c.evidence,
       currentState: c.currentState,
       status: c.status,
-      views: r?.views ?? p.reel?.history.at(-1)?.views ?? 0,
+      views: r?.views ?? participantViews(p),
       rank: r?.rank ?? null,
     };
   }
@@ -605,6 +635,17 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
       this.logger.warn(`Ishtirokchiga (${p.telegramId}) xabar yuborilmadi: ${err.message}`);
     });
   }
+}
+
+/** Holat ochilgan video (ishtirokchi uni qayta yuborgan yoki o'chirilgan bo'lsa — null). */
+const reelOf = (p: Participant, c: TargetCase): Reel | null => p.reels.find((r) => r.shortcode === c.shortcode) ?? null;
+
+/** Reklama kutubxonasida tekshiriladigan akkauntlar: rad etilmagan videolar egalari va har birining birinchi videosi. */
+function accountsOf(p: Participant): { username: string; reel: Reel }[] {
+  return instagramUsernames(p).flatMap((username) => {
+    const reel = p.reels.find((r) => r.status !== "REJECTED" && r.owner === username);
+    return reel ? [{ username, reel }] : [];
+  });
 }
 
 /** O'sish tahlili dalili: bir kundagi belgilar. */

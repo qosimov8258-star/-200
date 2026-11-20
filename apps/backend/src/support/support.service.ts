@@ -1,6 +1,6 @@
 import { HttpException, Inject, Injectable, Optional } from "@nestjs/common";
 
-import type { Participant } from "../participants/participants.service";
+import { instagramUsernames, type Participant } from "../participants/participants.service";
 import { StateStore } from "../persistence/state-store";
 
 export type TicketStatus = "NEW" | "IN_PROGRESS" | "CLOSED";
@@ -246,7 +246,7 @@ export class SupportService {
       updatedAt: ticket.updatedAt.toISOString(),
       participant: {
         ...personOf(ticket.telegramId, p),
-        instagramUsername: p?.reel?.owner ?? null,
+        instagramUsername: p ? (instagramUsernames(p)[0] ?? null) : null,
         status: p?.status ?? "ACTIVE",
       },
       messages: ticket.messages.map((m, i) => ({

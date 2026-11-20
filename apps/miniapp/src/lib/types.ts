@@ -9,8 +9,9 @@
 export type IsoDate = string;
 
 /**
- * PENDING — avtomatik tekshiruv; ACCEPTED — reytingda; MANUAL_REVIEW — Instagram'da
- * 3 marta topilmadi, admin qo'lda tekshiradi; REJECTED — rad etilgan (yangi link yuborish mumkin).
+ * Bitta videoning holati. PENDING — avtomatik tekshiruv; ACCEPTED — ko'rishlari reytingga
+ * qo'shiladi; MANUAL_REVIEW — Instagram'da 3 marta topilmadi, admin qo'lda tekshiradi;
+ * REJECTED — rad etilgan (hisobga kirmaydi; shu linkni tuzatib qayta yuborish mumkin).
  */
 export type ReelStatus = "PENDING" | "ACCEPTED" | "MANUAL_REVIEW" | "REJECTED";
 
@@ -92,27 +93,42 @@ export type ReelRejectReason =
   /** Shu Instagram akkauntdan boshqa ishtirokchi video yuborgan. */
   | "OWNER_TAKEN";
 
-export interface MyReel {
+/** Ishtirokchining bitta videosi (`MyReels.reels` ichida). */
+export interface MyReelItem {
   url: string;
   shortcode: string;
-  /**
-   * PENDING — server Instagram'da tekshirmoqda (odatda bir necha daqiqa);
-   * REJECTED bo'lsa, boshqa link yuborish mumkin.
-   */
+  /** PENDING — server Instagram'da tekshirmoqda (odatda bir necha daqiqa). */
   status: ReelStatus;
   /** Rad etilgan bo'lsa — sababi. */
   rejectReason: ReelRejectReason | null;
+  /** Shu videoning oxirgi yig'ilgan ko'rishlari (hali yig'ilmagan bo'lsa — 0). */
+  views: number;
+  /** Yuborilgan vaqt (UTC ISO). */
+  submittedAt: string;
+}
+
+/**
+ * Ishtirokchining barcha videolari va umumiy statistikasi. Videolar soni cheklanmagan;
+ * reyting va asosiy sovrinlar uchun faqat ACCEPTED videolar ko'rishlari qo'shiladi.
+ */
+export interface MyReels {
+  /** Qabul qilingan videolar ko'rishlari yig'indisi. */
   totalViews: number;
+  /** Oxirgi kundagi umumiy o'sish. */
   todayViews: number;
+  /** Qabul qilingan video yo'q bo'lsa — null. */
   rank: number | null;
   rankDelta: number;
-  /** So'nggi kunlar, eskidan yangiga. */
+  /** Qabul qilingan videolarning kunlik o'sishi yig'indisi, eskidan yangiga. */
   daily: DailyViews[];
+  /** Videolar ichidagi eng so'nggi yangilanish (UTC ISO). */
   lastSyncedAt: string | null;
   /** Keyingi rejadagi yangilanish (UTC ISO); rejada yo'q bo'lsa — null. */
   nextSyncAt: string | null;
   /** Ko'rishlar necha kunda bir yangilanadi (0 — jadval yo'q). */
   syncEveryDays: number;
+  /** Barcha yuborilgan videolar, yangisidan eskisiga; video yo'q bo'lsa — bo'sh. */
+  reels: MyReelItem[];
 }
 
 /** Saytning kirish sahifasi uchun ochiq sozlamalar (GET /auth/config). */

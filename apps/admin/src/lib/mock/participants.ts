@@ -1,20 +1,36 @@
 /**
- * MOCK backend: ishtirokchilar ro'yxati va admin amallari (bloklash,
- * blokdan chiqarish, diskvalifikatsiya). Haqiqiy backendda:
+ * MOCK backend: ishtirokchilar ro'yxati, ishtirokchi videolari va admin amallari
+ * (bloklash, blokdan chiqarish, diskvalifikatsiya). Haqiqiy backendda:
  *   GET  /api/v1/admin/participants
+ *   GET  /api/v1/admin/participants/:id/reels
  *   POST /api/v1/admin/participants/:id/{block|unblock|disqualify}
  */
 import { ApiError } from "../api-error";
 import type {
+  AdminReelItem,
   AdminUser,
+  IsoDate,
   ParticipantAction,
   ParticipantListItem,
   ParticipantListQuery,
   ParticipantListResponse,
+  ParticipantReelCounts,
+  ParticipantReels,
   ParticipantStatus,
+  ReelStatus,
 } from "../types";
-import { getContestData, reelStatusOn, type MockParticipant, type MockReel } from "./contest";
+import {
+  eventTime,
+  getContestData,
+  lastSnapshotDay,
+  latestViews,
+  reelStatusOn,
+  type MockParticipant,
+  type MockReel,
+} from "./contest";
+import { openManualReviewShortcodes } from "./manual-review";
 import { computeRanking, effectiveStatus } from "./ranking";
+import { effectiveSettings, lastSyncAt } from "./settings";
 import { auditId, readStore, writeStore, type MockStore } from "./store";
 import { activeTargetParticipants } from "./targets";
 import { matchesPerson } from "./text";
@@ -36,53 +52,139 @@ const TRANSITIONS: Record<ParticipantAction, { from: ParticipantStatus[]; to: Pa
 
 interface ListContext {
   store: MockStore;
-  today: string;
+  today: IsoDate;
   rankById: Map<string, number>;
-  reelByParticipant: Map<string, MockReel>;
+  /** Ishtirokchi -> videolari (yuborilish tartibida). */
+  reelsByParticipant: Map<string, MockReel[]>;
   targetParticipants: Set<string>;
+  /** Hozir qo'lda tekshiruvda turgan videolar (shortcode). */
+  openReviews: Set<string>;
 }
 
 function buildContext(store: MockStore): ListContext {
   const data = getContestData();
+  const reelsByParticipant = new Map<string, MockReel[]>();
+  for (const reel of data.reels) {
+    const list = reelsByParticipant.get(reel.participantId);
+    if (list) list.push(reel);
+    else reelsByParticipant.set(reel.participantId, [reel]);
+  }
   return {
     store,
     today: data.today,
     rankById: new Map(
       computeRanking(data.today, store).map((entry) => [entry.participantId, entry.rank]),
     ),
-    reelByParticipant: new Map(data.reels.map((reel) => [reel.participantId, reel])),
+    reelsByParticipant,
     // Ro'yxatdan chiqarilgan (yolg'on signal deb topilgan) targetlar hisobga olinmaydi.
     targetParticipants: activeTargetParticipants(store),
+    openReviews: openManualReviewShortcodes(store),
   };
 }
 
-/** Reelning oxirgi yig'ilgan ko'rishlari (kunlar xronologik tartibda saqlangan). */
-function latestViews(reel: MockReel): number {
-  let latest = 0;
-  for (const views of reel.viewsByDay.values()) {
-    latest = views;
-  }
-  return latest;
+/** Videoning panelda ko'rinadigan holati: qo'lda tekshiruvdagisi — `PENDING` + `manualReview`. */
+function reelState(reel: MockReel, context: ListContext): { status: ReelStatus; manualReview: boolean } {
+  if (context.openReviews.has(reel.shortcode)) return { status: "PENDING", manualReview: true };
+  return { status: reelStatusOn(reel, context.today) ?? "PENDING", manualReview: false };
 }
 
-function toListItem(participant: MockParticipant, context: ListContext): ParticipantListItem {
-  const reel = context.reelByParticipant.get(participant.id);
-  const reelStatus = reel ? reelStatusOn(reel, context.today) : null;
+interface ReelSummary {
+  counts: ParticipantReelCounts;
+  /** Har bir videoning holati — Reel filtri uchun. */
+  statuses: ReelStatus[];
+  /** Qabul qilingan videolar ko'rishlari yig'indisi. */
+  views: number;
+  /** Rad etilmagan videolardagi akkauntlar, birinchi aniqlangani boshida (takrorlanmaydi). */
+  owners: string[];
+}
 
+function summarizeReels(participant: MockParticipant, context: ListContext): ReelSummary {
+  const reels = context.reelsByParticipant.get(participant.id) ?? [];
+  const counts: ParticipantReelCounts = { total: reels.length, accepted: 0, pending: 0, rejected: 0 };
+  const statuses: ReelStatus[] = [];
+  const owners: string[] = [];
+  let views = 0;
+
+  for (const reel of reels) {
+    const { status } = reelState(reel, context);
+    statuses.push(status);
+    if (status === "ACCEPTED") {
+      counts.accepted += 1;
+      views += latestViews(reel);
+    } else if (status === "PENDING") {
+      counts.pending += 1;
+    } else if (status === "REJECTED") {
+      counts.rejected += 1;
+    }
+    if (status !== "REJECTED" && reel.owner && !owners.includes(reel.owner)) {
+      owners.push(reel.owner);
+    }
+  }
+
+  return { counts, statuses, views, owners };
+}
+
+function toListItem(
+  participant: MockParticipant,
+  context: ListContext,
+  summary: ReelSummary = summarizeReels(participant, context),
+): ParticipantListItem {
   return {
     id: participant.id,
     firstName: participant.firstName,
     lastName: participant.lastName,
     age: participant.age,
     phone: participant.phone,
-    instagramUsername: participant.instagramUsername,
+    instagramUsername: summary.owners[0] ?? null,
     status: effectiveStatus(participant, context.store),
     registeredOn: participant.registeredOn,
-    reel:
-      reel && reelStatus ? { url: reel.url, status: reelStatus } : null,
-    views: reel ? latestViews(reel) : 0,
+    reels: summary.counts,
+    views: summary.views,
     rank: context.rankById.get(participant.id) ?? null,
     hasTarget: context.targetParticipants.has(participant.id),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Ishtirokchi videolari
+// ---------------------------------------------------------------------------
+
+/** Tasdiqlash (birinchi tekshiruv) videoni yuborgandan shuncha keyin bo'ladi. */
+const VERIFY_DELAY_MS = 20 * 60_000;
+
+/** Ko'rishlar oxirgi marta yig'ilgan vaqt: kunlik yig'ish vaqti, birinchi kuni — tekshiruv vaqti. */
+function lastSyncedAt(reel: MockReel, day: IsoDate, today: IsoDate, syncTime: string): string {
+  const syncedAt =
+    day === today ? lastSyncAt(today, syncTime) : new Date(`${day}T${syncTime}:00+05:00`).toISOString();
+  const verifiedAt = Date.parse(reel.submittedAt) + VERIFY_DELAY_MS;
+  const at = Math.min(Date.now(), Math.max(Date.parse(syncedAt), verifiedAt));
+  return new Date(at).toISOString();
+}
+
+/** Instagramda joylangan vaqt — yuborilgan vaqtdan oldin. */
+function postedAt(reel: MockReel): string {
+  const at = eventTime(reel.postedOn, `posted:${reel.id}`, 7, 21);
+  return at < reel.submittedAt ? at : new Date(Date.parse(reel.submittedAt) - 45 * 60_000).toISOString();
+}
+
+function toAdminReel(reel: MockReel, context: ListContext, syncTime: string): AdminReelItem {
+  const { status, manualReview } = reelState(reel, context);
+  const snapshotDay = lastSnapshotDay(reel);
+  const views = latestViews(reel);
+  return {
+    shortcode: reel.shortcode,
+    url: reel.url,
+    status,
+    manualReview,
+    rejectReason: status === "REJECTED" ? reel.rejectReason : null,
+    owner: reel.owner,
+    views,
+    likes: snapshotDay ? Math.round(views * reel.likeRate) : null,
+    submittedAt: reel.submittedAt,
+    // Joylangan vaqt Instagram videoni topgandagina ma'lum bo'ladi (akkaunt bilan birga).
+    postedAt: reel.owner ? postedAt(reel) : null,
+    lastSyncedAt: snapshotDay ? lastSyncedAt(reel, snapshotDay, context.today, syncTime) : null,
+    flags: [...reel.flags],
   };
 }
 
@@ -122,16 +224,26 @@ function compareItems(
 export function listParticipants(query: ParticipantListQuery): ParticipantListResponse {
   const context = buildContext(readStore());
   const data = getContestData();
+  const reelFilter = query.reel;
 
   let items = data.participants
-    .map((participant) => toListItem(participant, context))
-    .filter((item) => matchesPerson(item, query.search ?? ""));
-
-  if (query.reel === "NONE") {
-    items = items.filter((item) => item.reel === null);
-  } else if (query.reel) {
-    items = items.filter((item) => item.reel?.status === query.reel);
-  }
+    .map((participant) => ({ participant, summary: summarizeReels(participant, context) }))
+    // Qidiruv ishtirokchining barcha akkauntlari bo'yicha.
+    .filter(({ participant, summary }) =>
+      matchesPerson(
+        { ...participant, instagramUsername: summary.owners.join(" ") || null },
+        query.search ?? "",
+      ),
+    )
+    // Reel filtri: kamida bitta videosi shu holatda; NONE — umuman video yo'q.
+    .filter(({ summary }) =>
+      !reelFilter
+        ? true
+        : reelFilter === "NONE"
+          ? summary.counts.total === 0
+          : summary.statuses.includes(reelFilter),
+    )
+    .map(({ participant, summary }) => toListItem(participant, context, summary));
 
   const statusCounts: ParticipantListResponse["statusCounts"] = {
     ALL: items.length,
@@ -162,6 +274,32 @@ export function listParticipants(query: ParticipantListQuery): ParticipantListRe
     page,
     pageSize,
     statusCounts,
+  };
+}
+
+export function getParticipantReels(participantId: string): ParticipantReels {
+  const participant = getContestData().participants.find((item) => item.id === participantId);
+  if (!participant) {
+    throw new ApiError(404, "Ishtirokchi topilmadi.");
+  }
+
+  const context = buildContext(readStore());
+  const summary = summarizeReels(participant, context);
+  const { syncTime } = effectiveSettings(context.store);
+  const reels = (context.reelsByParticipant.get(participant.id) ?? [])
+    .map((reel) => ({ id: reel.id, item: toAdminReel(reel, context, syncTime) }))
+    // Eng yangisi birinchi.
+    .sort((a, b) => b.item.submittedAt.localeCompare(a.item.submittedAt) || b.id.localeCompare(a.id))
+    .map(({ item }) => item);
+
+  return {
+    participant: {
+      id: participant.id,
+      fullName: `${participant.firstName} ${participant.lastName}`,
+      instagramUsernames: summary.owners,
+    },
+    totalViews: summary.views,
+    reels,
   };
 }
 

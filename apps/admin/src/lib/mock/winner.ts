@@ -70,14 +70,25 @@ function targetIssue(participantId: string, store: MockStore): string | null {
   return target ? `Target aniqlangan: ${formatDate(target.detectedOn)}` : null;
 }
 
-function reelIssue(reel: MockReel, date: IsoDate): string | null {
-  const status = reelStatusOn(reel, date);
-  if (status === "REMOVED") return "Reel Instagramdan o'chirilgan";
-  if (status !== "ACCEPTED") return "Reel qabul qilinmagan";
+/** Reytingda hisobga olingan videolar: o'chirilgani bormi, qabul qilingani bormi. */
+function reelIssue(reels: MockReel[], date: IsoDate): string | null {
+  const statuses = reels.map((reel) => reelStatusOn(reel, date));
+  const removed = statuses.filter((status) => status === "REMOVED").length;
+  if (removed > 0) return `${removed} ta video Instagramdan o'chirilgan`;
+  if (!statuses.includes("ACCEPTED")) return "Qabul qilingan video yo'q";
   return null;
 }
 
-function fakeViewsIssue(reel: MockReel, date: IsoDate): string | null {
+/** Hisobga olingan videolardan birida g'ayritabiiy sakrash bo'lsa — birinchisi. */
+function fakeViewsIssue(reels: MockReel[], date: IsoDate): string | null {
+  for (const reel of reels) {
+    const issue = reelFakeViewsIssue(reel, date);
+    if (issue) return reels.length > 1 ? `Video ${reel.shortcode}: ${issue}` : issue;
+  }
+  return null;
+}
+
+function reelFakeViewsIssue(reel: MockReel, date: IsoDate): string | null {
   const days = reel.reviewedOn ? eachDay(reel.reviewedOn, date) : [];
   const growth = days
     .map((day) => ({ day, value: reel.growthByDay.get(day) ?? 0 }))
@@ -123,10 +134,11 @@ function manualCheck(
   };
 }
 
-function buildChecks(participantId: string, reel: MockReel, date: IsoDate, store: MockStore): WinnerCheck[] {
+/** `reels` — nomzodning reytingda hisobga olingan videolari. */
+function buildChecks(participantId: string, reels: MockReel[], date: IsoDate, store: MockStore): WinnerCheck[] {
   const target = targetIssue(participantId, store);
-  const reelProblem = reelIssue(reel, date);
-  const fakeViews = fakeViewsIssue(reel, date);
+  const reelProblem = reelIssue(reels, date);
+  const fakeViews = fakeViewsIssue(reels, date);
 
   return [
     {
@@ -138,7 +150,7 @@ function buildChecks(participantId: string, reel: MockReel, date: IsoDate, store
     {
       key: "REEL_AVAILABLE",
       status: reelProblem ? "FAILED" : "PASSED",
-      detail: reelProblem ?? "Reel Instagramda mavjud va ochiq",
+      detail: reelProblem ?? "Videolar Instagramda mavjud va ochiq",
       manual: false,
     },
     {
@@ -160,8 +172,8 @@ function buildChecks(participantId: string, reel: MockReel, date: IsoDate, store
   ];
 }
 
-function automaticIssues(participantId: string, reel: MockReel, date: IsoDate, store: MockStore): string[] {
-  return [targetIssue(participantId, store), reelIssue(reel, date), fakeViewsIssue(reel, date)].filter(
+function automaticIssues(participantId: string, reels: MockReel[], date: IsoDate, store: MockStore): string[] {
+  return [targetIssue(participantId, store), reelIssue(reels, date), fakeViewsIssue(reels, date)].filter(
     (issue): issue is string => issue !== null,
   );
 }
@@ -186,7 +198,9 @@ function compute(store: MockStore): Computed {
   const data = getContestData();
   const contest = contestInfo(store);
   const participants = new Map(data.participants.map((item) => [item.id, item]));
-  const reels = new Map(data.reels.map((reel) => [reel.id, reel]));
+  const reelsById = new Map(data.reels.map((reel) => [reel.id, reel]));
+  const reelsOf = (entry: MockRankingEntry): MockReel[] =>
+    entry.reelIds.flatMap((id) => reelsById.get(id) ?? []);
   const skippedIds = new Set(store.winner.skipped.map((item) => item.participantId));
 
   const ranking = computeRanking(contest.ratingDate, store).filter(
@@ -201,7 +215,7 @@ function compute(store: MockStore): Computed {
   let candidate: WinnerCandidate | null = null;
   if (candidateEntry) {
     const participant = participants.get(candidateEntry.participantId);
-    const reel = reels.get(candidateEntry.reelId);
+    const reel = reelsById.get(candidateEntry.topReelId);
     if (participant && reel) {
       candidate = {
         participant: {
@@ -215,7 +229,7 @@ function compute(store: MockStore): Computed {
         rank: candidateEntry.rank,
         views: candidateEntry.views,
         reelUrl: reel.url,
-        checks: buildChecks(participant.id, reel, contest.ratingDate, store),
+        checks: buildChecks(participant.id, reelsOf(candidateEntry), contest.ratingDate, store),
       };
     }
   }
@@ -225,15 +239,14 @@ function compute(store: MockStore): Computed {
     .slice(0, RUNNERS_UP_COUNT)
     .flatMap((entry) => {
       const participant = participants.get(entry.participantId);
-      const reel = reels.get(entry.reelId);
-      if (!participant || !reel) return [];
+      if (!participant) return [];
       return [
         {
           rank: entry.rank,
           participantId: participant.id,
           name: `${participant.firstName} ${participant.lastName}`,
           views: entry.views,
-          issues: automaticIssues(participant.id, reel, contest.ratingDate, store),
+          issues: automaticIssues(participant.id, reelsOf(entry), contest.ratingDate, store),
         },
       ];
     });

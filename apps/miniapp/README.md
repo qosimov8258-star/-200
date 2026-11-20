@@ -34,14 +34,32 @@ Brauzerda: <http://localhost:3002>. Telegram'dan tashqarida ochilganda yuqorida 
 Raqamni Mini App ichidan ham so'rash mumkin (`requestContact`) — Telegram uni baribir botga
 yuboradi, Mini App esa holat o'zgarguncha `GET /me` ni qayta so'raydi.
 
+## Videolar ("Videom")
+
+Ishtirokchi **xohlagancha** Reel linki yuboradi (`GET`/`POST /miniapp/reels`). Har bir video
+alohida tekshiriladi va ko'rishlari alohida yig'iladi; reyting, o'rin va asosiy sovrinlar uchun
+**qabul qilingan** videolar ko'rishlari qo'shiladi. Ekranda: umumiy natija (jami ko'rishlar,
+o'rin va uning o'zgarishi, kunlik o'sish grafigi — barcha qabul qilingan videolar bo'yicha),
+har doim ko'rinadigan "Yangi video qo'shing" maydoni va barcha videolar ro'yxati (yangisi
+tepada: holati, rad etilgan bo'lsa — sababi, ko'rishlari, Instagram'da ochiladigan link).
+Biror video tekshiruvda bo'lsa, ro'yxat har 5 soniyada (qo'lda tekshiruvda — har daqiqada)
+qayta so'raladi.
+
+Takror yuborish: o'zingizning hali rad etilmagan videongiz — `REEL_ALREADY_SUBMITTED`,
+boshqa ishtirokchiniki — `REEL_TAKEN`. Rad etilgan videoni qayta yuborish mumkin (eski yozuv
+almashtiriladi).
+
 ## Backend bilan aloqa
 
 - Barcha so'rovlar faqat [`src/lib/api.ts`](src/lib/api.ts) da.
 - `VITE_API_URL` bo'sh → mock rejim ([`src/lib/mock/store.ts`](src/lib/mock/store.ts),
-  holat `localStorage` da, "Boshidan boshlash" tugmasi bilan tozalanadi). Yuborilgan video
-  4 soniya "Tekshirilmoqda" bo'ladi, keyin qabul qilinadi. Shortcode `notfound` bilan
-  boshlansa (masalan, `https://www.instagram.com/reel/notfound1/`) — "Qo'lda tekshirilmoqda",
-  `photo` bilan boshlansa — "Reel emas" deb rad etiladi.
+  holat `localStorage` da, "Boshidan boshlash" tugmasi bilan tozalanadi; eski — bitta videoli
+  holat o'zi ro'yxatga ko'chiriladi). Har bir yuborilgan video 4 soniya "Tekshirilmoqda"
+  bo'ladi, keyin qabul qilinadi. Shortcode `notfound` bilan boshlansa (masalan,
+  `https://www.instagram.com/reel/notfound1/`) — "Qo'lda tekshirilmoqda", `photo` bilan —
+  "Reel emas" deb rad etiladi, `taken` bilan — "boshqa ishtirokchi yuborgan" xatosi
+  (`REEL_TAKEN`). O'zingiz yuborgan (rad etilmagan) linkni qayta yuborish —
+  `REEL_ALREADY_SUBMITTED`.
 - `VITE_API_URL=http://localhost:3000/api/v1` → haqiqiy backend. Telegram ichida har bir so'rov
   `X-Telegram-Init-Data` sarlavhasi bilan ketadi; backend uni bot tokeni bilan tekshiradi.
 

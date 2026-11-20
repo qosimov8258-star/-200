@@ -42,6 +42,7 @@ import type {
   ParticipantListItem,
   ParticipantListQuery,
   ParticipantListResponse,
+  ParticipantReels,
   SupportReplyRequest,
   SupportStatusRequest,
   SupportTicketDetail,
@@ -322,6 +323,15 @@ export async function getDashboardStats(query: DashboardQuery): Promise<Dashboar
  */
 export async function getParticipants(query: ParticipantListQuery): Promise<ParticipantListResponse> {
   return requestJson<ParticipantListResponse>("GET", "/admin/participants", { query });
+}
+
+/**
+ * Ishtirokchining barcha yuborgan videolari (eng yangisi birinchi) va jami ko'rishlari.
+ * @endpoint GET /api/v1/admin/participants/:id/reels
+ * @throws ApiError 404 — ishtirokchi topilmadi
+ */
+export async function getParticipantReels(id: string): Promise<ParticipantReels> {
+  return requestJson<ParticipantReels>("GET", `/admin/participants/${segment(id)}/reels`);
 }
 
 /**

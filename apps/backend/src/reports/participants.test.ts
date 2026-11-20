@@ -7,18 +7,22 @@ import {
   listParticipants,
   participantContext,
   toParticipantItem,
+  toParticipantReels,
   type CaseInfo,
   type ParticipantFilter,
 } from "./participants";
 
 const at = (day: string) => new Date(`${day}T12:00:00+05:00`);
 
-function reel(shortcode: string, o: { status?: ReelStatus; owner?: string | null; views?: number[] } = {}): Reel {
+function reel(
+  shortcode: string,
+  o: { status?: ReelStatus; owner?: string | null; views?: number[]; submittedOn?: string } = {},
+): Reel {
   return {
     url: `https://www.instagram.com/reel/${shortcode}/`,
     shortcode,
     status: o.status ?? "ACCEPTED",
-    submittedAt: at("2026-12-01"),
+    submittedAt: at(o.submittedOn ?? "2026-12-01"),
     owner: o.owner ?? null,
     postedAt: null,
     rejectReason: null,
@@ -38,7 +42,10 @@ function reel(shortcode: string, o: { status?: ReelStatus; owner?: string | null
 
 function person(
   telegramId: number,
-  o: Partial<Pick<Participant, "status" | "firstName" | "lastName" | "phone" | "age" | "reel" | "createdAt">> = {},
+  o: Partial<Pick<Participant, "status" | "firstName" | "lastName" | "phone" | "age" | "reels" | "createdAt">> & {
+    /** Bitta video — qisqa yozish uchun. */
+    reel?: Reel;
+  } = {},
 ): Participant {
   return {
     telegramId,
@@ -48,7 +55,7 @@ function person(
     lastName: o.lastName ?? `Familiya${telegramId}`,
     age: o.age ?? 25,
     consentVersion: 1,
-    reel: o.reel ?? null,
+    reels: o.reels ?? (o.reel ? [o.reel] : []),
     status: o.status ?? "ACTIVE",
     createdAt: o.createdAt ?? at("2026-11-26"),
   };
@@ -76,15 +83,74 @@ test("a list item maps the backend participant to the admin contract", () => {
     instagramUsername: "ali.v",
     status: "ACTIVE",
     registeredOn: "2026-11-26",
-    reel: { url: "https://www.instagram.com/reel/AAA/", status: "ACCEPTED" },
+    reels: { total: 1, accepted: 1, pending: 0, rejected: 0 },
     views: 2_500,
     rank: 2,
     hasTarget: false,
   });
   const empty = toParticipantItem(person(8), participantContext([], []));
-  assert.equal(empty.reel, null);
+  assert.deepEqual(empty.reels, { total: 0, accepted: 0, pending: 0, rejected: 0 });
+  assert.equal(empty.instagramUsername, null);
   assert.equal(empty.views, 0);
   assert.equal(empty.rank, null);
+});
+
+test("several Reels: counts by status, views of accepted ones only, the first live owner", () => {
+  const p = person(7, {
+    reels: [
+      reel("OLD", { status: "REJECTED", owner: "old.acc", views: [90_000] }),
+      reel("AAA", { owner: "ali.v", views: [100, 2_500] }),
+      reel("BBB", { owner: "ali.second", views: [1_000] }),
+      reel("CCC", { status: "MANUAL_REVIEW", owner: "ali.v", views: [7_000] }),
+      reel("DDD", { status: "PENDING" }),
+    ],
+  });
+  const item = toParticipantItem(p, participantContext([], []));
+  assert.deepEqual(item.reels, { total: 5, accepted: 2, pending: 2, rejected: 1 });
+  assert.equal(item.views, 3_500);
+  assert.equal(item.instagramUsername, "ali.v");
+});
+
+test("participant Reels: newest first, admin statuses, latest numbers and distinct flags", () => {
+  const flagged = reel("BBB", { owner: "ali.second", views: [1_000, 30_000], submittedOn: "2026-12-03" });
+  flagged.flags = [
+    { type: "VIEW_SPIKE", date: "2026-12-02", detail: "a" },
+    { type: "VIEW_SPIKE", date: "2026-12-03", detail: "b" },
+    { type: "LOW_ENGAGEMENT", date: "2026-12-02", detail: "c" },
+  ];
+  flagged.postedAt = new Date("2026-12-02T10:00:00Z");
+  const rejected = reel("OLD", { status: "REJECTED", owner: "old.acc", submittedOn: "2026-11-28" });
+  rejected.rejectReason = "OWNER_TAKEN";
+  const p = person(7, {
+    firstName: "Ali",
+    lastName: "Valiyev",
+    reels: [
+      rejected,
+      reel("AAA", { owner: "ali.v", views: [100, 2_500], submittedOn: "2026-12-01" }),
+      flagged,
+      reel("CCC", { status: "MANUAL_REVIEW", owner: "ali.v", submittedOn: "2026-12-04" }),
+    ],
+  });
+  const result = toParticipantReels(p);
+  assert.deepEqual(result.participant, { id: "7", fullName: "Ali Valiyev", instagramUsernames: ["ali.v", "ali.second"] });
+  assert.equal(result.totalViews, 32_500);
+  assert.deepEqual(
+    result.reels.map((r) => [r.shortcode, r.status, r.manualReview, r.rejectReason, r.owner, r.views]),
+    [
+      ["CCC", "PENDING", true, null, "ali.v", 0],
+      ["BBB", "ACCEPTED", false, null, "ali.second", 30_000],
+      ["AAA", "ACCEPTED", false, null, "ali.v", 2_500],
+      ["OLD", "REJECTED", false, "OWNER_TAKEN", "old.acc", 0],
+    ],
+  );
+  const bbb = result.reels[1];
+  assert.deepEqual(bbb.flags, ["VIEW_SPIKE", "LOW_ENGAGEMENT"]);
+  assert.equal(bbb.likes, null);
+  assert.equal(bbb.submittedAt, at("2026-12-03").toISOString());
+  assert.equal(bbb.postedAt, "2026-12-02T10:00:00.000Z");
+  assert.equal(bbb.lastSyncedAt, at("2026-12-01").toISOString());
+  assert.equal(result.reels[0].lastSyncedAt, null);
+  assert.equal(result.reels[0].postedAt, null);
 });
 
 test("only participants who filled the profile are listed", () => {
@@ -123,16 +189,18 @@ test("status: blocked/disqualified come from the participant, WARNED from an ope
   );
 });
 
-test("reel status: MANUAL_REVIEW shows as PENDING; the NONE filter keeps those without a Reel", () => {
+test("reel filter: at least one Reel in that status (MANUAL_REVIEW is PENDING); NONE — no Reels at all", () => {
   const people = [
     person(1, { reel: reel("A", { status: "MANUAL_REVIEW" }) }),
     person(2, { reel: reel("B", { status: "PENDING" }) }),
     person(3, { reel: reel("C", { status: "REJECTED" }) }),
     person(4),
+    person(5, { reels: [reel("E1", { status: "REJECTED" }), reel("E2"), reel("E3", { status: "PENDING" })] }),
   ];
-  assert.equal(list(people).items.find((i) => i.id === "1")?.reel?.status, "PENDING");
-  assert.deepEqual(ids(list(people, ranked(), [], { reel: "PENDING" }).items), ["1", "2"]);
-  assert.deepEqual(ids(list(people, ranked(), [], { reel: "REJECTED" }).items), ["3"]);
+  assert.equal(list(people).items.find((i) => i.id === "1")?.reels.pending, 1);
+  assert.deepEqual(ids(list(people, ranked(), [], { reel: "PENDING" }).items), ["1", "2", "5"]);
+  assert.deepEqual(ids(list(people, ranked(), [], { reel: "ACCEPTED" }).items), ["5"]);
+  assert.deepEqual(ids(list(people, ranked(), [], { reel: "REJECTED" }).items), ["3", "5"]);
   assert.deepEqual(ids(list(people, ranked(), [], { reel: "NONE" }).items), ["4"]);
   assert.deepEqual(ids(list(people, ranked(), [], { reel: "REMOVED" }).items), []);
 });
@@ -154,11 +222,19 @@ test("search by name (any order, apostrophe variants), @instagram and at least 3
     person(1, { firstName: "Oʻlmas", lastName: "Karimov", phone: "+998901112233" }),
     person(2, { firstName: "Jasur", lastName: "Toshev", reel: reel("B", { owner: "jasur_t" }) }),
     person(3, { firstName: "Dilnoza", lastName: "Aliyeva", phone: "+998935556677" }),
+    // Ikkinchi akkaunt bo'yicha ham topiladi; rad etilgan videodagi akkaunt — yo'q.
+    person(4, {
+      firstName: "Bobur",
+      lastName: "Qodirov",
+      reels: [reel("D1", { owner: "bobur" }), reel("D2", { owner: "bobur.food" }), reel("D3", { owner: "eski.akk", status: "REJECTED" })],
+    }),
   ];
   const find = (search: string) => ids(list(people, ranked(), [], { search }).items);
   assert.deepEqual(find("o'lmas"), ["1"]);
   assert.deepEqual(find("karimov o'l"), ["1"]);
   assert.deepEqual(find("@jasur_"), ["2"]);
+  assert.deepEqual(find("@bobur.f"), ["4"]);
+  assert.deepEqual(find("eski.akk"), []);
   assert.deepEqual(find("555 66"), ["3"]);
   assert.deepEqual(find("90"), []); // 3 tadan kam raqam — telefon bo'yicha qidirilmaydi
   assert.deepEqual(find("yo'q"), []);

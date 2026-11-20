@@ -62,7 +62,7 @@ const rise = (i: number): CSSProperties => ({ animationDelay: `${i * 80}ms` });
 export function PrizesScreen({ onOpenReel, guest = false }: { onOpenReel: () => void; guest?: boolean }) {
   const prizes = useQuery({ queryKey: ["prizes"], queryFn: api.getPrizes });
   // Mehmonning videosi yo'q — so'ralmaydi (aks holda 401).
-  const reel = useQuery({ queryKey: ["reel"], queryFn: api.getMyReel, enabled: !guest });
+  const reels = useQuery({ queryKey: ["reels"], queryFn: api.getMyReels, enabled: !guest });
 
   return (
     <div className="space-y-6">
@@ -77,9 +77,9 @@ export function PrizesScreen({ onOpenReel, guest = false }: { onOpenReel: () => 
           <MonthlySection prizes={prizes.data} style={rise(1)} />
           <TierLadder
             tiers={prizes.data.tiers}
-            // Reytingga faqat qabul qilingan video kiradi; video yo'q bo'lsa — null.
-            views={reel.data ? (reel.data.status === "ACCEPTED" ? reel.data.totalViews : 0) : null}
-            loading={!guest && reel.isPending}
+            // Qabul qilingan videolar ko'rishlari yig'indisi; birorta ham video yo'q bo'lsa — null.
+            views={reels.data && reels.data.reels.length > 0 ? reels.data.totalViews : null}
+            loading={!guest && reels.isPending}
             onOpenReel={onOpenReel}
             style={rise(2)}
           />

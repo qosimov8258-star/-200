@@ -33,6 +33,7 @@ import {
   BOOST_END_OFFSET,
   getContestData,
   isBoostDay,
+  latestViews,
   type MockParticipant,
   type MockReel,
   type MockTargetDetection,
@@ -88,12 +89,6 @@ export function activeTargetParticipants(store: MockStore, date?: IsoDate): Set<
 
 function growthOn(reel: MockReel, date: IsoDate): number {
   return reel.growthByDay.get(date) ?? 0;
-}
-
-function latestViews(reel: MockReel): number {
-  let latest = 0;
-  for (const views of reel.viewsByDay.values()) latest = views;
-  return latest;
 }
 
 function evidenceFor(target: MockTargetDetection, reel: MockReel): string {
@@ -201,7 +196,8 @@ function toListItem(target: MockTargetDetection, context: CaseContext): TargetCa
       firstName: participant.firstName,
       lastName: participant.lastName,
       phone: participant.phone,
-      instagramUsername: participant.instagramUsername,
+      // Target holati bitta video bo'yicha — o'sha videoning akkaunti.
+      instagramUsername: reel.owner ?? participant.instagramUsername,
       status: effectiveStatus(participant, context.store),
     },
     reelUrl: reel.url,

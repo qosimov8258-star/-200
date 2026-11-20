@@ -1,5 +1,5 @@
 import { addDays } from "../common/time";
-import type { Participant, Reel } from "../participants/participants.service";
+import { firstSubmittedAt, topReel, type Participant, type Reel } from "../participants/participants.service";
 import { clampDay, reportWindow } from "./days";
 import type { CaseInfo } from "./participants";
 import { viewsOn } from "./views";
@@ -14,9 +14,10 @@ export interface RatingEntry {
   participantId: string;
   firstName: string;
   lastName: string;
+  /** Shu kuni eng ko'p ko'rilgan (asosiy) videoning egasi va linki. */
   instagramUsername: string | null;
   reelUrl: string;
-  /** Shu kungacha yig'ilgan ko'rishlar. */
+  /** Shu kungacha yig'ilgan ko'rishlar — qabul qilingan videolar yig'indisi. */
   views: number;
   /** Shu kuni yig'ilgan yangi ko'rishlar (oldingi kunga nisbatan; kamaygan bo'lsa — manfiy). */
   viewsGrowth: number;
@@ -56,32 +57,39 @@ export interface DailyRatingInput {
 
 export interface RankedOnDay {
   participant: Participant;
-  reel: Reel;
+  /** Hozir qabul qilingan (ACCEPTED) videolari — yuborilish tartibida. */
+  reels: Reel[];
   views: number;
   rank: number;
 }
 
+/** Videolarning `day` kunidagi ko'rishlari yig'indisi; hech birida shu kungacha snapshot bo'lmasa — null. */
+export function sumViewsOn(reels: readonly Reel[], day: string): number | null {
+  let total: number | null = null;
+  for (const reel of reels) {
+    const views = viewsOn(reel.history, day);
+    if (views !== null) total = (total ?? 0) + views;
+  }
+  return total;
+}
+
 /**
  * `day` kunidagi reyting: hozir qabul qilingan (ACCEPTED) videosi bor faol ishtirokchilar,
- * shu kungacha kamida bitta snapshot bo'lganlar. Ko'rishlar — `date <= day` oxirgi snapshot.
- * Teng ko'rishda videoni oldinroq yuborgan yuqorida (`StatsService.ranking` qoidasi).
+ * shu kungacha kamida bitta snapshot bo'lganlar. Ko'rishlar — qabul qilingan videolarning
+ * `date <= day` oxirgi snapshotlari yig'indisi. Teng ko'rishda birinchi qabul qilingan videosini
+ * oldinroq yuborgan yuqorida (`StatsService.ranking` qoidasi).
  *
  * Holat (bloklangan, chetlatilgan, video holati) — joriy; o'tgan kunlar uchun ham shu qo'llanadi.
  */
 export function rankOn(participants: readonly Participant[], day: string): RankedOnDay[] {
   const rows = participants.flatMap((participant) => {
-    const reel = participant.reel;
-    if (!reel || reel.status !== "ACCEPTED" || participant.status !== "ACTIVE" || !participant.firstName) return [];
-    const views = viewsOn(reel.history, day);
-    return views === null ? [] : [{ participant, reel, views }];
+    if (participant.status !== "ACTIVE" || !participant.firstName) return [];
+    const reels = participant.reels.filter((r) => r.status === "ACCEPTED");
+    const views = sumViewsOn(reels, day);
+    return views === null ? [] : [{ participant, reels, views, since: firstSubmittedAt(reels) }];
   });
-  rows.sort(
-    (a, b) =>
-      b.views - a.views ||
-      a.reel.submittedAt.getTime() - b.reel.submittedAt.getTime() ||
-      a.participant.telegramId - b.participant.telegramId,
-  );
-  return rows.map((row, i) => ({ ...row, rank: i + 1 }));
+  rows.sort((a, b) => b.views - a.views || a.since - b.since || a.participant.telegramId - b.participant.telegramId);
+  return rows.map(({ participant, reels, views }, i) => ({ participant, reels, views, rank: i + 1 }));
 }
 
 /**
@@ -101,18 +109,24 @@ export function buildDailyRating(input: DailyRatingInput): DailyRating {
     input.cases.filter((c) => c.status !== "DISMISSED" && c.detectedOn <= date).map((c) => c.telegramId),
   );
 
-  const entries: RatingEntry[] = ranking.map(({ participant: p, reel, views, rank }) => ({
-    rank,
-    participantId: String(p.telegramId),
-    firstName: p.firstName ?? "",
-    lastName: p.lastName ?? "",
-    instagramUsername: reel.owner,
-    reelUrl: reel.url,
-    views,
-    viewsGrowth: views - (viewsOn(reel.history, previousDay) ?? 0),
-    previousRank: previousRank.get(p.telegramId) ?? null,
-    hasTarget: withTarget.has(p.telegramId),
-  }));
+  const entries: RatingEntry[] = ranking.flatMap(({ participant: p, reels, views, rank }) => {
+    const main = topReel(reels, (r) => viewsOn(r.history, date) ?? 0);
+    if (!main) return [];
+    return [
+      {
+        rank,
+        participantId: String(p.telegramId),
+        firstName: p.firstName ?? "",
+        lastName: p.lastName ?? "",
+        instagramUsername: main.owner,
+        reelUrl: main.url,
+        views,
+        viewsGrowth: views - (sumViewsOn(reels, previousDay) ?? 0),
+        previousRank: previousRank.get(p.telegramId) ?? null,
+        hasTarget: withTarget.has(p.telegramId),
+      },
+    ];
+  });
 
   return {
     date,

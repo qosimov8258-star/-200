@@ -183,7 +183,7 @@ test("after the end the first place is the candidate; automatic checks see targe
   await finish();
   ads.set("user2", [{ adId: "111", startedOn: "2026-12-10", platforms: ["INSTAGRAM"], url: "https://example.test/ad/111" }]);
   await targets.checkAds("admin");
-  participants.get(3)?.reel?.flags.push({ type: "VIEW_SPIKE", date: "2026-12-15", detail: "kuniga +1 000 → +60 000" });
+  participants.get(3)?.reels[0]?.flags.push({ type: "VIEW_SPIKE", date: "2026-12-15", detail: "kuniga +1 000 → +60 000" });
 
   const o = winner.overview();
   assert.equal(o.stage, "CANDIDATE");
@@ -212,11 +212,48 @@ test("after the end the first place is the candidate; automatic checks see targe
   assert.deepEqual(winner.overview().runnersUp[0]?.issues, []);
 
   // Reel oxirgi tekshiruvda topilmagan — REEL_AVAILABLE o'tmaydi.
-  const reel = participants.get(1)?.reel;
+  const reel = participants.get(1)?.reels[0];
   if (reel) reel.misses = 1;
   const check = winner.overview().candidate?.checks.find((c) => c.key === "REEL_AVAILABLE");
   assert.equal(check?.status, "FAILED");
   assert.match(check?.detail ?? "", /topilmadi \(1 marta/);
+});
+
+test("several Reels: the candidate's views are the sum; any lost or flagged live Reel fails its check", async () => {
+  const { winner, participants, provider, stats, finish } = await setup();
+  await finish();
+  participants.submitReel(1, "https://www.instagram.com/reel/EXTRA1/", "EXTRA1");
+  provider.set("EXTRA1", { owner: "user1.b", views: 50_000, likes: 2_500 });
+  stats.queueVerification(1, "EXTRA1");
+  await stats.flushVerification();
+  // Rad etilgan va hali tekshirilmagan videolar ko'rishlarga ham, tekshiruvga ham ta'sir qilmaydi.
+  const rejected = participants.submitReel(1, "https://www.instagram.com/reel/REJ001/", "REJ001");
+  rejected.status = "REJECTED";
+  rejected.flags.push({ type: "VIEW_SPIKE", date: "2026-12-20", detail: "eski" });
+  participants.submitReel(1, "https://www.instagram.com/reel/NEW001/", "NEW001");
+
+  const checksOf = () => new Map(winner.overview().candidate?.checks.map((c) => [c.key, c]));
+  let o = winner.overview();
+  assert.equal(o.candidate?.views, 80_000);
+  assert.equal(o.candidate?.reelUrl, "https://www.instagram.com/reel/EXTRA1/");
+  assert.equal(o.candidate?.participant.instagramUsername, "user1.b");
+  assert.equal(checksOf().get("REEL_AVAILABLE")?.status, "PASSED");
+  assert.equal(checksOf().get("NO_FAKE_VIEWS")?.status, "PASSED");
+
+  // Asosiy bo'lmagan videoda nakrutka belgisi — band o'tmaydi, qaysi video ekani ko'rinadi.
+  const first = participants.get(1)!.reels[0]!;
+  first.flags.push({ type: "LOW_ENGAGEMENT", date: "2026-12-30", detail: "test" });
+  assert.equal(checksOf().get("NO_FAKE_VIEWS")?.status, "FAILED");
+  assert.match(checksOf().get("NO_FAKE_VIEWS")?.detail ?? "", /^CODE1x: /);
+  first.flags.length = 0;
+
+  // Ikkinchi video Instagram'da yo'qoldi (qo'lda tekshiruvda) — ko'rishlardan chiqadi va band o'tmaydi.
+  first.status = "MANUAL_REVIEW";
+  first.review = { kind: "LOST_REEL", requestedAt: new Date(), attempts: 3, decision: null };
+  o = winner.overview();
+  assert.equal(o.candidate?.views, 50_000);
+  assert.equal(checksOf().get("REEL_AVAILABLE")?.status, "FAILED");
+  assert.match(checksOf().get("REEL_AVAILABLE")?.detail ?? "", /^CODE1x: Reel Instagramda topilmayapti/);
 });
 
 test("confirm needs the final sync, the current candidate and every check passed", async () => {
