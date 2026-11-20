@@ -48,6 +48,7 @@ export const getDashboardStats = impl.getDashboardStats;
 
 // Ishtirokchilar
 export const getParticipants = impl.getParticipants;
+export const getParticipantReels = impl.getParticipantReels;
 export const blockParticipant = impl.blockParticipant;
 export const unblockParticipant = impl.unblockParticipant;
 export const disqualifyParticipant = impl.disqualifyParticipant;

@@ -1,10 +1,11 @@
 import { HttpException } from "@nestjs/common";
 
 /**
- * Admin API uchun umumiy yordamchilar. Xato javobi — `{ message }`: admin panel shu o'zbekcha
- * matnni foydalanuvchiga ko'rsatadi (`apps/admin/src/lib/api.http.ts`).
+ * Admin API uchun umumiy yordamchilar. Xato javobi — `{ message }` (ixtiyoriy `code` bilan): admin
+ * panel shu o'zbekcha matnni foydalanuvchiga ko'rsatadi (`apps/admin/src/lib/api.http.ts`).
  */
-export const adminError = (status: number, message: string) => new HttpException({ message }, status);
+export const adminError = (status: number, message: string, code?: string) =>
+  new HttpException(code ? { message, code } : { message }, status);
 
 /** Body — oddiy obyekt va faqat ruxsat etilgan maydonlar (CLAUDE.md: noma'lum maydon rad etiladi). */
 export function objectBody(body: unknown, allowed: readonly string[]): Record<string, unknown> {

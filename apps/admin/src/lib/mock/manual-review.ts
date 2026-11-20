@@ -7,7 +7,8 @@
  *
  * Mock'da holatlar tanlov ma'lumotlaridan olinadi: tekshiruvdagi Reellarning bir qismi —
  * "yangi video", Instagramdan o'chirilganlari — "reytingdagi video yo'qoldi". Admin qarori
- * faqat shu bo'limda saqlanadi (Foydalanuvchilar va Reytingga ta'sir qilmaydi).
+ * faqat shu bo'limda saqlanadi (Reytingga ta'sir qilmaydi; Foydalanuvchilar bo'limida faqat
+ * ochiq holatlar "Qo'lda tekshiruvda" deb ko'rinadi).
  */
 import { ApiError } from "../api-error";
 import { addDays } from "../dates";
@@ -134,7 +135,7 @@ function toItem(seed: SeedCase, store: MockStore): ManualReviewItem {
     requestedAt: seed.requestedAt,
     submittedAt: tashkentIso(seed.reel.submittedOn, "09:00"),
     lastViews: seed.lastViews,
-    owner: seed.kind === "LOST_REEL" ? seed.participant.instagramUsername : null,
+    owner: seed.kind === "LOST_REEL" ? (seed.reel.owner ?? seed.participant.instagramUsername) : null,
     status: statusOf(decision),
     decision: decision
       ? { at: decision.at, by: decision.by, reason: decision.reason, note: decision.note }
@@ -145,6 +146,18 @@ function toItem(seed: SeedCase, store: MockStore): ManualReviewItem {
 // ---------------------------------------------------------------------------
 // Ochiq funksiyalar
 // ---------------------------------------------------------------------------
+
+/**
+ * Hozir qo'lda tekshiruvda turgan videolar (shortcode). Foydalanuvchilar bo'limida ular
+ * "Kutilmoqda" va `manualReview: true` bo'lib ko'rinadi (backenddagi MANUAL_REVIEW holati).
+ */
+export function openManualReviewShortcodes(store: MockStore = readStore()): Set<string> {
+  return new Set(
+    seedCases()
+      .filter((seed) => decisionOf(seed, store) === null)
+      .map((seed) => seed.reel.shortcode),
+  );
+}
 
 export function listManualReviews(query: ManualReviewListQuery): ManualReviewListResponse {
   const store = readStore();

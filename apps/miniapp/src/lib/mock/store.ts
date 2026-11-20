@@ -12,8 +12,11 @@ import type {
   ContestRules,
   DailyViews,
   Me,
-  MyReel,
+  MyReelItem,
+  MyReels,
   RatingEntry,
+  ReelRejectReason,
+  ReelStatus,
   RegisterRequest,
   SupportMessage,
   SupportThread,
@@ -24,7 +27,6 @@ import type {
 const KEY = "reels-miniapp:mock";
 const RULES_VERSION = 1;
 const MIN_AGE = 18;
-const MY_RANK = 12;
 const PRIZE_NAME = "BYD Chazor";
 
 /** Server videoni Instagram'da tekshirishini taqlid qiladi: shuncha vaqt PENDING. */
@@ -33,6 +35,15 @@ const MOCK_VERIFY_MS = 4000;
 const MOCK_NOT_FOUND_PREFIX = "notfound";
 /** Shunday boshlangan shortcode — "Reel emas" deb rad etiladi (rad etish oqimini sinash uchun). */
 const MOCK_PHOTO_PREFIX = "photo";
+/** Shunday boshlangan shortcode — boshqa ishtirokchi yuborgan video (409 REEL_TAKEN). */
+const MOCK_TAKEN_PREFIX = "taken";
+
+/** Mock'dagi bitta video; holati shortcode va yuborilgan vaqtdan kelib chiqadi. */
+interface MockReel {
+  shortcode: string;
+  /** Yuborilgan vaqt (ms). */
+  submittedAt: number;
+}
 
 interface MockState {
   /** Veb-saytga "Telegram orqali kirish" bajarilganmi (mock — Telegram'dan tashqarida). */
@@ -40,8 +51,8 @@ interface MockState {
   phone: string | null;
   profile: RegisterRequest | null;
   consentVersion: number | null;
-  reelShortcode: string | null;
-  reelSubmittedAt: number | null;
+  /** Yuborilgan videolar, eskisidan yangisiga (backenddagi `Participant.reels` kabi). */
+  reels: MockReel[];
   /** Support yozishmasi (mock). */
   support: SupportMessage[];
 }
@@ -51,15 +62,28 @@ const EMPTY: MockState = {
   phone: null,
   profile: null,
   consentVersion: null,
-  reelShortcode: null,
-  reelSubmittedAt: null,
+  reels: [],
   support: [],
 };
+
+/** Eski mock holati (bitta video) — yuklashda `reels` ro'yxatiga ko'chiriladi. */
+interface LegacyMockState {
+  reelShortcode?: string | null;
+  reelSubmittedAt?: number | null;
+}
 
 function load(): MockState {
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? { ...EMPTY, ...(JSON.parse(raw) as Partial<MockState>) } : { ...EMPTY };
+    if (!raw) return { ...EMPTY };
+    const { reelShortcode, reelSubmittedAt, ...saved } = JSON.parse(raw) as Partial<MockState> &
+      LegacyMockState;
+    const reels: MockReel[] = Array.isArray(saved.reels)
+      ? saved.reels
+      : reelShortcode
+        ? [{ shortcode: reelShortcode, submittedAt: reelSubmittedAt ?? Date.now() - MOCK_VERIFY_MS }]
+        : [];
+    return { ...EMPTY, ...saved, reels };
   } catch {
     return { ...EMPTY };
   }
@@ -190,7 +214,7 @@ export async function getRules(): Promise<ContestRules> {
       },
       {
         title: "2. Video talablari",
-        body: "Mahsulot haqidagi Reel o'z Instagram akkauntingizda joylanadi, ochiq bo'ladi va unda zavod akkaunti belgilanadi. Reel linki shu ilova orqali yuboriladi. Bitta Instagram akkaunt — bitta ishtirokchi.",
+        body: "Mahsulot haqidagi Reel o'z Instagram akkauntingizda joylanadi, ochiq bo'ladi va unda zavod akkaunti belgilanadi. Reel linki shu ilova orqali yuboriladi; videolar soni cheklanmagan, qabul qilinganlarining ko'rishlari qo'shiladi. Bitta Instagram akkaunt — bitta ishtirokchi.",
       },
       {
         title: "3. Taqiqlar",
@@ -225,6 +249,7 @@ const NAMES = [
 ];
 const DELTAS = [0, 1, -1, 2, 0, -2, 3, 0, 1, -1, 0, 4];
 
+/** Namunaviy video kunlar bo'yicha jami ko'rishlari; har bir video o'z koeffitsiyentiga ko'paytiriladi. */
 const SAMPLE_TOTALS = [3120, 5480, 9050, 12890, 15400, 19760, 22310, 26255];
 
 /** Backend jadvali bilan bir xil: tanlov boshidan har 10 kunda, soat 06:00 (Toshkent). */
@@ -240,87 +265,95 @@ function mockNextSyncAt(now = new Date()): string | null {
   return null;
 }
 
-function sampleReel(shortcode: string): MyReel {
+/** Boshqa (soxta) ishtirokchilar, ko'p ko'rishdan kamiga. */
+const OTHERS = NAMES.map((fullName, i) => ({
+  fullName,
+  views: Math.floor(250000 / (i + 1)) + 6400 - (i + 1) * 37,
+  rankDelta: DELTAS[i % DELTAS.length],
+}));
+
+/** Jami ko'rishlarga qarab soxta reytingdagi o'rin. */
+const mockRank = (views: number) => 1 + OTHERS.filter((o) => o.views >= views).length;
+
+/** Shortcode'dan barqaror koeffitsiyent (0.4–1.6) — videolar har xil ko'rish yig'adi. */
+function viewsFactor(shortcode: string): number {
+  let hash = 0;
+  for (const ch of shortcode) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return 0.4 + (hash % 1201) / 1000;
+}
+
+/** Mock'dagi video: avval PENDING, bir necha soniyadan keyin qabul yoki rad etiladi. */
+function reelStatus(reel: MockReel): { status: ReelStatus; rejectReason: ReelRejectReason | null } {
+  if (Date.now() - reel.submittedAt < MOCK_VERIFY_MS) return { status: "PENDING", rejectReason: null };
+  const code = reel.shortcode.toLowerCase();
+  if (code.startsWith(MOCK_NOT_FOUND_PREFIX)) return { status: "MANUAL_REVIEW", rejectReason: null };
+  if (code.startsWith(MOCK_PHOTO_PREFIX)) return { status: "REJECTED", rejectReason: "NOT_A_VIDEO" };
+  return { status: "ACCEPTED", rejectReason: null };
+}
+
+/**
+ * Backenddagi GET /miniapp/reels kabi: har bir video alohida, umumiy statistika esa
+ * faqat qabul qilinganlar bo'yicha (ko'rishlar va kunlik o'sish qo'shiladi).
+ */
+function currentReels(): MyReels {
   const t = today();
   const daily: DailyViews[] = [];
   for (let i = 1; i < SAMPLE_TOTALS.length; i++) {
     const d = new Date(t);
     d.setDate(t.getDate() - (SAMPLE_TOTALS.length - 1 - i));
-    daily.push({ date: isoDay(d), views: SAMPLE_TOTALS[i] - SAMPLE_TOTALS[i - 1] });
+    daily.push({ date: isoDay(d), views: 0 });
   }
+  let totalViews = 0;
+  let accepted = 0;
+  const reels: MyReelItem[] = state.reels.map((reel) => {
+    const { status, rejectReason } = reelStatus(reel);
+    let views = 0;
+    if (status === "ACCEPTED") {
+      const factor = viewsFactor(reel.shortcode);
+      const totals = SAMPLE_TOTALS.map((v) => Math.round(v * factor));
+      views = totals[totals.length - 1];
+      for (let i = 1; i < totals.length; i++) daily[i - 1].views += totals[i] - totals[i - 1];
+      totalViews += views;
+      accepted++;
+    }
+    return {
+      url: canonicalReelUrl(reel.shortcode),
+      shortcode: reel.shortcode,
+      status,
+      rejectReason,
+      views,
+      submittedAt: new Date(reel.submittedAt).toISOString(),
+    };
+  });
   const synced = new Date(t);
   synced.setHours(9);
   return {
-    url: canonicalReelUrl(shortcode),
-    shortcode,
-    status: "ACCEPTED",
-    rejectReason: null,
-    totalViews: SAMPLE_TOTALS[SAMPLE_TOTALS.length - 1],
-    todayViews: daily[daily.length - 1].views,
-    rank: MY_RANK,
-    rankDelta: 3,
-    daily,
-    lastSyncedAt: synced.toISOString(),
+    totalViews,
+    todayViews: accepted > 0 ? daily[daily.length - 1].views : 0,
+    rank: accepted > 0 ? mockRank(totalViews) : null,
+    rankDelta: accepted > 0 ? 3 : 0,
+    daily: accepted > 0 ? daily : [],
+    lastSyncedAt: accepted > 0 ? synced.toISOString() : null,
     nextSyncAt: mockNextSyncAt(),
     syncEveryDays: MOCK_SYNC_EVERY_DAYS,
+    // Yangisidan eskisiga.
+    reels: reels.reverse(),
   };
-}
-
-/** Mock'dagi video: avval PENDING, bir necha soniyadan keyin qabul yoki rad etiladi. */
-function currentReel(): MyReel | null {
-  const shortcode = state.reelShortcode;
-  if (!shortcode) return null;
-  const empty: MyReel = {
-    url: canonicalReelUrl(shortcode),
-    shortcode,
-    status: "PENDING",
-    rejectReason: null,
-    totalViews: 0,
-    todayViews: 0,
-    rank: null,
-    rankDelta: 0,
-    daily: [],
-    lastSyncedAt: null,
-    nextSyncAt: mockNextSyncAt(),
-    syncEveryDays: MOCK_SYNC_EVERY_DAYS,
-  };
-  if (Date.now() - (state.reelSubmittedAt ?? 0) < MOCK_VERIFY_MS) return empty;
-  const code = shortcode.toLowerCase();
-  if (code.startsWith(MOCK_NOT_FOUND_PREFIX)) return { ...empty, status: "MANUAL_REVIEW" };
-  if (code.startsWith(MOCK_PHOTO_PREFIX)) {
-    return { ...empty, status: "REJECTED", rejectReason: "NOT_A_VIDEO" };
-  }
-  return sampleReel(shortcode);
 }
 
 export async function getRating(): Promise<RatingEntry[]> {
   await wait();
-  const mine = currentReel();
-  const me = state.profile && mine?.status === "ACCEPTED" ? mine : null;
-  const entries: RatingEntry[] = [];
-  let n = 0;
-  for (let rank = 1; rank <= NAMES.length + 1; rank++) {
-    if (me && state.profile && rank === MY_RANK) {
-      entries.push({
-        rank,
-        fullName: `${state.profile.firstName} ${state.profile.lastName}`,
-        views: me.totalViews,
-        rankDelta: me.rankDelta,
-        isMe: true,
-      });
-      continue;
-    }
-    if (n >= NAMES.length) break;
-    entries.push({
-      rank,
-      fullName: NAMES[n],
-      views: Math.floor(250000 / rank) + 6400 - rank * 37,
-      rankDelta: DELTAS[n % DELTAS.length],
-      isMe: false,
+  const mine = currentReels();
+  const entries: Omit<RatingEntry, "rank">[] = OTHERS.map((o) => ({ ...o, isMe: false }));
+  if (state.profile && mine.rank !== null) {
+    entries.splice(mine.rank - 1, 0, {
+      fullName: `${state.profile.firstName} ${state.profile.lastName}`,
+      views: mine.totalViews,
+      rankDelta: mine.rankDelta,
+      isMe: true,
     });
-    n++;
   }
-  return entries;
+  return entries.map((entry, i) => ({ ...entry, rank: i + 1 }));
 }
 
 /** Mock: kunlik chegara faqat sahifa ochiq turganda sanaladi. */
@@ -335,7 +368,7 @@ export async function reportTarget(body: TargetReportRequest): Promise<void> {
   if (!shortcode && !/^[a-z0-9._]{1,30}$/.test(username)) throw new ApiError("REPORT_TARGET_INVALID");
   // Mock: "begona" bilan boshlangan akkaunt — tanlov ishtirokchisi emas.
   if (username.startsWith("begona")) throw new ApiError("REPORT_NOT_FOUND");
-  if (shortcode && shortcode === currentReel()?.shortcode) throw new ApiError("REPORT_SELF");
+  if (shortcode && state.reels.some((r) => r.shortcode === shortcode)) throw new ApiError("REPORT_SELF");
   if (!body.screenshot.startsWith("data:image/")) throw new ApiError("INVALID_IMAGE");
   const day = new Date().toDateString();
   const key = shortcode ?? username;
@@ -373,22 +406,27 @@ export async function sendSupport(text: string): Promise<SupportThread> {
   return { messages };
 }
 
-export async function getMyReel(): Promise<MyReel | null> {
+export async function getMyReels(): Promise<MyReels> {
   await wait();
-  return currentReel();
+  if (!state.webSession) throw new ApiError("UNAUTHORIZED");
+  return currentReels();
 }
 
-export async function submitReel(url: string): Promise<MyReel> {
+/** Videolar soni cheklanmagan; takror yuborish qoidalari backenddagidek. */
+export async function submitReel(url: string): Promise<MyReels> {
   await wait(500);
+  if (!state.webSession) throw new ApiError("UNAUTHORIZED");
   const shortcode = parseReelShortcode(url);
   if (!shortcode) throw new ApiError("INVALID_LINK");
-  const existing = currentReel();
-  if (existing && existing.status !== "REJECTED") throw new ApiError("REEL_ALREADY_SUBMITTED");
-  // Haqiqiy backendda ham shunday: avval PENDING, server Instagram'da tekshiradi.
-  update({ reelShortcode: shortcode, reelSubmittedAt: Date.now() });
-  const reel = currentReel();
-  if (!reel) throw new ApiError("SERVER");
-  return reel;
+  if (shortcode.toLowerCase().startsWith(MOCK_TAKEN_PREFIX)) throw new ApiError("REEL_TAKEN");
+  const own = state.reels.find((r) => r.shortcode === shortcode);
+  if (own && reelStatus(own).status !== "REJECTED") throw new ApiError("REEL_ALREADY_SUBMITTED");
+  // O'zining rad etilgan videosi qayta yuborilsa — eski yozuv almashtiriladi. Haqiqiy
+  // backendda ham shunday: avval PENDING, server Instagram'da tekshiradi.
+  update({
+    reels: [...state.reels.filter((r) => r.shortcode !== shortcode), { shortcode, submittedAt: Date.now() }],
+  });
+  return currentReels();
 }
 
 /** Sovrinlar — backenddagi `apps/backend/src/miniapp/prizes.ts` bilan bir xil. */

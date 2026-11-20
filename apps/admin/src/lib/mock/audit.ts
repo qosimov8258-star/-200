@@ -8,6 +8,7 @@
  * qilingan amallar (`store.ts`).
  */
 import { addDays } from "../dates";
+import { REEL_REJECT_REASON_LABELS } from "../labels";
 import type { AdminRole, AuditLogEntry, AuditLogQuery, AuditLogResponse } from "../types";
 import { eventTime, getContestData } from "./contest";
 import { mockAdmins } from "./db";
@@ -43,7 +44,7 @@ function historicalEntries(): MockAuditEntry[] {
       entityId: reel.id,
       before: "PENDING",
       after: reel.reviewOutcome,
-      reason: accepted ? "" : "Videoda sotib olingan mahsulot ko'rinmaydi",
+      reason: accepted || !reel.rejectReason ? "" : REEL_REJECT_REASON_LABELS[reel.rejectReason],
     });
   }
 

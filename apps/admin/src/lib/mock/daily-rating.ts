@@ -38,16 +38,21 @@ export function buildDailyRating(query: DailyRatingQuery): DailyRatingResponse {
 
   const entries: RatingEntry[] = ranking.map((entry) => {
     const participant = participantsById.get(entry.participantId);
-    const reel = reelsById.get(entry.reelId);
+    const topReel = reelsById.get(entry.topReelId);
+    // O'sish — shu kuni hisobga olingan barcha videolar bo'yicha.
+    const viewsGrowth = entry.reelIds.reduce(
+      (sum, reelId) => sum + (reelsById.get(reelId)?.growthByDay.get(date) ?? 0),
+      0,
+    );
     return {
       rank: entry.rank,
       participantId: entry.participantId,
       firstName: participant?.firstName ?? "",
       lastName: participant?.lastName ?? "",
-      instagramUsername: participant?.instagramUsername ?? null,
-      reelUrl: reel?.url ?? "",
+      instagramUsername: topReel?.owner ?? participant?.instagramUsername ?? null,
+      reelUrl: topReel?.url ?? "",
       views: entry.views,
-      viewsGrowth: reel?.growthByDay.get(date) ?? 0,
+      viewsGrowth,
       previousRank: previousRankById.get(entry.participantId) ?? null,
       hasTarget: targetParticipants.has(entry.participantId),
     };

@@ -18,7 +18,7 @@ import type {
   ContestPrizes,
   ContestRules,
   Me,
-  MyReel,
+  MyReels,
   RatingEntry,
   RegisterRequest,
   SupportThread,
@@ -66,8 +66,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     throw new ApiError(code);
   }
   if (response.status === 204) return undefined as T;
-  // NestJS `null` qaytargan endpoint uchun 200 va bo'sh tana yuboradi (GET /miniapp/reel —
-  // video hali yo'q, GET /miniapp/winner — g'olib e'lon qilinmagan). Bo'sh tana — null;
+  // NestJS `null` qaytargan endpoint uchun 200 va bo'sh tana yuboradi (masalan,
+  // GET /miniapp/winner — g'olib e'lon qilinmagan). Bo'sh tana — null;
   // `response.json()` uni o'qiy olmay "Ma'lumotni yuklab bo'lmadi" ko'rsatardi.
   const text = await response.text();
   if (!text) return null as T;
@@ -104,16 +104,21 @@ export const acceptRules = (version: number): Promise<void> =>
 export const getRating = (): Promise<RatingEntry[]> =>
   IS_MOCK_API ? mock.getRating() : request("GET", "/miniapp/rating");
 
-/** @endpoint GET /miniapp/reel — o'z videosi va statistikasi; yo'q bo'lsa null. */
-export const getMyReel = (): Promise<MyReel | null> =>
-  IS_MOCK_API ? mock.getMyReel() : request("GET", "/miniapp/reel");
+/**
+ * @endpoint GET /miniapp/reels — o'z videolari (yangisidan eskisiga) va umumiy statistika;
+ * video yo'q bo'lsa ham obyekt (`reels: []`).
+ */
+export const getMyReels = (): Promise<MyReels> =>
+  IS_MOCK_API ? mock.getMyReels() : request("GET", "/miniapp/reels");
 
 /**
- * @endpoint POST /miniapp/reel — link qabul qilinadi (PENDING). Server videoni
- * Instagram'da fon rejimida tekshiradi; natija `getMyReel` va bot xabarida.
+ * @endpoint POST /miniapp/reels — yangi video qo'shiladi (PENDING); videolar soni cheklanmagan.
+ * Server videoni Instagram'da fon rejimida tekshiradi; natija `getMyReels` va bot xabarida.
+ * Javob — yangilangan ro'yxat. Xatolar: INVALID_LINK, REEL_ALREADY_SUBMITTED (o'zi yuborgan,
+ * rad etilmagan video), REEL_TAKEN (boshqa ishtirokchining videosi).
  */
-export const submitReel = (url: string): Promise<MyReel> =>
-  IS_MOCK_API ? mock.submitReel(url) : request("POST", "/miniapp/reel", { url });
+export const submitReel = (url: string): Promise<MyReels> =>
+  IS_MOCK_API ? mock.submitReel(url) : request("POST", "/miniapp/reels", { url });
 
 /**
  * @endpoint POST /miniapp/target-reports — "Reklamani ko'rdim": skrinshotli shikoyat.

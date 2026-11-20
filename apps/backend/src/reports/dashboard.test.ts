@@ -25,7 +25,13 @@ function reel(views: Record<string, number>, o: { status?: ReelStatus; submitted
 
 function person(
   telegramId: number,
-  o: { registeredOn?: string; reel?: Reel | null; status?: Participant["status"]; firstName?: string | null } = {},
+  o: {
+    registeredOn?: string;
+    reel?: Reel | null;
+    reels?: Reel[];
+    status?: Participant["status"];
+    firstName?: string | null;
+  } = {},
 ): Participant {
   return {
     telegramId,
@@ -35,7 +41,7 @@ function person(
     lastName: `Familiya${telegramId}`,
     age: 25,
     consentVersion: 1,
-    reel: o.reel ?? null,
+    reels: o.reels ?? (o.reel ? [o.reel] : []),
     status: o.status ?? "ACTIVE",
     createdAt: at(o.registeredOn ?? "2026-11-25"),
   };
@@ -146,4 +152,19 @@ test("reels, support tickets and target cases are counted up to the end of the p
   assert.deepEqual(s.reels, { total: 4, accepted: 1, pending: 2, rejected: 1, removed: 0, newInRange: 3 });
   assert.deepEqual(s.support, { open: 2, new: 1, inProgress: 1, createdInRange: 2 });
   assert.deepEqual(s.targets, { total: 3, detectedInRange: 2 });
+});
+
+test("every Reel of a participant counts: views add up and each submission is one Reel", () => {
+  const participants = [
+    person(1, {
+      reels: [
+        reel({ "2026-12-01": 1_000, "2026-12-02": 1_500 }, { submittedOn: "2026-11-30" }),
+        reel({ "2026-12-02": 400 }, { submittedOn: "2026-12-02" }),
+        reel({}, { status: "PENDING", submittedOn: "2026-12-02" }),
+      ],
+    }),
+  ];
+  const s = buildDashboard(input({ participants, from: "2026-12-02", to: "2026-12-02" }));
+  assert.deepEqual(s.views, { total: 1_900, growthInRange: 900 });
+  assert.deepEqual(s.reels, { total: 3, accepted: 2, pending: 1, rejected: 0, removed: 0, newInRange: 2 });
 });

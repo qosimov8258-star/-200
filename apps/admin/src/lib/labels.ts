@@ -8,6 +8,8 @@ import type {
   ManualReviewRejectReason,
   ManualReviewStatus,
   ParticipantStatus,
+  ReelFlagType,
+  ReelRejectReason,
   ReelStatus,
   SupportTicketStatus,
   TargetCaseStatus,
@@ -49,6 +51,38 @@ export const REEL_STATUS_TONES: Record<ReelStatus, BadgeTone> = {
   REMOVED: "neutral",
 };
 
+/** Qo'lda tekshiruvdagi video (`AdminReelItem.manualReview`) holati o'rniga ko'rsatiladi. */
+export const MANUAL_REVIEW_REEL_LABEL = "Qo'lda tekshiruvda";
+
+/** Foydalanuvchilar bo'limidagi video filtri: "shu holatdagi videosi bor" / "video yo'q". */
+export const REEL_FILTER_LABELS: Record<ReelStatus | "NONE", string> = {
+  ACCEPTED: "Qabul qilingan videosi bor",
+  PENDING: "Kutilayotgan videosi bor",
+  REJECTED: "Rad etilgan videosi bor",
+  REMOVED: "O'chirilgan videosi bor",
+  NONE: "Video yo'q",
+};
+
+/** Video nega rad etilgani — ishtirokchiga bot orqali shunga mos xabar boradi. */
+export const REEL_REJECT_REASON_LABELS: Record<ReelRejectReason, string> = {
+  NOT_FOUND: "Video topilmadi yoki akkaunt yopiq",
+  NOT_A_VIDEO: "Reel (video) emas",
+  OWNER_TAKEN: "Bu Instagram akkaunt boshqa ishtirokchida",
+};
+
+/** Nakrutka shubhasi belgilari (backend `ReelFlagType`). */
+export const REEL_FLAG_LABELS: Record<ReelFlagType, string> = {
+  LOW_ENGAGEMENT: "Ko'rishlarga nisbatan layklar juda kam",
+  VIEW_SPIKE: "Ko'rishlar keskin oshgan",
+  ENGAGEMENT_GAP: "Ko'rishlar oshgan, layklar o'smagan",
+  VIEW_DROP: "Ko'rishlar kamaygan",
+};
+
+/** Belgi nomi; backend yangi tur qo'shgan bo'lsa — kodning o'zi. */
+export function reelFlagLabel(flag: string): string {
+  return (REEL_FLAG_LABELS as Record<string, string>)[flag] ?? flag;
+}
+
 export const MANUAL_REVIEW_STATUS_LABELS: Record<ManualReviewStatus, string> = {
   OPEN: "Tekshiruv kutilmoqda",
   APPROVED: "Tasdiqlangan",
@@ -67,11 +101,8 @@ export const MANUAL_REVIEW_KIND_LABELS: Record<ManualReviewKind, string> = {
 };
 
 /** Rad etish sabablari — ishtirokchiga bot orqali shunga mos xabar boradi. */
-export const MANUAL_REVIEW_REJECT_LABELS: Record<ManualReviewRejectReason, string> = {
-  NOT_FOUND: "Video topilmadi yoki akkaunt yopiq",
-  NOT_A_VIDEO: "Reel (video) emas",
-  OWNER_TAKEN: "Bu Instagram akkaunt boshqa ishtirokchida",
-};
+export const MANUAL_REVIEW_REJECT_LABELS: Record<ManualReviewRejectReason, string> =
+  REEL_REJECT_REASON_LABELS;
 
 export const TARGET_CASE_STATUS_LABELS: Record<TargetCaseStatus, string> = {
   NEW: "Ko'rib chiqilmagan",

@@ -58,7 +58,15 @@ async function setup(checkTop = 2) {
   }
   await stats.flushVerification();
   sent.length = 0;
-  return { participants, stats, ads, targets, sent, setNow: (day: string) => (now = at(day)) };
+  /** Mavjud ishtirokchining yana bir videosi (qabul qilinadi). */
+  const addReel = async (id: number, shortcode: string, owner: string, views: number) => {
+    participants.submitReel(id, `https://www.instagram.com/reel/${shortcode}/`, shortcode);
+    reels.set(shortcode, { owner, views, likes: views / 20 });
+    stats.queueVerification(id, shortcode);
+    await stats.flushVerification();
+    sent.length = 0;
+  };
+  return { participants, stats, ads, targets, sent, addReel, setNow: (day: string) => (now = at(day)) };
 }
 
 const ad = (id: string, startedOn = "2026-11-28") => ({
@@ -123,7 +131,7 @@ test("a stopped ad is marked OFF in history and switching back ON reuses the sam
 
 test("view spikes from growth analysis become cases once", async () => {
   const { participants, targets } = await setup();
-  const reel = participants.get(3)!.reel!;
+  const reel = participants.get(3)!.reels[0]!;
   reel.flags.push({ type: "VIEW_SPIKE", date: "2026-12-01", detail: "kuniga +500 → +60 000" });
   reel.flags.push({ type: "LOW_ENGAGEMENT", date: "2026-12-01", detail: "test" });
 
@@ -176,7 +184,7 @@ test("ad library is checked daily even between view syncs; growth is scanned aft
   assert.equal(ads.requests.length, 2);
 
   // O'sish tahlili esa yangi yig'ishdan keyin.
-  participants.get(2)!.reel!.flags.push({ type: "VIEW_SPIKE", date: "2026-12-02", detail: "+1 → +90 000" });
+  participants.get(2)!.reels[0]!.flags.push({ type: "VIEW_SPIKE", date: "2026-12-02", detail: "+1 → +90 000" });
   targets.tick();
   assert.equal(targets.list({}).total, 0);
   await stats.syncAll("schedule");
@@ -314,7 +322,7 @@ test("reports are validated: unknown account, self, duplicates and the daily lim
 
 test("growth analysis: a spike without new likes becomes one case with both signals", async () => {
   const { participants, targets } = await setup();
-  const reel = participants.get(2)!.reel!;
+  const reel = participants.get(2)!.reels[0]!;
   reel.flags.push({ type: "VIEW_SPIKE", date: "2026-12-01", detail: "kuniga +2 000 → +80 000" });
   reel.flags.push({ type: "ENGAGEMENT_GAP", date: "2026-12-01", detail: "+80 000 ko'rish, +40 layk" });
   reel.flags.push({ type: "ENGAGEMENT_GAP", date: "2026-12-03", detail: "+30 000 ko'rish, +10 layk" });
@@ -326,4 +334,44 @@ test("growth analysis: a spike without new likes becomes one case with both sign
     .sort();
   assert.match(evidence[0], /^Keskin o'sish .*layklar esa o'smagan/);
   assert.match(evidence[1], /^Ko'rishlar oshgan, layklar o'smagan/);
+});
+
+test("several accounts: every live account of a leader is checked; one case per participant", async () => {
+  const { ads, targets, addReel } = await setup(1);
+  await addReel(1, "SECOND1", "user1.food", 5_000);
+  ads.set("user1.food", [ad("901"), ad("902", "2026-11-20")]);
+  ads.set("user1", [ad("903")]);
+
+  const report = await targets.checkAds("admin");
+  assert.deepEqual(ads.requests, [["user1", "user1.food"]]);
+  assert.deepEqual([report.checked, report.found], [2, 2]);
+  const list = targets.list({});
+  assert.equal(list.total, 1);
+  assert.match(list.items[0].evidence, /3 ta faol reklama \(20\.11\.2026 dan\) — @user1, @user1\.food/);
+  assert.equal(list.items[0].views, 35_000, "reytingdagi yig'indi");
+  assert.equal(targets.list({ search: "user1.food" }).total, 1);
+});
+
+test("growth analysis and reports point at the exact Reel; a warning names that video", async () => {
+  const { participants, targets, sent, addReel } = await setup();
+  await addReel(3, "SPIKE3", "user3", 40_000);
+  const spiky = participants.get(3)!.reels.find((r) => r.shortcode === "SPIKE3")!;
+  spiky.flags.push({ type: "VIEW_SPIKE", date: "2026-12-01", detail: "kuniga +500 → +60 000" });
+  // Boshqa videoning shu kungi belgisi — alohida holat.
+  participants.get(3)!.reels[0]!.flags.push({ type: "VIEW_SPIKE", date: "2026-12-01", detail: "kuniga +1 → +50 000" });
+  assert.equal(targets.scanGrowth(), 2);
+  assert.equal(targets.scanGrowth(), 0);
+
+  const spikeCase = targets.list({}).items.find((i) => i.reelUrl.includes("SPIKE3"));
+  assert.ok(spikeCase);
+  assert.equal(spikeCase.participant.instagramUsername, "user3");
+  targets.act(spikeCase.id, "warn", "Reklama aniqlandi", "Admin");
+  assert.match(sent.at(-1)?.text ?? "", /Ogohlantirish[\s\S]*instagram\.com\/reel\/SPIKE3\//);
+
+  // Shikoyat ikkinchi video linki orqali — holat shu video bilan ochiladi.
+  const reported = targets.list({}).total;
+  targets.report(1, { target: "https://www.instagram.com/reel/SPIKE3/", screenshot: jpeg(), comment: null });
+  const report = targets.list({}).items.find((i) => i.method === "REPORT");
+  assert.equal(targets.list({}).total, reported + 1);
+  assert.equal(report?.reelUrl, "https://www.instagram.com/reel/SPIKE3/");
 });

@@ -32,9 +32,11 @@ export const texts = {
   readButton: "✅ O'qidim",
   readThanks: "Rahmat! Xabar o'qildi deb belgilandi.",
 
-  // Video tekshiruvi (StatsService)
+  // Video tekshiruvi (StatsService). Ishtirokchida bir nechta video bo'lishi mumkin — har bir
+  // xabar oxiriga qaysi video haqida ekani qo'shiladi (`reelLink`).
+  reelLink: (url: string) => `🔗 Video: ${url}`,
   reelAccepted: (views: string) =>
-    `✅ Videongiz qabul qilindi va reytingga qo'shildi!\n\nHozircha ${views} ta ko'rish. Ko'rishlar avtomatik yangilanib boradi — statistikani tanlov ilovasida kuzating.`,
+    `✅ Videongiz qabul qilindi va reytingga qo'shildi!\n\nHozircha ${views} ta ko'rish. Ko'rishlar avtomatik yangilanib boradi; reytingda barcha qabul qilingan videolaringiz ko'rishlari qo'shib hisoblanadi — statistikani tanlov ilovasida kuzating.`,
   reelRejected: {
     NOT_FOUND:
       "❌ Videongiz Instagram'da topilmadi. Link to'g'riligini va akkauntingiz ochiq (yopiq emas) ekanini tekshirib, linkni qaytadan yuboring.",
@@ -47,11 +49,11 @@ export const texts = {
     NEW_REEL:
       "🔎 Videongizni avtomatik tekshira olmadik — Instagram'da 3 marta topilmadi.\n\nUni administrator qo'lda tekshiradi, natijani shu chatga yozamiz. Akkauntingiz ochiq (yopiq emas) va video o'chirilmaganini tekshirib qo'ying.",
     LOST_REEL:
-      "⚠️ Videongiz Instagram'da ketma-ket 3 marta topilmadi va reytingdan vaqtincha chiqarildi.\n\nUni administrator qo'lda tekshiradi, natijani shu chatga yozamiz. Video o'chirilmagani va akkauntingiz ochiq ekanini tekshiring.",
+      "⚠️ Videongiz Instagram'da ketma-ket 3 marta topilmadi — uning ko'rishlari reytingda vaqtincha hisobga olinmaydi.\n\nUni administrator qo'lda tekshiradi, natijani shu chatga yozamiz. Video o'chirilmagani va akkauntingiz ochiq ekanini tekshiring.",
   },
   reelManualApproved:
     "✅ Videongiz administrator tomonidan tekshirildi va reytingga qo'shildi. Ko'rishlar avtomatik yangilanib boradi.",
-  reelRestored: "✅ Videongiz yana topildi va reytingga qaytarildi.",
+  reelRestored: "✅ Videongiz yana topildi — uning ko'rishlari reytingda yana hisobga olinadi.",
 
   // Target (pullik reklama) — admin qaroridan keyin
   targetWarning:

@@ -68,7 +68,7 @@ export function buildDashboard(input: DashboardInput): DashboardStats {
   const from = clampDay(input.from ?? bounds.from, bounds.from, to);
   const inRange = (day: string) => day >= from && day <= to;
 
-  const reels = input.participants.flatMap((p) => (p.reel ? [p.reel] : []));
+  const reels = input.participants.flatMap((p) => p.reels);
   const growth = new Map<string, number>();
   for (const reel of reels) {
     for (const [day, g] of growthByDay(reel.history)) growth.set(day, (growth.get(day) ?? 0) + g);

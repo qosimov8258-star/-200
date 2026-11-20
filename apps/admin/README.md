@@ -86,7 +86,10 @@ Backendsiz ishlash uchun (`npm run dev` da standart):
   login sahifasida yo'riqnoma faqat mock rejimda ko'rinadi.
 - Tanlov ma'lumotlari ([`src/lib/mock/contest.ts`](src/lib/mock/contest.ts)) deterministik
   generatsiya qilinadi va bugungi sanaga bog'lanadi: tanlov 24 kun oldin boshlangan,
-  140 ta o'ylab topilgan ishtirokchi, Reellar, kunlik ko'rishlar, target va murojaatlar.
+  140 ta o'ylab topilgan ishtirokchi, har birida 0–6 ta video (turli holatlarda, ba'zilari
+  ikkinchi Instagram akkauntdan), kunlik ko'rishlar, target va murojaatlar. Ishtirokchi
+  ko'rishlari — qabul qilingan videolari ko'rishlari yig'indisi (reyting, g'olib va random
+  tanlov ham shunday hisoblaydi).
 - Mock sessiya brauzerning `localStorage` ida saqlanadi.
 - Admin amallari (bloklash, blokdan chiqarish, diskvalifikatsiya, support javoblari va
   holatlari, target bo'yicha qarorlar) va ularning audit yozuvlari ham `localStorage` da
@@ -112,6 +115,19 @@ Panelda shunday qilingan, lekin hali jamoa bilan kelishilishi kerak (PLAN.md Q11
 - **Telegram "o'qildi"** — bot o'qilganlikni bilmaydi, shuning uchun xabar ostida "✅ O'qidim"
   tugmasi bo'ladi; yetkazilganiga 24 soatdan oshib bosilmasa — "o'qilmadi".
 - **Telegramni ulamaganlarga** xabarnomalar faqat ilovada boradi.
+
+## Foydalanuvchilar va videolar
+
+Ishtirokchi cheklovsiz Reel yuboradi; uning ko'rishlari — qabul qilingan barcha videolari
+ko'rishlari yig'indisi (Aksiya qoidalari 7.1, 7.3), reyting ham shu yig'indi bo'yicha.
+
+- Jadvaldagi "Videolar" ustuni: jami video soni va holatlar bo'yicha belgilar (qabul qilingan,
+  kutilmoqda — qo'lda tekshiruvdagilar bilan, rad etilgan); video bo'lmasa — "—".
+- Ism, video soni yoki qatorning bo'sh joyi bosilsa — "Videolar" oynasi
+  (`GET /api/v1/admin/participants/:id/reels`): Instagram akkaunt(lar), jami ko'rishlar va barcha
+  videolar (eng yangisi yuqorida) — link, holat ("Qo'lda tekshiruvda" ham), rad etish sababi,
+  akkaunt, ko'rishlar, layklar, yuborilgan / joylangan / oxirgi yangilangan vaqt va shubha belgilari.
+- Video filtri (`reel` URL parametri): "shu holatdagi videosi bor" yoki "Video yo'q".
 
 ## Rollar
 
@@ -147,7 +163,7 @@ src/
 │   ├── winner/           # g'olib: nomzod, tekshiruv ro'yxati, tasdiqlash, e'lon
 │   ├── settings/         # tanlov muddati, yangilanish vaqti, minimal yosh, qoidalar
 │   ├── audit/            # audit log (faqat o'qish)
-│   ├── users/            # ishtirokchilar jadvali, filtrlar, amal oynasi
+│   ├── users/            # ishtirokchilar jadvali, filtrlar, amal oynasi, "Videolar" oynasi
 │   └── ui/               # tugma, input, select, dialog, amallar menyusi, sahifalash...
 └── lib/
     ├── api.ts            # YAGONA API qatlami: http yoki mock implementatsiyani tanlaydi

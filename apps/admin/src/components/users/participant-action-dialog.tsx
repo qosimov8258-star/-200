@@ -42,7 +42,7 @@ const ACTIONS: Record<ParticipantAction, ActionConfig> = {
     describe: (name) => (
       <>
         <strong className="font-medium text-slate-900">{name}</strong> yana ilovadan foydalana
-        oladi. Reeli qabul qilingan bo&apos;lsa, reytingga qaytadi.
+        oladi. Qabul qilingan videolari bo&apos;lsa, reytingga qaytadi.
       </>
     ),
     successMessage: (name) => `${name} blokdan chiqarildi.`,

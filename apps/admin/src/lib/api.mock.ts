@@ -36,7 +36,11 @@ import {
   decideManualReview as mockDecideManualReview,
   listManualReviews,
 } from "./mock/manual-review";
-import { applyParticipantAction, listParticipants } from "./mock/participants";
+import {
+  applyParticipantAction,
+  getParticipantReels as mockGetParticipantReels,
+  listParticipants,
+} from "./mock/participants";
 import {
   getContestRules as mockGetContestRules,
   updateContestRules as mockUpdateContestRules,
@@ -102,6 +106,7 @@ import type {
   ParticipantListItem,
   ParticipantListQuery,
   ParticipantListResponse,
+  ParticipantReels,
   SupportReplyRequest,
   SupportStatusRequest,
   SupportTicketDetail,
@@ -299,6 +304,17 @@ export async function getParticipants(query: ParticipantListQuery): Promise<Part
   await delay(350);
   requireRole("ADMIN");
   return listParticipants(query);
+}
+
+/**
+ * Ishtirokchining barcha yuborgan videolari (eng yangisi birinchi) va jami ko'rishlari.
+ * @endpoint GET /api/v1/admin/participants/:id/reels
+ * @throws ApiError 404 — ishtirokchi topilmadi
+ */
+export async function getParticipantReels(id: string): Promise<ParticipantReels> {
+  await delay(300);
+  requireRole("ADMIN");
+  return mockGetParticipantReels(id);
 }
 
 /**

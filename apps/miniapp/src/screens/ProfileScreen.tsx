@@ -58,11 +58,11 @@ export function ProfileScreen({
   const [lockedField, setLockedField] = useState<string | null>(null);
   const fullName = `${profile.firstName} ${profile.lastName}`;
 
-  const reel = useQuery({ queryKey: ["reel"], queryFn: api.getMyReel });
+  const reels = useQuery({ queryKey: ["reels"], queryFn: api.getMyReels });
   const contest = useQuery({ queryKey: ["contest"], queryFn: api.getContest });
-  const accepted = reel.data?.status === "ACCEPTED" ? reel.data : null;
+  // O'rin va ko'rishlar — qabul qilingan videolar bo'yicha; bunday video yo'q bo'lsa — "—".
+  const summary = reels.data?.reels.some((r) => r.status === "ACCEPTED") ? reels.data : null;
   const daysLeft = contest.data ? daysUntil(contest.data.endsAt) : null;
-
 
   const [askLogout, setAskLogout] = useState(false);
   const [leaving, setLeaving] = useState(false);
@@ -123,12 +123,12 @@ export function ProfileScreen({
           <HeroStat
             icon={<Medal />}
             label={t.profileStatRank}
-            value={accepted?.rank ? `#${accepted.rank}` : "—"}
+            value={summary?.rank ? `#${summary.rank}` : "—"}
           />
           <HeroStat
             icon={<Eye />}
             label={t.profileStatViews}
-            value={accepted ? formatCount(accepted.totalViews) : "—"}
+            value={summary ? formatCount(summary.totalViews) : "—"}
           />
           <HeroStat
             icon={<CalendarDays />}

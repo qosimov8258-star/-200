@@ -49,19 +49,20 @@ export class AdminStatsController {
     return { started: !alreadyRunning, running: true };
   }
 
-  /** Barcha videolar: holat, egasi, ko'rishlar tarixi, nakrutka belgilari. Avval reytingdagilar. */
+  /**
+   * Barcha videolar (har bir ishtirokchining hammasi): holat, egasi, ko'rishlar tarixi, nakrutka
+   * belgilari. Avval reytingdagilar (o'rin — ishtirokchiniki), so'ng yangilari.
+   */
   @Get("reels")
   reels() {
     const ranked = new Map(this.stats.ranking().map((e) => [e.participant.telegramId, e]));
     return this.participants
       .all()
       .flatMap((p) => {
-        const reel = p.reel;
-        if (!reel) return [];
-        const last = reel.history.at(-1);
         const entry = ranked.get(p.telegramId);
-        return [
-          {
+        return p.reels.map((reel) => {
+          const last = reel.history.at(-1);
+          return {
             telegramId: p.telegramId,
             fullName: p.firstName ? `${p.firstName} ${p.lastName}` : null,
             phone: p.phone,
@@ -86,8 +87,8 @@ export class AdminStatsController {
               likes: s.likes,
               comments: s.comments,
             })),
-          },
-        ];
+          };
+        });
       })
       .sort(
         (a, b) =>
