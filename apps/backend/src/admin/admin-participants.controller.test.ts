@@ -124,7 +124,7 @@ test("the list validates query values, paginates and counts statuses", () => {
   assert.deepEqual([all.total, all.page, all.pageSize], [3, 1, 20]);
   assert.deepEqual(all.statusCounts, { ALL: 3, ACTIVE: 1, WARNED: 1, BLOCKED: 1, DISQUALIFIED: 0 });
 
-  const page = controller.list(undefined, undefined, undefined, "name", "desc", "2", "1");
+  const page = controller.list(undefined, undefined, undefined, undefined, undefined, "name", "desc", "2", "1");
   assert.deepEqual([page.items.map((i) => i.id), page.page, page.pageSize], [["2"], 2, 1]);
 
   const warned = controller.list("ism", "WARNED");
@@ -135,4 +135,11 @@ test("the list validates query values, paginates and counts statuses", () => {
   assert.equal(bad !== "NONE" && bad.status, 400);
   const array = failure(() => controller.list(["a", "b"]));
   assert.equal(array !== "NONE" && array.status, 400);
+
+  // Ko'rishlar oralig'i: butun son, manfiy emas, "dan" ≤ "gacha".
+  for (const [min, max] of [["-1", undefined], ["1.5", undefined], ["ko'p", undefined], ["500", "100"]]) {
+    const wrong = failure(() => controller.list(undefined, undefined, undefined, min, max));
+    assert.equal(wrong !== "NONE" && wrong.status, 400, `${min}–${max}`);
+  }
+  assert.equal(controller.list(undefined, undefined, undefined, "0", "").total, 3);
 });

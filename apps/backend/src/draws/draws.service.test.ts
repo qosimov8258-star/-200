@@ -243,3 +243,38 @@ test("admin-made periods: validated inside the contest, no duplicates, listed in
   assert.deepEqual(draws.listPeriods().map((p) => p.id), [early.id]);
   assert.equal(status(() => draws.deletePeriod(created.id, "Admin")), 404);
 });
+
+test("stages can be deleted and restored: hidden from setup, stock and the Mini App; used stages are kept", () => {
+  const { draws, add, settings } = setup();
+  for (let id = 1; id <= 4; id++) add(id);
+
+  const removed = draws.deleteStage(2, "Admin");
+  assert.deepEqual([removed.startsOn, removed.endsOn], ["2026-12-25", "2027-01-24"]);
+  assert.deepEqual(draws.setup().stages.map((s) => s.index), [1, 3], "raqamlar o'zgarmaydi");
+  assert.deepEqual(draws.setup().removedStages.map((s) => s.index), [2]);
+  const stock = draws.stock()[0];
+  assert.equal(stock.total, 600);
+  assert.deepEqual(stock.stages.map((s) => s.index), [1, 3]);
+  const prizes = draws.publicPrizes();
+  assert.equal(prizes.stages.length, 2);
+  assert.equal(prizes.monthly.total, 600);
+
+  // O'chirilgan bosqichni tanlab bo'lmaydi; uning sanalari bilan davr yaratish mumkin.
+  assert.equal(status(() => draws.run(settings({ stage: 2, periodFrom: "2026-12-25", periodTo: "2027-01-24" }), "Admin")), 400);
+  assert.equal(status(() => draws.deleteStage(2, "Admin")), 404);
+
+  // Tanlov o'tkazilgan bosqich o'chirilmaydi; bekor qilingach — mumkin.
+  const draw = draws.run(settings({ reservesCount: 0 }), "Admin");
+  assert.equal(draw.stage, 1);
+  assert.equal(status(() => draws.deleteStage(1, "Admin")), 409);
+  draws.cancel(draw.id, "Sinov uchun edi", "Admin");
+  draws.deleteStage(1, "Admin");
+  // Oxirgi bosqich qolishi shart.
+  assert.equal(status(() => draws.deleteStage(3, "Admin")), 409);
+
+  draws.restoreStage(2, "Admin");
+  draws.restoreStage(1, "Admin");
+  assert.deepEqual(draws.setup().stages.map((s) => s.index), [1, 2, 3]);
+  assert.equal(draws.stock()[0].total, 900);
+  assert.equal(status(() => draws.restoreStage(1, "Admin")), 404);
+});

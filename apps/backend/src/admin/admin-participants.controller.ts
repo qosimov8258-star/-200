@@ -30,6 +30,24 @@ const REASON_MIN = 5;
 const REASON_MAX = 500;
 const TELEGRAM_ID = /^\d{1,16}$/;
 
+const MAX_VIEWS_FILTER = 1_000_000_000_000;
+
+/** Ko'rishlar oralig'i: manfiy bo'lmagan butun sonlar, "dan" "gacha"dan katta emas. */
+function viewsRange(min: string | undefined, max: string | undefined): { minViews?: number; maxViews?: number } {
+  const parse = (raw: string | undefined, name: string): number | undefined => {
+    if (raw === undefined || raw.trim() === "") return undefined;
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < 0 || n > MAX_VIEWS_FILTER) throw adminError(400, `${name} manfiy bo'lmagan butun son bo'lishi kerak.`);
+    return n;
+  };
+  const minViews = parse(min, "Ko'rishlar (dan)");
+  const maxViews = parse(max, "Ko'rishlar (gacha)");
+  if (minViews !== undefined && maxViews !== undefined && minViews > maxViews) {
+    throw adminError(400, "Ko'rishlar oralig'i noto'g'ri: «dan» «gacha»dan katta.");
+  }
+  return { minViews, maxViews };
+}
+
 /** Query qiymati — faqat bitta matn (`?a=1&a=2` yoki `?a[b]=1` rad etiladi). */
 function queryText(value: unknown): string | undefined {
   if (value === undefined || typeof value === "string") return value;
@@ -54,12 +72,14 @@ export class AdminParticipantsController {
     private readonly audit: AuditService,
   ) {}
 
-  /** `GET /admin/participants?search=&status=&reel=&sort=&order=&page=&pageSize=` */
+  /** `GET /admin/participants?search=&status=&reel=&minViews=&maxViews=&sort=&order=&page=&pageSize=` */
   @Get()
   list(
     @Query("search") search?: unknown,
     @Query("status") status?: unknown,
     @Query("reel") reel?: unknown,
+    @Query("minViews") minViews?: unknown,
+    @Query("maxViews") maxViews?: unknown,
     @Query("sort") sort?: unknown,
     @Query("order") order?: unknown,
     @Query("page") page?: unknown,
@@ -69,6 +89,7 @@ export class AdminParticipantsController {
       search: searchTerm(queryText(search)),
       status: oneOf(queryText(status), PARTICIPANT_STATUSES, "Holat"),
       reel: oneOf(queryText(reel), REEL_FILTERS, "Video holati"),
+      ...viewsRange(queryText(minViews), queryText(maxViews)),
       sort: oneOf(queryText(sort), PARTICIPANT_SORTS, "Saralash"),
       order: oneOf(queryText(order), SORT_ORDERS, "Tartib"),
     });

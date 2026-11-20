@@ -405,3 +405,28 @@ test("the final sync after the end is recorded on the last contest day", async (
   assert.equal(last?.date, "2026-12-20", "oxirgi tanlov kuni");
   assert.equal(last?.views, 9_000);
 });
+
+test("refreshing selected reels updates only them, leaves the schedule alone and blocks overlapping runs", async () => {
+  const s = setup();
+  s.setNow("2026-12-01 10:00");
+  s.provider.set("REF001", { owner: "ali", views: 1_000 });
+  s.provider.set("REF002", { owner: "vali", views: 2_000 });
+  s.join(1, "REF001");
+  s.join(2, "REF002");
+  await s.stats.flushVerification();
+  const before = s.stats.status().lastSuccessAt;
+
+  s.provider.set("REF001", { owner: "ali", views: 5_000 });
+  s.provider.set("REF002", { owner: "vali", views: 9_000 });
+  s.setNow("2026-12-03 15:00");
+  const job = s.stats.refreshReels([1], "test");
+  assert.ok(job);
+  assert.equal(s.stats.refreshReels([2], "ikkinchi"), null, "bir vaqtda faqat bittasi");
+  assert.equal(s.stats.dueReason(), null, "yangilash paytida rejadagi yig'ish boshlanmaydi");
+  const report = await job;
+  assert.deepEqual([report.requested, report.updated, report.missing, report.error], [1, 1, 0, null]);
+  assert.equal(s.reel(1)?.history.at(-1)?.views, 5_000);
+  assert.equal(s.reel(2)?.history.at(-1)?.views, 2_000, "tanlanmagan video o'zgarmaydi");
+  assert.equal(s.stats.status().lastSuccessAt, before, "jadval o'zgarmaydi");
+  assert.equal(s.stats.lastRefreshReport, report);
+});

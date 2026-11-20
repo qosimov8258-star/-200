@@ -185,3 +185,20 @@ test("allowed transitions: block only active, unblock only blocked, disqualify a
   assert.deepEqual(ACTION_ALLOWED_FROM.unblock, ["BLOCKED"]);
   assert.deepEqual(ACTION_ALLOWED_FROM.disqualify, ["ACTIVE", "BLOCKED"]);
 });
+
+test("views range keeps both bounds inclusive and also narrows the status counts", () => {
+  const people = [
+    person(1, { reel: reel("A", { views: [50_000] }) }),
+    person(2, { reel: reel("B", { views: [100_000] }) }),
+    person(3, { status: "BLOCKED", reel: reel("C", { views: [640_000] }) }),
+    person(4, { reel: reel("D", { views: [1_000_000] }) }),
+    person(5, { reel: reel("E", { views: [1_000_001] }) }),
+    person(6),
+  ];
+  const range = list(people, ranked(), [], { minViews: 100_000, maxViews: 1_000_000, sort: "views" });
+  assert.deepEqual(ids(range.items), ["4", "3", "2"]);
+  assert.deepEqual(range.statusCounts, { ALL: 3, ACTIVE: 2, WARNED: 0, BLOCKED: 1, DISQUALIFIED: 0 });
+  assert.deepEqual(ids(list(people, ranked(), [], { minViews: 1_000_001 }).items), ["5"]);
+  // Faqat "gacha": Reel yubormaganlar (0 ko'rish) ham kiradi.
+  assert.deepEqual(ids(list(people, ranked(), [], { maxViews: 60_000, sort: "name" }).items).sort(), ["1", "6"]);
+});

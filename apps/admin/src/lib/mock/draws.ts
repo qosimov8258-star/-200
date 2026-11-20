@@ -78,10 +78,17 @@ function monthlyPrizes(store: MockStore): Prize[] {
   return effectivePrizes(store).filter((prize) => prize.kind === "MONTHLY");
 }
 
-function stages(store: MockStore) {
+/** Barcha bosqichlar (o'chirilganlari ham) — tanlov muddati chegaralari uchun. */
+function allStagesOf(store: MockStore) {
   const data = getContestData();
   const settings = effectiveSettings(store);
   return contestStages(settings.startsOn, settings.endsOn, data.today);
+}
+
+/** Amaldagi (admin o'chirmagan) bosqichlar. */
+function stages(store: MockStore) {
+  const removed = store.removedStages ?? [];
+  return allStagesOf(store).filter((stage) => !removed.includes(stage.index));
 }
 
 /** Mock'da Instagram'da joylangan sana yo'q — ilovaga yuborilishidan 0–2 kun oldin deb olamiz. */
@@ -326,7 +333,69 @@ export function getDrawSetup(): DrawSetup {
     },
     placeholders: DRAW_PLACEHOLDERS,
     periods: periodsOf(store),
+    removedStages: allStagesOf(store).filter((item) => (store.removedStages ?? []).includes(item.index)),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Bosqichlarni o'chirish va tiklash (backend bilan bir xil qoidalar)
+// ---------------------------------------------------------------------------
+
+export function deleteDrawStage(index: number, actor: AdminUser): void {
+  const store = readStore();
+  const active = stages(store);
+  const stage = active.find((item) => item.index === index);
+  if (!stage) throw new ApiError(404, "Bosqich topilmadi.");
+  if (active.length <= 1) throw new ApiError(409, "Kamida bitta bosqich qolishi kerak.");
+  const used = drawsOf(store).find((draw) => draw.status !== "CANCELLED" && draw.stage === index);
+  if (used) throw new ApiError(409, `Bu bosqichda #${used.number} tanlov o'tkazilgan — avval uni bekor qiling.`);
+  writeStore({
+    ...store,
+    removedStages: [...(store.removedStages ?? []), index].sort((a, b) => a - b),
+    audit: [
+      ...store.audit,
+      {
+        id: auditId(),
+        at: new Date().toISOString(),
+        actorId: actor.id,
+        actorName: actor.fullName,
+        action: "draw.stage.delete",
+        entity: "voucher_draw",
+        entityId: `stage-${index}`,
+        before: `${index}-bosqich (${periodLabel(stage.startsOn, stage.endsOn)})`,
+        after: "O'chirildi",
+        reason: "",
+      },
+    ],
+  });
+}
+
+export function restoreDrawStage(index: number, actor: AdminUser): void {
+  const store = readStore();
+  const removed = store.removedStages ?? [];
+  const stage = allStagesOf(store).find((item) => item.index === index);
+  if (!stage || !removed.includes(index)) throw new ApiError(404, "O'chirilgan bosqich topilmadi.");
+  const twin = periodsOf(store).find((item) => item.startsOn === stage.startsOn && item.endsOn === stage.endsOn);
+  if (twin) throw new ApiError(409, `Bu sanalar uchun «${twin.title}» davri bor — avval uni o'chiring.`);
+  writeStore({
+    ...store,
+    removedStages: removed.filter((item) => item !== index),
+    audit: [
+      ...store.audit,
+      {
+        id: auditId(),
+        at: new Date().toISOString(),
+        actorId: actor.id,
+        actorName: actor.fullName,
+        action: "draw.stage.restore",
+        entity: "voucher_draw",
+        entityId: `stage-${index}`,
+        before: "O'chirilgan",
+        after: `${index}-bosqich (${periodLabel(stage.startsOn, stage.endsOn)})`,
+        reason: "",
+      },
+    ],
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -343,15 +412,15 @@ const describePeriod = (period: DrawPeriodInput) => `${period.title} (${periodLa
 
 /** Tanlov muddati ichida, bosqich yoki boshqa davr bilan sanalari bir xil emas (backend bilan bir xil). */
 function checkPeriod(store: MockStore, input: DrawPeriodInput, exceptId?: string): DrawPeriodInput {
-  const allStages = stages(store);
-  const bounds = { min: allStages[0]?.startsOn ?? input.startsOn, max: allStages.at(-1)?.endsOn ?? input.endsOn };
+  const all = allStagesOf(store);
+  const bounds = { min: all[0]?.startsOn ?? input.startsOn, max: all.at(-1)?.endsOn ?? input.endsOn };
   const errors = validateDrawPeriod(input, bounds);
   const first = Object.values(errors)[0];
   if (first) throw new ApiError(400, first);
   const clean = { title: input.title.trim(), startsOn: input.startsOn, endsOn: input.endsOn };
   const sameDates = (item: { startsOn: IsoDate; endsOn: IsoDate }) =>
     item.startsOn === clean.startsOn && item.endsOn === clean.endsOn;
-  const stage = allStages.find(sameDates);
+  const stage = stages(store).find(sameDates);
   if (stage) throw new ApiError(409, `Bu sanalar ${stage.index}-bosqich bilan bir xil — bosqichni tanlang.`);
   const twin = periodsOf(store).find((item) => item.id !== exceptId && sameDates(item));
   if (twin) throw new ApiError(409, `Bu sanalar uchun «${twin.title}» davri allaqachon bor.`);

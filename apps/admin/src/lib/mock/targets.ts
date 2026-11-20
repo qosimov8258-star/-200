@@ -276,8 +276,15 @@ function findTarget(id: string): MockTargetDetection {
 // Ochiq funksiyalar
 // ---------------------------------------------------------------------------
 
-export function listTargetCases(query: TargetCaseListQuery): TargetCaseListResponse {
-  const context = buildContext(readStore());
+/**
+ * `store` — qaysi holatlar bilan hisoblash (standart: admin mock bazasi). Ega bo'limi
+ * (`./owner.ts`) o'z o'zgartirishlarini qo'shgan nusxani beradi.
+ */
+export function listTargetCases(
+  query: TargetCaseListQuery,
+  store: MockStore = readStore(),
+): TargetCaseListResponse {
+  const context = buildContext(store);
 
   let items = getContestData()
     .targets.map((target) => toListItem(target, context))

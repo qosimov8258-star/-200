@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarPlus,
   CalendarRange,
@@ -9,6 +9,7 @@ import {
   Gift,
   MessageSquareText,
   Pencil,
+  RotateCcw,
   ShieldCheck,
   Trash2,
   Users,
@@ -22,12 +23,13 @@ import { IosIcon, type IosTint } from "@/components/ui/ios-icon";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { deleteDrawPeriod } from "@/lib/api";
+import { deleteDrawPeriod, deleteDrawStage, restoreDrawStage } from "@/lib/api";
+import { errorMessage } from "@/lib/api-error";
 import { diffDays, isIsoDate } from "@/lib/dates";
 import { periodLabel, renderDrawMessage, type DrawSettingsErrors } from "@/lib/draw-rules";
 import { formatDayMonth, formatNumber } from "@/lib/format";
 import { DRAW_DATE_BASIS_LABELS } from "@/lib/labels";
-import type { DrawDateBasis, DrawPeriod, DrawSettings, DrawSetup, IsoDate } from "@/lib/types";
+import type { DrawDateBasis, DrawPeriod, DrawSettings, DrawSetup, DrawStage, IsoDate } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 import { DrawPeriodDialog } from "./draw-period-dialog";
@@ -92,6 +94,18 @@ export function DrawSettingsForm({ setup, value, errors, onChange, disabled = fa
   /** Davr oynasi: `period: null` — yangi davr. */
   const [periodDialog, setPeriodDialog] = useState<{ period: DrawPeriod | null } | null>(null);
   const [deleting, setDeleting] = useState<DrawPeriod | null>(null);
+  const [deletingStage, setDeletingStage] = useState<DrawStage | null>(null);
+
+  const refreshSetup = () => {
+    void queryClient.invalidateQueries({ queryKey: ["draw-setup"] });
+    void queryClient.invalidateQueries({ queryKey: ["draws", "stock"] });
+    void queryClient.invalidateQueries({ queryKey: ["audit-log"] });
+  };
+
+  const restoreStage = useMutation({
+    mutationFn: (index: number) => restoreDrawStage(index),
+    onSuccess: refreshSetup,
+  });
 
   const isPeriodActive = (period: DrawPeriod) =>
     value.stage === null && value.periodFrom === period.startsOn && value.periodTo === period.endsOn;
@@ -157,13 +171,14 @@ export function DrawSettingsForm({ setup, value, errors, onChange, disabled = fa
           <Section icon={CalendarRange} title="Davr">
             <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Davr">
               {setup.stages.map((stage) => (
-                <Chip key={stage.index} active={value.stage === stage.index} onClick={() => selectStage(stage.index)}>
-                  <span className="font-semibold">{stage.index}-bosqich</span>
-                  <span className="text-xs opacity-75">
-                    {formatDayMonth(stage.startsOn)} – {formatDayMonth(stage.endsOn)}
-                  </span>
-                  <StateBadge state={periodState(stage.startsOn, stage.endsOn, setup.today)} />
-                </Chip>
+                <StageChip
+                  key={stage.index}
+                  stage={stage}
+                  today={setup.today}
+                  active={value.stage === stage.index}
+                  onSelect={() => selectStage(stage.index)}
+                  onDelete={() => setDeletingStage(stage)}
+                />
               ))}
               {setup.periods.map((period) => (
                 <PeriodChip
@@ -185,6 +200,31 @@ export function DrawSettingsForm({ setup, value, errors, onChange, disabled = fa
                 Davr yaratish
               </button>
             </div>
+            {setup.removedStages.length > 0 && (
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-muted">
+                <span>O&apos;chirilgan:</span>
+                {setup.removedStages.map((stage) => (
+                  <span
+                    key={stage.index}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-slate-300 py-0.5 pr-1 pl-2.5"
+                  >
+                    <span className="line-through decoration-slate-400">
+                      {stage.index}-bosqich · {formatDayMonth(stage.startsOn)} – {formatDayMonth(stage.endsOn)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => restoreStage.mutate(stage.index)}
+                      disabled={restoreStage.isPending}
+                      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium text-brand-600 transition hover:bg-brand-50 disabled:opacity-50"
+                    >
+                      <RotateCcw className="size-3" aria-hidden />
+                      Tiklash
+                    </button>
+                  </span>
+                ))}
+                {restoreStage.isError && <span className="text-red-600">{errorMessage(restoreStage.error)}</span>}
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-[#f7f6fb] px-3.5 py-2.5 text-sm">
               <CalendarRange className="size-4 shrink-0 text-muted" aria-hidden />
               <span className="text-muted">Tanlangan davr:</span>
@@ -355,6 +395,32 @@ export function DrawSettingsForm({ setup, value, errors, onChange, disabled = fa
           }}
         />
       )}
+
+      {deletingStage && (
+        <ConfirmDialog
+          title="Bosqichni o'chirish"
+          description={
+            <>
+              {deletingStage.index}-bosqich ({periodLabel(deletingStage.startsOn, deletingStage.endsOn)}) random
+              tanlovda tanlanmaydi, Mini App&apos;dagi sovg&apos;alar sahifasidan ham olib tashlanadi va voucherlar
+              jami shu bosqich kvotasiga kamayadi. Keyin «Tiklash» bilan qaytarish mumkin.
+            </>
+          }
+          confirmLabel="O'chirish"
+          variant="danger"
+          onConfirm={() => deleteDrawStage(deletingStage.index)}
+          onClose={() => setDeletingStage(null)}
+          onDone={() => {
+            // Tanlangan bosqich o'chirilgan bo'lsa — qolganlaridan birinchisiga o'tamiz.
+            if (value.stage === deletingStage.index) {
+              const next = setup.stages.find((item) => item.index !== deletingStage.index);
+              if (next) selectStage(next.index);
+            }
+            setDeletingStage(null);
+            refreshSetup();
+          }}
+        />
+      )}
     </fieldset>
   );
 }
@@ -381,6 +447,56 @@ function StateBadge({ state }: { state: PeriodState }) {
       )}
     >
       {STATE_LABELS[state]}
+    </span>
+  );
+}
+
+/** Aksiya bosqichi: tanlash tugmasi va yonida o'chirish (sanalari qoidalarda belgilangan — tahrirlanmaydi). */
+function StageChip({
+  stage,
+  today,
+  active,
+  onSelect,
+  onDelete,
+}: {
+  stage: DrawStage;
+  today: IsoDate;
+  active: boolean;
+  onSelect: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border py-0.5 pr-1 pl-0.5 text-sm transition",
+        active ? "border-brand-600 bg-brand-600 text-white" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300",
+      )}
+    >
+      <button
+        type="button"
+        role="radio"
+        aria-checked={active}
+        onClick={onSelect}
+        className="inline-flex items-center gap-2 rounded-full py-1 pr-1.5 pl-2.5"
+      >
+        <span className="font-semibold">{stage.index}-bosqich</span>
+        <span className="text-xs opacity-75">
+          {formatDayMonth(stage.startsOn)} – {formatDayMonth(stage.endsOn)}
+        </span>
+        <StateBadge state={periodState(stage.startsOn, stage.endsOn, today)} />
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        aria-label={`${stage.index}-bosqichni o'chirish`}
+        title="O'chirish"
+        className={cn(
+          "grid size-7 place-items-center rounded-full transition",
+          active ? "text-white/80 hover:bg-white/15 hover:text-white" : "text-muted hover:bg-red-50 hover:text-red-600",
+        )}
+      >
+        <Trash2 className="size-3.5" aria-hidden />
+      </button>
     </span>
   );
 }
@@ -498,25 +614,6 @@ function Field({
         <p className="text-xs text-slate-500">{hint}</p>
       ) : null}
     </div>
-  );
-}
-
-function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={active}
-      onClick={onClick}
-      className={cn(
-        "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition",
-        active
-          ? "border-brand-600 bg-brand-600 text-white"
-          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300",
-      )}
-    >
-      {children}
-    </button>
   );
 }
 

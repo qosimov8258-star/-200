@@ -89,4 +89,19 @@ export const config = {
     /** Cookie faqat https orqali yuborilsin (prod da doim true). */
     cookieSecure: (str("ADMIN_COOKIE_SECURE") ?? (process.env.NODE_ENV === "production" ? "true" : "false")) === "true",
   },
+
+  /**
+   * Tashkilot egalari — yashirin bo'lim (`src/owner/`). Admin login'iga bog'liq emas: alohida
+   * hisoblar va alohida sessiya. Imzo kaliti — `ADMIN_SESSION_SECRET` (boshqa HMAC konteksti
+   * bilan: admin tokeni ega uchun yaroqsiz va aksincha), cookie xavfsizligi — `ADMIN_COOKIE_SECURE`.
+   */
+  owner: {
+    /**
+     * Egalar: `login|Ism Familiya|parol`, bir nechta bo'lsa `;` bilan; parol kamida 12 belgi,
+     * ichida `|` va `;` bo'lmasin. Bo'sh bo'lsa — bo'limga hech kim kira olmaydi.
+     */
+    users: str("OWNER_USERS"),
+    /** Sessiya necha daqiqa amal qiladi. */
+    sessionTtlMinutes: Number(str("OWNER_SESSION_TTL_MINUTES") ?? 120),
+  },
 } as const;
