@@ -188,13 +188,16 @@ export async function register(body: RegisterRequest): Promise<void> {
   });
 }
 
+/**
+ * Tanlov tugash vaqti — backenddagidek: oxirgi kun (25.02.2027, sovg'alarning oxirgi bosqichi)
+ * tugagan yarim tun, Toshkent vaqti (UTC+5).
+ */
+const MOCK_CONTEST_ENDS_AT = "2027-02-25T19:00:00.000Z";
+
 export async function getContest(): Promise<ContestInfo> {
   await wait(200);
-  const ends = today();
-  ends.setDate(ends.getDate() + 44);
-  ends.setHours(12);
   return {
-    endsAt: ends.toISOString(),
+    endsAt: MOCK_CONTEST_ENDS_AT,
     participants: 1284,
     minAge: MIN_AGE,
     prizeName: PRIZE_NAME,

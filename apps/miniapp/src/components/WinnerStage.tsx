@@ -1,9 +1,10 @@
 import { Trophy } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import carUrl from "../assets/hero_car.webp";
 import { t } from "../i18n/uz";
 import { formatCount, formatDateTime } from "../lib/format";
+import { useCountdown } from "../lib/use-countdown";
 import type { Winner } from "../lib/types";
 import { Snowfall } from "./Snowfall";
 
@@ -64,27 +65,11 @@ function PrizeRow({ prizeName }: { prizeName: string }) {
   );
 }
 
-const MINUTE = 60_000;
-
-/** Tanlov tugashigacha: kun / soat / daqiqa (har yarim daqiqada yangilanadi). */
-function useCountdown(endsAt: string | null) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), MINUTE / 2);
-    return () => window.clearInterval(timer);
-  }, []);
-  if (!endsAt) return null;
-  const left = Math.max(0, new Date(endsAt).getTime() - now);
-  return {
-    days: Math.floor(left / (24 * 60 * MINUTE)),
-    hours: Math.floor(left / (60 * MINUTE)) % 24,
-    minutes: Math.floor(left / MINUTE) % 60,
-    over: left === 0,
-  };
-}
+/** G'olib sahifasida soniyalar ko'rsatilmaydi — har yarim daqiqada yangilash yetarli. */
+const TICK_MS = 30_000;
 
 export function WinnerPending({ endsAt, prizeName }: { endsAt: string | null; prizeName: string }) {
-  const left = useCountdown(endsAt);
+  const left = useCountdown(endsAt, TICK_MS);
 
   return (
     <Stage>
