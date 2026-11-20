@@ -1,7 +1,16 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
 
 import { adminError, paginate } from "../admin/admin-http";
-import { ParticipantsService, type OwnerParticipantPatch, type Participant } from "../participants/participants.service";
+import {
+  acceptedReels,
+  liveReels,
+  participantViews,
+  ParticipantsService,
+  reelViews,
+  type OwnerParticipantPatch,
+  type Participant,
+  type Reel,
+} from "../participants/participants.service";
 import { StateStore } from "../persistence/state-store";
 import { RulesService } from "../rules/rules.service";
 import { StatsService } from "../stats/stats.service";
@@ -57,7 +66,7 @@ function matchesSearch(p: Participant, search: string): boolean {
   const last = p.lastName ?? "";
   if (normalize(`${first} ${last} ${last} ${first}`).includes(needle)) return true;
   const username = needle.replace(/^@/, "");
-  if (username && p.reel?.owner?.toLowerCase().includes(username)) return true;
+  if (username && p.reels.some((r) => r.owner?.toLowerCase().includes(username))) return true;
   const digits = needle.replace(/\D/g, "");
   if (digits.length >= 3 && p.phone?.replace(/\D/g, "").includes(digits)) return true;
   return /^\d+$/.test(needle) && String(p.telegramId).includes(needle);
@@ -69,7 +78,21 @@ function matchesSearch(p: Participant, search: string): boolean {
  */
 const bucket = (p: Participant): OwnerParticipantFilter => (p.firstName ? p.status : "INCOMPLETE");
 
-const lastViews = (p: Participant): number => p.reel?.history.at(-1)?.views ?? 0;
+
+/**
+ * Asosiy video (ega ro'yxatida ko'rsatiladi): eng ko'p ko'rishli qabul qilingani, bo'lmasa —
+ * oxirgi yuborilgan rad etilmagani, u ham bo'lmasa — oxirgisi.
+ */
+function mainReel(p: Participant): Reel | null {
+  const accepted = acceptedReels(p);
+  if (accepted.length > 0) return accepted.reduce((best, r) => (reelViews(r) > reelViews(best) ? r : best));
+  return liveReels(p).at(-1) ?? p.reels.at(-1) ?? null;
+}
+
+function reelSummary(p: Participant): OwnerParticipant["reel"] {
+  const reel = mainReel(p);
+  return reel ? { url: reel.url, status: reel.status, submittedAt: reel.submittedAt.toISOString() } : null;
+}
 
 /**
  * Tashkilot egalari — yashirin bo'lim: ishtirokchilar (ro'yxat, tahrir, o'chirish), target
@@ -188,7 +211,7 @@ export class OwnerService {
     const filtered = query.level ? visible.filter((r) => r.risk.level === query.level) : visible;
     filtered.sort(
       (a, b) =>
-        b.risk.score - a.risk.score || lastViews(b.p) - lastViews(a.p) || a.p.telegramId - b.p.telegramId,
+        b.risk.score - a.risk.score || participantViews(b.p) - participantViews(a.p) || a.p.telegramId - b.p.telegramId,
     );
     const page = paginate(filtered, query.page, query.pageSize, DEFAULT_PAGE_SIZE);
     return { ...page, items: page.items.map((r) => this.toRiskAccount(r.p, r.risk, ctx)), counts };
@@ -226,7 +249,7 @@ export class OwnerService {
   /** Chetlatilganlar (DISQUALIFIED) va ball 0 — null. */
   private assess(p: Participant, ctx: OwnerContext): RiskyAssessment | null {
     if (p.status === "DISQUALIFIED") return null;
-    const risk = assessRisk({ reel: p.reel, cases: ctx.casesById.get(p.telegramId) ?? [] });
+    const risk = assessRisk({ reels: p.reels, cases: ctx.casesById.get(p.telegramId) ?? [] });
     return risk.level ? { ...risk, level: risk.level } : null;
   }
 
@@ -240,9 +263,10 @@ export class OwnerService {
       status: p.status,
       profileComplete: Boolean(p.firstName) && p.consentVersion === ctx.rulesVersion,
       registeredAt: p.createdAt.toISOString(),
-      instagramUsername: p.reel?.owner ?? null,
-      reel: p.reel ? { url: p.reel.url, status: p.reel.status, submittedAt: p.reel.submittedAt.toISOString() } : null,
-      views: lastViews(p),
+      instagramUsername: mainReel(p)?.owner ?? null,
+      reel: reelSummary(p),
+      reelCount: liveReels(p).length,
+      views: participantViews(p),
       rank: ctx.rankById.get(p.telegramId) ?? null,
       openTargetCases: (ctx.casesById.get(p.telegramId) ?? []).filter((c) => OPEN_CASE.includes(c.status)).length,
       riskLevel: risk?.level ?? null,

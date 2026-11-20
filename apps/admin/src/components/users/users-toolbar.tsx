@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/select";
 import { Segmented } from "@/components/ui/segmented";
-import { PARTICIPANT_STATUS_LABELS, REEL_STATUS_LABELS } from "@/lib/labels";
+import { PARTICIPANT_STATUS_LABELS, REEL_FILTER_LABELS } from "@/lib/labels";
 import type { ParticipantListResponse, ParticipantStatus, ReelStatus } from "@/lib/types";
 import { hasActiveFilters, type UsersFilters } from "@/lib/users-filters";
 
@@ -20,13 +20,12 @@ const STATUS_TABS: Array<{ value: UsersFilters["status"]; label: string }> = [
   })),
 ];
 
+/** Ishtirokchida shu holatdagi kamida bitta video bormi; "NONE" — umuman video yo'q. */
 const REEL_OPTIONS: Array<{ value: UsersFilters["reel"]; label: string }> = [
-  { value: "ALL", label: "Reel: hammasi" },
-  ...(["ACCEPTED", "PENDING", "REJECTED", "REMOVED"] as ReelStatus[]).map((status) => ({
-    value: status,
-    label: `Reel: ${REEL_STATUS_LABELS[status].toLowerCase()}`,
-  })),
-  { value: "NONE", label: "Reel yubormaganlar" },
+  { value: "ALL", label: "Videolar: hammasi" },
+  ...(["ACCEPTED", "PENDING", "REJECTED", "REMOVED", "NONE"] as Array<ReelStatus | "NONE">).map(
+    (value) => ({ value, label: REEL_FILTER_LABELS[value] }),
+  ),
 ];
 
 interface UsersToolbarProps {
@@ -64,8 +63,8 @@ export function UsersToolbar({
         <Select
           value={filters.reel}
           onChange={(event) => onReelChange(event.target.value as UsersFilters["reel"])}
-          aria-label="Reel holati bo'yicha filtr"
-          className="w-full sm:w-56"
+          aria-label="Videolar holati bo'yicha filtr"
+          className="w-full sm:w-60"
         >
           {REEL_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>

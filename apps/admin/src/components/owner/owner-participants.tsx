@@ -262,6 +262,7 @@ function ParticipantRow({
             <Badge tone={OWNER_REEL_TONES[participant.reel.status]}>{OWNER_REEL_LABELS[participant.reel.status]}</Badge>
             <p className="text-xs whitespace-nowrap text-slate-500 tabular-nums">
               {formatNumber(participant.views)} ko&apos;rish
+              {participant.reelCount > 1 && ` · ${participant.reelCount} ta video`}
               {participant.rank !== null ? ` · ${participant.rank}-o'rin` : " · reytingda yo'q"}
             </p>
           </div>

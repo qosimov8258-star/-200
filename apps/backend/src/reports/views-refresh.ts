@@ -1,9 +1,11 @@
-import type { Participant } from "../participants/participants.service";
+import { acceptedReels, participantViews, type Participant } from "../participants/participants.service";
 
 /**
- * "Ko'rishlarni yangilash" (admin → Foydalanuvchilar): qaysi videolar qayta o'qiladi.
+ * "Ko'rishlarni yangilash" (admin → Foydalanuvchilar): qaysi ishtirokchilarning videolari qayta
+ * o'qiladi.
  *
- * Tanlov oxirgi yig'ishdagi ko'rishlar bo'yicha. Shu orada ko'rishlari oshib, pastki chegaradan
+ * Tanlov ishtirokchining oxirgi yig'ishdagi ko'rishlari bo'yicha (barcha qabul qilingan videolari
+ * yig'indisi — reyting va filtr bilan bir xil). Shu orada ko'rishlari oshib, pastki chegaradan
  * o'tgan bo'lishi mumkin bo'lganlar tushib qolmasligi uchun `includeNear` — pastki chegara
  * `NEAR_MARGIN` ga pastroqdan olinadi (100 000 → 80 000). Yuqori chegara o'zgarmaydi: ko'rishlar
  * odatda faqat oshadi.
@@ -24,16 +26,19 @@ export function effectiveRange(range: RefreshRange): { from: number | null; to: 
 }
 
 /**
- * Yangilanadiganlar: faol (bloklanmagan, chetlatilmagan) ishtirokchilarning qabul qilingan
- * videolari, oxirgi ma'lum ko'rishlari oraliqda (ikkala chegara ham kiradi).
+ * Yangilanadiganlar: faol (bloklanmagan, chetlatilmagan), kamida bitta qabul qilingan videosi bor
+ * ishtirokchilar, ko'rishlari yig'indisi oraliqda (ikkala chegara ham kiradi). `videos` — shu
+ * ishtirokchilarning qayta o'qiladigan videolari soni (Apify narxi shunga qarab).
  */
-export function refreshCandidates(participants: readonly Participant[], range: RefreshRange): number[] {
+export function refreshCandidates(participants: readonly Participant[], range: RefreshRange): { ids: number[]; videos: number } {
   const { from, to } = effectiveRange(range);
-  return participants
-    .filter((p) => {
-      if (p.status !== "ACTIVE" || !p.firstName || p.reel?.status !== "ACCEPTED") return false;
-      const views = p.reel.history.at(-1)?.views ?? 0;
-      return (from === null || views >= from) && (to === null || views <= to);
-    })
-    .map((p) => p.telegramId);
+  const picked = participants.filter((p) => {
+    if (p.status !== "ACTIVE" || !p.firstName || acceptedReels(p).length === 0) return false;
+    const views = participantViews(p);
+    return (from === null || views >= from) && (to === null || views <= to);
+  });
+  return {
+    ids: picked.map((p) => p.telegramId),
+    videos: picked.reduce((sum, p) => sum + acceptedReels(p).length, 0),
+  };
 }

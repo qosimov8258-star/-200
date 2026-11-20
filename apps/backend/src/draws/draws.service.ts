@@ -5,7 +5,7 @@ import { HttpException, Inject, Injectable, Logger, Optional } from "@nestjs/com
 import { contestDay } from "../common/time";
 import { contestPrizes, type ContestPrizes } from "../miniapp/prizes";
 import { StateStore } from "../persistence/state-store";
-import { ParticipantsService, type Participant, type Reel } from "../participants/participants.service";
+import { ParticipantsService, topReel, type Participant, type Reel } from "../participants/participants.service";
 import { ParticipantNotifier } from "../telegram/notifier";
 import {
   DEFAULT_DRAW_MESSAGE,
@@ -600,7 +600,10 @@ export class DrawsService {
     return ids;
   }
 
-  /** Talabga javob beradigan nomzodlar va chetda qolganlar soni (birinchi sabab bo'yicha). */
+  /**
+   * Talabga javob beradigan nomzodlar va chetda qolganlar soni (ishtirokchi bo'yicha, birinchi
+   * sabab bo'yicha). `totalReels` — barcha yuborilgan videolar soni (hamma holatda).
+   */
   private pool(settings: DrawSettings) {
     const today = contestDay(this.now());
     const viewsAsOf = settings.periodTo < today ? settings.periodTo : today;
@@ -610,15 +613,15 @@ export class DrawsService {
     let totalReels = 0;
 
     for (const p of this.participants.all()) {
-      const reel = p.reel;
-      if (!reel) continue;
-      totalReels += 1;
-      const reason = exclusionOf(p, reel, settings, viewsAsOf, previous);
+      if (p.reels.length === 0) continue;
+      totalReels += p.reels.length;
+      const counted = countedReels(p, settings);
+      const reason = exclusionOf(p, counted, settings, viewsAsOf, previous);
       if (reason) {
         excluded[reason] += 1;
         continue;
       }
-      eligible.push(toCandidate(p, reel, viewsAsOf));
+      eligible.push(toCandidate(p, counted, viewsAsOf));
     }
     // Tartib tasodifga bog'liq bo'lmasin — natijani qayta hisoblash uchun.
     eligible.sort((a, b) => a.participantId.localeCompare(b.participantId));
@@ -631,22 +634,35 @@ export class DrawsService {
   }
 }
 
+/**
+ * Qoidalar 7.2: davrga faqat sanasi (`dateBasis` — Instagram'da joylangan yoki ilovaga yuborilgan
+ * kun) davr ichida bo'lgan qabul qilingan videolar kiradi.
+ */
+function countedReels(p: Participant, s: DrawSettings): { accepted: Reel[]; inPeriod: Reel[] } {
+  const accepted = p.reels.filter((r) => r.status === "ACCEPTED");
+  const inPeriod = accepted.filter((r) => {
+    const day = s.dateBasis === "POSTED" ? postedOn(r) : contestDay(r.submittedAt);
+    return day >= s.periodFrom && day <= s.periodTo;
+  });
+  return { accepted, inPeriod };
+}
+
 function exclusionOf(
   p: Participant,
-  reel: Reel,
+  counted: { accepted: Reel[]; inPeriod: Reel[] },
   s: DrawSettings,
   viewsAsOf: string,
   previous: Set<string>,
 ): DrawExclusion | null {
-  if (reel.status !== "ACCEPTED") return "NOT_ACCEPTED";
-  const day = s.dateBasis === "POSTED" ? postedOn(reel) : contestDay(reel.submittedAt);
-  if (day < s.periodFrom || day > s.periodTo) return "OUT_OF_PERIOD";
-  const views = viewsOn(reel, viewsAsOf);
+  if (counted.accepted.length === 0) return "NOT_ACCEPTED";
+  if (counted.inPeriod.length === 0) return "OUT_OF_PERIOD";
+  // Nomzod ko'rishlari — davrga kirgan videolar ko'rishlari yig'indisi.
+  const views = sumViewsOn(counted.inPeriod, viewsAsOf);
   if (views < s.minViews) return "VIEWS_LOW";
   if (views > s.maxViews) return "VIEWS_HIGH";
   if (p.status !== "ACTIVE") return "STATUS";
   // Ogohlantirish holati backendda hali yo'q — `excludeWarned` hozircha hech kimni chiqarmaydi.
-  if (s.excludeTargets && reel.flags.length > 0) return "TARGET";
+  if (s.excludeTargets && counted.inPeriod.some((r) => r.flags.length > 0)) return "TARGET";
   if (previous.has(String(p.telegramId))) return "PREVIOUS_WINNER";
   return null;
 }
@@ -664,17 +680,25 @@ function viewsOn(reel: Reel, date: string): number {
   return views;
 }
 
-function toCandidate(p: Participant, reel: Reel, viewsAsOf: string): DrawCandidate {
+const sumViewsOn = (reels: readonly Reel[], date: string): number =>
+  reels.reduce((sum, reel) => sum + viewsOn(reel, date), 0);
+
+/**
+ * Nomzod: ko'rishlar — davrga kirgan videolar yig'indisi; link, akkaunt va sanalar — ulardan
+ * eng ko'p ko'rilganiniki (nomzod kartasida bitta video ko'rsatiladi).
+ */
+function toCandidate(p: Participant, counted: { inPeriod: Reel[] }, viewsAsOf: string): DrawCandidate {
+  const main = topReel(counted.inPeriod, (r) => viewsOn(r, viewsAsOf)) ?? counted.inPeriod[0];
   return {
     participantId: String(p.telegramId),
     firstName: p.firstName ?? "",
     lastName: p.lastName ?? "",
     phone: p.phone ?? "",
-    instagramUsername: reel.owner,
-    reelUrl: reel.url,
-    views: viewsOn(reel, viewsAsOf),
-    postedOn: postedOn(reel),
-    submittedOn: contestDay(reel.submittedAt),
+    instagramUsername: main.owner,
+    reelUrl: main.url,
+    views: sumViewsOn(counted.inPeriod, viewsAsOf),
+    postedOn: postedOn(main),
+    submittedOn: contestDay(main.submittedAt),
   };
 }
 

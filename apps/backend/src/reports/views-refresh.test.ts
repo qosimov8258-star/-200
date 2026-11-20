@@ -31,13 +31,27 @@ function people() {
 
 test("refresh picks active accepted reels inside the range, both bounds inclusive", () => {
   const all = people();
-  assert.deepEqual(refreshCandidates(all, { minViews: 100_000, maxViews: 1_000_000, includeNear: false }), [3, 4]);
-  assert.deepEqual(refreshCandidates(all, { minViews: null, maxViews: null, includeNear: false }), [1, 2, 3, 4, 5]);
-  assert.deepEqual(refreshCandidates(all, { minViews: 1_000_000, maxViews: null, includeNear: false }), [5]);
+  assert.deepEqual(refreshCandidates(all, { minViews: 100_000, maxViews: 1_000_000, includeNear: false }).ids, [3, 4]);
+  assert.deepEqual(refreshCandidates(all, { minViews: null, maxViews: null, includeNear: false }).ids, [1, 2, 3, 4, 5]);
+  assert.deepEqual(refreshCandidates(all, { minViews: 1_000_000, maxViews: null, includeNear: false }).ids, [5]);
 });
 
 test("near the lower bound: those 20% below are included — they may have crossed it since the last sync", () => {
   const all = people();
   assert.deepEqual(effectiveRange({ minViews: 100_000, maxViews: 1_000_000, includeNear: true }), { from: 80_000, to: 1_000_000 });
-  assert.deepEqual(refreshCandidates(all, { minViews: 100_000, maxViews: 1_000_000, includeNear: true }), [2, 3, 4]);
+  assert.deepEqual(refreshCandidates(all, { minViews: 100_000, maxViews: 1_000_000, includeNear: true }).ids, [2, 3, 4]);
+});
+
+test("the video count covers every accepted reel of the picked participants", () => {
+  const svc = new ParticipantsService(new RulesService());
+  svc.setPhone(9, 9, "+998900000099");
+  svc.register(9, "Ism", "Familiya", 30);
+  svc.acceptRules(9, 1);
+  for (const [code, views] of [["A9", 60_000], ["B9", 50_000]] as const) {
+    const reel = svc.submitReel(9, `https://www.instagram.com/reel/${code}/`, code);
+    reel.status = "ACCEPTED";
+    reel.history.push({ date: "2026-12-05", at: new Date("2026-12-05T01:00:00Z"), views, likes: 1, comments: 0 });
+  }
+  // 60 000 + 50 000 = 110 000 — yig'indi bo'yicha oraliqqa tushadi, ikkala video ham yangilanadi.
+  assert.deepEqual(refreshCandidates(svc.all(), { minViews: 100_000, maxViews: null, includeNear: false }), { ids: [9], videos: 2 });
 });

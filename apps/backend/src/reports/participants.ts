@@ -1,5 +1,14 @@
 import { contestDay } from "../common/time";
-import type { Participant, ReelStatus } from "../participants/participants.service";
+import {
+  instagramUsernames,
+  participantViews,
+  reelViews,
+  type Participant,
+  type Reel,
+  type ReelFlagType,
+  type ReelRejectReason,
+  type ReelStatus,
+} from "../participants/participants.service";
 import type { TargetCase } from "../targets/targets.service";
 
 /**
@@ -37,16 +46,53 @@ export interface ParticipantListItem {
   lastName: string;
   age: number;
   phone: string;
+  /** Rad etilmagan videolar egalaridan birinchisi; bo'lmasa — null. */
   instagramUsername: string | null;
   status: AdminParticipantStatus;
   registeredOn: string;
-  reel: { url: string; status: AdminReelStatus } | null;
-  /** Reelning oxirgi yig'ilgan ko'rishlari. */
+  /** Videolar soni holatlar bo'yicha (`pending` ga qo'lda tekshiruvdagilar ham kiradi). */
+  reels: ReelCounts;
+  /** Qabul qilingan videolar oxirgi yig'ilgan ko'rishlari yig'indisi. */
   views: number;
   /** Joriy reytingdagi o'rni; reytingda bo'lmasa — null. */
   rank: number | null;
   /** Ro'yxatdan chiqarilmagan (DISMISSED emas) target holati bormi. */
   hasTarget: boolean;
+}
+
+export interface ReelCounts {
+  total: number;
+  accepted: number;
+  /** PENDING va MANUAL_REVIEW. */
+  pending: number;
+  rejected: number;
+}
+
+/** Foydalanuvchilar → ishtirokchi videolari (`GET /admin/participants/:id/reels`). */
+export interface ParticipantReels {
+  participant: { id: string; fullName: string; instagramUsernames: string[] };
+  /** Ro'yxatdagi `views` bilan bir xil — qabul qilinganlar yig'indisi. */
+  totalViews: number;
+  /** Eng yangisi birinchi. */
+  reels: AdminReelItem[];
+}
+
+export interface AdminReelItem {
+  shortcode: string;
+  url: string;
+  status: AdminReelStatus;
+  /** Backendda MANUAL_REVIEW (adminga PENDING ko'rinadi). */
+  manualReview: boolean;
+  rejectReason: ReelRejectReason | null;
+  /** Instagram akkaunt nomi. */
+  owner: string | null;
+  views: number;
+  likes: number | null;
+  submittedAt: string;
+  postedAt: string | null;
+  lastSyncedAt: string | null;
+  /** Videodagi nakrutka belgilari turlari (takrorlarsiz). */
+  flags: ReelFlagType[];
 }
 
 export type StatusCounts = Record<AdminParticipantStatus | "ALL", number>;
@@ -100,6 +146,17 @@ export function adminStatus(p: Participant, warned: ReadonlySet<number>): AdminP
 /** Ro'yxatga faqat profilini to'ldirganlar kiradi. */
 export const isListed = (p: Participant): boolean => Boolean(p.firstName);
 
+export function reelCounts(reels: readonly Reel[]): ReelCounts {
+  const counts: ReelCounts = { total: reels.length, accepted: 0, pending: 0, rejected: 0 };
+  for (const reel of reels) {
+    const status = adminReelStatus(reel.status);
+    if (status === "ACCEPTED") counts.accepted += 1;
+    else if (status === "PENDING") counts.pending += 1;
+    else if (status === "REJECTED") counts.rejected += 1;
+  }
+  return counts;
+}
+
 export function toParticipantItem(p: Participant, ctx: ParticipantContext): ParticipantListItem {
   return {
     id: String(p.telegramId),
@@ -107,29 +164,83 @@ export function toParticipantItem(p: Participant, ctx: ParticipantContext): Part
     lastName: p.lastName ?? "",
     age: p.age ?? 0,
     phone: p.phone ?? "",
-    instagramUsername: p.reel?.owner ?? null,
+    instagramUsername: instagramUsernames(p)[0] ?? null,
     status: adminStatus(p, ctx.warned),
     registeredOn: contestDay(p.createdAt),
-    reel: p.reel ? { url: p.reel.url, status: adminReelStatus(p.reel.status) } : null,
-    views: p.reel?.history.at(-1)?.views ?? 0,
+    reels: reelCounts(p.reels),
+    views: participantViews(p),
     rank: ctx.rankById.get(p.telegramId) ?? null,
     hasTarget: ctx.withTarget.has(p.telegramId),
+  };
+}
+
+/** Ishtirokchining barcha videolari (admin panel → Foydalanuvchilar → ishtirokchi). Eng yangisi birinchi. */
+export function toParticipantReels(p: Participant): ParticipantReels {
+  return {
+    participant: {
+      id: String(p.telegramId),
+      fullName: `${p.firstName ?? ""} ${p.lastName ?? ""}`.trim(),
+      instagramUsernames: instagramUsernames(p),
+    },
+    totalViews: participantViews(p),
+    reels: [...p.reels]
+      .sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime())
+      .map((reel): AdminReelItem => {
+        const last = reel.history.at(-1);
+        return {
+          shortcode: reel.shortcode,
+          url: reel.url,
+          status: adminReelStatus(reel.status),
+          manualReview: reel.status === "MANUAL_REVIEW",
+          rejectReason: reel.status === "REJECTED" ? reel.rejectReason : null,
+          owner: reel.owner,
+          views: reelViews(reel),
+          likes: last?.likes ?? null,
+          submittedAt: reel.submittedAt.toISOString(),
+          postedAt: reel.postedAt?.toISOString() ?? null,
+          lastSyncedAt: last?.at.toISOString() ?? null,
+          flags: [...new Set(reel.flags.map((f) => f.type))],
+        };
+      }),
   };
 }
 
 /** Qidiruv uchun: kichik harf, apostrof variantlari (o', oʻ, o`) bir xil. */
 const normalize = (value: string): string => value.toLowerCase().replace(/[ʻʼ‘’`]/g, "'").trim();
 
-/** Ism-familiya, Instagram (@ bilan ham) yoki telefon (kamida 3 ta raqam) bo'yicha moslik. */
-export function matchesPerson(item: ParticipantListItem, search: string): boolean {
+/**
+ * Ism-familiya, Instagram (@ bilan ham; ishtirokchining istalgan akkaunti — `usernames`) yoki
+ * telefon (kamida 3 ta raqam) bo'yicha moslik.
+ */
+export function matchesPerson(
+  item: ParticipantListItem,
+  search: string,
+  usernames: readonly string[] = item.instagramUsername ? [item.instagramUsername] : [],
+): boolean {
   const needle = normalize(search);
   if (!needle) return true;
   const names = normalize(`${item.firstName} ${item.lastName} ${item.lastName} ${item.firstName}`);
   if (names.includes(needle)) return true;
   const username = needle.replace(/^@/, "");
-  if (item.instagramUsername && username && item.instagramUsername.toLowerCase().includes(username)) return true;
+  if (username && usernames.some((u) => u.toLowerCase().includes(username))) return true;
   const digits = needle.replace(/\D/g, "");
   return digits.length >= 3 && item.phone.replace(/\D/g, "").includes(digits);
+}
+
+/** Video filtri: shu holatdagi kamida bitta videosi bor; NONE — videosi yo'q; REMOVED — hozircha hech kim. */
+function matchesReelFilter(reels: ReelCounts, filter: ReelFilter): boolean {
+  switch (filter) {
+    case "NONE":
+      return reels.total === 0;
+    case "PENDING":
+      return reels.pending > 0;
+    case "ACCEPTED":
+      return reels.accepted > 0;
+    case "REJECTED":
+      return reels.rejected > 0;
+    case "REMOVED":
+      return false;
+  }
 }
 
 function compareItems(a: ParticipantListItem, b: ParticipantListItem, sort: ParticipantSort, order: SortOrder): number {
@@ -148,7 +259,8 @@ function compareItems(a: ParticipantListItem, b: ParticipantListItem, sort: Part
 }
 
 /**
- * Ro'yxat: qidiruv va Reel filtri → holatlar soni → holat filtri → saralash.
+ * Ro'yxat: qidiruv (istalgan Instagram akkaunti bo'yicha ham) va video filtri → holatlar soni →
+ * holat filtri → saralash.
  * `statusCounts` holat filtrini hisobga olmaydi (admin panel tablaridagi sonlar).
  * Standart saralash — reyting bo'yicha; tartib: ko'rishlarda kamayish, qolganlarida o'sish.
  */
@@ -157,13 +269,14 @@ export function listParticipants(
   ctx: ParticipantContext,
   filter: ParticipantFilter,
 ): { items: ParticipantListItem[]; statusCounts: StatusCounts } {
+  const reelFilter = filter.reel;
   let items = participants
     .filter(isListed)
-    .map((p) => toParticipantItem(p, ctx))
-    .filter((item) => matchesPerson(item, filter.search));
+    .map((p) => ({ p, item: toParticipantItem(p, ctx) }))
+    .filter(({ p, item }) => matchesPerson(item, filter.search, instagramUsernames(p)))
+    .map(({ item }) => item);
 
-  if (filter.reel === "NONE") items = items.filter((item) => item.reel === null);
-  else if (filter.reel) items = items.filter((item) => item.reel?.status === filter.reel);
+  if (reelFilter) items = items.filter((item) => matchesReelFilter(item.reels, reelFilter));
   if (filter.minViews !== undefined) items = items.filter((item) => item.views >= (filter.minViews ?? 0));
   if (filter.maxViews !== undefined) items = items.filter((item) => item.views <= (filter.maxViews ?? Infinity));
 

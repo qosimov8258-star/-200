@@ -10,6 +10,7 @@ import type {
 export interface UsersFilters {
   search: string;
   status: ParticipantStatus | "ALL";
+  /** `reel` URL parametri: shu holatdagi videosi borlar; "NONE" — video yo'qlar. */
   reel: ReelStatus | "NONE" | "ALL";
   /** Ko'rishlar oralig'i; null — chegara yo'q. */
   minViews: number | null;

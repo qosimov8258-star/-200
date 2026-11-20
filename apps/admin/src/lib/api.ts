@@ -50,6 +50,7 @@ export const getDashboardStats = impl.getDashboardStats;
 export const getParticipants = impl.getParticipants;
 export const getViewsRefreshPreview = impl.getViewsRefreshPreview;
 export const startViewsRefresh = impl.startViewsRefresh;
+export const getParticipantReels = impl.getParticipantReels;
 export const blockParticipant = impl.blockParticipant;
 export const unblockParticipant = impl.unblockParticipant;
 export const disqualifyParticipant = impl.disqualifyParticipant;

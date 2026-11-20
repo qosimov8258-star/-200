@@ -217,8 +217,8 @@ test("DELETE removes the participant together with the video", async () => {
 
 test("owner moves a target case to any status; participant status follows DISQUALIFIED in both directions", async () => {
   const { participants, targets, cases, sent } = await setup();
-  const reel1 = participants.get(1)?.reel;
-  const reel2 = participants.get(2)?.reel;
+  const reel1 = participants.get(1)?.reels[0];
+  const reel2 = participants.get(2)?.reels[0];
   assert.ok(reel1 && reel2);
   reel1.flags.push({ type: "VIEW_SPIKE", date: "2026-12-01", detail: "kuniga +1 000 → +60 000" });
   reel1.flags.push({ type: "ENGAGEMENT_GAP", date: "2026-12-02", detail: "+40 000 ko'rish, +5 layk" });
@@ -277,9 +277,9 @@ test("owner moves a target case to any status; participant status follows DISQUA
 
 test("risk list: scores, levels, DISQUALIFIED excluded, SAFE hidden until a newer signal", async () => {
   const { participants, targets, risk, setNow } = await setup();
-  const reel1 = participants.get(1)?.reel;
-  const reel2 = participants.get(2)?.reel;
-  const reel3 = participants.get(3)?.reel;
+  const reel1 = participants.get(1)?.reels[0];
+  const reel2 = participants.get(2)?.reels[0];
+  const reel3 = participants.get(3)?.reels[0];
   assert.ok(reel1 && reel2 && reel3);
   // 1: ENGAGEMENT_GAP 40 + VIEW_SPIKE 35 + TARGET 40 (o'sish tahlili holati) = 115 → HIGH.
   reel1.flags.push({ type: "VIEW_SPIKE", date: "2026-12-01", detail: "kuniga +1 000 → +60 000" });
@@ -352,7 +352,7 @@ test("owner marks survive a restart (StateStore) and deleting a participant drop
 
   const first = storeAt();
   const one = await setup(first);
-  const reel2 = one.participants.get(2)?.reel;
+  const reel2 = one.participants.get(2)?.reels[0];
   assert.ok(reel2);
   reel2.flags.push({ type: "VIEW_DROP", date: "2026-12-01", detail: "20 000 → 15 000" });
   one.risk.review("2", { verdict: "WATCH" }, OWNER);
@@ -360,7 +360,7 @@ test("owner marks survive a restart (StateStore) and deleting a participant drop
 
   const second = storeAt();
   const two = await setup(second);
-  const reel2b = two.participants.get(2)?.reel;
+  const reel2b = two.participants.get(2)?.reels[0];
   assert.ok(reel2b);
   reel2b.flags.push({ type: "VIEW_DROP", date: "2026-12-01", detail: "20 000 → 15 000" });
   assert.equal(two.risk.list().items[0]?.review?.verdict, "WATCH");

@@ -25,7 +25,7 @@ API: <http://localhost:3000/api/v1>
 | `npm run dev` | Dev server (o'zgarishda qayta yuklanadi) |
 | `npm run build` / `npm start` | Production build va ishga tushirish |
 | `npm run typecheck` | TypeScript tekshiruvi |
-| `npm test` | Testlar (initData imzosi, ishtirokchi qoidalari, Apify klienti, worker) |
+| `npm test` | Testlar (initData imzosi, ishtirokchi qoidalari, bir nechta video, holat migratsiyasi, Apify klienti, worker) |
 | `npx tsx scripts/apify-reels-test.ts reels.txt` | Apify'dan linklar bo'yicha ko'rishlarni qo'lda olish (diagnostika, pullik) |
 
 TypeScript 6 da qoladi: Nest CLI hozircha TypeScript 7 bilan ishlamaydi.
@@ -66,38 +66,50 @@ Apify tokeni bo'lmasa, videolar PENDING holida qoladi (soxta ma'lumotga jim o'ti
 - Shaxsiy chatdagi boshqa har qanday xabar (matn yoki rasm) → **support murojaati**: operatorlar
   guruhiga "🆘 Murojaat #N — Ism Familiya" bo'lib boradi.
 - Operator guruhda shu xabarga **Reply** qilib yozsa → javob ishtirokchiga bot orqali boradi.
-- Video tekshiruvi natijasi (qabul / rad sababi / qo'lda tekshiruvga o'tdi / admin qarori) — bot xabari.
+- Video tekshiruvi natijasi (qabul / rad sababi / qo'lda tekshiruvga o'tdi / admin qarori) — bot xabari;
+  ishtirokchida bir nechta video bo'lishi mumkin, shuning uchun xabar oxirida qaysi video ekani (link).
 
 ## Ko'rishlar qanday yig'iladi
 
 Meta App Review o'rniga **Apify** ([`apify/instagram-scraper`](https://apify.com/apify/instagram-scraper)):
 ishtirokchi faqat Reel linkini yuboradi, Instagram akkaunt ulash yo'q.
 
-1. **Yuborish** → video `PENDING`. Bir necha soniyada kelgan linklar bitta Apify so'rovida
-   tekshiriladi ([`src/stats/stats.service.ts`](src/stats/stats.service.ts)):
+Ishtirokchi **cheksiz** video yuborishi mumkin (`Participant.reels`, eskidan yangiga). Har bir video
+alohida tekshiriladi, yig'iladi va kerak bo'lsa qo'lda tekshiruvga o'tadi — quyidagi qoidalar har bir
+videoga o'zicha qo'llanadi (urinishlar soni ham). Eski holat fayli (`reel` — bitta video) o'qilganda
+avtomatik `reels` ga o'tkaziladi.
+
+1. **Yuborish** → video `PENDING`. Bir xil link qayta yuborilmaydi: rad etilmagan (band) link o'zida
+   bo'lsa — `409 REEL_ALREADY_SUBMITTED`, boshqa ishtirokchida bo'lsa — `409 REEL_TAKEN`. O'zining
+   rad etilgan videosini qayta yuborsa — eski yozuv o'rniga yangisi. Bir necha soniyada kelgan linklar
+   bitta Apify so'rovida tekshiriladi ([`src/stats/stats.service.ts`](src/stats/stats.service.ts)):
    - rasm yoki karusel → `REJECTED: NOT_A_VIDEO`;
-   - shu Instagram akkauntdan boshqa ishtirokchi qatnashyapti → `REJECTED: OWNER_TAKEN`;
-   - aks holda `ACCEPTED`, birinchi ko'rishlar yoziladi. Rad etilgan bo'lsa — yangi link yuborish mumkin;
+   - shu Instagram akkauntdan boshqa ishtirokchi qatnashyapti → `REJECTED: OWNER_TAKEN` (o'zining
+     bir nechta akkauntidan yuborish mumkin);
+   - aks holda `ACCEPTED`, birinchi ko'rishlar yoziladi;
    - topilmadi → 2 va 10 daqiqadan keyin qayta urinadi; **3 marta topilmasa — qo'lda tekshiruv** (pastda).
-2. **Muntazam yig'ish** — tanlov boshlangan kundan (25-noyabr) har `STATS_SYNC_EVERY_DAYS` kunda soat `STATS_SYNC_TIME` da barcha
-   videolar; har kunga bitta yozuv (tarix → Mini App grafigi). Qabul qilingan video topilmasa, 2 va 10
-   daqiqadan keyin qayta tekshiriladi; 3 marta topilmasa — reytingdan vaqtincha chiqadi va **qo'lda tekshiruvga** o'tadi.
+2. **Muntazam yig'ish** — tanlov boshlangan kundan (25-noyabr) har `STATS_SYNC_EVERY_DAYS` kunda soat `STATS_SYNC_TIME` da
+   rad etilmagan barcha videolar; har kunga bitta yozuv (tarix → Mini App grafigi). Qabul qilingan video topilmasa, 2 va 10
+   daqiqadan keyin qayta tekshiriladi; 3 marta topilmasa — uning ko'rishlari reytingda vaqtincha hisobga olinmaydi va
+   video **qo'lda tekshiruvga** o'tadi (ishtirokchining boshqa videolari reytingda qoladi).
 3. **Qo'lda tekshiruv** (`MANUAL_REVIEW`) — avval ishtirokchiga bot orqali xabar boradi, so'ng video
    admin paneldagi "Qo'lda tekshiruv" bo'limida paydo bo'ladi. Admin linkni ochib:
    - **tasdiqlaydi** → `ACCEPTED`, video reytingga qo'shiladi (ko'rishlar Apify topganda yangilanadi);
      Apify topa olmasa ham qayta-qayta tekshiruvga tushmaydi;
-   - **rad etadi** (sabab bilan) → `REJECTED`, ishtirokchi sababni oladi va yangi link yubora oladi.
+   - **rad etadi** (sabab bilan) → `REJECTED`, ishtirokchi sababni oladi.
    Kutish paytida Apify videoni o'zi topsa — holat avtomatik yopiladi.
 4. **Tanlov tugagach** (`contest.ts` → `endsAt`) — bitta yakuniy yig'ish, keyin to'xtaydi.
-5. **Reyting** — oxirgi ko'rishlar bo'yicha; teng bo'lsa, oldinroq yuborgan yuqorida.
-   O'rin o'zgarishi — oldingi yig'ishga nisbatan.
+5. **Reyting** (qoidalar 7.1, 7.3) — ishtirokchining **qabul qilingan** (`ACCEPTED`) videolari oxirgi
+   ko'rishlari yig'indisi bo'yicha; teng bo'lsa, birinchi qabul qilingan videosini oldinroq yuborgan yuqorida.
+   O'rin o'zgarishi — oldingi yig'ishdagi yig'indiga nisbatan.
 6. **Nakrutka belgilari** (faqat admin uchun, avtomatik jazo yo'q): `LOW_ENGAGEMENT`
    (layk/ko'rish < 0.3%), `VIEW_SPIKE` (bir kunda 10 barobardan ko'p o'sish), `ENGAGEMENT_GAP`
    (kuniga kamida +20 000 va 3 barobar o'sish, shu kungi layk ulushi odatdagidan 4 marta past),
    `VIEW_DROP` (ko'rishlar 10% dan ko'p kamaygan — Instagram sun'iy ko'rishlarni tozalaganda).
 
 Ko'rishlarni faqat worker yozadi — qo'lda o'zgartiruvchi endpoint yo'q.
-Narx: ≈ $2.7 / 1000 natija (har bir video har yig'ishda bitta natija).
+Narx: ≈ $2.7 / 1000 natija (har bir video har yig'ishda bitta natija; videolar soni cheklanmagani uchun
+narx yuborilgan videolar soniga qarab o'sadi).
 
 ## Target (pullik reklama) qanday aniqlanadi
 
@@ -106,7 +118,8 @@ Instagram boshqa akkauntning reklama tarixini bermaydi, shuning uchun to'rt qatl
 
 1. **Meta reklama kutubxonasi** — oyiga bir marta (tanlov boshidan har `TARGET_CHECK_EVERY_DAYS` = 30
    kunda: 25-dekabr, 24-yanvar, 23-fevral — har oylik bosqich oxirida; tanlov tugagach to'xtaydi)
-   oxirgi reyting bo'yicha `TARGET_CHECK_TOP` yetakchi Apify'ning
+   oxirgi reyting bo'yicha `TARGET_CHECK_TOP` yetakchining barcha akkauntlari (rad etilmagan videolari
+   egalari) Apify'ning
    [`apify/facebook-ads-scraper`](https://apify.com/apify/facebook-ads-scraper) aktori bilan
    tekshiriladi ([`src/instagram/ad-library.ts`](src/instagram/ad-library.ts)). Reklama beruvchining
    Instagram username'i aniq mos kelsa — `AD_LIBRARY` holati ochiladi, dalil havolasi saqlanadi;
@@ -116,8 +129,8 @@ Instagram boshqa akkauntning reklama tarixini bermaydi, shuning uchun to'rt qatl
    Narx: pul faqat topilgan reklama uchun (≈ $0.006 / reklama, bitta akkauntdan ko'pi bilan 5 ta);
    reklama topilmasa — deyarli bepul.
 2. **O'sish tahlili** — `VIEW_SPIKE` (keskin o'sish) va `ENGAGEMENT_GAP` (ko'rishlar oshgan,
-   layklar o'smagan — reklama begona auditoriyaga ko'rsatiladi) belgilari: har bir kun bir marta
-   `GROWTH_ANALYSIS` holatiga aylanadi, bir kunda ikkalasi bo'lsa — dalilda ikkalasi.
+   layklar o'smagan — reklama begona auditoriyaga ko'rsatiladi) belgilari: har bir videoning har bir
+   kuni bir marta `GROWTH_ANALYSIS` holatiga aylanadi, bir kunda ikkalasi bo'lsa — dalilda ikkalasi.
 3. **Ishtirokchilar shikoyati** — Mini App'dagi "Reklamani ko'rdim": lentada «Reklama» belgisi bilan
    ko'rilgan videoning skrinshoti va akkaunt nomi (yoki Reel linki). Bitta ishtirokchiga ochiq
    `REPORT` holati bitta, yangi shikoyatlar unga qo'shiladi. Cheklovlar: kuniga 5 ta, bir kunda bir
@@ -133,7 +146,14 @@ bot xabari) yoki ro'yxatdan chiqarishni Admin hal qiladi.
 ## API
 
 - **Mini App va veb-sayt** — `/api/v1/miniapp/...`; yo'llar `apps/miniapp/src/lib/api.ts` dagi
-  `@endpoint` larga mos. Ishtirokchi ikki yo'l bilan tanilgan, ikkalasi ham bitta `telegramId`
+  `@endpoint` larga mos. Videolar:
+
+| So'rov | Vazifa |
+|---|---|
+| `GET /miniapp/reels` | "Mening videolarim" — `MyReels`: jami ko'rishlar, bugungi o'sish, o'rin va uning o'zgarishi, kunlik o'sish (oxirgi 30 kun), oxirgi va keyingi yig'ish, `reels` (eng yangisi birinchi; holat, rad sababi, ko'rishlar). Video bo'lmasa ham obyekt (`reels: []`). Ko'rishlar — faqat qabul qilinganlar bo'yicha |
+| `POST /miniapp/reels` | `{ url }` — yangi video (soni cheklanmagan), javob — yangilangan `MyReels`. Xatolar: `422 INVALID_LINK`, `409 REEL_ALREADY_SUBMITTED`, `409 REEL_TAKEN`, `403 UNAUTHORIZED` |
+
+  Ishtirokchi ikki yo'l bilan tanilgan, ikkalasi ham bitta `telegramId`
   ([`src/miniapp/telegram-auth.guard.ts`](src/miniapp/telegram-auth.guard.ts)):
   - Telegram ichida — `X-Telegram-Init-Data` sarlavhasi ([`src/telegram/init-data.ts`](src/telegram/init-data.ts));
   - oddiy brauzerda — `reels_session` cookie (HttpOnly, SameSite=Lax, 30 kun), Telegram Login Widget
@@ -161,16 +181,18 @@ bot xabari) yoki ro'yxatdan chiqarishni Admin hal qiladi.
 | `POST /admin/auth/login`, `POST /admin/auth/logout`, `GET /admin/auth/me` | Kirish, chiqish, joriy xodim |
 | `GET /admin/settings`, `PUT /admin/settings` | Tanlov muddati, ko'rishlar yig'ish vaqti, minimal yosh (boshlangach boshlanish sanasi qulflanadi) |
 | `GET /admin/audit-log` | Audit log: `search`, `entity`, `actorRole`, `page`, `pageSize` |
-
 | `GET /admin/rules`, `PUT /admin/rules` | Tanlov qoidalari |
-| `GET /admin/reels` | Barcha videolar: holat, egasi, ko'rishlar tarixi, nakrutka belgilari |
+| `GET /admin/participants` | Foydalanuvchilar: `search` (ism, telefon, istalgan Instagram akkaunti), `status`, `reel` (`PENDING`/`ACCEPTED`/`REJECTED` — shu holatda kamida bitta videosi bor; `NONE` — videosi yo'q), `sort`, `order`, `page`, `pageSize`. Qatorda `reels` — videolar soni holatlar bo'yicha, `views` — qabul qilinganlar yig'indisi |
+| `GET /admin/participants/:id/reels` | Ishtirokchining barcha videolari (eng yangisi birinchi): holat, qo'lda tekshiruvdami, rad sababi, egasi, ko'rishlar, layklar, sanalar, nakrutka belgilari; `404` — ishtirokchi topilmadi |
+| `POST /admin/participants/:id/{block,unblock,disqualify}` | `{ reason }` — bloklash, blokdan chiqarish, diskvalifikatsiya |
+| `GET /admin/reels` | Barcha videolar (har bir ishtirokchining hammasi): holat, egasi, ko'rishlar tarixi, nakrutka belgilari |
 | `GET /admin/stats` | Yig'ish jadvali, oxirgi natija, holatlar bo'yicha soni |
 | `POST /admin/stats/sync` | Ko'rishlarni hoziroq yig'ish (fon rejimida) |
 | `GET /admin/stats/refresh?minViews=&maxViews=&includeNear=`, `POST /admin/stats/refresh` | Faqat oraliqdagi videolarni hoziroq qayta o'qish (sovg'a topshirishdan oldin): nechta video, oxirgi yig'ish / fonda boshlash. `includeNear` — pastki chegaradan 20% pastdagilar ham. Rejadagi jadvalga ta'sir qilmaydi |
 | `GET /admin/manual-reviews?status=OPEN\|APPROVED\|REJECTED` | Qo'lda tekshiruv ro'yxati |
 | `POST /admin/manual-reviews/:shortcode/decision` | `{ decision: "approve" }` yoki `{ decision: "reject", reason, note? }` |
 | `GET /admin/draws/setup` | Random tanlov: bosqichlar, oylik sovg'a, boshlang'ich sozlamalar |
-| `POST /admin/draws/preview` | Sozlamalar bo'yicha nomzodlar soni va chetda qolganlar sababi |
+| `POST /admin/draws/preview` | Sozlamalar bo'yicha nomzodlar soni va chetda qolganlar sababi. Qoidalar 7.2: davrga faqat sanasi (`dateBasis` — Instagram'da joylangan yoki ilovaga yuborilgan kun) davr ichidagi qabul qilingan videolar kiradi, nomzod ko'rishlari — ular yig'indisi; `totalReels` — barcha yuborilgan videolar |
 | `POST /admin/draws` | Random tanlovni o'tkazish (kriptografik `seed`, natija — qoralama) |
 | `GET /admin/draws`, `GET /admin/draws/:id` | Tanlovlar tarixi va natija |
 | `GET /admin/draws/stock` | Voucherlar qoldig'i: jami, yuborilgan, tasdiqlangan, qoralamada, qolgan (bosqichlar bo'yicha) |

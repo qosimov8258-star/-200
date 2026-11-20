@@ -89,8 +89,64 @@ test("participants with reel history survive a restart", () => {
   const restored = new ParticipantsService(new RulesService(second), second).get(42);
   assert.equal(restored?.firstName, "Ali");
   assert.equal(restored?.phone, "+998901234567");
-  assert.ok(restored?.reel?.submittedAt instanceof Date);
-  assert.equal(restored?.reel?.history[0]?.views, 1500);
-  assert.ok(restored?.reel?.history[0]?.at instanceof Date);
+  assert.ok(restored?.reels[0]?.submittedAt instanceof Date);
+  assert.equal(restored?.reels[0]?.history[0]?.views, 1500);
+  assert.ok(restored?.reels[0]?.history[0]?.at instanceof Date);
   assert.ok(restored?.createdAt instanceof Date);
+});
+
+test("an old state file with a single `reel` per participant loads as `reels`", () => {
+  const dir = tempDir();
+  const first = store(dir);
+  const submittedAt = new Date("2026-11-26T09:00:00Z");
+  const reel = {
+    url: "https://www.instagram.com/reel/OLD123/",
+    shortcode: "OLD123",
+    status: "ACCEPTED",
+    submittedAt,
+    owner: "ali",
+    postedAt: null,
+    rejectReason: null,
+    history: [{ date: "2026-11-26", at: submittedAt, views: 700, likes: 10, comments: 1 }],
+    flags: [],
+    misses: 0,
+    lastFoundAt: submittedAt,
+    review: null,
+  };
+  const person = (telegramId: number, phone: string) => ({
+    telegramId,
+    chatId: telegramId,
+    phone,
+    firstName: "Ali",
+    lastName: "Valiyev",
+    age: 25,
+    consentVersion: 1,
+    status: "ACTIVE",
+    createdAt: submittedAt,
+  });
+  // Eski ko'rinish: `reel` (bitta yoki null), `reels` yo'q.
+  first.attach("participants", () => ({
+    participants: [
+      { ...person(1, "+998900000001"), reel },
+      { ...person(2, "+998900000002"), reel: null },
+    ],
+  }));
+  first.flush();
+
+  const second = store(dir);
+  const participants = new ParticipantsService(new RulesService(second), second);
+  const one = participants.get(1);
+  assert.equal(one?.reels.length, 1);
+  assert.equal(one?.reels[0]?.shortcode, "OLD123");
+  assert.ok(one?.reels[0]?.submittedAt instanceof Date);
+  assert.equal("reel" in (one ?? {}), false, "eski maydon tashlanadi");
+  assert.deepEqual(participants.get(2)?.reels, []);
+
+  // Keyingi yozishda yangi ko'rinishda saqlanadi.
+  second.flush();
+  const saved = decodeState(readFileSync(join(dir, "state.json"), "utf8")) as {
+    parts: { participants: { participants: Record<string, unknown>[] } };
+  };
+  const written = saved.parts.participants.participants;
+  assert.ok(written.every((p) => Array.isArray(p.reels) && !("reel" in p)));
 });

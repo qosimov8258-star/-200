@@ -28,7 +28,11 @@ function reel(
   };
 }
 
-function person(telegramId: number, r: Reel | null, o: Partial<Pick<Participant, "status" | "firstName">> = {}): Participant {
+function person(
+  telegramId: number,
+  r: Reel | Reel[] | null,
+  o: Partial<Pick<Participant, "status" | "firstName">> = {},
+): Participant {
   return {
     telegramId,
     chatId: telegramId,
@@ -37,7 +41,7 @@ function person(telegramId: number, r: Reel | null, o: Partial<Pick<Participant,
     lastName: `Familiya${telegramId}`,
     age: 25,
     consentVersion: 1,
-    reel: r,
+    reels: r === null ? [] : Array.isArray(r) ? r : [r],
     status: o.status ?? "ACTIVE",
     createdAt: at("2026-11-24"),
   };
@@ -170,4 +174,36 @@ test("hasTarget counts cases detected by that day and ignores dismissed ones", (
     ["3", true],
   ]);
   assert.deepEqual(flags("2026-12-04")[0], ["1", true]);
+});
+
+test("several Reels: views and growth are sums of accepted Reels; the link is the most viewed one", () => {
+  const people = [
+    person(1, [
+      reel("A1", { "2026-12-01": 1_000, "2026-12-08": 1_200 }, { submittedAt: at("2026-11-28") }),
+      // 8-dekabrda birinchi marta yig'ilgan — o'sishga to'liq qo'shiladi.
+      reel("A2", { "2026-12-08": 2_000 }, { submittedAt: at("2026-12-05") }),
+      reel("A3", { "2026-12-01": 50_000 }, { status: "REJECTED" }),
+      reel("A4", { "2026-12-01": 40_000 }, { status: "MANUAL_REVIEW" }),
+    ]),
+    // Teng ko'rish — birinchi qabul qilingan videosi oldinroq yuborilgan (26-noyabr) yuqorida.
+    person(2, [
+      reel("B1", { "2026-12-08": 1_200 }, { submittedAt: at("2026-12-07") }),
+      reel("B2", { "2026-12-08": 2_000 }, { submittedAt: at("2026-11-26") }),
+    ]),
+  ];
+  const r = buildDailyRating(base(people, { date: "2026-12-08" }));
+  assert.deepEqual(rows(r), [
+    ["2", 1, 3_200, 3_200, null],
+    ["1", 2, 3_200, 2_200, 1],
+  ]);
+  assert.deepEqual(
+    r.entries.map((e) => [e.participantId, e.reelUrl, e.instagramUsername]),
+    [
+      ["2", "https://www.instagram.com/reel/B2/", "b2"],
+      ["1", "https://www.instagram.com/reel/A2/", "a2"],
+    ],
+  );
+  assert.deepEqual(rankOn(people, "2026-12-01").map((e) => [e.participant.telegramId, e.views, e.reels.length]), [
+    [1, 1_000, 2],
+  ]);
 });

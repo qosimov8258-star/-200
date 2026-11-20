@@ -23,6 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { ParticipantActionDialog } from "./participant-action-dialog";
+import { ParticipantReelsDialog } from "./participant-reels-dialog";
 import { UsersTable } from "./users-table";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { UsersToolbar } from "./users-toolbar";
@@ -50,6 +51,7 @@ export function UsersView() {
   });
 
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [reelsFor, setReelsFor] = useState<ParticipantListItem | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [refreshOpen, setRefreshOpen] = useState(false);
 
@@ -144,6 +146,7 @@ export function UsersView() {
                 order={filters.order}
                 onSortChange={handleSortChange}
                 onAction={(participant, action) => setPendingAction({ participant, action })}
+                onShowReels={setReelsFor}
               />
             </div>
             <div className="border-t border-slate-200 px-4 py-3">
@@ -160,6 +163,14 @@ export function UsersView() {
           </>
         ) : null}
       </Card>
+
+      {reelsFor && (
+        <ParticipantReelsDialog
+          key={reelsFor.id}
+          participant={reelsFor}
+          onClose={() => setReelsFor(null)}
+        />
+      )}
 
       {pendingAction && (
         <ParticipantActionDialog

@@ -40,6 +40,7 @@ import {
 } from "./mock/manual-review";
 import {
   applyParticipantAction,
+  getParticipantReels as mockGetParticipantReels,
   listParticipants,
   startMockViewsRefresh,
   viewsRefreshPreview,
@@ -109,6 +110,7 @@ import type {
   ParticipantListItem,
   ParticipantListQuery,
   ParticipantListResponse,
+  ParticipantReels,
   SupportReplyRequest,
   SupportStatusRequest,
   SupportTicketDetail,
@@ -328,6 +330,17 @@ export async function startViewsRefresh(request: ViewsRefreshRequest): Promise<{
   await delay(400);
   requireRole("ADMIN");
   return startMockViewsRefresh(request);
+}
+
+/**
+ * Ishtirokchining barcha yuborgan videolari (eng yangisi birinchi) va jami ko'rishlari.
+ * @endpoint GET /api/v1/admin/participants/:id/reels
+ * @throws ApiError 404 — ishtirokchi topilmadi
+ */
+export async function getParticipantReels(id: string): Promise<ParticipantReels> {
+  await delay(300);
+  requireRole("ADMIN");
+  return mockGetParticipantReels(id);
 }
 
 /**

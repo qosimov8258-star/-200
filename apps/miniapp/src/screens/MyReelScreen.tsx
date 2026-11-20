@@ -15,7 +15,7 @@ import {
   TrendingUp,
   Trophy,
 } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { RankOrnament } from "../components/Ornaments";
 import { Garland } from "../components/ProfileFestive";
@@ -29,69 +29,131 @@ import { errorCode } from "../lib/api-error";
 import { calendarDaysUntil, formatCount, formatDayMonthTime, formatSigned } from "../lib/format";
 import { parseReelShortcode } from "../lib/reel-url";
 import { haptic, openExternal } from "../lib/telegram";
-import type { MyReel, ReelStatus } from "../lib/types";
+import type { MyReelItem, MyReels, ReelStatus } from "../lib/types";
 
-/** Avtomatik tekshiruv paytida holat shuncha millisoniyada bir so'raladi. */
+/** Biror video avtomatik tekshiruvda bo'lsa, ro'yxat shuncha millisoniyada bir so'raladi. */
 const PENDING_POLL_MS = 5000;
 /** Qo'lda tekshiruv soatlab cho'zilishi mumkin — kamroq so'raymiz (natija botga ham keladi). */
 const MANUAL_REVIEW_POLL_MS = 60_000;
 
-const WAITING: ReadonlySet<ReelStatus | undefined> = new Set(["PENDING", "MANUAL_REVIEW"]);
+const WAITING: ReadonlySet<ReelStatus> = new Set(["PENDING", "MANUAL_REVIEW"]);
 
 /** Kartalar ketma-ket ko'tarilib chiqadi. */
 const rise = (i: number): CSSProperties => ({ animationDelay: `${i * 80}ms` });
 
+/**
+ * "Videom": ishtirokchining barcha videolari (soni cheklanmagan). Yuqorida — qabul qilingan
+ * videolar bo'yicha umumiy statistika, keyin yangi link qo'shish va videolar ro'yxati.
+ */
 export function MyReelScreen() {
-  const queryClient = useQueryClient();
-  const reel = useQuery({
-    queryKey: ["reel"],
-    queryFn: api.getMyReel,
+  const reels = useQuery({
+    queryKey: ["reels"],
+    queryFn: api.getMyReels,
     refetchInterval: (query) => {
-      const s = query.state.data?.status;
-      return s === "PENDING" ? PENDING_POLL_MS : s === "MANUAL_REVIEW" ? MANUAL_REVIEW_POLL_MS : false;
+      const list = query.state.data?.reels ?? [];
+      if (list.some((r) => r.status === "PENDING")) return PENDING_POLL_MS;
+      if (list.some((r) => r.status === "MANUAL_REVIEW")) return MANUAL_REVIEW_POLL_MS;
+      return false;
     },
   });
-
-  // Tekshiruv tugadi (kutish → qabul/rad): reyting ham yangilansin.
-  const status = reel.data?.status;
-  const previous = useRef(status);
-  useEffect(() => {
-    if (WAITING.has(previous.current) && status && !WAITING.has(status)) {
-      if (status === "ACCEPTED") haptic.success();
-      else haptic.error();
-      void queryClient.invalidateQueries({ queryKey: ["rating"] });
-    }
-    previous.current = status;
-  }, [status, queryClient]);
+  useVerdicts(reels.data?.reels);
 
   return (
     <div className="space-y-5">
       <PageHeader title={t.reelTitle} subtitle={t.reelSubtitle} />
-      {reel.isPending ? (
+      {reels.isPending ? (
         <Spinner />
-      ) : reel.isError ? (
-        <ErrorBlock onRetry={() => void reel.refetch()} />
-      ) : reel.data ? (
-        <>
-          <ReelStats reel={reel.data} />
-          {reel.data.status === "REJECTED" && (
-            <>
-              <SubmitCard title={t.resubmitTitle} body={t.resubmitBody} />
-              <Conditions />
-            </>
-          )}
-        </>
+      ) : reels.isError ? (
+        <ErrorBlock onRetry={() => void reels.refetch()} />
       ) : (
-        <>
-          <SubmitCard title={t.stepLink} body={t.stepLinkBody} />
-          <Conditions />
-        </>
+        <ReelsContent data={reels.data} />
       )}
     </div>
   );
 }
 
-function SubmitCard({ title, body }: { title: string; body: string }) {
+/**
+ * Biror videoning tekshiruvi tugadi (kutish → qabul/rad): tebranish beriladi va reyting
+ * yangilanadi. Holatlar shortcode bo'yicha oldingi javob bilan solishtiriladi.
+ */
+function useVerdicts(reels: MyReelItem[] | undefined) {
+  const queryClient = useQueryClient();
+  const previous = useRef<Map<string, ReelStatus> | null>(null);
+  useEffect(() => {
+    if (!reels) return;
+    const before = previous.current;
+    previous.current = new Map(reels.map((r) => [r.shortcode, r.status]));
+    if (!before) return;
+    const finished = reels.filter((r) => {
+      const was = before.get(r.shortcode);
+      return was !== undefined && WAITING.has(was) && !WAITING.has(r.status);
+    });
+    if (finished.length === 0) return;
+    if (finished.some((r) => r.status === "ACCEPTED")) haptic.success();
+    else haptic.error();
+    void queryClient.invalidateQueries({ queryKey: ["rating"] });
+  }, [reels, queryClient]);
+}
+
+function ReelsContent({ data }: { data: MyReels }) {
+  const total = data.reels.length;
+  const accepted = data.reels.filter((r) => r.status === "ACCEPTED").length;
+
+  return (
+    <>
+      {accepted > 0 && <SummaryTiles data={data} />}
+      {total === 0 ? (
+        <SubmitCard title={t.stepLink} body={t.stepLinkBody} style={rise(1)} />
+      ) : (
+        <SubmitCard title={t.addReelTitle} body={t.addReelBody} style={rise(accepted > 0 ? 5 : 1)} />
+      )}
+      {total > 0 && <ReelList reels={data.reels} accepted={accepted} style={rise(accepted > 0 ? 6 : 2)} />}
+      {accepted > 0 && data.daily.length > 0 && (
+        <Card className="animate-rise" style={rise(7)}>
+          <h2 className="font-semibold">{t.chartTitle}</h2>
+          <p className="text-[13px] text-muted">{t.chartSubtitle}</p>
+          <div className="mt-[18px]">
+            <ViewsChart days={data.daily.slice(-7)} />
+          </div>
+        </Card>
+      )}
+      {accepted > 0 && (data.lastSyncedAt || data.nextSyncAt) && <SyncCard data={data} />}
+      <Conditions style={rise(total === 0 ? 2 : 9)} />
+    </>
+  );
+}
+
+/** Umumiy natija — faqat qabul qilingan videolar bo'yicha (reytingdagi kabi). */
+function SummaryTiles({ data }: { data: MyReels }) {
+  const podium = data.rank !== null && data.rank <= 3 ? (data.rank as 1 | 2 | 3) : null;
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <TotalViewsTile views={data.totalViews} />
+      <StatTile icon={<TrendingUp />} label={t.statToday} style={rise(2)}>
+        <span className={data.todayViews > 0 ? "text-positive" : undefined}>{formatSigned(data.todayViews)}</span>
+      </StatTile>
+      <StatTile
+        icon={podium ? <RankOrnament rank={podium} /> : <Trophy />}
+        iconTone="gold"
+        bare={podium !== null}
+        label={t.statRank}
+        style={rise(3)}
+      >
+        {data.rank ?? "—"}
+      </StatTile>
+      <StatTile icon={<ArrowUpDown />} label={t.statRankDelta} style={rise(4)}>
+        {data.rankDelta === 0 ? (
+          <span className="text-base font-semibold text-muted">{t.noChange}</span>
+        ) : (
+          <RankDelta delta={data.rankDelta} large />
+        )}
+      </StatTile>
+    </div>
+  );
+}
+
+/** Yangi video linki — har doim ko'rinadi; yuborilgach maydon tozalanadi. */
+function SubmitCard({ title, body, style }: { title: string; body: string; style: CSSProperties }) {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [url, setUrl] = useState("");
@@ -111,6 +173,7 @@ function SubmitCard({ title, body }: { title: string; body: string }) {
   };
 
   const submit = async () => {
+    if (submitting) return;
     const value = url.trim();
     if (!value) return setError(t.linkEmpty);
     if (!parseReelShortcode(value)) {
@@ -121,10 +184,11 @@ function SubmitCard({ title, body }: { title: string; body: string }) {
     setSubmitting(true);
     setError(null);
     try {
-      const reel = await api.submitReel(value);
+      const reels = await api.submitReel(value);
       haptic.tap();
       toast(t.submitted);
-      queryClient.setQueryData(["reel"], reel);
+      setUrl("");
+      queryClient.setQueryData(["reels"], reels);
     } catch (e) {
       haptic.error();
       const code = errorCode(e);
@@ -143,7 +207,7 @@ function SubmitCard({ title, body }: { title: string; body: string }) {
   };
 
   return (
-    <Card className="animate-rise" style={rise(1)}>
+    <Card className="animate-rise" style={style}>
       <h2 className="text-lg font-bold tracking-tight">{title}</h2>
       <p className="mt-1.5 text-[15px] leading-snug text-muted">{body}</p>
       <div
@@ -179,7 +243,11 @@ function SubmitCard({ title, body }: { title: string; body: string }) {
           <ClipboardPaste className="size-5" />
         </button>
       </div>
-      {error && <p className="mt-2 px-1.5 text-[13px] text-negative">{error}</p>}
+      {error && (
+        <p role="alert" className="mt-2 px-1.5 text-[13px] text-negative">
+          {error}
+        </p>
+      )}
       <PillButton
         className="mt-10"
         loading={submitting}
@@ -192,9 +260,9 @@ function SubmitCard({ title, body }: { title: string; body: string }) {
   );
 }
 
-function Conditions() {
+function Conditions({ style }: { style: CSSProperties }) {
   return (
-    <Card className="animate-rise" style={rise(2)}>
+    <Card className="animate-rise" style={style}>
       <h2 className="font-semibold">{t.rulesHeading}</h2>
       <ul className="mt-3 space-y-3">
         {[t.ruleTag, t.ruleOwn, t.ruleOneAccount, t.ruleNoTarget, t.ruleNoFakeViews].map((rule) => (
@@ -225,12 +293,36 @@ const STATUS: Record<ReelStatus, { label: string; pill: string; note: string | n
   REJECTED: { label: t.statusRejected, pill: "bg-[#d14343]/30 text-[#ffb3aa] ring-[#ffb3aa]/30", note: t.rejectedNote },
 };
 
-function ReelStats({ reel }: { reel: MyReel }) {
+/** Qishki tun kartasi: gulchambar, yog'ayotgan qor va barcha videolar (yangisi tepada). */
+function ReelList({ reels, accepted, style }: { reels: MyReelItem[]; accepted: number; style: CSSProperties }) {
+  return (
+    <section
+      className="relative isolate animate-rise overflow-hidden rounded-card bg-[linear-gradient(155deg,#2c3874_0%,#1a2050_55%,#10142f_100%)] px-4 pt-11 pb-1.5 text-white shadow-[0_22px_44px_-24px_rgba(16,20,47,0.9)]"
+      style={style}
+    >
+      <div aria-hidden className="absolute -top-16 -right-10 -z-10 size-48 rounded-full bg-[#7f9cff]/30 blur-3xl" />
+      <div aria-hidden className="absolute -bottom-20 -left-12 -z-10 size-56 rounded-full bg-[#df3425]/25 blur-3xl" />
+      <Snowfall density={0.5} />
+      <Garland className="absolute inset-x-0 top-0 h-10" />
+
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-0.5">
+        <h2 className="text-lg font-bold tracking-tight">{t.myReelsTitle}</h2>
+        <span className="text-[13px] text-white/65">{t.myReelsCount(accepted, reels.length)}</span>
+      </div>
+      <ul className="mt-1 divide-y divide-white/10">
+        {reels.map((reel) => (
+          <ReelRow key={reel.shortcode} reel={reel} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function ReelRow({ reel }: { reel: MyReelItem }) {
   const toast = useToast();
   const status = STATUS[reel.status];
   const accepted = reel.status === "ACCEPTED";
   const note = reel.rejectReason ? t.rejectReasons[reel.rejectReason] : status.note;
-  const podium = reel.rank !== null && reel.rank <= 3 ? (reel.rank as 1 | 2 | 3) : null;
 
   const copy = async () => {
     try {
@@ -243,106 +335,79 @@ function ReelStats({ reel }: { reel: MyReel }) {
   };
 
   return (
-    <>
-      {/* Qishki tun kartasi: gulchambar, yog'ayotgan qor, video linki va holati. */}
-      <section className="relative isolate animate-rise overflow-hidden rounded-card bg-[linear-gradient(155deg,#2c3874_0%,#1a2050_55%,#10142f_100%)] px-4 pt-11 pb-4 text-white shadow-[0_22px_44px_-24px_rgba(16,20,47,0.9)]">
-        <div aria-hidden className="absolute -top-16 -right-10 -z-10 size-48 rounded-full bg-[#7f9cff]/30 blur-3xl" />
-        <div aria-hidden className="absolute -bottom-20 -left-12 -z-10 size-56 rounded-full bg-[#df3425]/25 blur-3xl" />
-        <Snowfall density={0.5} />
-        <Garland className="absolute inset-x-0 top-0 h-10" />
-
-        <div className="flex items-center gap-3.5">
-          <button
-            type="button"
-            aria-label={t.openInInstagram}
-            onClick={() => openExternal(reel.url)}
-            className="relative grid size-16 shrink-0 place-items-center rounded-tile bg-[linear-gradient(150deg,#f45a42,#df3425_55%,#9c1b25)] text-white shadow-[0_10px_20px_-10px_rgba(223,52,37,0.9)] ring-2 ring-[#f3c656] transition active:scale-95"
-          >
-            <Play className="size-6 fill-white" />
-          </button>
+    <li className="animate-rise py-3.5">
+      <div className="flex items-center gap-3">
+        {/* Video va linki — bosilsa Instagram'da ochiladi. */}
+        <button
+          type="button"
+          title={t.openInInstagram}
+          onClick={() => openExternal(reel.url)}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left transition active:opacity-80"
+        >
+          <span className="relative grid size-12 shrink-0 place-items-center rounded-tile bg-[linear-gradient(150deg,#f45a42,#df3425_55%,#9c1b25)] text-white shadow-[0_10px_20px_-10px_rgba(223,52,37,0.9)] ring-2 ring-[#f3c656]">
+            <Play className="size-5 fill-white" aria-hidden />
+          </span>
           <span className="min-w-0 flex-1">
-            <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
-              <span className="text-white/65">{t.reelLink}</span>
-              <span
-                className={clsx(
-                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-semibold ring-1",
-                  status.pill,
-                )}
-              >
-                {WAITING.has(reel.status) ? (
-                  <LoaderCircle className="size-3 animate-spin" />
-                ) : (
-                  <span className="size-1.5 rounded-full bg-current" />
-                )}
-                {status.label}
-              </span>
+            <span
+              className={clsx(
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-semibold ring-1",
+                status.pill,
+              )}
+            >
+              {WAITING.has(reel.status) ? (
+                <LoaderCircle className="size-3 animate-spin" aria-hidden />
+              ) : (
+                <span aria-hidden className="size-1.5 rounded-full bg-current" />
+              )}
+              {status.label}
             </span>
-            <span className="mt-1 line-clamp-2 block text-[15px] font-semibold break-all">
-              {reel.url.replace("https://www.", "")}
+            <span className="mt-1 line-clamp-2 block text-[15px] font-semibold [overflow-wrap:anywhere]">
+              <LinkText url={reel.url} />
+            </span>
+            <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12.5px] text-white/60">
+              {accepted && (
+                <span className="inline-flex items-center gap-1 font-semibold text-white/90 tabular-nums">
+                  <Eye className="size-3.5" aria-hidden />
+                  {t.views(formatCount(reel.views))}
+                </span>
+              )}
+              <span>{t.reelSubmittedAt(formatDayMonthTime(reel.submittedAt))}</span>
             </span>
           </span>
-          <button
-            type="button"
-            aria-label={t.copy}
-            title={t.copy}
-            onClick={() => void copy()}
-            className="grid size-10 shrink-0 place-items-center rounded-full bg-white/12 ring-1 ring-white/20 transition active:scale-95"
-          >
-            <Copy className="size-[18px]" />
-          </button>
-        </div>
+        </button>
+        <button
+          type="button"
+          aria-label={t.copy}
+          title={t.copy}
+          onClick={() => void copy()}
+          className="grid size-10 shrink-0 place-items-center rounded-full bg-white/12 ring-1 ring-white/20 transition active:scale-95"
+        >
+          <Copy className="size-[18px]" />
+        </button>
+      </div>
 
-        {!accepted && note && (
-          <p className="mt-4 rounded-[18px] bg-white/10 px-3.5 py-3 text-[14px] leading-snug text-white/90 ring-1 ring-white/15">
-            {note}
-          </p>
-        )}
-      </section>
+      {!accepted && note && (
+        <p className="mt-3 rounded-[16px] bg-white/10 px-3.5 py-2.5 text-[13.5px] leading-snug text-white/90 ring-1 ring-white/15">
+          {note}
+        </p>
+      )}
+    </li>
+  );
+}
 
-      {accepted && (
+/** Link protokolsiz; qator faqat "/" dan keyin bo'linadi — shortcode bir butun qoladi. */
+function LinkText({ url }: { url: string }) {
+  const parts = url.replace(/^https?:\/\/(www\.)?/, "").split("/");
+  return parts.map((part, i) => (
+    <Fragment key={i}>
+      {i > 0 && (
         <>
-          <div className="grid grid-cols-2 gap-3">
-            <TotalViewsTile views={reel.totalViews} />
-            <StatTile
-              icon={<TrendingUp />}
-              label={t.statToday}
-              style={rise(2)}
-            >
-              <span className={reel.todayViews > 0 ? "text-positive" : undefined}>
-                {formatSigned(reel.todayViews)}
-              </span>
-            </StatTile>
-            <StatTile
-              icon={podium ? <RankOrnament rank={podium} /> : <Trophy />}
-              iconTone="gold"
-              bare={podium !== null}
-              label={t.statRank}
-              style={rise(3)}
-            >
-              {reel.rank ?? "—"}
-            </StatTile>
-            <StatTile icon={<ArrowUpDown />} label={t.statRankDelta} style={rise(4)}>
-              {reel.rankDelta === 0 ? (
-                <span className="text-base font-semibold text-muted">{t.noChange}</span>
-              ) : (
-                <RankDelta delta={reel.rankDelta} large />
-              )}
-            </StatTile>
-          </div>
-          {reel.daily.length > 0 && (
-            <Card className="animate-rise" style={rise(5)}>
-              <h2 className="font-semibold">{t.chartTitle}</h2>
-              <p className="text-[13px] text-muted">{t.chartSubtitle}</p>
-              <div className="mt-[18px]">
-                <ViewsChart days={reel.daily.slice(-7)} />
-              </div>
-            </Card>
-          )}
-          {(reel.lastSyncedAt || reel.nextSyncAt) && <SyncCard reel={reel} />}
+          /<wbr />
         </>
       )}
-    </>
-  );
+      {part}
+    </Fragment>
+  ));
 }
 
 /** Jami ko'rishlar — brend qizilidagi bayram plitkasi: qor yog'adi, ortida katta qor parchasi. */
@@ -369,25 +434,25 @@ function TotalViewsTile({ views }: { views: number }) {
 }
 
 /** Oxirgi va keyingi yangilanish — ishtirokchi ko'rishlar qachon yangilanishini aniq bilsin. */
-function SyncCard({ reel }: { reel: MyReel }) {
+function SyncCard({ data }: { data: Pick<MyReels, "lastSyncedAt" | "nextSyncAt" | "syncEveryDays"> }) {
   return (
-    <Card className="animate-rise space-y-4" style={rise(6)}>
+    <Card className="animate-rise space-y-4" style={rise(8)}>
       <SyncRow
         icon={<RefreshCw />}
         label={t.lastSyncedLabel}
-        value={reel.lastSyncedAt ? formatDayMonthTime(reel.lastSyncedAt) : "—"}
+        value={data.lastSyncedAt ? formatDayMonthTime(data.lastSyncedAt) : "—"}
       />
-      {reel.nextSyncAt && (
+      {data.nextSyncAt && (
         <SyncRow
           accent
           icon={<CalendarClock />}
           label={t.nextSyncLabel}
-          value={formatDayMonthTime(reel.nextSyncAt)}
-          badge={t.inDays(calendarDaysUntil(reel.nextSyncAt))}
+          value={formatDayMonthTime(data.nextSyncAt)}
+          badge={t.inDays(calendarDaysUntil(data.nextSyncAt))}
         />
       )}
-      {reel.syncEveryDays > 0 && (
-        <p className="border-t border-line pt-3.5 text-[13px] text-muted">{t.syncEvery(reel.syncEveryDays)}</p>
+      {data.syncEveryDays > 0 && (
+        <p className="border-t border-line pt-3.5 text-[13px] text-muted">{t.syncEvery(data.syncEveryDays)}</p>
       )}
     </Card>
   );

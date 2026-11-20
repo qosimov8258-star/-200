@@ -654,6 +654,8 @@ function toOwnerParticipant(person: Person, context: Context): OwnerParticipant 
     registeredAt: person.registeredAt,
     instagramUsername: person.instagramUsername,
     reel: ownerReel(person, context),
+    // Mock'da ega bo'limi har bir ishtirokchining asosiy videosini ko'radi.
+    reelCount: ownerReel(person, context) ? 1 : 0,
     views: personViews(person, context),
     rank: person.sourceId ? (context.rankBySource.get(person.sourceId) ?? null) : null,
     openTargetCases: openTargetCount(person, context),

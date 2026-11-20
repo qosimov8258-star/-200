@@ -143,3 +143,38 @@ test("the list validates query values, paginates and counts statuses", () => {
   }
   assert.equal(controller.list(undefined, undefined, undefined, "0", "").total, 3);
 });
+
+test("GET /admin/participants/:id/reels lists every video newest first; unknown → 404 NOT_FOUND", () => {
+  const { participants, controller } = setup();
+  const first = participants.submitReel(1, "https://www.instagram.com/reel/AAAAA1/", "AAAAA1");
+  first.status = "ACCEPTED";
+  first.owner = "ism1";
+  first.history.push({ date: "2026-12-01", at: new Date("2026-12-01T01:00:00Z"), views: 1_200, likes: 30, comments: 1 });
+  const second = participants.submitReel(1, "https://www.instagram.com/reel/BBBBB2/", "BBBBB2");
+  second.submittedAt = new Date(first.submittedAt.getTime() + 1_000);
+  second.status = "MANUAL_REVIEW";
+
+  const result = controller.reels("1");
+  assert.deepEqual(result.participant, { id: "1", fullName: "Ism1 Familiya1", instagramUsernames: ["ism1"] });
+  assert.equal(result.totalViews, 1_200);
+  assert.deepEqual(
+    result.reels.map((r) => [r.shortcode, r.status, r.manualReview, r.views, r.likes, r.lastSyncedAt]),
+    [
+      ["BBBBB2", "PENDING", true, 0, null, null],
+      ["AAAAA1", "ACCEPTED", false, 1_200, 30, "2026-12-01T01:00:00.000Z"],
+    ],
+  );
+  assert.deepEqual(controller.reels("2").reels, []);
+  assert.deepEqual(controller.list().items.find((i) => i.id === "1")?.reels, { total: 2, accepted: 1, pending: 1, rejected: 0 });
+
+  for (const id of ["999", "abc", "4"]) {
+    try {
+      controller.reels(id);
+      assert.fail("404 kutilgan edi");
+    } catch (e) {
+      assert.ok(e instanceof HttpException);
+      assert.equal(e.getStatus(), 404);
+      assert.deepEqual(e.getResponse(), { message: "Ishtirokchi topilmadi.", code: "NOT_FOUND" });
+    }
+  }
+});

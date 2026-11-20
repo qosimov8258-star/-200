@@ -46,15 +46,21 @@ const OPEN_CASE: readonly TargetCaseStatus[] = ["NEW", "WARNED"];
 
 type RiskFlag = { type: ReelFlagType; date: string; detail: string };
 
-/** Hisob uchun kerakli ma'lumot: `Participant.reel` va `TargetsService.casesOf()` shunga mos keladi. */
+/** Hisob uchun video ma'lumoti — `Reel` shunga mos keladi. */
+export interface RiskReel {
+  status: ReelStatus;
+  flags: readonly RiskFlag[];
+  /** Ketma-ket necha marta Instagram'da topilmadi. */
+  misses: number;
+  review: Pick<ManualReview, "kind" | "requestedAt"> | null;
+}
+
+/**
+ * Hisob uchun kerakli ma'lumot: `Participant.reels` (cheksiz video) va `TargetsService.casesOf()`.
+ * Rad etilgan videolar hisobga olinmaydi.
+ */
 export interface RiskInput {
-  reel: {
-    status: ReelStatus;
-    flags: readonly RiskFlag[];
-    /** Ketma-ket necha marta Instagram'da topilmadi. */
-    misses: number;
-    review: Pick<ManualReview, "kind" | "requestedAt"> | null;
-  } | null;
+  reels: readonly RiskReel[];
   cases: readonly {
     status: TargetCaseStatus;
     /** Tanlov kuni "YYYY-MM-DD". */
@@ -76,17 +82,16 @@ const latestDay = (days: readonly string[]): string | null =>
 
 export function riskSignals(input: RiskInput): RiskSignal[] {
   const signals: RiskSignal[] = [];
-  const { reel, cases } = input;
+  const { cases } = input;
+  const reels = input.reels.filter((r) => r.status !== "REJECTED");
 
-  if (reel) {
-    // Videodagi nakrutka belgilari: tur bo'yicha bitta signal — eng oxirgi belgining kuni va izohi.
-    for (const kind of FLAG_KINDS) {
-      let latest: RiskFlag | undefined;
-      for (const flag of reel.flags) {
-        if (flag.type === kind && (latest === undefined || flag.date >= latest.date)) latest = flag;
-      }
-      if (latest !== undefined) signals.push({ kind, detail: latest.detail, at: latest.date, points: RISK_POINTS[kind] });
+  // Videolardagi nakrutka belgilari: tur bo'yicha bitta signal (barcha videolar ichida eng oxirgisi).
+  for (const kind of FLAG_KINDS) {
+    let latest: RiskFlag | undefined;
+    for (const flag of reels.flatMap((r) => r.flags)) {
+      if (flag.type === kind && (latest === undefined || flag.date >= latest.date)) latest = flag;
     }
+    if (latest !== undefined) signals.push({ kind, detail: latest.detail, at: latest.date, points: RISK_POINTS[kind] });
   }
 
   const open = cases.filter((c) => OPEN_CASE.includes(c.status));
@@ -110,22 +115,29 @@ export function riskSignals(input: RiskInput): RiskSignal[] {
     });
   }
 
-  if (reel?.status === "MANUAL_REVIEW") {
+  const inReview = reels.filter((r) => r.status === "MANUAL_REVIEW");
+  if (inReview.length > 0) {
+    const lost = inReview.some((r) => r.review?.kind === "LOST_REEL");
+    const requested = inReview.flatMap((r) => (r.review ? [contestDay(r.review.requestedAt)] : []));
     signals.push({
       kind: "MANUAL_REVIEW",
       detail:
-        reel.review?.kind === "LOST_REEL"
-          ? "Qabul qilingan video endi topilmayapti — qo'lda tekshiruvda"
-          : "Video Instagram'da topilmadi — qo'lda tekshiruvda",
-      at: reel.review ? contestDay(reel.review.requestedAt) : null,
+        (inReview.length > 1 ? `${inReview.length} ta video qo'lda tekshiruvda` : "Video qo'lda tekshiruvda") +
+        (lost ? " — qabul qilingani endi topilmayapti" : " — Instagram'da topilmadi"),
+      at: latestDay(requested),
       points: RISK_POINTS.MANUAL_REVIEW,
     });
   }
 
-  if (reel && reel.misses > 0) {
+  const missing = reels.filter((r) => r.misses > 0);
+  if (missing.length > 0) {
+    const worst = Math.max(...missing.map((r) => r.misses));
     signals.push({
       kind: "NOT_FOUND",
-      detail: `Oxirgi ${reel.misses} ta tekshiruvda topilmadi`,
+      detail:
+        missing.length > 1
+          ? `${missing.length} ta video oxirgi tekshiruvlarda topilmadi (eng ko'pi ${worst} marta)`
+          : `Oxirgi ${worst} ta tekshiruvda topilmadi`,
       // Qaysi kuni topilmagani saqlanmaydi.
       at: null,
       points: RISK_POINTS.NOT_FOUND,

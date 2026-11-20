@@ -12,6 +12,9 @@ import {
 import { addDays, contestDay, daysBetween, tashkentAt } from "../common/time";
 import { ReelStatsProvider, type ReelStats } from "../instagram/reel-stats";
 import {
+  acceptedReels,
+  firstSubmittedAt,
+  participantViews,
   ParticipantsService,
   type ManualReview,
   type Participant,
@@ -61,7 +64,7 @@ export interface SyncReport {
 export interface RefreshReport {
   startedAt: Date;
   finishedAt: Date | null;
-  /** So'ralgan videolar. */
+  /** So'ralgan videolar (ishtirokchilarning barcha qabul qilingan videolari). */
   requested: number;
   updated: number;
   /** Instagram'da topilmaganlar (odatdagidek qayta tekshiriladi / qo'lda tekshiruvga o'tadi). */
@@ -81,8 +84,10 @@ export const AUTO_REVIEWER = "Avtomatik";
 
 export interface RankedEntry {
   participant: Participant;
-  reel: Reel;
+  /** Reytingga kirgan (ACCEPTED) videolari — yuborilish tartibida, kamida bittasi. */
+  reels: Reel[];
   rank: number;
+  /** Qabul qilingan videolar oxirgi ko'rishlari yig'indisi. */
   views: number;
   /** Oldingi yig'ishdagi o'ringa nisbatan: musbat — ko'tarilgan. */
   rankDelta: number;
@@ -124,9 +129,13 @@ export const FLAG_RULES = {
 /**
  * Worker: Reel'larni tekshiradi, ko'rishlarni yig'adi, reyting va nakrutka signallarini hisoblaydi.
  *
+ * Ishtirokchida videolar soni cheklanmagan — har bir video alohida tekshiriladi, yig'iladi,
+ * qayta tekshiriladi va kerak bo'lsa qo'lda tekshiruvga o'tadi (urinishlar har videoda o'zicha).
+ *
  * - Yangi video: bir necha soniyada (navbat bilan, bitta so'rovda) tekshiriladi — topildimi,
  *   Reel'mi, egasi boshqa ishtirokchida emasmi. Natija bot orqali xabar qilinadi.
- * - Ko'rishlar: har `everyDays` kunda soat `syncTime` da (Toshkent) hamma videolar uchun.
+ * - Ko'rishlar: har `everyDays` kunda soat `syncTime` da (Toshkent) rad etilmagan hamma videolar uchun.
+ * - Reyting: ishtirokchining qabul qilingan videolari ko'rishlari yig'indisi bo'yicha.
  * - Apify videoni ketma-ket 3 marta topa olmasa (yangi yoki avval qabul qilingan) — ishtirokchiga
  *   xabar beriladi va video admin paneldagi "Qo'lda tekshiruv" bo'limiga o'tadi; admin linkni
  *   ochib tasdiqlaydi yoki rad etadi. Avtomatik "topilmadi" rad etish yo'q.
@@ -139,7 +148,11 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
   private readonly logger = new Logger(StatsService.name);
   private readonly now: () => Date;
 
-  private readonly queue = new Set<number>();
+  /**
+   * Tekshiruv navbati: ishtirokchi va video (shortcode); `shortcode: null` — ishtirokchining
+   * tekshirilishi kerak bo'lgan barcha videolari. Kalit takrorlarni birlashtiradi.
+   */
+  private readonly queue = new Map<string, { telegramId: number; shortcode: string | null }>();
   private queueTimer: NodeJS.Timeout | null = null;
   private readonly retryTimers = new Set<NodeJS.Timeout>();
   private verifyChain: Promise<void> = Promise.resolve();
@@ -178,7 +191,7 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
   onApplicationBootstrap(): void {
     // Qayta ishga tushganda: tekshiruvi chala qolgan videolar navbatga qaytadi (taymerlar saqlanmaydi).
     for (const p of this.participants.all()) {
-      if (p.reel && (p.reel.status === "PENDING" || isRechecking(p.reel))) this.queueVerification(p.telegramId);
+      for (const reel of p.reels) if (needsCheck(reel)) this.queueVerification(p.telegramId, reel.shortcode);
     }
     const { everyDays, syncTime } = this.options;
     if (this.provider.name === "mock") {
@@ -209,9 +222,12 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
 
   // --- Yangi videolarni tekshirish -----------------------------------------
 
-  /** Yangi videoni navbatga qo'yadi; `verifyDelayMs` ichida kelganlar bitta so'rovda tekshiriladi. */
-  queueVerification(telegramId: number): void {
-    this.queue.add(telegramId);
+  /**
+   * Videoni navbatga qo'yadi; `verifyDelayMs` ichida kelganlar bitta so'rovda tekshiriladi.
+   * `shortcode` berilmasa — ishtirokchining tekshirilishi kerak bo'lgan barcha videolari.
+   */
+  queueVerification(telegramId: number, shortcode: string | null = null): void {
+    this.queue.set(`${telegramId}:${shortcode ?? "*"}`, { telegramId, shortcode });
     if (this.queueTimer) return;
     this.queueTimer = setTimeout(() => {
       this.queueTimer = null;
@@ -226,24 +242,30 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
       clearTimeout(this.queueTimer);
       this.queueTimer = null;
     }
-    const ids = [...this.queue];
+    const entries = [...this.queue.values()];
     this.queue.clear();
-    if (ids.length > 0) this.verifyChain = this.verifyChain.then(() => this.verifyBatch(ids));
+    if (entries.length > 0) this.verifyChain = this.verifyChain.then(() => this.verifyBatch(entries));
     return this.verifyChain;
   }
 
-  private async verifyBatch(ids: number[]): Promise<void> {
+  private async verifyBatch(entries: { telegramId: number; shortcode: string | null }[]): Promise<void> {
     // Yangi videolar va yig'ishda topilmay qolgan (qayta tekshiriladigan) qabul qilinganlar.
-    const targets = ids.flatMap((id) => {
-      const p = this.participants.get(id);
-      const reel = p?.reel;
-      return p && reel && (reel.status === "PENDING" || isRechecking(reel)) ? [{ p, reel }] : [];
-    });
+    const seen = new Set<Reel>();
+    const targets: { p: Participant; reel: Reel }[] = [];
+    for (const { telegramId, shortcode } of entries) {
+      const p = this.participants.get(telegramId);
+      if (!p) continue;
+      for (const reel of p.reels) {
+        if ((shortcode !== null && reel.shortcode !== shortcode) || !needsCheck(reel) || seen.has(reel)) continue;
+        seen.add(reel);
+        targets.push({ p, reel });
+      }
+    }
     if (targets.length === 0) return;
 
     let stats: Map<string, ReelStats | null>;
     try {
-      stats = await this.provider.fetch(targets.map((t) => t.reel.shortcode));
+      stats = await this.provider.fetch(shortcodesOf(targets));
       this.verifyFailures = 0;
     } catch (err) {
       this.verifyFailures += 1;
@@ -252,13 +274,13 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
         `${targets.length} ta videoni tekshirib bo'lmadi: ${(err as Error).message}. ` +
           `${Math.round(delay / 60_000)} daqiqadan keyin qayta urinamiz.`,
       );
-      for (const t of targets) this.retryLater(t.p.telegramId, delay);
+      for (const t of targets) this.retryLater(t.p.telegramId, t.reel.shortcode, delay);
       return;
     }
 
     const now = this.now();
     for (const { p, reel } of targets) {
-      // Kutish paytida ishtirokchi o'chirilgan yoki video almashtirilgan bo'lishi mumkin.
+      // Kutish paytida ishtirokchi o'chirilgan yoki video qayta yuborilib almashtirilgan bo'lishi mumkin.
       if (!this.isCurrent(p, reel) || !stats.has(reel.shortcode)) continue;
       const s = stats.get(reel.shortcode) ?? null;
       if (reel.status === "PENDING") this.applyVerification(p, reel, s, now);
@@ -290,7 +312,7 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
       this.toManualReview(p, reel, "LOST_REEL");
       return "manual";
     }
-    this.retryLater(p.telegramId, NOT_FOUND_RETRY_MS[reel.misses - 1] ?? VERIFY_RETRY_MS);
+    this.retryLater(p.telegramId, reel.shortcode, NOT_FOUND_RETRY_MS[reel.misses - 1] ?? VERIFY_RETRY_MS);
     return "missing";
   }
 
@@ -299,7 +321,7 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
       reel.misses += 1;
       if (reel.misses < ATTEMPTS_BEFORE_MANUAL_REVIEW) {
         const delay = NOT_FOUND_RETRY_MS[reel.misses - 1] ?? VERIFY_RETRY_MS;
-        this.retryLater(p.telegramId, delay);
+        this.retryLater(p.telegramId, reel.shortcode, delay);
         return;
       }
       this.toManualReview(p, reel, "NEW_REEL");
@@ -330,18 +352,18 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
     reel.rejectReason = null;
     reel.misses = 0;
     this.record(reel, s.views, s, now);
-    this.notify(p, texts.reelAccepted(formatCount(s.views)), "REEL_ACCEPTED");
+    this.notifyAbout(p, reel, texts.reelAccepted(formatCount(s.views)), "REEL_ACCEPTED");
   }
 
   private reject(p: Participant, reel: Reel, reason: ReelRejectReason): void {
     reel.status = "REJECTED";
     reel.rejectReason = reason;
-    this.notify(p, texts.reelRejected[reason], "REEL_REJECTED");
+    this.notifyAbout(p, reel, texts.reelRejected[reason], "REEL_REJECTED");
   }
 
   /** Avval ishtirokchiga xabar, so'ng video admin paneldagi qo'lda tekshiruv ro'yxatiga tushadi. */
   private toManualReview(p: Participant, reel: Reel, kind: ManualReview["kind"]): void {
-    this.notify(p, texts.reelManualReview[kind], "REEL_REVIEW");
+    this.notifyAbout(p, reel, texts.reelManualReview[kind], "REEL_REVIEW");
     reel.status = "MANUAL_REVIEW";
     reel.review = { kind, requestedAt: this.now(), attempts: reel.misses, decision: null };
     this.logger.warn(
@@ -357,7 +379,7 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
       reel.status = "ACCEPTED";
       reel.lastFoundAt = now;
       this.record(reel, views, s, now);
-      this.notify(p, texts.reelRestored, "REEL_REVIEW");
+      this.notifyAbout(p, reel, texts.reelRestored, "REEL_REVIEW");
     } else {
       this.applyFound(p, reel, s, now);
     }
@@ -393,12 +415,13 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
   manualReviews(): { participant: Participant; reel: Reel; review: ManualReview }[] {
     return this.participants
       .all()
-      .flatMap((p) => (p.reel?.review ? [{ participant: p, reel: p.reel, review: p.reel.review }] : []));
+      .flatMap((p) => p.reels.flatMap((reel) => (reel.review ? [{ participant: p, reel, review: reel.review }] : [])));
   }
 
   /**
    * Admin qarori. Tasdiq — video reytingga qo'shiladi (ko'rishlar Apify topganda yangilanadi);
-   * rad — sababi ishtirokchiga yuboriladi va u boshqa link yubora oladi.
+   * rad — sababi ishtirokchiga yuboriladi. Shortcode bo'yicha rad etilmagan (band) video olinadi —
+   * u barcha ishtirokchilar orasida bitta.
    */
   decideManualReview(shortcode: string, decision: ManualDecision, actor: string): Reel {
     const found = this.participants.findByShortcode(shortcode);
@@ -414,7 +437,7 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
       reel.rejectReason = null;
       reel.misses = 0;
       review.decision = { approved: true, reason: null, note: decision.note, by: actor, at: now };
-      this.notify(p, texts.reelManualApproved, "REEL_REVIEW");
+      this.notifyAbout(p, reel, texts.reelManualApproved, "REEL_REVIEW");
     } else {
       review.decision = { approved: false, reason: decision.reason, note: decision.note, by: actor, at: now };
       this.reject(p, reel, decision.reason);
@@ -426,10 +449,10 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
     return reel;
   }
 
-  private retryLater(telegramId: number, delayMs: number): void {
+  private retryLater(telegramId: number, shortcode: string, delayMs: number): void {
     const timer = setTimeout(() => {
       this.retryTimers.delete(timer);
-      this.queueVerification(telegramId);
+      this.queueVerification(telegramId, shortcode);
     }, delayMs);
     timer.unref();
     this.retryTimers.add(timer);
@@ -542,9 +565,10 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
   }
 
   private async runRefresh(telegramIds: readonly number[], label: string): Promise<RefreshReport> {
+    // Har bir ishtirokchining barcha qabul qilingan videolari (cheksiz video).
     const targets = telegramIds.flatMap((id) => {
       const p = this.participants.get(id);
-      return p?.reel?.status === "ACCEPTED" ? [{ p, reel: p.reel }] : [];
+      return p ? acceptedReels(p).map((reel) => ({ p, reel })) : [];
     });
     const report: RefreshReport = {
       startedAt: this.now(),
@@ -588,15 +612,15 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
     };
     // PENDING ham kiradi: tekshiruvi chala qolganlar shu yerda qayta tekshiriladi.
     // MANUAL_REVIEW ham: Apify o'zi topib qolsa, admin kutib o'tirmaydi.
-    const targets = this.participants.all().flatMap((p) =>
-      p.reel && p.reel.status !== "REJECTED" ? [{ p, reel: p.reel }] : [],
-    );
+    const targets = this.participants
+      .all()
+      .flatMap((p) => p.reels.filter((reel) => reel.status !== "REJECTED").map((reel) => ({ p, reel })));
     report.total = targets.length;
 
     try {
       const stats =
         targets.length > 0
-          ? await this.provider.fetch(targets.map((t) => t.reel.shortcode))
+          ? await this.provider.fetch(shortcodesOf(targets))
           : new Map<string, ReelStats | null>();
       const now = this.now();
       this.previousRanks = new Map(this.ranking().map((e) => [e.participant.telegramId, e.rank]));
@@ -644,26 +668,26 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
   // --- Reyting va holat -----------------------------------------------------
 
   /**
-   * Reyting: qabul qilingan videolar, faol (bloklanmagan, chetlatilmagan) ishtirokchilar.
-   * Teng ko'rishda — videoni oldinroq yuborgan yuqorida.
+   * Reyting: kamida bitta qabul qilingan videosi bor faol (bloklanmagan, chetlatilmagan)
+   * ishtirokchilar; ko'rishlar — qabul qilingan videolar oxirgi ko'rishlari yig'indisi.
+   * Teng ko'rishda — birinchi qabul qilingan videosini oldinroq yuborgan yuqorida.
    */
   ranking(): RankedEntry[] {
-    const rows = this.participants.all().flatMap((p) =>
-      p.reel?.status === "ACCEPTED" && p.status === "ACTIVE" && p.firstName
-        ? [{ participant: p, reel: p.reel, views: p.reel.history.at(-1)?.views ?? 0 }]
-        : [],
-    );
-    rows.sort(
-      (a, b) => b.views - a.views || a.reel.submittedAt.getTime() - b.reel.submittedAt.getTime(),
-    );
-    return rows.map((row, i) => {
-      const previous = this.previousRanks.get(row.participant.telegramId);
-      return { ...row, rank: i + 1, rankDelta: previous === undefined ? 0 : previous - (i + 1) };
+    const rows = this.participants.all().flatMap((p) => {
+      const reels = acceptedReels(p);
+      return reels.length > 0 && p.status === "ACTIVE" && p.firstName
+        ? [{ participant: p, reels, views: participantViews(p), since: firstSubmittedAt(reels) }]
+        : [];
+    });
+    rows.sort((a, b) => b.views - a.views || a.since - b.since || a.participant.telegramId - b.participant.telegramId);
+    return rows.map(({ participant, reels, views }, i) => {
+      const previous = this.previousRanks.get(participant.telegramId);
+      return { participant, reels, views, rank: i + 1, rankDelta: previous === undefined ? 0 : previous - (i + 1) };
     });
   }
 
   status() {
-    const reels = this.participants.all().flatMap((p) => (p.reel ? [p.reel] : []));
+    const reels = this.participants.all().flatMap((p) => p.reels);
     return {
       provider: this.provider.name,
       syncTime: this.options.syncTime,
@@ -701,7 +725,12 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
   }
 
   private isCurrent(p: Participant, reel: Reel): boolean {
-    return this.participants.get(p.telegramId) === p && p.reel === reel;
+    return this.participants.get(p.telegramId) === p && p.reels.includes(reel);
+  }
+
+  /** Video haqidagi xabar: ishtirokchida bir nechta video bo'lishi mumkin — oxiriga qaysi biri ekani (link). */
+  private notifyAbout(p: Participant, reel: Reel, text: string, kind: TelegramMessageKind): void {
+    this.notify(p, `${text}\n\n${texts.reelLink(reel.url)}`, kind);
   }
 
   private notify(p: Participant, text: string, kind: TelegramMessageKind): void {
@@ -712,10 +741,16 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
   }
 }
 
-/** Oxirgi holat asosida nakrutka signallarini qo'shadi. */
 /** Qabul qilingan, lekin oxirgi tekshiruvda topilmagan — qisqa vaqtda qayta tekshiriladi. */
 const isRechecking = (reel: Reel): boolean => reel.status === "ACCEPTED" && reel.misses > 0;
 
+/** Navbatdagi tekshiruvga tegishli video: yangi (PENDING) yoki qayta tekshiriladigan qabul qilingan. */
+const needsCheck = (reel: Reel): boolean => reel.status === "PENDING" || isRechecking(reel);
+
+/** Apify so'rovi uchun shortcode'lar — takrorlarsiz (band link bitta bo'ladi, lekin eski holatda ham). */
+const shortcodesOf = (targets: readonly { reel: Reel }[]): string[] => [...new Set(targets.map((t) => t.reel.shortcode))];
+
+/** Oxirgi holat asosida nakrutka signallarini qo'shadi. */
 export function detectFlags(reel: Reel): void {
   const h = reel.history;
   const cur = h.at(-1);

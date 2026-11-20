@@ -35,14 +35,22 @@ function setup(opts: { everyDays?: number; startsOn?: string; endsAt?: string } 
     participants.setPhone(id, id, `+99890000000${id}`);
     participants.register(id, `Ism${id}`, `Familiya${id}`, 25);
     participants.acceptRules(id, 1);
-    participants.submitReel(id, `https://www.instagram.com/reel/${shortcode}/`, shortcode);
-    stats.queueVerification(id);
+    submit(id, shortcode);
   };
-  const reel = (id: number) => participants.get(id)?.reel ?? null;
+  /** Mavjud ishtirokchining yana bir videosi (Mini App'dagi kabi navbatga shu video qo'yiladi). */
+  const submit = (id: number, shortcode: string) => {
+    participants.submitReel(id, `https://www.instagram.com/reel/${shortcode}/`, shortcode);
+    stats.queueVerification(id, shortcode);
+  };
+  /** Ishtirokchining eng oxirgi yuborgan videosi. */
+  const reel = (id: number) => participants.get(id)?.reels.at(-1) ?? null;
+  /** Ishtirokchining shortcode bo'yicha videosi. */
+  const reelOf = (id: number, shortcode: string) =>
+    participants.get(id)?.reels.find((r) => r.shortcode === shortcode) ?? null;
   const setNow = (s: string) => {
     now = tashkent(s);
   };
-  return { participants, provider, stats, sent, join, reel, setNow };
+  return { participants, provider, stats, sent, join, submit, reel, reelOf, setNow };
 }
 
 test("a found Reel is accepted with its first snapshot and the bot notifies", async () => {
@@ -59,6 +67,7 @@ test("a found Reel is accepted with its first snapshot and the bot notifies", as
   );
   assert.equal(sent.length, 1);
   assert.match(sent[0].text, /156 745/);
+  assert.match(sent[0].text, /instagram\.com\/reel\/AAAAA1\//, "qaysi video haqida ekani");
 });
 
 test("new Reels arriving together are checked in one request", async () => {
@@ -259,7 +268,7 @@ test("an accepted Reel missing in a sync is re-checked within minutes; 3 misses 
   assert.equal(reel(1)?.status, "MANUAL_REVIEW");
   assert.equal(reel(1)?.review?.kind, "LOST_REEL");
   assert.equal(stats.ranking().length, 0);
-  assert.match(sent.at(-1)?.text ?? "", /reytingdan vaqtincha chiqarildi/);
+  assert.match(sent.at(-1)?.text ?? "", /reytingda vaqtincha hisobga olinmaydi/);
 
   provider.set("AAAAA1", { owner: "a", views: 1_200 });
   setNow("2026-12-05 06:01");
@@ -425,8 +434,102 @@ test("refreshing selected reels updates only them, leaves the schedule alone and
   assert.equal(s.stats.dueReason(), null, "yangilash paytida rejadagi yig'ish boshlanmaydi");
   const report = await job;
   assert.deepEqual([report.requested, report.updated, report.missing, report.error], [1, 1, 0, null]);
-  assert.equal(s.reel(1)?.history.at(-1)?.views, 5_000);
-  assert.equal(s.reel(2)?.history.at(-1)?.views, 2_000, "tanlanmagan video o'zgarmaydi");
+  assert.equal(s.reelOf(1, "REF001")?.history.at(-1)?.views, 5_000);
+  assert.equal(s.reelOf(2, "REF002")?.history.at(-1)?.views, 2_000, "tanlanmagan video o'zgarmaydi");
   assert.equal(s.stats.status().lastSuccessAt, before, "jadval o'zgarmaydi");
   assert.equal(s.stats.lastRefreshReport, report);
+});
+
+test("every Reel of a participant is verified on its own; views add up in the rating", async () => {
+  const { provider, stats, sent, join, submit, reelOf, setNow } = setup();
+  provider.set("AAAAA1", { owner: "ali", views: 1_000 });
+  provider.set("PHOTO2", { owner: "ali", isVideo: false });
+  provider.set("BBBBB3", { owner: "ali_ikkinchi", views: 4_000 });
+  provider.set("GONE04", null);
+  join(1, "AAAAA1");
+  submit(1, "PHOTO2");
+  submit(1, "BBBBB3");
+  submit(1, "GONE04");
+  await stats.flushVerification();
+  assert.deepEqual(provider.requests, [["AAAAA1", "PHOTO2", "BBBBB3", "GONE04"]], "bitta so'rovda");
+
+  assert.equal(reelOf(1, "AAAAA1")?.status, "ACCEPTED");
+  assert.equal(reelOf(1, "PHOTO2")?.rejectReason, "NOT_A_VIDEO");
+  assert.equal(reelOf(1, "BBBBB3")?.status, "ACCEPTED", "o'zining ikkinchi akkaunti — OWNER_TAKEN emas");
+  assert.equal(reelOf(1, "GONE04")?.status, "PENDING");
+  assert.equal(reelOf(1, "GONE04")?.misses, 1);
+  assert.deepEqual(stats.ranking().map((e) => [e.participant.telegramId, e.views, e.reels.length]), [[1, 5_000, 2]]);
+  // Har bir natija — alohida xabar, qaysi video ekani bilan.
+  assert.equal(sent.length, 3);
+  assert.ok(sent.some((m) => m.text.includes("/reel/PHOTO2/") && /Reel \(video\) emas/.test(m.text)));
+
+  // Qayta urinish faqat topilmagan videoga tegishli: boshqalar qayta so'ralmaydi.
+  stats.queueVerification(1, "GONE04");
+  await stats.flushVerification();
+  assert.deepEqual(provider.requests.at(-1), ["GONE04"]);
+  assert.equal(reelOf(1, "GONE04")?.misses, 2);
+
+  // Muntazam yig'ish — rad etilmagan hamma videolar (qo'lda tekshiruvdagi va PENDING ham).
+  setNow("2026-12-02 06:01");
+  provider.set("AAAAA1", { owner: "ali", views: 3_000 });
+  provider.set("BBBBB3", { owner: "ali_ikkinchi", views: 4_500 });
+  provider.set("GONE04", { owner: "ali", views: 10_000 });
+  const report = await stats.syncAll("schedule");
+  assert.equal(report.total, 3);
+  assert.deepEqual(provider.requests.at(-1)?.slice().sort(), ["AAAAA1", "BBBBB3", "GONE04"]);
+  assert.equal(reelOf(1, "GONE04")?.status, "ACCEPTED");
+  assert.equal(stats.ranking()[0]?.views, 17_500);
+});
+
+test("ranking: sums decide, ties go to the earlier first accepted submission, rank delta compares sums", async () => {
+  const { provider, stats, join, submit, setNow } = setup();
+  provider.set("ONE001", { owner: "a", views: 6_000 });
+  provider.set("TWO001", { owner: "b", views: 4_000 });
+  provider.set("TWO002", { owner: "b", views: 2_000 });
+  join(1, "ONE001");
+  join(2, "TWO001");
+  submit(2, "TWO002");
+  await stats.flushVerification();
+  // 6 000 = 4 000 + 2 000 — teng: 1-ishtirokchi birinchi videosini oldinroq yuborgan.
+  assert.deepEqual(stats.ranking().map((e) => [e.participant.telegramId, e.rank, e.views]), [
+    [1, 1, 6_000],
+    [2, 2, 6_000],
+  ]);
+
+  setNow("2026-12-02 06:01");
+  provider.set("TWO002", { owner: "b", views: 2_500 });
+  await stats.syncAll("schedule");
+  assert.deepEqual(stats.ranking().map((e) => [e.participant.telegramId, e.rank, e.views, e.rankDelta]), [
+    [2, 1, 6_500, 1],
+    [1, 2, 6_000, -1],
+  ]);
+});
+
+test("a lost Reel leaves the sum and goes to manual review on its own; the others stay", async () => {
+  const { provider, stats, join, submit, reelOf, setNow } = setup();
+  provider.set("KEEP01", { owner: "a", views: 1_000 });
+  provider.set("LOST02", { owner: "a", views: 9_000 });
+  join(1, "KEEP01");
+  submit(1, "LOST02");
+  await stats.flushVerification();
+  assert.equal(stats.ranking()[0]?.views, 10_000);
+
+  provider.set("LOST02", null);
+  setNow("2026-12-02 06:01");
+  await stats.syncAll("schedule");
+  stats.queueVerification(1, "LOST02");
+  await stats.flushVerification();
+  stats.queueVerification(1, "LOST02");
+  await stats.flushVerification();
+  assert.equal(reelOf(1, "LOST02")?.status, "MANUAL_REVIEW");
+  assert.equal(reelOf(1, "KEEP01")?.status, "ACCEPTED");
+  assert.equal(reelOf(1, "KEEP01")?.misses, 0);
+  assert.equal(stats.ranking()[0]?.views, 1_000);
+
+  // Admin qarori shortcode bo'yicha aynan shu videoga.
+  stats.decideManualReview("LOST02", { approve: false, reason: "NOT_FOUND", note: "O'chirilgan" }, "Admin");
+  assert.equal(reelOf(1, "LOST02")?.status, "REJECTED");
+  assert.equal(reelOf(1, "KEEP01")?.status, "ACCEPTED");
+  assert.equal(stats.status().reels.rejected, 1);
+  assert.equal(stats.status().reels.accepted, 1);
 });

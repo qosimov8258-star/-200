@@ -14,9 +14,9 @@ export type ParticipantStage =
   | "DISQUALIFIED";
 
 /**
- * PENDING — avtomatik tekshiruv kutilmoqda; ACCEPTED — reytingda;
- * MANUAL_REVIEW — Apify 3 marta topa olmadi, admin qo'lda tekshiradi (reytingda emas);
- * REJECTED — rad etilgan, ishtirokchi boshqa link yubora oladi.
+ * PENDING — avtomatik tekshiruv kutilmoqda; ACCEPTED — reytingda (ko'rishlari jamiga qo'shiladi);
+ * MANUAL_REVIEW — Apify 3 marta topa olmadi, admin qo'lda tekshiradi (reytingda hisoblanmaydi);
+ * REJECTED — rad etilgan (shu linkni qayta yuborish mumkin).
  */
 export type ReelStatus = "PENDING" | "ACCEPTED" | "MANUAL_REVIEW" | "REJECTED";
 
@@ -109,7 +109,11 @@ export interface Participant {
   lastName: string | null;
   age: number | null;
   consentVersion: number | null;
-  reel: Reel | null;
+  /**
+   * Yuborilgan videolar — eskidan yangiga (yuborilish tartibida). Soni cheklanmagan; har biri
+   * alohida tekshiriladi va yig'iladi. Reyting — qabul qilinganlar (ACCEPTED) ko'rishlari yig'indisi.
+   */
+  reels: Reel[];
   status: "ACTIVE" | "BLOCKED" | "DISQUALIFIED";
   createdAt: Date;
 }
@@ -127,8 +131,58 @@ export interface OwnerParticipantPatch {
 /** `ownerUpdate` rad etish sababi. */
 export type OwnerUpdateError = "NOT_FOUND" | "PHONE_TAKEN" | "PROFILE_INCOMPLETE";
 
+/**
+ * Diskdagi ko'rinish: ilgari ishtirokchida bitta `reel` bo'lgan, endi — `reels` (cheksiz).
+ * Holat faylini o'qishda `migrateParticipant` bilan yangi ko'rinishga o'tkaziladi.
+ */
+export type StoredParticipant = Omit<Participant, "reels"> & { reels?: Reel[]; reel?: Reel | null };
+
 /** Sozlamalar ulanmagan bo'lsa (testlar) — minimal yosh. */
 export const MIN_AGE = 18;
+
+/** Eski `reel` → `reels` (bitta video bo'lsa — bitta elementli ro'yxat); `reel` maydoni tashlanadi. */
+export function migrateParticipant(saved: StoredParticipant): Participant {
+  const { reel, reels, ...rest } = saved;
+  return { ...rest, reels: reels ?? (reel ? [reel] : []) };
+}
+
+/** Rad etilmagan video: tekshiruvda, reytingda yoki qo'lda tekshiruvda. Shu holatda link band. */
+export const isLiveReel = (reel: Reel): boolean => reel.status !== "REJECTED";
+
+/** Rad etilmagan videolar (yuborilish tartibida). */
+export const liveReels = (p: Participant): Reel[] => p.reels.filter(isLiveReel);
+
+/** Reytingga kiradigan (ACCEPTED) videolar (yuborilish tartibida). */
+export const acceptedReels = (p: Participant): Reel[] => p.reels.filter((r) => r.status === "ACCEPTED");
+
+/** Videoning oxirgi yig'ilgan ko'rishlari (hali yig'ilmagan bo'lsa — 0). */
+export const reelViews = (reel: Reel): number => reel.history.at(-1)?.views ?? 0;
+
+/** Ishtirokchi ko'rishlari: qabul qilingan videolar oxirgi ko'rishlari yig'indisi (qoidalar 7.1, 7.3). */
+export const participantViews = (p: Participant): number =>
+  acceptedReels(p).reduce((sum, reel) => sum + reelViews(reel), 0);
+
+/** Rad etilmagan videolar egalari (Instagram akkauntlari), takrorlarsiz, birinchi uchragan tartibda. */
+export function instagramUsernames(p: Participant): string[] {
+  const owners = liveReels(p).flatMap((r) => (r.owner ? [r.owner] : []));
+  return [...new Set(owners)];
+}
+
+/** Videolardan eng birinchi yuborilganining vaqti (ms) — reytingda teng ko'rishda shu bo'yicha. */
+export const firstSubmittedAt = (reels: readonly Reel[]): number =>
+  Math.min(...reels.map((r) => r.submittedAt.getTime()));
+
+/**
+ * "Asosiy" video — ko'rishlari eng ko'pi (teng bo'lsa — oldinroq yuborilgani). Bitta link
+ * ko'rsatiladigan joylar uchun (g'olib, random tanlov nomzodi, kunlik reyting). Bo'sh ro'yxat — null.
+ */
+export function topReel(reels: readonly Reel[], views: (reel: Reel) => number = reelViews): Reel | null {
+  let best: Reel | null = null;
+  for (const reel of reels) {
+    if (best === null || views(reel) > views(best)) best = reel;
+  }
+  return best;
+}
 
 /**
  * Ishtirokchilar ombori.
@@ -150,8 +204,13 @@ export class ParticipantsService {
     @Optional() @Inject(StateStore) store: StateStore | null = null,
     @Optional() @Inject(ContestSettingsService) private readonly contest: ContestSettingsService | null = null,
   ) {
-    const saved = store?.attach("participants", () => ({ participants: this.all() }));
-    for (const p of saved?.participants ?? []) this.byTelegramId.set(p.telegramId, p);
+    const saved = store?.attach<{ participants: StoredParticipant[] }>("participants", () => ({
+      participants: this.all(),
+    }));
+    for (const stored of saved?.participants ?? []) {
+      const p = migrateParticipant(stored);
+      this.byTelegramId.set(p.telegramId, p);
+    }
   }
 
   get(telegramId: number): Participant | null {
@@ -169,7 +228,7 @@ export class ParticipantsService {
         lastName: null,
         age: null,
         consentVersion: null,
-        reel: null,
+        reels: [],
         status: "ACTIVE",
         createdAt: new Date(),
       };
@@ -224,19 +283,22 @@ export class ParticipantsService {
   }
 
   /**
-   * Reel linkini qabul qiladi (holat PENDING). Instagram'dagi tekshiruv (mavjudligi,
-   * video ekanligi, egasi) va ko'rishlar — StatsService ishi.
+   * Reel linkini qabul qiladi (holat PENDING) va ishtirokchi ro'yxati oxiriga qo'shadi. Instagram'dagi
+   * tekshiruv (mavjudligi, video ekanligi, egasi) va ko'rishlar — StatsService ishi.
    *
-   * Rad etilgan video o'rniga yangisini yuborish mumkin; boshqa holatda — bitta video.
+   * Videolar soni cheklanmagan. Rad etilmagan (band) link qayta yuborilmaydi: o'zida bo'lsa —
+   * `REEL_ALREADY_SUBMITTED`, boshqa ishtirokchida bo'lsa — `REEL_TAKEN`. O'zining rad etilgan
+   * videosini qayta yuborsa — eski yozuv o'chiriladi, yangisi oxiriga qo'shiladi.
    */
   submitReel(telegramId: number, url: string, shortcode: string): Reel {
     const p = this.requireActive(telegramId);
-    if (p.reel && p.reel.status !== "REJECTED") throw new ApiException(409, "REEL_ALREADY_SUBMITTED");
+    const own = p.reels.find((r) => r.shortcode === shortcode);
+    if (own && isLiveReel(own)) throw new ApiException(409, "REEL_ALREADY_SUBMITTED");
     const taken = this.all().some(
-      (o) => o !== p && o.reel && o.reel.status !== "REJECTED" && o.reel.shortcode === shortcode,
+      (o) => o !== p && o.reels.some((r) => isLiveReel(r) && r.shortcode === shortcode),
     );
     if (taken) throw new ApiException(409, "REEL_TAKEN");
-    p.reel = {
+    const reel: Reel = {
       url,
       shortcode,
       status: "PENDING",
@@ -250,29 +312,35 @@ export class ParticipantsService {
       lastFoundAt: null,
       review: null,
     };
-    return p.reel;
+    if (own) p.reels = p.reels.filter((r) => r !== own);
+    p.reels.push(reel);
+    return reel;
   }
 
   /**
    * Shu Instagram akkauntdan boshqa ishtirokchi video yuborganmi (rad etilganlar hisobga
-   * olinmaydi). Bitta akkaunt — bitta ishtirokchi.
+   * olinmaydi). Bitta akkaunt — bitta ishtirokchi; o'zining boshqa videolari to'sqinlik qilmaydi.
    */
   ownerTakenByOther(owner: string, telegramId: number): boolean {
     return this.all().some(
-      (o) =>
-        o.telegramId !== telegramId &&
-        o.reel !== null &&
-        o.reel.status !== "REJECTED" &&
-        o.reel.owner === owner,
+      (o) => o.telegramId !== telegramId && o.reels.some((r) => isLiveReel(r) && r.owner === owner),
     );
   }
 
-  /** Shortcode bo'yicha video va uning egasi (admin qo'lda tekshiruvi uchun). */
+  /**
+   * Shortcode bo'yicha video va uning egasi (admin qo'lda tekshiruvi uchun). Rad etilmagan (band)
+   * video ustun — u bitta bo'ladi; bo'lmasa — eng oxirgi yuborilgan rad etilgani.
+   */
   findByShortcode(shortcode: string): { participant: Participant; reel: Reel } | null {
+    let rejected: { participant: Participant; reel: Reel } | null = null;
     for (const p of this.byTelegramId.values()) {
-      if (p.reel?.shortcode === shortcode) return { participant: p, reel: p.reel };
+      for (const reel of p.reels) {
+        if (reel.shortcode !== shortcode) continue;
+        if (isLiveReel(reel)) return { participant: p, reel };
+        if (rejected === null || reel.submittedAt > rejected.reel.submittedAt) rejected = { participant: p, reel };
+      }
     }
-    return null;
+    return rejected;
   }
 
   /** Qoidabuzarlik (masalan, target) uchun tanlovdan chetlatish — faqat admin qaroridan keyin. */

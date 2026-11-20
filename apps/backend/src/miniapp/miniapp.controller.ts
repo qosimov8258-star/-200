@@ -3,7 +3,14 @@ import { Body, Controller, Delete, Get, HttpCode, Post, UseGuards } from "@nestj
 import { ContestSettingsService } from "../contest/contest-settings.service";
 import { DrawsService } from "../draws/draws.service";
 import { ApiException } from "../common/api-exception";
-import { maskPhone, ParticipantsService } from "../participants/participants.service";
+import {
+  maskPhone,
+  ParticipantsService,
+  reelViews,
+  type Reel,
+  type ReelRejectReason,
+  type ReelStatus,
+} from "../participants/participants.service";
 import { RulesService } from "../rules/rules.service";
 import { StatsService } from "../stats/stats.service";
 import { SupportRelay } from "../support/support-relay";
@@ -17,6 +24,34 @@ import { parseRegister, parseSupportMessage, parseTargetReport, parseUrl, parseV
 
 /** Mini App grafigi uchun nechta kun beriladi. */
 const DAILY_DAYS = 30;
+
+/** "Mening videolarim" (`apps/miniapp/src/lib/types.ts` → MyReels). */
+export interface MyReels {
+  /** Qabul qilingan videolar oxirgi ko'rishlari yig'indisi. */
+  totalViews: number;
+  /** Oxirgi kundagi o'sish (barcha qabul qilinganlar bo'yicha). */
+  todayViews: number;
+  rank: number | null;
+  rankDelta: number;
+  /** Qabul qilingan videolarning kunlik o'sishi yig'indisi — eskidan yangiga, oxirgi `DAILY_DAYS` kun. */
+  daily: { date: string; views: number }[];
+  /** Videolar ichida eng oxirgi yig'ish vaqti (ISO). */
+  lastSyncedAt: string | null;
+  nextSyncAt: string | null;
+  syncEveryDays: number;
+  /** Eng yangisi birinchi. */
+  reels: MyReelItem[];
+}
+
+export interface MyReelItem {
+  url: string;
+  shortcode: string;
+  status: ReelStatus;
+  rejectReason: ReelRejectReason | null;
+  /** Shu videoning oxirgi ko'rishlari (hali yig'ilmagan — 0). */
+  views: number;
+  submittedAt: string;
+}
 /** Support: shu vaqt ichida ko'pi bilan shuncha xabar (spamdan himoya). */
 const SUPPORT_WINDOW_MS = 10 * 60 * 1000;
 const SUPPORT_MAX_IN_WINDOW = 5;
@@ -106,42 +141,55 @@ export class MiniappController {
     }));
   }
 
-  @Get("reel")
-  reel(@TgUser() user: TelegramIdentity) {
+  /**
+   * Ishtirokchining barcha videolari va jami statistikasi. Video bo'lmasa ham obyekt qaytadi
+   * (`reels: []`). Ko'rishlar, kunlik o'sish va o'rin — faqat qabul qilingan videolar bo'yicha.
+   */
+  @Get("reels")
+  reels(@TgUser() user: TelegramIdentity): MyReels {
     const p = this.participants.get(user.telegramId);
-    const reel = p?.reel;
-    if (!p || !reel) return null;
-    const entry = this.stats.ranking().find((e) => e.participant === p) ?? null;
-    const h = reel.history;
-    // Kunlik o'sish: kun oxiridagi jami − oldingi yozuv. Kamayish 0 deb ko'rsatiladi
-    // (ishtirokchiga; admin VIEW_DROP belgisini ko'radi).
-    const daily = h.slice(1).map((s, i) => ({ date: s.date, views: Math.max(0, s.views - h[i].views) }));
-    const last = h.at(-1);
+    const reels = p?.reels ?? [];
+    const accepted = reels.filter((r) => r.status === "ACCEPTED");
+    const entry = p ? (this.stats.ranking().find((e) => e.participant === p) ?? null) : null;
+    const daily = summedDailyGrowth(accepted);
+    const lastSyncedAt = reels.reduce<Date | null>((latest, r) => {
+      const at = r.history.at(-1)?.at ?? null;
+      return at !== null && (latest === null || at > latest) ? at : latest;
+    }, null);
     return {
-      url: reel.url,
-      shortcode: reel.shortcode,
-      status: reel.status,
-      rejectReason: reel.rejectReason,
-      totalViews: last?.views ?? 0,
+      totalViews: accepted.reduce((sum, r) => sum + reelViews(r), 0),
       todayViews: daily.at(-1)?.views ?? 0,
       rank: entry?.rank ?? null,
       rankDelta: entry?.rankDelta ?? 0,
       daily: daily.slice(-DAILY_DAYS),
-      lastSyncedAt: last?.at.toISOString() ?? null,
+      lastSyncedAt: lastSyncedAt?.toISOString() ?? null,
       /** Keyingi rejadagi yangilanish (har `syncEveryDays` kunda); bo'lmasa — null. */
       nextSyncAt: this.stats.nextSyncAt()?.toISOString() ?? null,
       syncEveryDays: this.stats.syncEveryDays,
+      reels: [...reels].reverse().map(
+        (r): MyReelItem => ({
+          url: r.url,
+          shortcode: r.shortcode,
+          status: r.status,
+          rejectReason: r.status === "REJECTED" ? r.rejectReason : null,
+          views: reelViews(r),
+          submittedAt: r.submittedAt.toISOString(),
+        }),
+      ),
     };
   }
 
-  /** Link qabul qilinadi (PENDING); tekshiruv bir necha soniyada fon rejimida, natija bot orqali. */
-  @Post("reel")
-  submitReel(@TgUser() user: TelegramIdentity, @Body() body: unknown) {
+  /**
+   * Yangi video (soni cheklanmagan): link qabul qilinadi (PENDING); tekshiruv bir necha soniyada
+   * fon rejimida, natija bot orqali. Javob — yangilangan "Mening videolarim".
+   */
+  @Post("reels")
+  submitReel(@TgUser() user: TelegramIdentity, @Body() body: unknown): MyReels {
     const shortcode = parseReelShortcode(parseUrl(body));
     if (!shortcode) throw new ApiException(422, "INVALID_LINK");
     this.participants.submitReel(user.telegramId, canonicalReelUrl(shortcode), shortcode);
-    this.stats.queueVerification(user.telegramId);
-    return this.reel(user);
+    this.stats.queueVerification(user.telegramId, shortcode);
+    return this.reels(user);
   }
 
   /**
@@ -154,7 +202,6 @@ export class MiniappController {
     this.targets.report(user.telegramId, parseTargetReport(body));
   }
 
-  /** Sovrinlar: oylik voucherlar, bosqichlar, asosiy sovrin toifalari. */
   /** Support yozishmasi (ilova va sayt): ishtirokchi xabarlari va operator javoblari. */
   @Get("support")
   supportThread(@TgUser() user: TelegramIdentity) {
@@ -191,6 +238,7 @@ export class MiniappController {
     }));
   }
 
+  /** Sovrinlar: oylik voucherlar, bosqichlar, asosiy sovrin toifalari. */
   @Public()
   @Get("prizes")
   prizes() {
@@ -209,4 +257,20 @@ export class MiniappController {
   deleteMe(@TgUser() user: TelegramIdentity): void {
     this.participants.delete(user.telegramId);
   }
+}
+
+/**
+ * Kunlik o'sish: har bir video uchun kun oxiridagi jami − oldingi yozuv (birinchi yozuv o'sish
+ * emas), so'ng sanalar bo'yicha qo'shiladi. Kamayish 0 deb ko'rsatiladi (ishtirokchiga; admin
+ * VIEW_DROP belgisini ko'radi). Eskidan yangiga.
+ */
+export function summedDailyGrowth(reels: readonly Reel[]): { date: string; views: number }[] {
+  const byDate = new Map<string, number>();
+  for (const { history: h } of reels) {
+    for (let i = 1; i < h.length; i++) {
+      const growth = Math.max(0, h[i].views - h[i - 1].views);
+      byDate.set(h[i].date, (byDate.get(h[i].date) ?? 0) + growth);
+    }
+  }
+  return [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, views]) => ({ date, views }));
 }

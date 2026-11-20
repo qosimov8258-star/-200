@@ -13,9 +13,11 @@ import {
   listParticipants,
   participantContext,
   toParticipantItem,
+  toParticipantReels,
   type ParticipantAction,
   type ParticipantContext,
   type ParticipantListItem,
+  type ParticipantReels,
   type StatusCounts,
 } from "../reports/participants";
 import { StatsService } from "../stats/stats.service";
@@ -55,9 +57,10 @@ function queryText(value: unknown): string | undefined {
 }
 
 /**
- * Ishtirokchilar (admin panel → Foydalanuvchilar): ro'yxat, bloklash, blokdan chiqarish,
- * diskvalifikatsiya. Kontrakt — `apps/admin/src/lib/api.ts` dagi `getParticipants`,
- * `blockParticipant`, `unblockParticipant`, `disqualifyParticipant`. Faqat ADMIN.
+ * Ishtirokchilar (admin panel → Foydalanuvchilar): ro'yxat, ishtirokchining barcha videolari,
+ * bloklash, blokdan chiqarish, diskvalifikatsiya. Kontrakt — `apps/admin/src/lib/api.ts` dagi
+ * `getParticipants`, `getParticipantReels`, `blockParticipant`, `unblockParticipant`,
+ * `disqualifyParticipant`. Faqat ADMIN.
  *
  * Har bir amal audit logga yoziladi (sabab majburiy). Ishtirokchiga bot orqali xabar
  * hozircha yuborilmaydi. Ism, familiya va yoshni o'zgartiruvchi endpoint yo'q (CLAUDE.md).
@@ -97,6 +100,12 @@ export class AdminParticipantsController {
       ...paginate(result.items, queryText(page), queryText(pageSize), DEFAULT_PAGE_SIZE),
       statusCounts: result.statusCounts,
     };
+  }
+
+  /** `GET /admin/participants/:id/reels` — ishtirokchi yuborgan barcha videolar (eng yangisi birinchi). */
+  @Get(":id/reels")
+  reels(@Param("id") id: string): ParticipantReels {
+    return toParticipantReels(this.find(id));
   }
 
   /** Bloklash: ilovaga kira olmaydi, reytingdan chiqadi. Body: `{ reason }`. */
@@ -152,7 +161,7 @@ export class AdminParticipantsController {
   private find(id: string): Participant {
     const telegramId = TELEGRAM_ID.test(id) ? Number(id) : Number.NaN;
     const p = Number.isSafeInteger(telegramId) ? this.participants.get(telegramId) : null;
-    if (!p || !isListed(p)) throw adminError(404, "Ishtirokchi topilmadi.");
+    if (!p || !isListed(p)) throw adminError(404, "Ishtirokchi topilmadi.", "NOT_FOUND");
     return p;
   }
 

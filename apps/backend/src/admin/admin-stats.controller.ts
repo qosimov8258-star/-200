@@ -91,7 +91,7 @@ export class AdminStatsController {
     const range = parseRange(minViews, maxViews, includeNear);
     const report = this.stats.lastRefreshReport;
     return {
-      count: refreshCandidates(this.participants.all(), range).length,
+      count: refreshCandidates(this.participants.all(), range).videos,
       range: effectiveRange(range),
       lastSyncAt: this.stats.status().lastSuccessAt,
       running: this.stats.isRefreshing || this.stats.isSyncing,
@@ -116,7 +116,7 @@ export class AdminStatsController {
     const b = objectBody(body, ["minViews", "maxViews", "includeNear"]);
     if (b.includeNear !== undefined && typeof b.includeNear !== "boolean") throw adminError(400, "includeNear — true yoki false.");
     const range = parseRange(b.minViews, b.maxViews, b.includeNear);
-    const ids = refreshCandidates(this.participants.all(), range);
+    const { ids, videos } = refreshCandidates(this.participants.all(), range);
     if (ids.length === 0) throw adminError(422, "Bu oraliqda yangilanadigan video yo'q.");
     const job = this.stats.refreshReels(ids, `${admin.fullName}: ${rangeLabel(range)}`);
     if (!job) throw adminError(409, "Ko'rishlar hozir yig'ilmoqda — tugashini kuting.");
@@ -129,25 +129,26 @@ export class AdminStatsController {
       entityId: "range",
       entityLabel: "Ko'rishlarni yangilash",
       before: "",
-      after: `${ids.length} ta video: ${from ?? 0} – ${to === null ? "∞" : to} ko'rish${range.includeNear ? " (yaqinlar bilan)" : ""}`,
+      after: `${videos} ta video (${ids.length} ishtirokchi): ${from ?? 0} – ${to === null ? "∞" : to} ko'rish${range.includeNear ? " (yaqinlar bilan)" : ""}`,
       reason: "",
     });
-    return { started: true, count: ids.length };
+    return { started: true, count: videos };
   }
 
-  /** Barcha videolar: holat, egasi, ko'rishlar tarixi, nakrutka belgilari. Avval reytingdagilar. */
+  /**
+   * Barcha videolar (har bir ishtirokchining hammasi): holat, egasi, ko'rishlar tarixi, nakrutka
+   * belgilari. Avval reytingdagilar (o'rin — ishtirokchiniki), so'ng yangilari.
+   */
   @Get("reels")
   reels() {
     const ranked = new Map(this.stats.ranking().map((e) => [e.participant.telegramId, e]));
     return this.participants
       .all()
       .flatMap((p) => {
-        const reel = p.reel;
-        if (!reel) return [];
-        const last = reel.history.at(-1);
         const entry = ranked.get(p.telegramId);
-        return [
-          {
+        return p.reels.map((reel) => {
+          const last = reel.history.at(-1);
+          return {
             telegramId: p.telegramId,
             fullName: p.firstName ? `${p.firstName} ${p.lastName}` : null,
             phone: p.phone,
@@ -172,8 +173,8 @@ export class AdminStatsController {
               likes: s.likes,
               comments: s.comments,
             })),
-          },
-        ];
+          };
+        });
       })
       .sort(
         (a, b) =>

@@ -38,7 +38,10 @@ export interface OwnerParticipant {
   /** Botga birinchi kirgan vaqt (ISO). */
   registeredAt: string;
   instagramUsername: string | null;
+  /** Asosiy video: eng ko'p ko'rishli qabul qilingani (bo'lmasa — oxirgi yuborilgani). */
   reel: { url: string; status: OwnerReelStatus; submittedAt: string } | null;
+  /** Rad etilmagan videolar soni (cheksiz video). */
+  reelCount: number;
   views: number;
   rank: number | null;
   /** Ochiq (NEW yoki WARNED) target holatlari. */

@@ -119,21 +119,26 @@ export const t = {
   ratingEmpty: "Reyting hali shakllanmagan",
   nearMeEmpty: "Video yuborganingizdan keyin o'rningiz shu yerda ko'rinadi",
 
-  // Mening videom
-  reelTitle: "Mening videom",
-  reelSubtitle: "Link va ko'rishlar statistikasi",
+  // Mening videolarim
+  reelTitle: "Mening videolarim",
+  reelSubtitle: "Linklar va ko'rishlar statistikasi",
   stepLink: "Reel linkini yuboring",
   stepLinkBody:
     "Mahsulot haqidagi Reel linkini qo'ying. Video avtomatik tekshiriladi, ko'rishlar esa muntazam yangilanib boradi.",
-  resubmitTitle: "Boshqa link yuboring",
-  resubmitBody: "Xatoni tuzatib, Reel linkini qaytadan yuboring.",
+  addReelTitle: "Yangi video qo'shing",
+  addReelBody:
+    "Videolar soni cheklanmagan: har biri alohida tekshiriladi, qabul qilinganlarining ko'rishlari qo'shilib boradi.",
+  myReelsTitle: "Videolarim",
+  myReelsCount: (accepted: number, total: number) =>
+    accepted > 0 ? `${total} ta · ${accepted} tasi qabul qilingan` : `${total} ta`,
+  reelSubmittedAt: (when: string) => `Yuborildi: ${when}`,
   linkPlaceholder: "https://www.instagram.com/reel/...",
   paste: "Qo'yish",
   submit: "Yuborish",
   linkEmpty: "Linkni kiriting",
   linkInvalid: "Bu Instagram Reel linki emas. Namuna: https://www.instagram.com/reel/ABC123",
   linkTaken: "Bu video boshqa ishtirokchi tomonidan yuborilgan",
-  linkAlready: "Siz allaqachon video yuborgansiz",
+  linkAlready: "Bu videoni allaqachon yuborgansiz — u ro'yxatingizda bor",
   submitted: "Link yuborildi — video tekshirilmoqda",
   rulesHeading: "Shartlar",
   ruleTag: "Videoda zavod akkaunti belgilangan bo'lishi kerak",
@@ -142,13 +147,12 @@ export const t = {
   ruleNoTarget: "Pullik reklama (target) taqiqlangan",
   ruleNoFakeViews:
     "Nakrutka (sotib olingan ko'rishlar, botlar) taqiqlangan — aniqlansa, ishtirokchi tanlovdan chetlashtiriladi",
-  reelLink: "Video linki",
   openInInstagram: "Instagram'da ochish",
   copy: "Nusxalash",
   copied: "Nusxalandi",
   statusPending: "Tekshirilmoqda",
-  statusAccepted: "Qabul qilingan",
-  statusRejected: "Rad etilgan",
+  statusAccepted: "Qabul qilindi",
+  statusRejected: "Rad etildi",
   statusManualReview: "Qo'lda tekshirilmoqda",
   pendingNote:
     "Video Instagram'da tekshirilmoqda — odatda bir necha daqiqa. Natijani bot ham xabar qiladi.",
@@ -161,14 +165,14 @@ export const t = {
       "Bu Instagram akkauntdan boshqa ishtirokchi video yuborgan. Bitta akkaunt — bitta ishtirokchi. Xato bo'lsa, supportga yozing.",
   },
   manualReviewNote:
-    "Videongizni Instagram'da 3 marta topa olmadik, shuning uchun uni administrator qo'lda tekshiradi. Natijani bot orqali xabar qilamiz. Shu orada akkauntingiz ochiq (yopiq emas) va video o'chirilmaganini tekshiring.",
+    "Bu videoni Instagram'da 3 marta topa olmadik, shuning uchun uni administrator qo'lda tekshiradi. Natijani bot orqali xabar qilamiz. Shu orada akkauntingiz ochiq (yopiq emas) va video o'chirilmaganini tekshiring.",
   statTotal: "Jami ko'rishlar",
   statToday: "Oxirgi o'sish",
   statRank: "Reytingdagi o'rin",
   statRankDelta: "O'rin o'zgarishi",
   noChange: "o'zgarishsiz",
   chartTitle: "Ko'rishlar o'sishi",
-  chartSubtitle: "Har bir yangilanishda qo'shilgan ko'rishlar",
+  chartSubtitle: "Barcha qabul qilingan videolar — har bir yangilanishda qo'shilgan ko'rishlar",
   lastSyncedLabel: "Oxirgi yangilanish",
   nextSyncLabel: "Keyingi yangilanish",
   syncEvery: (days: number) =>
@@ -226,7 +230,7 @@ export const t = {
     "Savolingizni bot chatiga yozing — operator shu yerda javob beradi. Kerak bo'lsa, skrinshot ham yuboring.",
   deleteAccount: "Ishtirokni bekor qilish",
   deleteConfirm:
-    "Ishtirok bekor qilinsinmi? Videongiz va ma'lumotlaringiz tanlovdan o'chiriladi. Bu amalni ortga qaytarib bo'lmaydi.",
+    "Ishtirok bekor qilinsinmi? Videolaringiz va ma'lumotlaringiz tanlovdan o'chiriladi. Bu amalni ortga qaytarib bo'lmaydi.",
 
   // G'olib
   winnerTitle: "G'olib",

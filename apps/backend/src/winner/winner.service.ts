@@ -5,7 +5,10 @@ import { AuditService, type AuditActor } from "../audit/audit.service";
 import { contestDay } from "../common/time";
 import { ContestSettingsService } from "../contest/contest-settings.service";
 import {
+  instagramUsernames,
+  isLiveReel,
   ParticipantsService,
+  topReel,
   type Participant,
   type Reel,
   type ReelFlagType,
@@ -431,7 +434,9 @@ export class WinnerService {
       return p ? { ...confirmed.candidate, checks: this.checks(p) } : confirmed.candidate;
     }
     const top = ranking[0];
-    if (!top) return null;
+    // Reytingdagi ishtirokchida kamida bitta qabul qilingan video bor; ko'rsatiladigani — eng ko'p ko'rilgani.
+    const main = top ? topReel(top.reels) : null;
+    if (!top || !main) return null;
     const p = top.participant;
     return {
       participant: {
@@ -440,11 +445,11 @@ export class WinnerService {
         lastName: p.lastName ?? "",
         age: p.age ?? 0,
         phone: p.phone ?? "",
-        instagramUsername: top.reel.owner,
+        instagramUsername: main.owner ?? instagramUsernames(p)[0] ?? null,
       },
       rank: top.rank,
       views: top.views,
-      reelUrl: top.reel.url,
+      reelUrl: main.url,
       checks: this.checks(p),
     };
   }
@@ -480,8 +485,8 @@ export class WinnerService {
 
   private automaticChecks(p: Participant): WinnerCheck[] {
     const target = this.targetIssue(p);
-    const reel = reelIssue(p.reel);
-    const fake = fakeViewsIssue(p.reel);
+    const reel = reelsIssue(p.reels);
+    const fake = fakeViewsIssue(p.reels);
     return [
       {
         key: "NO_TARGET",
@@ -492,7 +497,7 @@ export class WinnerService {
       {
         key: "REEL_AVAILABLE",
         status: reel ? "FAILED" : "PASSED",
-        detail: reel ?? "Reel Instagramda mavjud va ochiq",
+        detail: reel ?? "Qabul qilingan Reel(lar) Instagramda mavjud va ochiq",
         manual: false,
       },
       {
@@ -550,15 +555,33 @@ export class WinnerService {
   }
 }
 
-function reelIssue(reel: Reel | null): string | null {
-  if (!reel) return "Reel yuborilmagan";
+/**
+ * REEL_AVAILABLE: kamida bitta qabul qilingan video bo'lishi va hech bir video "yo'qolmagan"
+ * bo'lishi kerak — qabul qilingani oxirgi tekshiruvlarda topilmayapti yoki qo'lda tekshiruvga
+ * o'tgan (LOST_REEL). Rad etilgan va hali tekshirilmagan yangi videolar ko'rishlarga qo'shilmaydi —
+ * ular bandni buzmaydi.
+ */
+function reelsIssue(reels: readonly Reel[]): string | null {
+  if (reels.length === 0) return "Reel yuborilmagan";
+  const issues = reels.flatMap((reel) => {
+    const issue = lostReelIssue(reel);
+    return issue ? [reels.length > 1 ? `${reel.shortcode}: ${issue}` : issue] : [];
+  });
+  if (issues.length > 0) return issues.join("; ");
+  if (!reels.some((r) => r.status === "ACCEPTED")) {
+    if (reels.some((r) => r.status === "PENDING" || r.status === "MANUAL_REVIEW")) return "Reel hali tekshirilmagan";
+    return "Reel rad etilgan";
+  }
+  return null;
+}
+
+function lostReelIssue(reel: Reel): string | null {
   switch (reel.status) {
     case "REJECTED":
-      return "Reel rad etilgan";
     case "PENDING":
-      return "Reel hali tekshirilmagan";
+      return null;
     case "MANUAL_REVIEW":
-      return "Reel Instagramda topilmayapti — qo'lda tekshiruvda";
+      return reel.review?.kind === "LOST_REEL" ? "Reel Instagramda topilmayapti — qo'lda tekshiruvda" : null;
     case "ACCEPTED":
       if (reel.misses === 0 || vouchedByAdmin(reel)) return null;
       return `Oxirgi tekshiruvlarda Reel Instagramda topilmadi (${reel.misses} marta ketma-ket)`;
@@ -574,7 +597,14 @@ function vouchedByAdmin(reel: Reel): boolean {
   return !!d && d.approved && d.by !== AUTO_REVIEWER && (reel.lastFoundAt === null || reel.lastFoundAt < d.at);
 }
 
-function fakeViewsIssue(reel: Reel | null): string | null {
-  if (!reel || reel.flags.length === 0) return null;
-  return reel.flags.map((f) => `${FLAG_LABELS[f.type]} (${f.date}): ${f.detail}`).join("; ");
+/** NO_FAKE_VIEWS: rad etilmagan istalgan videoda nakrutka belgisi bo'lsa — band o'tmaydi. */
+function fakeViewsIssue(reels: readonly Reel[]): string | null {
+  const live = reels.filter(isLiveReel);
+  const issues = live.flatMap((reel) =>
+    reel.flags.map((f) => {
+      const text = `${FLAG_LABELS[f.type]} (${f.date}): ${f.detail}`;
+      return live.length > 1 ? `${reel.shortcode}: ${text}` : text;
+    }),
+  );
+  return issues.length > 0 ? issues.join("; ") : null;
 }

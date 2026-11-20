@@ -4,7 +4,8 @@
  *
  * Ma'lumot deterministik generatsiya qilinadi va bugungi sanaga bog'lanadi:
  * tanlov `DAYS_ELAPSED` kun oldin boshlangan deb hisoblanadi. Barcha ismlar,
- * telefonlar va akkauntlar o'ylab topilgan.
+ * telefonlar va akkauntlar o'ylab topilgan. Ishtirokchi videolarni cheklovsiz
+ * yuboradi — mock'da har biriga 0–6 ta video (`REEL_COUNT_WEIGHTS`).
  *
  * Faqat `src/lib/mock/` ichidan ishlatiladi; backend ulanganda o'chiriladi.
  */
@@ -12,6 +13,8 @@ import { addDays, currentHourInTashkent, eachDay, todayIso } from "../dates";
 import type {
   IsoDate,
   ParticipantStatus,
+  ReelFlagType,
+  ReelRejectReason,
   ReelStatus,
   SupportTicketStatus,
   TargetCaseStatus,
@@ -51,15 +54,30 @@ export interface MockReel {
   shortcode: string;
   url: string;
   submittedOn: IsoDate;
+  /** Ilovaga yuborilgan vaqt (UTC ISO), `submittedOn` kuni. */
+  submittedAt: string;
+  /** Instagramda joylangan kun (yuborilishidan 0–2 kun oldin). */
+  postedOn: IsoDate;
   /** Qabul yoki rad etilgan sana; hali ko'rilmagan bo'lsa — null. */
   reviewedOn: IsoDate | null;
   reviewOutcome: "ACCEPTED" | "REJECTED" | null;
+  /** Faqat rad etilganda. */
+  rejectReason: ReelRejectReason | null;
+  /**
+   * Instagram akkaunt — birinchi tekshiruvda aniqlanadi (tekshirilmagan yoki topilmagan
+   * videoda — null). Ba'zi ishtirokchilar ikkinchi o'z akkauntidan ham yuboradi.
+   */
+  owner: string | null;
   /** Reel Instagramdan o'chirilgan sana. */
   removedOn: IsoDate | null;
   /** Kun -> shu kungacha jami ko'rishlar (snapshot). */
   viewsByDay: Map<IsoDate, number>;
   /** Kun -> shu kuni yig'ilgan yangi ko'rishlar. */
   growthByDay: Map<IsoDate, number>;
+  /** Layklar / ko'rishlar nisbati (layklar soni shundan hisoblanadi). */
+  likeRate: number;
+  /** Nakrutka shubhasi belgilari (ko'rishlar yig'ilgach aniqlanadi). */
+  flags: ReelFlagType[];
 }
 
 export interface MockTargetReport {
@@ -137,6 +155,30 @@ export function isBoostDay(detectedOn: IsoDate, date: IsoDate): boolean {
   return date >= addDays(detectedOn, -1) && date < addDays(detectedOn, BOOST_END_OFFSET);
 }
 
+/** Reelning oxirgi yig'ilgan ko'rishlari (kunlar xronologik tartibda saqlangan); yig'ilmagan — 0. */
+export function latestViews(reel: MockReel): number {
+  let latest = 0;
+  for (const views of reel.viewsByDay.values()) latest = views;
+  return latest;
+}
+
+/** `date` kunigacha (shu kun ham) yig'ilgan oxirgi ko'rishlar. */
+export function viewsOn(reel: MockReel, date: IsoDate): number {
+  let views = 0;
+  for (const [day, total] of reel.viewsByDay) {
+    if (day > date) break;
+    views = total;
+  }
+  return views;
+}
+
+/** Ko'rishlar oxirgi marta yig'ilgan kun; hali yig'ilmagan bo'lsa — null. */
+export function lastSnapshotDay(reel: MockReel): IsoDate | null {
+  let last: IsoDate | null = null;
+  for (const day of reel.viewsByDay.keys()) last = day;
+  return last;
+}
+
 /** Reelning `date` kunidagi holati; hali yuborilmagan bo'lsa — null. */
 export function reelStatusOn(reel: MockReel, date: IsoDate): ReelStatus | null {
   if (reel.submittedOn > date) return null;
@@ -191,6 +233,19 @@ const TARGET_METHODS: readonly TargetDetectionMethod[] = [
   "GROWTH_ANALYSIS",
   "REPORT",
 ];
+
+/** Ishtirokchi nechta video yuborgan: indeks — videolar soni, qiymat — og'irligi. */
+const REEL_COUNT_WEIGHTS = [10, 34, 22, 14, 9, 7, 4] as const;
+
+/** Rad etish sabablari va og'irligi: ko'pincha video topilmaydi (yopiq akkaunt, o'chirilgan). */
+const REJECT_REASON_WEIGHTS: ReadonlyArray<readonly [ReelRejectReason, number]> = [
+  ["NOT_FOUND", 5],
+  ["NOT_A_VIDEO", 3],
+  ["OWNER_TAKEN", 2],
+];
+
+/** Ikkinchi o'z akkauntining qo'shimchasi. */
+const SECOND_ACCOUNT_SUFFIXES = ["_vlog", ".uz", "_official", "_shorts"] as const;
 
 const REPORT_COMMENTS = [
   "Kecha kechqurun lentamda «Reklama» deb chiqdi",
@@ -298,6 +353,17 @@ function makeShortcode(random: Random): string {
   return code;
 }
 
+/** Og'irlik bo'yicha tasodifiy indeks. */
+function weightedIndex(random: Random, weights: readonly number[]): number {
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  let roll = random.next() * total;
+  for (let i = 0; i < weights.length; i++) {
+    roll -= weights[i];
+    if (roll < 0) return i;
+  }
+  return weights.length - 1;
+}
+
 function minDate(a: IsoDate, b: IsoDate): IsoDate {
   return a < b ? a : b;
 }
@@ -355,39 +421,75 @@ function generateReels(
 ): MockReel[] {
   const reels: MockReel[] = [];
 
-  for (const participant of participants) {
-    if (!random.chance(0.9)) continue;
+  participants.forEach((participant, index) => {
+    const count = weightedIndex(random, REEL_COUNT_WEIGHTS);
+    const ownAccount = participant.instagramUsername;
+    // Bir nechta video yuborganlarning ba'zilari ikkinchi o'z akkauntidan ham joylaydi.
+    const secondAccount =
+      count >= 2 && ownAccount && random.chance(0.15)
+        ? `${ownAccount}${random.pick(SECOND_ACCOUNT_SUFFIXES)}`
+        : null;
 
-    const submittedOn = minDate(addDays(participant.registeredOn, random.int(0, 3)), today);
-    const recent = submittedOn >= addDays(today, -1);
+    let submittedOn = minDate(addDays(participant.registeredOn, random.int(0, 3)), today);
+    const sameDay = new Map<IsoDate, number>();
 
-    let reviewedOn: IsoDate | null = null;
-    let reviewOutcome: MockReel["reviewOutcome"] = null;
-    let removedOn: IsoDate | null = null;
+    for (let k = 0; k < count; k++) {
+      if (k > 0) submittedOn = minDate(addDays(submittedOn, random.int(0, 4)), today);
+      const recent = submittedOn >= addDays(today, -1);
 
-    if (!(recent && random.chance(0.6))) {
-      reviewedOn = minDate(addDays(submittedOn, random.int(0, 1)), today);
-      reviewOutcome = random.chance(0.07) ? "REJECTED" : "ACCEPTED";
-      if (reviewOutcome === "ACCEPTED" && random.chance(0.04)) {
-        const candidate = addDays(reviewedOn, random.int(2, 10));
-        removedOn = candidate <= today ? candidate : null;
+      let reviewedOn: IsoDate | null = null;
+      let reviewOutcome: MockReel["reviewOutcome"] = null;
+      let rejectReason: ReelRejectReason | null = null;
+      let removedOn: IsoDate | null = null;
+      let owner: string | null = null;
+
+      if (!(recent && random.chance(0.6))) {
+        reviewedOn = minDate(addDays(submittedOn, random.int(0, 1)), today);
+        reviewOutcome = random.chance(0.1) ? "REJECTED" : "ACCEPTED";
+        if (reviewOutcome === "REJECTED") {
+          rejectReason =
+            REJECT_REASON_WEIGHTS[weightedIndex(random, REJECT_REASON_WEIGHTS.map(([, weight]) => weight))][0];
+          if (rejectReason === "NOT_A_VIDEO") owner = ownAccount;
+          if (rejectReason === "OWNER_TAKEN") {
+            // Akkaunt boshqa ishtirokchining videosida ishlatilgan.
+            const other = participants[(index + random.int(1, participants.length - 1)) % participants.length];
+            owner = other.instagramUsername;
+          }
+        } else {
+          owner = secondAccount && k > 0 && random.chance(0.5) ? secondAccount : ownAccount;
+          if (random.chance(0.04)) {
+            const candidate = addDays(reviewedOn, random.int(2, 10));
+            removedOn = candidate <= today ? candidate : null;
+          }
+        }
       }
-    }
 
-    const shortcode = makeShortcode(random);
-    reels.push({
-      id: `reel_${(reels.length + 1).toString().padStart(4, "0")}`,
-      participantId: participant.id,
-      shortcode,
-      url: `https://www.instagram.com/reel/${shortcode}/`,
-      submittedOn,
-      reviewedOn,
-      reviewOutcome,
-      removedOn,
-      viewsByDay: new Map(),
-      growthByDay: new Map(),
-    });
-  }
+      const id = `reel_${(reels.length + 1).toString().padStart(4, "0")}`;
+      // Bir kunda bir nechta video bo'lsa, keyingisi kechroq soatda yuborilgan.
+      const order = sameDay.get(submittedOn) ?? 0;
+      sameDay.set(submittedOn, order + 1);
+      const fromHour = Math.min(22, 8 + order * 4);
+      const shortcode = makeShortcode(random);
+      reels.push({
+        id,
+        participantId: participant.id,
+        shortcode,
+        url: `https://www.instagram.com/reel/${shortcode}/`,
+        submittedOn,
+        submittedAt: eventTime(submittedOn, `submit:${id}`, fromHour, Math.min(23, fromHour + 3)),
+        postedOn: addDays(submittedOn, -(hashString(id) % 3)),
+        reviewedOn,
+        reviewOutcome,
+        rejectReason,
+        owner,
+        removedOn,
+        viewsByDay: new Map(),
+        growthByDay: new Map(),
+        likeRate: 0,
+        flags: [],
+      });
+    }
+  });
 
   return reels;
 }
@@ -427,6 +529,37 @@ function generateViews(
   }
 }
 
+/** Ko'rishlar o'sishi kunlik medianadan shuncha marta oshsa — "keskin o'sish" belgisi. */
+const VIEW_SPIKE_RATIO = 6;
+
+/**
+ * Layklar nisbati va nakrutka shubhasi belgilari. Har Reelning o'z generatori — asosiy
+ * ketma-ketlik (va boshqa mock ma'lumotlar) siljimaydi.
+ */
+function generateEngagement(reels: MockReel[], targets: MockTargetDetection[]): void {
+  const boosted = new Map(targets.map((target) => [target.reelId, target.method]));
+
+  for (const reel of reels) {
+    const random = createRandom(hashString(`engagement:${reel.id}`));
+    const flags = new Set<ReelFlagType>();
+    const growth = [...reel.growthByDay.values()].filter((value) => value > 0);
+
+    if (growth.length >= 3) {
+      const sorted = [...growth].sort((a, b) => a - b);
+      const median = sorted[Math.floor(sorted.length / 2)];
+      if (median > 0 && Math.max(...growth) / median >= VIEW_SPIKE_RATIO) flags.add("VIEW_SPIKE");
+    }
+    if (boosted.get(reel.id) === "GROWTH_ANALYSIS") flags.add("ENGAGEMENT_GAP");
+    if (growth.length > 0 && random.chance(0.05)) flags.add("LOW_ENGAGEMENT");
+    if (growth.length > 0 && random.chance(0.03)) flags.add("VIEW_DROP");
+
+    reel.likeRate = flags.has("LOW_ENGAGEMENT") || flags.has("ENGAGEMENT_GAP")
+      ? 0.002 + random.next() * 0.004
+      : 0.015 + random.next() * 0.06;
+    reel.flags = [...flags];
+  }
+}
+
 function generateTargets(
   random: Random,
   reels: MockReel[],
@@ -441,12 +574,16 @@ function generateTargets(
   );
 
   const targets: MockTargetDetection[] = [];
-  const used = new Set<string>();
+  const tried = new Set<string>();
+  // Bitta ishtirokchiga bitta target holati (videolari ko'p bo'lsa ham).
+  const usedParticipants = new Set<string>();
 
-  while (targets.length < TARGET_COUNT && used.size < candidates.length) {
+  while (targets.length < TARGET_COUNT && tried.size < candidates.length) {
     const reel = random.pick(candidates);
-    if (used.has(reel.id) || !reel.reviewedOn) continue;
-    used.add(reel.id);
+    if (tried.has(reel.id) || !reel.reviewedOn) continue;
+    tried.add(reel.id);
+    if (usedParticipants.has(reel.participantId)) continue;
+    usedParticipants.add(reel.participantId);
 
     const index = targets.length;
     const method = random.pick(TARGET_METHODS);
@@ -641,6 +778,7 @@ function generate(today: IsoDate): MockContestData {
   const targets = generateTargets(random, reels, today);
   const boosts = new Map(targets.map((target) => [target.reelId, target.detectedOn]));
   generateViews(random, reels, boosts, today);
+  generateEngagement(reels, targets);
 
   // Boshlang'ich holatlar bir-biriga mos bo'lsin.
   for (const target of targets) {

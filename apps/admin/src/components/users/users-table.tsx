@@ -15,12 +15,7 @@ import {
 import { ActionMenu, type ActionMenuItem } from "@/components/ui/action-menu";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatNumber } from "@/lib/format";
-import {
-  PARTICIPANT_STATUS_LABELS,
-  PARTICIPANT_STATUS_TONES,
-  REEL_STATUS_LABELS,
-  REEL_STATUS_TONES,
-} from "@/lib/labels";
+import { PARTICIPANT_STATUS_LABELS, PARTICIPANT_STATUS_TONES } from "@/lib/labels";
 import type {
   ParticipantAction,
   ParticipantListItem,
@@ -29,19 +24,30 @@ import type {
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+import { ReelCountBadges } from "./reel-count-badges";
+
 interface UsersTableProps {
   items: ParticipantListItem[];
   sort: ParticipantSort;
   order: SortOrder;
   onSortChange: (sort: ParticipantSort) => void;
   onAction: (item: ParticipantListItem, action: ParticipantAction) => void;
+  /** "Videolar" oynasini ochish (ism, video soni yoki qatorning bo'sh joyi bosilganda). */
+  onShowReels: (item: ParticipantListItem) => void;
 }
 
 export function fullName(item: Pick<ParticipantListItem, "firstName" | "lastName">): string {
   return `${item.firstName} ${item.lastName}`;
 }
 
-export function UsersTable({ items, sort, order, onSortChange, onAction }: UsersTableProps) {
+export function UsersTable({
+  items,
+  sort,
+  order,
+  onSortChange,
+  onAction,
+  onShowReels,
+}: UsersTableProps) {
   const sortProps = { activeSort: sort, order, onSortChange };
 
   return (
@@ -58,7 +64,7 @@ export function UsersTable({ items, sort, order, onSortChange, onAction }: Users
               Instagram
             </th>
             <th scope="col" className="px-4 py-2.5 text-left font-medium">
-              Reel
+              Videolar
             </th>
             <SortableHeader sort="views" label="Ko'rishlar" align="right" {...sortProps} />
             <th scope="col" className="px-4 py-2.5 text-left font-medium">
@@ -71,7 +77,7 @@ export function UsersTable({ items, sort, order, onSortChange, onAction }: Users
         </thead>
         <tbody className="divide-y divide-slate-100">
           {items.map((item) => (
-            <UserRow key={item.id} item={item} onAction={onAction} />
+            <UserRow key={item.id} item={item} onAction={onAction} onShowReels={onShowReels} />
           ))}
         </tbody>
       </table>
@@ -130,17 +136,36 @@ function SortableHeader({
 // Qator
 // ---------------------------------------------------------------------------
 
+/** Bosilgan joy qatordagi tugma, havola yoki menyu bo'lsa — qator bosilishi hisoblanmaydi. */
+function isInteractiveTarget(target: EventTarget): boolean {
+  return (
+    target instanceof Element &&
+    target.closest("a, button, input, select, textarea, label, [role='menu']") !== null
+  );
+}
+
 function UserRow({
   item,
   onAction,
+  onShowReels,
 }: {
   item: ParticipantListItem;
   onAction: UsersTableProps["onAction"];
+  onShowReels: UsersTableProps["onShowReels"];
 }) {
   const name = fullName(item);
 
   return (
-    <tr className="hover:bg-slate-50/70">
+    // Sichqoncha uchun butun qator bosiladi; klaviaturada — ism tugmasi (Tab + Enter).
+    <tr
+      className="cursor-pointer hover:bg-slate-50/70"
+      onClick={(event) => {
+        if (isInteractiveTarget(event.target)) return;
+        // Matn belgilanayotgan bo'lsa (masalan, telefonni nusxalash) — oyna ochilmaydi.
+        if (window.getSelection()?.toString()) return;
+        onShowReels(item);
+      }}
+    >
       <td className="px-4 py-3 tabular-nums">
         {item.rank === null ? (
           <span className="text-slate-300">
@@ -157,7 +182,14 @@ function UserRow({
       </td>
 
       <td className="px-4 py-3">
-        <p className="font-medium whitespace-nowrap text-slate-900">{name}</p>
+        <button
+          type="button"
+          onClick={() => onShowReels(item)}
+          className="rounded text-left font-medium whitespace-nowrap text-slate-900 hover:text-brand-700 hover:underline"
+        >
+          {name}
+          <span className="sr-only"> — videolarini ko&apos;rish</span>
+        </button>
         <p className="text-xs whitespace-nowrap text-slate-500">
           {item.age} yosh · {formatDate(item.registeredOn)} dan
         </p>
@@ -178,33 +210,33 @@ function UserRow({
             <span className="sr-only">(yangi oynada)</span>
           </a>
         ) : (
-          <span className="text-slate-400">Ulanmagan</span>
+          // Akkaunt videolardan aniqlanadi (tekshirilgan, rad etilmagan video bo'lmasa — yo'q).
+          <span className="text-slate-400">Aniqlanmagan</span>
         )}
       </td>
 
       <td className="px-4 py-3">
-        {item.reel ? (
-          <span className="inline-flex flex-wrap items-center gap-2">
-            <Badge tone={REEL_STATUS_TONES[item.reel.status]}>
-              {REEL_STATUS_LABELS[item.reel.status]}
-            </Badge>
-            <a
-              href={item.reel.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded p-0.5 text-slate-400 hover:text-brand-700"
-              aria-label={`${name} Reelini yangi oynada ochish`}
-            >
-              <ExternalLink className="size-4" aria-hidden />
-            </a>
+        {item.reels.total === 0 ? (
+          <span className="text-slate-300">
+            —<span className="sr-only">video yuborilmagan</span>
           </span>
         ) : (
-          <span className="text-slate-400">Yuborilmagan</span>
+          <div className="flex flex-col items-start gap-1">
+            <button
+              type="button"
+              onClick={() => onShowReels(item)}
+              className="rounded font-medium whitespace-nowrap text-brand-700 tabular-nums hover:underline"
+            >
+              {formatNumber(item.reels.total)} ta video
+              <span className="sr-only"> — {name}, ro&apos;yxatni ochish</span>
+            </button>
+            <ReelCountBadges counts={item.reels} />
+          </div>
         )}
       </td>
 
       <td className="px-4 py-3 text-right whitespace-nowrap text-slate-900 tabular-nums">
-        {item.reel ? formatNumber(item.views) : <span className="text-slate-300">—</span>}
+        {item.reels.total > 0 ? formatNumber(item.views) : <span className="text-slate-300">—</span>}
       </td>
 
       <td className="px-4 py-3">

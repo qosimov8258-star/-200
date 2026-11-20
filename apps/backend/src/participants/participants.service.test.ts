@@ -3,7 +3,15 @@ import { test } from "node:test";
 
 import { ApiException } from "../common/api-exception";
 import { RulesService } from "../rules/rules.service";
-import { ParticipantsService } from "./participants.service";
+import {
+  instagramUsernames,
+  migrateParticipant,
+  participantViews,
+  ParticipantsService,
+  topReel,
+  type Reel,
+  type StoredParticipant,
+} from "./participants.service";
 
 const RULES_VERSION = 1;
 const make = () => new ParticipantsService(new RulesService());
@@ -52,14 +60,29 @@ test("one phone number — one participant", () => {
   assert.equal(svc.setPhone(1, 1, "+998901234567"), "OK");
 });
 
-test("a Reel can be submitted once and only by one participant", () => {
+test("a participant can submit any number of Reels; each live link belongs to one participant", () => {
   const svc = make();
   active(svc, 1, "+998900000001");
   active(svc, 2, "+998900000002");
-  svc.submitReel(1, "https://www.instagram.com/reel/AAAAA1/", "AAAAA1");
-  assert.equal(code(() => svc.submitReel(1, "u", "BBBBB2")), "REEL_ALREADY_SUBMITTED");
+  for (const shortcode of ["AAAAA1", "BBBBB2", "CCCCC3", "DDDDD4", "EEEEE5"]) {
+    assert.equal(code(() => svc.submitReel(1, `https://www.instagram.com/reel/${shortcode}/`, shortcode)), "NONE");
+  }
+  assert.deepEqual(
+    svc.get(1)?.reels.map((r) => [r.shortcode, r.status]),
+    [
+      ["AAAAA1", "PENDING"],
+      ["BBBBB2", "PENDING"],
+      ["CCCCC3", "PENDING"],
+      ["DDDDD4", "PENDING"],
+      ["EEEEE5", "PENDING"],
+    ],
+    "eskidan yangiga, yuborilish tartibida",
+  );
+  // O'zida bor (rad etilmagan) link — qayta yuborilmaydi; boshqada bor — band.
+  assert.equal(code(() => svc.submitReel(1, "u", "CCCCC3")), "REEL_ALREADY_SUBMITTED");
   assert.equal(code(() => svc.submitReel(2, "u", "AAAAA1")), "REEL_TAKEN");
-  assert.equal(svc.get(1)?.reel?.status, "PENDING");
+  assert.equal(svc.get(1)?.reels.length, 5);
+  assert.equal(svc.get(2)?.reels.length, 0);
 });
 
 test("only active participants can submit; no Instagram connection is needed", () => {
@@ -71,7 +94,7 @@ test("only active participants can submit; no Instagram connection is needed", (
   assert.equal(code(() => svc.submitReel(1, "u", "AAAAA1")), "NONE");
 });
 
-test("a rejected Reel can be replaced, and its link is free for others", () => {
+test("a rejected Reel's link is free for others; a new link is added next to it", () => {
   const svc = make();
   active(svc, 1, "+998900000001");
   active(svc, 2, "+998900000002");
@@ -80,8 +103,83 @@ test("a rejected Reel can be replaced, and its link is free for others", () => {
   first.rejectReason = "NOT_FOUND";
   assert.equal(code(() => svc.submitReel(2, "u", "AAAAA1")), "NONE");
   assert.equal(code(() => svc.submitReel(1, "u", "CCCCC3")), "NONE");
-  assert.equal(svc.get(1)?.reel?.shortcode, "CCCCC3");
-  assert.equal(svc.get(1)?.reel?.status, "PENDING");
+  assert.deepEqual(svc.get(1)?.reels.map((r) => [r.shortcode, r.status]), [
+    ["AAAAA1", "REJECTED"],
+    ["CCCCC3", "PENDING"],
+  ]);
+  // Endi bu link 2-ishtirokchida band — 1-ishtirokchi o'zining rad etilganini qayta yubora olmaydi.
+  assert.equal(code(() => svc.submitReel(1, "u", "AAAAA1")), "REEL_TAKEN");
+});
+
+test("re-submitting one's own rejected link replaces the old entry", () => {
+  const svc = make();
+  active(svc, 1, "+998900000001");
+  const first = svc.submitReel(1, "u", "AAAAA1");
+  svc.submitReel(1, "u", "BBBBB2");
+  first.status = "REJECTED";
+  first.rejectReason = "NOT_FOUND";
+
+  const again = svc.submitReel(1, "https://www.instagram.com/reel/AAAAA1/", "AAAAA1");
+  assert.notEqual(again, first);
+  assert.deepEqual(svc.get(1)?.reels.map((r) => [r.shortcode, r.status, r.rejectReason]), [
+    ["BBBBB2", "PENDING", null],
+    ["AAAAA1", "PENDING", null],
+  ]);
+  assert.equal(code(() => svc.submitReel(1, "u", "AAAAA1")), "REEL_ALREADY_SUBMITTED");
+  assert.equal(svc.findByShortcode("AAAAA1")?.reel, again);
+});
+
+test("one Instagram account — one participant, but a participant may use several own accounts", () => {
+  const svc = make();
+  active(svc, 1, "+998900000001");
+  active(svc, 2, "+998900000002");
+  svc.submitReel(1, "u", "AAAAA1").owner = "ali";
+  svc.submitReel(1, "u", "BBBBB2").owner = "ali_second";
+  const rejected = svc.submitReel(1, "u", "CCCCC3");
+  rejected.owner = "old_account";
+  rejected.status = "REJECTED";
+  assert.equal(svc.ownerTakenByOther("ali", 2), true);
+  assert.equal(svc.ownerTakenByOther("ali_second", 2), true);
+  assert.equal(svc.ownerTakenByOther("ali", 1), false, "o'zining boshqa videosi to'sqinlik qilmaydi");
+  assert.equal(svc.ownerTakenByOther("old_account", 2), false, "rad etilgan video akkauntni band qilmaydi");
+  assert.deepEqual(instagramUsernames(svc.get(1)!), ["ali", "ali_second"]);
+});
+
+test("views are the sum of accepted Reels' latest views; the top Reel has the most views", () => {
+  const svc = make();
+  active(svc, 1, "+998900000001");
+  const snap = (reel: Reel, ...views: number[]) => {
+    reel.history = views.map((v, i) => ({ date: `2026-12-0${i + 1}`, at: new Date(), views: v, likes: null, comments: null }));
+  };
+  const a = svc.submitReel(1, "u", "AAAAA1");
+  const b = svc.submitReel(1, "u", "BBBBB2");
+  const c = svc.submitReel(1, "u", "CCCCC3");
+  const d = svc.submitReel(1, "u", "DDDDD4");
+  a.status = "ACCEPTED";
+  snap(a, 100, 1_000);
+  b.status = "ACCEPTED";
+  snap(b, 5_000);
+  c.status = "MANUAL_REVIEW"; // reytingda hisoblanmaydi
+  snap(c, 90_000);
+  d.status = "REJECTED";
+  snap(d, 70_000);
+  const p = svc.get(1)!;
+  assert.equal(participantViews(p), 6_000);
+  assert.equal(topReel([a, b]), b);
+  assert.equal(topReel([]), null);
+});
+
+test("saved state with the old single `reel` is migrated to `reels`", () => {
+  const svc = make();
+  active(svc, 1, "+998900000001");
+  const reel = svc.submitReel(1, "u", "AAAAA1");
+  const { reels: _reels, ...rest } = svc.get(1)!;
+  const old: StoredParticipant = { ...rest, reel };
+  const migrated = migrateParticipant(old);
+  assert.deepEqual(migrated.reels, [reel]);
+  assert.equal("reel" in migrated, false);
+  assert.deepEqual(migrateParticipant({ ...rest, reel: null }).reels, []);
+  assert.deepEqual(migrateParticipant({ ...rest, reels: [reel] }).reels, [reel]);
 });
 
 test("a major rules change asks active participants to consent again", () => {
