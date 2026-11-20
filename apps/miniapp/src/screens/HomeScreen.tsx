@@ -11,8 +11,9 @@ import { Snowfall } from "../components/Snowfall";
 import { Spinner } from "../components/ui";
 import { t } from "../i18n/uz";
 import * as api from "../lib/api";
-import { daysUntil, formatCount } from "../lib/format";
+import { formatCount } from "../lib/format";
 import type { ContestPrizes, PrizeTier } from "../lib/types";
+import { useCountdown } from "../lib/use-countdown";
 
 /**
  * Sovg'alarning haqiqiy rasmlari: `src/assets/prizes/<nom>.<webp|png|jpg>`
@@ -60,7 +61,7 @@ export function HomeScreen({
       <HomeGreeting firstName={firstName} fullName={fullName} />
 
       <StartedBanner
-        daysLeft={contest.data ? daysUntil(contest.data.endsAt) : null}
+        endsAt={contest.data?.endsAt ?? null}
         period={
           prizes.data && prizes.data.stages.length > 0
             ? `${dmy(prizes.data.stages[0].startsOn)} – ${dmy(prizes.data.stages.at(-1)!.endsOn)}`
@@ -80,11 +81,12 @@ export function HomeScreen({
  * asta-sekin uyum bo'lib yig'iladi (boshqa bo'limga o'tib qaytilsa — qaytadan boshlanadi).
  */
 function StartedBanner({
-  daysLeft,
+  endsAt,
   period,
   onJoin,
 }: {
-  daysLeft: number | null;
+  /** Admin panelda sozlangan tanlov tugash vaqti (backend `/miniapp/contest`). */
+  endsAt: string | null;
   period: string | null;
   onJoin?: () => void;
 }) {
@@ -118,7 +120,9 @@ function StartedBanner({
       </h2>
       <p className="mt-2.5 max-w-[30ch] text-[14px] leading-snug text-white/90">{t.homeStartedBody}</p>
 
-      {(period || daysLeft !== null || onJoin) && (
+      <ContestCountdown endsAt={endsAt} />
+
+      {(period || onJoin) && (
         <div className="mt-4 flex flex-wrap items-center gap-2 text-[13px]">
           {period && (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-black/15 px-3 py-1.5 font-medium">
@@ -126,11 +130,8 @@ function StartedBanner({
               {period}
             </span>
           )}
-          {/* Qolgan kunlar va (mehmonga) "Ishtirok etish" — bir qatorda, birga ko'chadi. */}
+          {/* Mehmonga — "Ishtirok etish" (Profil: ro'yxatdan o'tish). */}
           <span className="inline-flex flex-wrap items-center gap-2">
-            {daysLeft !== null && daysLeft > 0 && (
-              <span className="rounded-full bg-white px-3 py-1.5 font-semibold text-[#c22a24]">{t.homeDaysLeft(daysLeft)}</span>
-            )}
             {onJoin && (
               <button
                 type="button"
@@ -145,6 +146,52 @@ function StartedBanner({
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Tanlov tugashigacha jonli teskari sanoq: kun / soat / daqiqa / soniya (har soniyada yangilanadi).
+ * Muddat tugagach — "Tanlov yakunlandi".
+ */
+function ContestCountdown({ endsAt }: { endsAt: string | null }) {
+  const left = useCountdown(endsAt);
+  if (!left) return null;
+  if (left.over) {
+    return (
+      <p className="mt-4 w-fit rounded-full bg-white px-3 py-1.5 text-[13px] font-semibold text-[#c22a24]">
+        {t.homeContestOver}
+      </p>
+    );
+  }
+
+  const units = [
+    { value: left.days, label: t.winnerUnitDays },
+    { value: left.hours, label: t.winnerUnitHours },
+    { value: left.minutes, label: t.winnerUnitMinutes },
+    { value: left.seconds, label: t.unitSeconds },
+  ];
+  return (
+    <div className="mt-4">
+      <p className="text-[11.5px] font-semibold tracking-[0.12em] text-white/80 uppercase">{t.homeCountdownLabel}</p>
+      <div
+        role="timer"
+        aria-label={t.homeCountdownAria(left.days, left.hours, left.minutes)}
+        className="mt-2 grid max-w-[340px] grid-cols-4 gap-2"
+      >
+        {units.map((unit) => (
+          <span
+            key={unit.label}
+            aria-hidden
+            className="rounded-2xl bg-white/15 py-2.5 text-center ring-1 ring-white/25 backdrop-blur-sm"
+          >
+            <span className="block text-[26px] leading-none font-bold tabular-nums">
+              {String(unit.value).padStart(2, "0")}
+            </span>
+            <span className="mt-1 block text-[11px] text-white/75">{unit.label}</span>
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 

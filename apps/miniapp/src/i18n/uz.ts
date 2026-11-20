@@ -99,7 +99,10 @@ export const t = {
   ],
   homeStartedTitle: "tanlovi boshlandi! 🎉",
   homeStartedBody: "Mahsulotimiz haqida Reels joylang, ko'rishlar yig'ing va qimmatbaho sovg'alarni yuting.",
-  homeDaysLeft: (days: number) => `${days} kun qoldi`,
+  homeCountdownLabel: "Tanlov tugashiga qoldi",
+  homeCountdownAria: (days: number, hours: number, minutes: number) =>
+    `Tanlov tugashiga ${days} kun ${hours} soat ${minutes} daqiqa qoldi`,
+  homeContestOver: "Tanlov yakunlandi",
   homeJoin: "Ishtirok etish",
   homePrizesTitle: "Sovg'alar",
   homeAllPrizes: "Batafsil",
@@ -245,6 +248,7 @@ export const t = {
   winnerUnitDays: "kun",
   winnerUnitHours: "soat",
   winnerUnitMinutes: "daqiqa",
+  unitSeconds: "soniya",
 
   // Holatlar
   blockedTitle: "Ishtirok to'xtatilgan",
