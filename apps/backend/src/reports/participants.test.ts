@@ -95,7 +95,7 @@ test("a list item maps the backend participant to the admin contract", () => {
   assert.equal(empty.rank, null);
 });
 
-test("several Reels: counts by status, views of accepted ones only, the first live owner", () => {
+test("several Reels: counts by status, views of the most viewed accepted one, the first live owner", () => {
   const p = person(7, {
     reels: [
       reel("OLD", { status: "REJECTED", owner: "old.acc", views: [90_000] }),
@@ -107,11 +107,11 @@ test("several Reels: counts by status, views of accepted ones only, the first li
   });
   const item = toParticipantItem(p, participantContext([], []));
   assert.deepEqual(item.reels, { total: 5, accepted: 2, pending: 2, rejected: 1 });
-  assert.equal(item.views, 3_500);
+  assert.equal(item.views, 2_500);
   assert.equal(item.instagramUsername, "ali.v");
 });
 
-test("participant Reels: newest first, admin statuses, latest numbers and distinct flags", () => {
+test("participant Reels: the most viewed on top, admin statuses, latest numbers and distinct flags", () => {
   const flagged = reel("BBB", { owner: "ali.second", views: [1_000, 30_000], submittedOn: "2026-12-03" });
   flagged.flags = [
     { type: "VIEW_SPIKE", date: "2026-12-02", detail: "a" },
@@ -133,24 +133,24 @@ test("participant Reels: newest first, admin statuses, latest numbers and distin
   });
   const result = toParticipantReels(p);
   assert.deepEqual(result.participant, { id: "7", fullName: "Ali Valiyev", instagramUsernames: ["ali.v", "ali.second"] });
-  assert.equal(result.totalViews, 32_500);
+  assert.equal(result.bestViews, 30_000);
   assert.deepEqual(
-    result.reels.map((r) => [r.shortcode, r.status, r.manualReview, r.rejectReason, r.owner, r.views]),
+    result.reels.map((r) => [r.shortcode, r.status, r.manualReview, r.rejectReason, r.owner, r.views, r.best]),
     [
-      ["CCC", "PENDING", true, null, "ali.v", 0],
-      ["BBB", "ACCEPTED", false, null, "ali.second", 30_000],
-      ["AAA", "ACCEPTED", false, null, "ali.v", 2_500],
-      ["OLD", "REJECTED", false, "OWNER_TAKEN", "old.acc", 0],
+      ["BBB", "ACCEPTED", false, null, "ali.second", 30_000, true],
+      ["AAA", "ACCEPTED", false, null, "ali.v", 2_500, false],
+      ["CCC", "PENDING", true, null, "ali.v", 0, false],
+      ["OLD", "REJECTED", false, "OWNER_TAKEN", "old.acc", 0, false],
     ],
   );
-  const bbb = result.reels[1];
+  const bbb = result.reels[0];
   assert.deepEqual(bbb.flags, ["VIEW_SPIKE", "LOW_ENGAGEMENT"]);
   assert.equal(bbb.likes, null);
   assert.equal(bbb.submittedAt, at("2026-12-03").toISOString());
   assert.equal(bbb.postedAt, "2026-12-02T10:00:00.000Z");
   assert.equal(bbb.lastSyncedAt, at("2026-12-01").toISOString());
-  assert.equal(result.reels[0].lastSyncedAt, null);
-  assert.equal(result.reels[0].postedAt, null);
+  assert.equal(result.reels[2].lastSyncedAt, null);
+  assert.equal(result.reels[2].postedAt, null);
 });
 
 test("only participants who filled the profile are listed", () => {

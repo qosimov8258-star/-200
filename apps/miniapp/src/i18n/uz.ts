@@ -12,7 +12,7 @@ export const t = {
   prizeLabel: "Bosh sovrin",
   heroTitle: "Reel joylang —\navtomobil yuting",
   heroBody:
-    "Mahsulot haqida Instagram Reel joylang. Eng ko'p ko'rish yig'gan ishtirokchi g'olib bo'ladi.",
+    "Mahsulot haqida Instagram Reel joylang. Videosi eng ko'p ko'rilgan ishtirokchi g'olib bo'ladi.",
   shareContact: "Raqamni ulashish",
   shareContactHint:
     "Ro'yxatdan o'tish uchun Telegram'dagi telefon raqamingizni ulashing. Bitta raqam — bitta ishtirokchi.",
@@ -46,7 +46,7 @@ export const t = {
   guestJoinCta: "Ro'yxatdan o'tish",
   guestReelTitle: "Videongizni yuborish uchun ro'yxatdan o'ting",
   guestReelBody:
-    "Telegram orqali kiring — parol yoki SMS kerak emas. Keyin Reel linkini yuborasiz va ko'rishlaringiz reytingga qo'shiladi.",
+    "Telegram orqali kiring — parol yoki SMS kerak emas. Keyin Reel linkini yuborasiz va eng ko'p ko'rilgan videongiz reytingda hisoblanadi.",
   guestReportTitle: "Xabar yuborish uchun ro'yxatdan o'ting",
   guestReportBody: "Reklama haqida faqat tanlov ishtirokchilari xabar bera oladi. Telegram orqali kirish bir daqiqa oladi.",
   supportWebHint: "Support Telegram botda — ochilgan chatga savolingizni yozing.",
@@ -127,11 +127,12 @@ export const t = {
     "Mahsulot haqidagi Reel linkini qo'ying. Video avtomatik tekshiriladi, ko'rishlar esa muntazam yangilanib boradi.",
   addReelTitle: "Yangi video qo'shing",
   addReelBody:
-    "Videolar soni cheklanmagan: har biri alohida tekshiriladi, qabul qilinganlarining ko'rishlari qo'shilib boradi.",
+    "Videolar soni cheklanmagan: har biri alohida tekshiriladi. Reytingda eng ko'p ko'rilgan bitta videongiz hisoblanadi — ko'rishlar qo'shilmaydi.",
   myReelsTitle: "Videolarim",
   myReelsCount: (accepted: number, total: number) =>
     accepted > 0 ? `${total} ta · ${accepted} tasi qabul qilingan` : `${total} ta`,
   reelSubmittedAt: (when: string) => `Yuborildi: ${when}`,
+  reelBestBadge: "Reytingda hisoblanadi",
   linkPlaceholder: "https://www.instagram.com/reel/...",
   paste: "Qo'yish",
   submit: "Yuborish",
@@ -166,13 +167,14 @@ export const t = {
   },
   manualReviewNote:
     "Bu videoni Instagram'da 3 marta topa olmadik, shuning uchun uni administrator qo'lda tekshiradi. Natijani bot orqali xabar qilamiz. Shu orada akkauntingiz ochiq (yopiq emas) va video o'chirilmaganini tekshiring.",
-  statTotal: "Jami ko'rishlar",
+  /** Plitka tor (telefonda ~130px) — bir qatorga sig'adigan qisqa matn. */
+  statBest: "Eng ko'p ko'rilgan",
   statToday: "Oxirgi o'sish",
   statRank: "Reytingdagi o'rin",
   statRankDelta: "O'rin o'zgarishi",
   noChange: "o'zgarishsiz",
   chartTitle: "Ko'rishlar o'sishi",
-  chartSubtitle: "Barcha qabul qilingan videolar — har bir yangilanishda qo'shilgan ko'rishlar",
+  chartSubtitle: "Eng ko'p ko'rilgan videongiz — har bir yangilanishdagi o'sish",
   lastSyncedLabel: "Oxirgi yangilanish",
   nextSyncLabel: "Keyingi yangilanish",
   syncEvery: (days: number) =>
@@ -263,7 +265,7 @@ export const t = {
   totalPieces: "jami",
   randomDraw: "Tasodifiy tanlov",
   monthlyWho: (min: string, max: string) =>
-    `Oy davomida Reellari ${min} dan ${max} gacha tasdiqlangan ko'rish yig'gan ishtirokchilar qatnashadi`,
+    `Oy davomidagi eng ko'p ko'rilgan tasdiqlangan Reeli ${min} dan ${max} gacha ko'rish yig'gan ishtirokchilar qatnashadi`,
   monthlyDraw: "G'oliblar tasodifiy tanlov (random) orqali aniqlanadi",
   stagesTitle: "Bosqichlar",
   stageLabel: (n: number) => `${n}-bosqich`,
@@ -276,20 +278,20 @@ export const t = {
     days === 0 ? `${n}-bosqichning oxirgi kuni` : `${n}-bosqich davom etmoqda — tugashiga ${days} kun`,
   stagesFinished: "Barcha bosqichlar yakunlandi",
   mainTitle: "Asosiy sovrinlar",
-  mainSubtitle: "Aksiya yakunida — barcha Reellaringizning umumiy ko'rishlari bo'yicha",
+  mainSubtitle: "Aksiya yakunida — eng ko'p ko'rilgan bitta Reelingiz ko'rishlari bo'yicha (videolar qo'shilmaydi)",
   mainPrize: "Bosh sovrin",
   viewsWord: "ko'rish",
   andMore: "va undan ko'p",
   pieces: (n: number, unit: string | null) => `${n} ta${unit ? ` ${unit}` : ""}`,
   tierWinners: (n: number) =>
     n === 1
-      ? "Toifada eng ko'p ko'rish yig'gan ishtirokchi yutadi"
-      : `Toifada eng ko'p ko'rish yig'gan ${n} kishi yutadi`,
+      ? "Toifada videosi eng ko'p ko'rilgan ishtirokchi yutadi"
+      : `Toifada videosi eng ko'p ko'rilgan ${n} kishi yutadi`,
   youAreHere: "Siz shu yerdasiz",
   tierReached: "Erishildi",
   viewsLeft: (n: string) => `yana ${n} ko'rish`,
-  startLabel: "Sizning ko'rishlaringiz",
-  startNoReel: "Video yuboring — ko'rishlaringiz shu yerda hisoblanadi",
+  startLabel: "Eng ko'p ko'rilgan videongiz",
+  startNoReel: "Video yuboring — eng ko'p ko'rilgan videongiz ko'rishlari shu yerda hisoblanadi",
   startSendVideo: "Video yuborish",
   startNext: (title: string, left: string) => `Keyingi sovrin — ${title}: yana ${left} ko'rish`,
   startTop: "Siz eng yuqori toifadasiz!",

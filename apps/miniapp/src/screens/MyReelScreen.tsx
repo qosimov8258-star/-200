@@ -12,6 +12,7 @@ import {
   Play,
   RefreshCw,
   Snowflake,
+  Star,
   TrendingUp,
   Trophy,
 } from "lucide-react";
@@ -42,8 +43,9 @@ const WAITING: ReadonlySet<ReelStatus> = new Set(["PENDING", "MANUAL_REVIEW"]);
 const rise = (i: number): CSSProperties => ({ animationDelay: `${i * 80}ms` });
 
 /**
- * "Videom": ishtirokchining barcha videolari (soni cheklanmagan). Yuqorida — qabul qilingan
- * videolar bo'yicha umumiy statistika, keyin yangi link qo'shish va videolar ro'yxati.
+ * "Videom": ishtirokchining barcha videolari (soni cheklanmagan). Yuqorida — reytingda
+ * hisoblanadigan natija (eng ko'p ko'rilgan bitta qabul qilingan video; videolar ko'rishlari
+ * qo'shilmaydi), keyin yangi link qo'shish va videolar ro'yxati (eng ko'p ko'rilgani tepada).
  */
 export function MyReelScreen() {
   const reels = useQuery({
@@ -123,12 +125,12 @@ function ReelsContent({ data }: { data: MyReels }) {
   );
 }
 
-/** Umumiy natija — faqat qabul qilingan videolar bo'yicha (reytingdagi kabi). */
+/** Natija — reytingdagi kabi, eng ko'p ko'rilgan qabul qilingan video bo'yicha. */
 function SummaryTiles({ data }: { data: MyReels }) {
   const podium = data.rank !== null && data.rank <= 3 ? (data.rank as 1 | 2 | 3) : null;
   return (
     <div className="grid grid-cols-2 gap-3">
-      <TotalViewsTile views={data.totalViews} />
+      <BestViewsTile views={data.bestViews} />
       <StatTile icon={<TrendingUp />} label={t.statToday} style={rise(2)}>
         <span className={data.todayViews > 0 ? "text-positive" : undefined}>{formatSigned(data.todayViews)}</span>
       </StatTile>
@@ -293,7 +295,10 @@ const STATUS: Record<ReelStatus, { label: string; pill: string; note: string | n
   REJECTED: { label: t.statusRejected, pill: "bg-[#d14343]/30 text-[#ffb3aa] ring-[#ffb3aa]/30", note: t.rejectedNote },
 };
 
-/** Qishki tun kartasi: gulchambar, yog'ayotgan qor va barcha videolar (yangisi tepada). */
+/**
+ * Qishki tun kartasi: gulchambar, yog'ayotgan qor va barcha videolar — server tartibida:
+ * eng ko'p ko'rilgani (reytingda hisoblanadigani) tepada, keyin tekshiruvdagilar va rad etilganlar.
+ */
 function ReelList({ reels, accepted, style }: { reels: MyReelItem[]; accepted: number; style: CSSProperties }) {
   return (
     <section
@@ -348,25 +353,39 @@ function ReelRow({ reel }: { reel: MyReelItem }) {
             <Play className="size-5 fill-white" aria-hidden />
           </span>
           <span className="min-w-0 flex-1">
-            <span
-              className={clsx(
-                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-semibold ring-1",
-                status.pill,
+            <span className="flex flex-wrap items-center gap-1.5">
+              <span
+                className={clsx(
+                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-semibold ring-1",
+                  status.pill,
+                )}
+              >
+                {WAITING.has(reel.status) ? (
+                  <LoaderCircle className="size-3 animate-spin" aria-hidden />
+                ) : (
+                  <span aria-hidden className="size-1.5 rounded-full bg-current" />
+                )}
+                {status.label}
+              </span>
+              {/* Reytingda faqat shu video hisoblanadi — archa tepasidagi tilla yulduz kabi ajratiladi. */}
+              {reel.best && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-[#f3c656]/20 px-2 py-0.5 text-[12px] font-semibold text-[#ffd96b] ring-1 ring-[#f3c656]/45">
+                  <Star className="size-3 fill-current" aria-hidden />
+                  {t.reelBestBadge}
+                </span>
               )}
-            >
-              {WAITING.has(reel.status) ? (
-                <LoaderCircle className="size-3 animate-spin" aria-hidden />
-              ) : (
-                <span aria-hidden className="size-1.5 rounded-full bg-current" />
-              )}
-              {status.label}
             </span>
             <span className="mt-1 line-clamp-2 block text-[15px] font-semibold [overflow-wrap:anywhere]">
               <LinkText url={reel.url} />
             </span>
             <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12.5px] text-white/60">
               {accepted && (
-                <span className="inline-flex items-center gap-1 font-semibold text-white/90 tabular-nums">
+                <span
+                  className={clsx(
+                    "inline-flex items-center gap-1 font-semibold tabular-nums",
+                    reel.best ? "text-[#ffd96b]" : "text-white/90",
+                  )}
+                >
                   <Eye className="size-3.5" aria-hidden />
                   {t.views(formatCount(reel.views))}
                 </span>
@@ -410,8 +429,11 @@ function LinkText({ url }: { url: string }) {
   ));
 }
 
-/** Jami ko'rishlar — brend qizilidagi bayram plitkasi: qor yog'adi, ortida katta qor parchasi. */
-function TotalViewsTile({ views }: { views: number }) {
+/**
+ * Eng ko'p ko'rilgan videoning ko'rishlari (reytingda shu hisoblanadi, videolar qo'shilmaydi) —
+ * brend qizilidagi bayram plitkasi: qor yog'adi, ortida katta qor parchasi.
+ */
+function BestViewsTile({ views }: { views: number }) {
   return (
     <div
       className="relative isolate flex h-[124px] animate-rise flex-col overflow-hidden rounded-card bg-[linear-gradient(140deg,#f2583f_0%,#df3425_48%,#ad1f2c_100%)] p-4 text-white shadow-[0_18px_34px_-20px_rgba(173,31,44,0.85)]"
@@ -428,7 +450,7 @@ function TotalViewsTile({ views }: { views: number }) {
         <Eye />
       </span>
       <span className="mt-auto truncate text-[26px] font-bold tracking-tight">{formatCount(views)}</span>
-      <span className="truncate text-xs text-white/80">{t.statTotal}</span>
+      <span className="truncate text-xs text-white/80">{t.statBest}</span>
     </div>
   );
 }

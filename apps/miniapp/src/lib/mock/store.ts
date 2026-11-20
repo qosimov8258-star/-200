@@ -214,7 +214,7 @@ export async function getRules(): Promise<ContestRules> {
       },
       {
         title: "2. Video talablari",
-        body: "Mahsulot haqidagi Reel o'z Instagram akkauntingizda joylanadi, ochiq bo'ladi va unda zavod akkaunti belgilanadi. Reel linki shu ilova orqali yuboriladi; videolar soni cheklanmagan, qabul qilinganlarining ko'rishlari qo'shiladi. Bitta Instagram akkaunt — bitta ishtirokchi.",
+        body: "Mahsulot haqidagi Reel o'z Instagram akkauntingizda joylanadi, ochiq bo'ladi va unda zavod akkaunti belgilanadi. Reel linki shu ilova orqali yuboriladi; videolar soni cheklanmagan. Reytingda eng ko'p ko'rilgan bitta qabul qilingan videongiz hisoblanadi — videolar ko'rishlari qo'shilmaydi. Bitta Instagram akkaunt — bitta ishtirokchi.",
       },
       {
         title: "3. Taqiqlar",
@@ -222,7 +222,7 @@ export async function getRules(): Promise<ContestRules> {
       },
       {
         title: "4. G'olibni aniqlash",
-        body: "Ko'rishlar har kuni avtomatik yig'iladi. Tanlov yakunida eng ko'p ko'rish yig'gan ishtirokchi tekshiruvdan so'ng g'olib deb e'lon qilinadi.",
+        body: "Ko'rishlar har kuni avtomatik yig'iladi. Tanlov yakunida videosi eng ko'p ko'rilgan ishtirokchi tekshiruvdan so'ng g'olib deb e'lon qilinadi.",
       },
       {
         title: "5. Shaxsiy ma'lumotlar",
@@ -249,7 +249,7 @@ const NAMES = [
 ];
 const DELTAS = [0, 1, -1, 2, 0, -2, 3, 0, 1, -1, 0, 4];
 
-/** Namunaviy video kunlar bo'yicha jami ko'rishlari; har bir video o'z koeffitsiyentiga ko'paytiriladi. */
+/** Namunaviy videoning kunlar bo'yicha ko'rishlari (kun oxirida); har bir video o'z koeffitsiyentiga ko'paytiriladi. */
 const SAMPLE_TOTALS = [3120, 5480, 9050, 12890, 15400, 19760, 22310, 26255];
 
 /** Backend jadvali bilan bir xil: tanlov boshidan har 10 kunda, soat 06:00 (Toshkent). */
@@ -272,7 +272,7 @@ const OTHERS = NAMES.map((fullName, i) => ({
   rankDelta: DELTAS[i % DELTAS.length],
 }));
 
-/** Jami ko'rishlarga qarab soxta reytingdagi o'rin. */
+/** Eng ko'p ko'rilgan video ko'rishlariga qarab soxta reytingdagi o'rin. */
 const mockRank = (views: number) => 1 + OTHERS.filter((o) => o.views >= views).length;
 
 /** Shortcode'dan barqaror koeffitsiyent (0.4–1.6) — videolar har xil ko'rish yig'adi. */
@@ -291,53 +291,67 @@ function reelStatus(reel: MockReel): { status: ReelStatus; rejectReason: ReelRej
   return { status: "ACCEPTED", rejectReason: null };
 }
 
+/** Holat tartibi ro'yxatda: qabul qilinganlar → hal qilinmaganlar → rad etilganlar. */
+const STATUS_GROUP: Record<ReelStatus, number> = { ACCEPTED: 0, PENDING: 1, MANUAL_REVIEW: 1, REJECTED: 2 };
+
 /**
- * Backenddagi GET /miniapp/reels kabi: har bir video alohida, umumiy statistika esa
- * faqat qabul qilinganlar bo'yicha (ko'rishlar va kunlik o'sish qo'shiladi).
+ * Backenddagi GET /miniapp/reels kabi: har bir video alohida. Natija (ko'rishlar, o'rin,
+ * kunlik o'sish) — eng ko'p ko'rilgan bitta qabul qilingan video bo'yicha; videolar
+ * ko'rishlari qo'shilmaydi. Ro'yxat tartibi `MyReels.reels` izohida.
  */
 function currentReels(): MyReels {
   const t = today();
-  const daily: DailyViews[] = [];
-  for (let i = 1; i < SAMPLE_TOTALS.length; i++) {
-    const d = new Date(t);
-    d.setDate(t.getDate() - (SAMPLE_TOTALS.length - 1 - i));
-    daily.push({ date: isoDay(d), views: 0 });
-  }
-  let totalViews = 0;
-  let accepted = 0;
-  const reels: MyReelItem[] = state.reels.map((reel) => {
+  const items = state.reels.map((reel) => {
     const { status, rejectReason } = reelStatus(reel);
-    let views = 0;
-    if (status === "ACCEPTED") {
-      const factor = viewsFactor(reel.shortcode);
-      const totals = SAMPLE_TOTALS.map((v) => Math.round(v * factor));
-      views = totals[totals.length - 1];
-      for (let i = 1; i < totals.length; i++) daily[i - 1].views += totals[i] - totals[i - 1];
-      totalViews += views;
-      accepted++;
-    }
-    return {
+    // Qabul qilingan videoning kunlar bo'yicha ko'rishlari (kun oxirida).
+    const totals =
+      status === "ACCEPTED" ? SAMPLE_TOTALS.map((v) => Math.round(v * viewsFactor(reel.shortcode))) : null;
+    const item: MyReelItem = {
       url: canonicalReelUrl(reel.shortcode),
       shortcode: reel.shortcode,
       status,
       rejectReason,
-      views,
+      views: totals ? totals[totals.length - 1] : 0,
       submittedAt: new Date(reel.submittedAt).toISOString(),
+      best: false,
     };
+    return { reel, totals, item };
   });
+  items.sort((a, b) => {
+    const group = STATUS_GROUP[a.item.status] - STATUS_GROUP[b.item.status];
+    if (group !== 0) return group;
+    if (a.item.status === "ACCEPTED") {
+      // Ko'p ko'rilgani tepada; teng bo'lsa — oldinroq yuborilgani.
+      return b.item.views - a.item.views || a.reel.submittedAt - b.reel.submittedAt;
+    }
+    // Hal qilinmagan va rad etilganlar — yangisi tepada.
+    return b.reel.submittedAt - a.reel.submittedAt;
+  });
+
+  const best = items[0]?.totals ? items[0] : null;
+  if (best) best.item.best = true;
+  const daily: DailyViews[] = [];
+  if (best?.totals) {
+    const totals = best.totals;
+    for (let i = 1; i < totals.length; i++) {
+      const d = new Date(t);
+      d.setDate(t.getDate() - (totals.length - 1 - i));
+      daily.push({ date: isoDay(d), views: totals[i] - totals[i - 1] });
+    }
+  }
+  const bestViews = best ? best.item.views : 0;
   const synced = new Date(t);
   synced.setHours(9);
   return {
-    totalViews,
-    todayViews: accepted > 0 ? daily[daily.length - 1].views : 0,
-    rank: accepted > 0 ? mockRank(totalViews) : null,
-    rankDelta: accepted > 0 ? 3 : 0,
-    daily: accepted > 0 ? daily : [],
-    lastSyncedAt: accepted > 0 ? synced.toISOString() : null,
+    bestViews,
+    todayViews: best ? daily[daily.length - 1].views : 0,
+    rank: best ? mockRank(bestViews) : null,
+    rankDelta: best ? 3 : 0,
+    daily,
+    lastSyncedAt: best ? synced.toISOString() : null,
     nextSyncAt: mockNextSyncAt(),
     syncEveryDays: MOCK_SYNC_EVERY_DAYS,
-    // Yangisidan eskisiga.
-    reels: reels.reverse(),
+    reels: items.map(({ item }) => item),
   };
 }
 
@@ -348,7 +362,7 @@ export async function getRating(): Promise<RatingEntry[]> {
   if (state.profile && mine.rank !== null) {
     entries.splice(mine.rank - 1, 0, {
       fullName: `${state.profile.firstName} ${state.profile.lastName}`,
-      views: mine.totalViews,
+      views: mine.bestViews,
       rankDelta: mine.rankDelta,
       isMe: true,
     });
@@ -462,7 +476,7 @@ const PRIZES: ContestPrizes = {
     "Voucherlardan tashqari bitta asosiy sovrinni ham yutishingiz mumkin",
     "Bitta ishtirokchiga faqat bitta asosiy sovrin beriladi",
     "Oylik sovrin uchun faqat shu oyda yuklangan Reellar hisoblanadi",
-    "Asosiy sovrin uchun aksiya davomidagi barcha tasdiqlangan Reellaringiz ko'rishlari qo'shiladi",
+    "Asosiy sovrin uchun aksiya davomidagi eng ko'p ko'rilgan bitta tasdiqlangan Reelingiz hisoblanadi (videolar ko'rishlari qo'shilmaydi)",
     "Sovrinlar pulga almashtirilmaydi va boshqa odamga berilmaydi",
   ],
 };

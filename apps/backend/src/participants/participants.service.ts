@@ -14,7 +14,7 @@ export type ParticipantStage =
   | "DISQUALIFIED";
 
 /**
- * PENDING — avtomatik tekshiruv kutilmoqda; ACCEPTED — reytingda (ko'rishlari jamiga qo'shiladi);
+ * PENDING — avtomatik tekshiruv kutilmoqda; ACCEPTED — reytingda (eng ko'p ko'rilgani hisoblanadi);
  * MANUAL_REVIEW — Apify 3 marta topa olmadi, admin qo'lda tekshiradi (reytingda hisoblanmaydi);
  * REJECTED — rad etilgan (shu linkni qayta yuborish mumkin).
  */
@@ -111,7 +111,8 @@ export interface Participant {
   consentVersion: number | null;
   /**
    * Yuborilgan videolar — eskidan yangiga (yuborilish tartibida). Soni cheklanmagan; har biri
-   * alohida tekshiriladi va yig'iladi. Reyting — qabul qilinganlar (ACCEPTED) ko'rishlari yig'indisi.
+   * alohida tekshiriladi va yig'iladi. Reytingda — qabul qilinganlar (ACCEPTED) ichida eng ko'p
+   * ko'rilgan bitta videosi (ko'rishlar qo'shilmaydi; `participantViews`).
    */
   reels: Reel[];
   status: "ACTIVE" | "BLOCKED" | "DISQUALIFIED";
@@ -158,9 +159,39 @@ export const acceptedReels = (p: Participant): Reel[] => p.reels.filter((r) => r
 /** Videoning oxirgi yig'ilgan ko'rishlari (hali yig'ilmagan bo'lsa — 0). */
 export const reelViews = (reel: Reel): number => reel.history.at(-1)?.views ?? 0;
 
-/** Ishtirokchi ko'rishlari: qabul qilingan videolar oxirgi ko'rishlari yig'indisi (qoidalar 7.1, 7.3). */
-export const participantViews = (p: Participant): number =>
-  acceptedReels(p).reduce((sum, reel) => sum + reelViews(reel), 0);
+/** Reytingda hisoblanadigan video: qabul qilinganlar ichida eng ko'p ko'rilgani (bo'lmasa — null). */
+export const bestReel = (p: Participant): Reel | null => topReel(acceptedReels(p));
+
+/**
+ * Ishtirokchi ko'rishlari (reyting, asosiy sovrinlar, g'olib — qoidalar 7.1, 7.3): eng ko'p ko'rilgan
+ * bitta qabul qilingan videosining oxirgi ko'rishlari. Videolar ko'rishlari qo'shilmaydi; qabul
+ * qilingan video yo'q — 0.
+ */
+export function participantViews(p: Participant): number {
+  const best = bestReel(p);
+  return best ? reelViews(best) : 0;
+}
+
+/** Ro'yxatdagi guruh: 0 — qabul qilingan, 1 — qaror kutilmoqda (PENDING, MANUAL_REVIEW), 2 — rad etilgan. */
+const displayGroup = (reel: Reel): number => (reel.status === "ACCEPTED" ? 0 : reel.status === "REJECTED" ? 2 : 1);
+
+/**
+ * Ishtirokchi videolari ko'rsatiladigan tartib (Mini App "Videom", admin → ishtirokchi videolari):
+ * avval qabul qilinganlar — ko'rishlar kamayishi bo'yicha (teng bo'lsa — oldinroq yuborilgani), ya'ni
+ * birinchisi reytingda hisoblanadigan video (`bestReel`); keyin qaror kutilayotganlar, oxirida rad
+ * etilganlar — ikkalasida yangisi birinchi.
+ */
+export function reelsForDisplay(reels: readonly Reel[]): Reel[] {
+  // Bir xil vaqtda yuborilganlar uchun — yuborilish tartibi (`reels` eskidan yangiga).
+  const order = new Map(reels.map((r, i) => [r, i]));
+  const older = (a: Reel, b: Reel) =>
+    a.submittedAt.getTime() - b.submittedAt.getTime() || (order.get(a) ?? 0) - (order.get(b) ?? 0);
+  return [...reels].sort((a, b) => {
+    const group = displayGroup(a) - displayGroup(b);
+    if (group !== 0) return group;
+    return a.status === "ACCEPTED" ? reelViews(b) - reelViews(a) || older(a, b) : older(b, a);
+  });
+}
 
 /** Rad etilmagan videolar egalari (Instagram akkauntlari), takrorlarsiz, birinchi uchragan tartibda. */
 export function instagramUsernames(p: Participant): string[] {
@@ -168,18 +199,20 @@ export function instagramUsernames(p: Participant): string[] {
   return [...new Set(owners)];
 }
 
-/** Videolardan eng birinchi yuborilganining vaqti (ms) — reytingda teng ko'rishda shu bo'yicha. */
-export const firstSubmittedAt = (reels: readonly Reel[]): number =>
-  Math.min(...reels.map((r) => r.submittedAt.getTime()));
-
 /**
- * "Asosiy" video — ko'rishlari eng ko'pi (teng bo'lsa — oldinroq yuborilgani). Bitta link
- * ko'rsatiladigan joylar uchun (g'olib, random tanlov nomzodi, kunlik reyting). Bo'sh ro'yxat — null.
+ * "Asosiy" video — ko'rishlari eng ko'pi (teng bo'lsa — oldinroq yuborilgani). Ishtirokchining
+ * natijasi shu videoning ko'rishlari (reyting, g'olib, random tanlov nomzodi, kunlik reyting).
+ * `views` — qaysi kundagi ko'rishlar (standart — oxirgi). Bo'sh ro'yxat — null.
  */
 export function topReel(reels: readonly Reel[], views: (reel: Reel) => number = reelViews): Reel | null {
   let best: Reel | null = null;
   for (const reel of reels) {
-    if (best === null || views(reel) > views(best)) best = reel;
+    if (best === null) {
+      best = reel;
+      continue;
+    }
+    const diff = views(reel) - views(best);
+    if (diff > 0 || (diff === 0 && reel.submittedAt < best.submittedAt)) best = reel;
   }
   return best;
 }

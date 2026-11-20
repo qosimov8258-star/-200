@@ -1,5 +1,5 @@
 import { addDays } from "../common/time";
-import { firstSubmittedAt, topReel, type Participant, type Reel } from "../participants/participants.service";
+import { topReel, type Participant, type Reel } from "../participants/participants.service";
 import { clampDay, reportWindow } from "./days";
 import type { CaseInfo } from "./participants";
 import { viewsOn } from "./views";
@@ -17,7 +17,7 @@ export interface RatingEntry {
   /** Shu kuni eng ko'p ko'rilgan (asosiy) videoning egasi va linki. */
   instagramUsername: string | null;
   reelUrl: string;
-  /** Shu kungacha yig'ilgan ko'rishlar — qabul qilingan videolar yig'indisi. */
+  /** Shu kungacha yig'ilgan ko'rishlar — eng ko'p ko'rilgan qabul qilingan video (qo'shilmaydi). */
   views: number;
   /** Shu kuni yig'ilgan yangi ko'rishlar (oldingi kunga nisbatan; kamaygan bo'lsa — manfiy). */
   viewsGrowth: number;
@@ -63,21 +63,21 @@ export interface RankedOnDay {
   rank: number;
 }
 
-/** Videolarning `day` kunidagi ko'rishlari yig'indisi; hech birida shu kungacha snapshot bo'lmasa — null. */
-export function sumViewsOn(reels: readonly Reel[], day: string): number | null {
-  let total: number | null = null;
-  for (const reel of reels) {
-    const views = viewsOn(reel.history, day);
-    if (views !== null) total = (total ?? 0) + views;
-  }
-  return total;
+/**
+ * `day` kunidagi eng ko'p ko'rilgan video va uning shu kungacha (`date <= day`) oxirgi ko'rishlari;
+ * hech birida shu kungacha snapshot bo'lmasa — null. Videolar ko'rishlari qo'shilmaydi.
+ */
+export function bestOn(reels: readonly Reel[], day: string): { reel: Reel; views: number } | null {
+  const seen = reels.filter((r) => viewsOn(r.history, day) !== null);
+  const reel = topReel(seen, (r) => viewsOn(r.history, day) ?? 0);
+  return reel ? { reel, views: viewsOn(reel.history, day) ?? 0 } : null;
 }
 
 /**
  * `day` kunidagi reyting: hozir qabul qilingan (ACCEPTED) videosi bor faol ishtirokchilar,
- * shu kungacha kamida bitta snapshot bo'lganlar. Ko'rishlar — qabul qilingan videolarning
- * `date <= day` oxirgi snapshotlari yig'indisi. Teng ko'rishda birinchi qabul qilingan videosini
- * oldinroq yuborgan yuqorida (`StatsService.ranking` qoidasi).
+ * shu kungacha kamida bitta snapshot bo'lganlar. Ko'rishlar — shu kuni eng ko'p ko'rilgan qabul
+ * qilingan videoniki (`bestOn`). Teng ko'rishda shu videoni oldinroq yuborgan yuqorida
+ * (`StatsService.ranking` qoidasi).
  *
  * Holat (bloklangan, chetlatilgan, video holati) — joriy; o'tgan kunlar uchun ham shu qo'llanadi.
  */
@@ -85,8 +85,10 @@ export function rankOn(participants: readonly Participant[], day: string): Ranke
   const rows = participants.flatMap((participant) => {
     if (participant.status !== "ACTIVE" || !participant.firstName) return [];
     const reels = participant.reels.filter((r) => r.status === "ACCEPTED");
-    const views = sumViewsOn(reels, day);
-    return views === null ? [] : [{ participant, reels, views, since: firstSubmittedAt(reels) }];
+    const best = bestOn(reels, day);
+    return best === null
+      ? []
+      : [{ participant, reels, views: best.views, since: best.reel.submittedAt.getTime() }];
   });
   rows.sort((a, b) => b.views - a.views || a.since - b.since || a.participant.telegramId - b.participant.telegramId);
   return rows.map(({ participant, reels, views }, i) => ({ participant, reels, views, rank: i + 1 }));
@@ -110,7 +112,7 @@ export function buildDailyRating(input: DailyRatingInput): DailyRating {
   );
 
   const entries: RatingEntry[] = ranking.flatMap(({ participant: p, reels, views, rank }) => {
-    const main = topReel(reels, (r) => viewsOn(r.history, date) ?? 0);
+    const main = bestOn(reels, date)?.reel;
     if (!main) return [];
     return [
       {
@@ -121,7 +123,7 @@ export function buildDailyRating(input: DailyRatingInput): DailyRating {
         instagramUsername: main.owner,
         reelUrl: main.url,
         views,
-        viewsGrowth: views - (sumViewsOn(reels, previousDay) ?? 0),
+        viewsGrowth: views - (bestOn(reels, previousDay)?.views ?? 0),
         previousRank: previousRank.get(p.telegramId) ?? null,
         hasTarget: withTarget.has(p.telegramId),
       },

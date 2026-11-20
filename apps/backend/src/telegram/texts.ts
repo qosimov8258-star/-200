@@ -36,7 +36,7 @@ export const texts = {
   // xabar oxiriga qaysi video haqida ekani qo'shiladi (`reelLink`).
   reelLink: (url: string) => `🔗 Video: ${url}`,
   reelAccepted: (views: string) =>
-    `✅ Videongiz qabul qilindi va reytingga qo'shildi!\n\nHozircha ${views} ta ko'rish. Ko'rishlar avtomatik yangilanib boradi; reytingda barcha qabul qilingan videolaringiz ko'rishlari qo'shib hisoblanadi — statistikani tanlov ilovasida kuzating.`,
+    `✅ Videongiz qabul qilindi va reytingga qo'shildi!\n\nHozircha ${views} ta ko'rish. Ko'rishlar avtomatik yangilanib boradi; reytingda eng ko'p ko'rilgan bitta videongiz hisoblanadi (videolar ko'rishlari qo'shilmaydi) — statistikani tanlov ilovasida kuzating.`,
   reelRejected: {
     NOT_FOUND:
       "❌ Videongiz Instagram'da topilmadi. Link to'g'riligini va akkauntingiz ochiq (yopiq emas) ekanini tekshirib, linkni qaytadan yuboring.",

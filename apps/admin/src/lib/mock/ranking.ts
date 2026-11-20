@@ -8,11 +8,14 @@ import { readStore, type MockStore } from "./store";
 
 export interface MockRankingEntry {
   participantId: string;
-  /** Shu kuni hisobga olingan (qabul qilingan) videolar, yuborilish tartibida. */
+  /** Shu kuni qabul qilingan videolar, yuborilish tartibida (g'olib tekshiruvlari uchun). */
   reelIds: string[];
-  /** Eng ko'p ko'rishli video — reyting va g'olib sahifalaridagi havola uchun. */
+  /**
+   * Reytingda hisoblanadigan video: shu kuni eng ko'p ko'rilgan qabul qilingani (teng bo'lsa —
+   * oldinroq yuborilgani). Reyting va g'olib sahifalaridagi havola ham shu.
+   */
   topReelId: string;
-  /** Qabul qilingan videolar ko'rishlari yig'indisi. */
+  /** Shu videoning shu kungi ko'rishlari (videolar ko'rishlari qo'shilmaydi). */
   views: number;
   rank: number;
 }
@@ -28,10 +31,10 @@ export function isRankable(status: ParticipantStatus): boolean {
 }
 
 /**
- * `date` kunidagi reyting: ishtirokchining ko'rishlari — shu kuni qabul qilingan va
- * o'chirilmagan barcha videolari ko'rishlari yig'indisi (Aksiya qoidalari 7.1, 7.3),
- * kamayish tartibida. Teng bo'lsa — birinchi videosini oldinroq yuborgan yuqorida
- * (jamoa tasdiqlagan qaror, 17.11.2026; PLAN.md Q15).
+ * `date` kunidagi reyting: ishtirokchining natijasi — shu kuni qabul qilingan va o'chirilmagan
+ * videolari ichida eng ko'p ko'rilgan bittasining ko'rishlari (videolar ko'rishlari qo'shilmaydi),
+ * kamayish tartibida. Teng bo'lsa — shu videoni oldinroq yuborgan yuqorida (jamoa tasdiqlagan
+ * qaror, 17.11.2026; PLAN.md Q15), keyin id bo'yicha.
  *
  * Soddalik uchun ishtirokchining hozirgi holati barcha kunlarga qo'llanadi.
  */
@@ -39,15 +42,15 @@ export function computeRanking(date: IsoDate, store: MockStore = readStore()): M
   const data = getContestData();
   const participantsById = new Map(data.participants.map((item) => [item.id, item]));
 
-  interface Totals {
+  interface Best {
     participantId: string;
     reelIds: string[];
     topReelId: string;
-    topViews: number;
     views: number;
-    firstSubmittedOn: IsoDate;
+    /** Eng ko'p ko'rilgan video yuborilgan vaqt — ishtirokchilar teng bo'lganda. */
+    topSubmittedAt: string;
   }
-  const totals = new Map<string, Totals>();
+  const best = new Map<string, Best>();
 
   for (const reel of data.reels) {
     const participant = participantsById.get(reel.participantId);
@@ -59,32 +62,31 @@ export function computeRanking(date: IsoDate, store: MockStore = readStore()): M
       continue;
     }
     const views = reel.viewsByDay.get(date) ?? 0;
-    const current = totals.get(reel.participantId);
+    const current = best.get(reel.participantId);
     if (!current) {
-      totals.set(reel.participantId, {
+      best.set(reel.participantId, {
         participantId: reel.participantId,
         reelIds: [reel.id],
         topReelId: reel.id,
-        topViews: views,
         views,
-        firstSubmittedOn: reel.submittedOn,
+        topSubmittedAt: reel.submittedAt,
       });
       continue;
     }
     current.reelIds.push(reel.id);
-    current.views += views;
-    if (views > current.topViews) {
+    // Teng bo'lsa — oldinroq yuborilgani qoladi.
+    if (views > current.views || (views === current.views && reel.submittedAt < current.topSubmittedAt)) {
       current.topReelId = reel.id;
-      current.topViews = views;
+      current.views = views;
+      current.topSubmittedAt = reel.submittedAt;
     }
-    if (reel.submittedOn < current.firstSubmittedOn) current.firstSubmittedOn = reel.submittedOn;
   }
 
-  return [...totals.values()]
+  return [...best.values()]
     .sort(
       (a, b) =>
         b.views - a.views ||
-        a.firstSubmittedOn.localeCompare(b.firstSubmittedOn) ||
+        a.topSubmittedAt.localeCompare(b.topSubmittedAt) ||
         a.participantId.localeCompare(b.participantId),
     )
     .map((entry, index) => ({

@@ -656,8 +656,8 @@ function exclusionOf(
 ): DrawExclusion | null {
   if (counted.accepted.length === 0) return "NOT_ACCEPTED";
   if (counted.inPeriod.length === 0) return "OUT_OF_PERIOD";
-  // Nomzod ko'rishlari — davrga kirgan videolar ko'rishlari yig'indisi.
-  const views = sumViewsOn(counted.inPeriod, viewsAsOf);
+  // Nomzod ko'rishlari — davrga kirgan videolardan eng ko'p ko'rilganiniki (qo'shilmaydi).
+  const views = bestViewsOn(counted.inPeriod, viewsAsOf);
   if (views < s.minViews) return "VIEWS_LOW";
   if (views > s.maxViews) return "VIEWS_HIGH";
   if (p.status !== "ACTIVE") return "STATUS";
@@ -680,12 +680,13 @@ function viewsOn(reel: Reel, date: string): number {
   return views;
 }
 
-const sumViewsOn = (reels: readonly Reel[], date: string): number =>
-  reels.reduce((sum, reel) => sum + viewsOn(reel, date), 0);
+/** Davrga kirgan videolardan eng ko'p ko'rilgani — `date` kunidagi ko'rishlari (bo'sh ro'yxat — 0). */
+const bestViewsOn = (reels: readonly Reel[], date: string): number =>
+  reels.reduce((best, reel) => Math.max(best, viewsOn(reel, date)), 0);
 
 /**
- * Nomzod: ko'rishlar — davrga kirgan videolar yig'indisi; link, akkaunt va sanalar — ulardan
- * eng ko'p ko'rilganiniki (nomzod kartasida bitta video ko'rsatiladi).
+ * Nomzod: davrga kirgan videolardan eng ko'p ko'rilgani — ko'rishlar, link, akkaunt va sanalar
+ * shu videoniki (videolar ko'rishlari qo'shilmaydi).
  */
 function toCandidate(p: Participant, counted: { inPeriod: Reel[] }, viewsAsOf: string): DrawCandidate {
   const main = topReel(counted.inPeriod, (r) => viewsOn(r, viewsAsOf)) ?? counted.inPeriod[0];
@@ -696,7 +697,7 @@ function toCandidate(p: Participant, counted: { inPeriod: Reel[] }, viewsAsOf: s
     phone: p.phone ?? "",
     instagramUsername: main.owner,
     reelUrl: main.url,
-    views: sumViewsOn(counted.inPeriod, viewsAsOf),
+    views: viewsOn(main, viewsAsOf),
     postedOn: postedOn(main),
     submittedOn: contestDay(main.submittedAt),
   };

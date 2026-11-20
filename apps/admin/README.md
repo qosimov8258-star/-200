@@ -88,8 +88,8 @@ Backendsiz ishlash uchun (`npm run dev` da standart):
   generatsiya qilinadi va bugungi sanaga bog'lanadi: tanlov 24 kun oldin boshlangan,
   140 ta o'ylab topilgan ishtirokchi, har birida 0–6 ta video (turli holatlarda, ba'zilari
   ikkinchi Instagram akkauntdan), kunlik ko'rishlar, target va murojaatlar. Ishtirokchi
-  ko'rishlari — qabul qilingan videolari ko'rishlari yig'indisi (reyting, g'olib va random
-  tanlov ham shunday hisoblaydi).
+  natijasi — eng ko'p ko'rilgan bitta qabul qilingan videosining ko'rishlari, videolar
+  ko'rishlari qo'shilmaydi (reyting, g'olib, ega bo'limi va random tanlov ham shunday hisoblaydi).
 - Mock sessiya brauzerning `localStorage` ida saqlanadi.
 - Admin amallari (bloklash, blokdan chiqarish, diskvalifikatsiya, support javoblari va
   holatlari, target bo'yicha qarorlar) va ularning audit yozuvlari ham `localStorage` da
@@ -118,15 +118,27 @@ Panelda shunday qilingan, lekin hali jamoa bilan kelishilishi kerak (PLAN.md Q11
 
 ## Foydalanuvchilar va videolar
 
-Ishtirokchi cheklovsiz Reel yuboradi; uning ko'rishlari — qabul qilingan barcha videolari
-ko'rishlari yig'indisi (Aksiya qoidalari 7.1, 7.3), reyting ham shu yig'indi bo'yicha.
+Ishtirokchi cheklovsiz Reel yuboradi; uning natijasi — qabul qilingan videolari ichida eng ko'p
+ko'rilgan **bittasining** ko'rishlari, videolar ko'rishlari qo'shilmaydi. Qabul qilingan video
+bo'lmasa — 0. Ishtirokchining videolari teng bo'lsa — oldinroq yuborilgani hisoblanadi;
+ishtirokchilar teng bo'lsa — shu videoni oldinroq yuborgan yuqorida.
+
+- Reyting, o'rin o'zgarishi, g'olib, ega bo'limi va jadvaldagi "Ko'rishlar" ustuni — shu qiymat.
+- Kunlik reyting: kun natijasi — shu kuni eng ko'p ko'rilgan video, "Kunlik o'sish" — shu kungi
+  natija minus oldingi kungisi. Sahifa xulosasidagi "Jami ko'rishlar" (qatorlar yig'indisi) va
+  dashboarddagi "Jami ko'rishlar" (barcha videolar) — umumiy ko'rsatkichlar, o'zgarmagan.
+- Oylik random tanlov (Aksiya qoidalari 7.2): davrga tushgan qabul qilingan videolari ichida eng
+  ko'p ko'rilgani; ko'rishlar chegarasi ham shunga qo'llanadi.
 
 - Jadvaldagi "Videolar" ustuni: jami video soni va holatlar bo'yicha belgilar (qabul qilingan,
   kutilmoqda — qo'lda tekshiruvdagilar bilan, rad etilgan); video bo'lmasa — "—".
 - Ism, video soni yoki qatorning bo'sh joyi bosilsa — "Videolar" oynasi
-  (`GET /api/v1/admin/participants/:id/reels`): Instagram akkaunt(lar), jami ko'rishlar va barcha
-  videolar (eng yangisi yuqorida) — link, holat ("Qo'lda tekshiruvda" ham), rad etish sababi,
-  akkaunt, ko'rishlar, layklar, yuborilgan / joylangan / oxirgi yangilangan vaqt va shubha belgilari.
+  (`GET /api/v1/admin/participants/:id/reels`): Instagram akkaunt(lar), "Eng ko'p ko'rilgan video"
+  (`bestViews` — jadvaldagi "Ko'rishlar" bilan bir xil) va barcha videolar — link, holat ("Qo'lda
+  tekshiruvda" ham), rad etish sababi, akkaunt, ko'rishlar, layklar, yuborilgan / joylangan / oxirgi
+  yangilangan vaqt va shubha belgilari. Tartib backenddan keladi: avval qabul qilinganlar ko'rishlar
+  kamayishi bo'yicha — birinchisi reytingdagi video («Reytingda hisoblanadi» belgisi, `best: true`),
+  keyin tekshiruvdagilar, keyin rad etilgan / o'chirilganlar (oxirgi ikkalasida eng yangisi yuqorida).
 - Video filtri (`reel` URL parametri): "shu holatdagi videosi bor" yoki "Video yo'q".
 
 ## Rollar

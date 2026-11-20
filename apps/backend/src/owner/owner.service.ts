@@ -2,11 +2,10 @@ import { Inject, Injectable, Optional } from "@nestjs/common";
 
 import { adminError, paginate } from "../admin/admin-http";
 import {
-  acceptedReels,
+  bestReel,
   liveReels,
   participantViews,
   ParticipantsService,
-  reelViews,
   type OwnerParticipantPatch,
   type Participant,
   type Reel,
@@ -80,13 +79,11 @@ const bucket = (p: Participant): OwnerParticipantFilter => (p.firstName ? p.stat
 
 
 /**
- * Asosiy video (ega ro'yxatida ko'rsatiladi): eng ko'p ko'rishli qabul qilingani, bo'lmasa —
- * oxirgi yuborilgan rad etilmagani, u ham bo'lmasa — oxirgisi.
+ * Asosiy video (ega ro'yxatida ko'rsatiladi): reytingda hisoblanadigani (eng ko'p ko'rilgan qabul
+ * qilingani), bo'lmasa — oxirgi yuborilgan rad etilmagani, u ham bo'lmasa — oxirgisi.
  */
 function mainReel(p: Participant): Reel | null {
-  const accepted = acceptedReels(p);
-  if (accepted.length > 0) return accepted.reduce((best, r) => (reelViews(r) > reelViews(best) ? r : best));
-  return liveReels(p).at(-1) ?? p.reels.at(-1) ?? null;
+  return bestReel(p) ?? liveReels(p).at(-1) ?? p.reels.at(-1) ?? null;
 }
 
 function reelSummary(p: Participant): OwnerParticipant["reel"] {

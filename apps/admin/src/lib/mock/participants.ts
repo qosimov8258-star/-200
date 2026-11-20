@@ -91,11 +91,38 @@ function reelState(reel: MockReel, context: ListContext): { status: ReelStatus; 
   return { status: reelStatusOn(reel, context.today) ?? "PENDING", manualReview: false };
 }
 
+/**
+ * Reytingda hisoblanadigan video: qabul qilinganlar ichida eng ko'p ko'rilgani, teng bo'lsa —
+ * oldinroq yuborilgani (backend bilan bir xil). Qabul qilingan video yo'q — null.
+ */
+function bestReel(reels: MockReel[], context: ListContext): MockReel | null {
+  let best: MockReel | null = null;
+  for (const reel of reels) {
+    if (reelState(reel, context).status !== "ACCEPTED") continue;
+    if (best === null || compareAccepted(reel, best) < 0) best = reel;
+  }
+  return best;
+}
+
+/** Qabul qilinganlar tartibi: ko'rishlar kamayishi bo'yicha, teng bo'lsa — oldinroq yuborilgani. */
+function compareAccepted(a: MockReel, b: MockReel): number {
+  return (
+    latestViews(b) - latestViews(a) ||
+    a.submittedAt.localeCompare(b.submittedAt) ||
+    a.id.localeCompare(b.id)
+  );
+}
+
+/** Ro'yxatdagi guruh: qabul qilinganlar, keyin tekshiruvdagilar, keyin rad etilgan / o'chirilganlar. */
+const REEL_GROUP: Record<ReelStatus, number> = { ACCEPTED: 0, PENDING: 1, REJECTED: 2, REMOVED: 2 };
+
 interface ReelSummary {
   counts: ParticipantReelCounts;
   /** Har bir videoning holati — Reel filtri uchun. */
   statuses: ReelStatus[];
-  /** Qabul qilingan videolar ko'rishlari yig'indisi. */
+  /** Reytingda hisoblanadigan (eng ko'p ko'rilgan qabul qilingan) video; yo'q — null. */
+  best: MockReel | null;
+  /** Shu videoning ko'rishlari (videolar ko'rishlari qo'shilmaydi); yo'q — 0. */
   views: number;
   /** Rad etilmagan videolardagi akkauntlar, birinchi aniqlangani boshida (takrorlanmaydi). */
   owners: string[];
@@ -106,14 +133,13 @@ function summarizeReels(participant: MockParticipant, context: ListContext): Ree
   const counts: ParticipantReelCounts = { total: reels.length, accepted: 0, pending: 0, rejected: 0 };
   const statuses: ReelStatus[] = [];
   const owners: string[] = [];
-  let views = 0;
+  const best = bestReel(reels, context);
 
   for (const reel of reels) {
     const { status } = reelState(reel, context);
     statuses.push(status);
     if (status === "ACCEPTED") {
       counts.accepted += 1;
-      views += latestViews(reel);
     } else if (status === "PENDING") {
       counts.pending += 1;
     } else if (status === "REJECTED") {
@@ -124,7 +150,7 @@ function summarizeReels(participant: MockParticipant, context: ListContext): Ree
     }
   }
 
-  return { counts, statuses, views, owners };
+  return { counts, statuses, best, views: best ? latestViews(best) : 0, owners };
 }
 
 function toListItem(
@@ -170,7 +196,7 @@ function postedAt(reel: MockReel): string {
   return at < reel.submittedAt ? at : new Date(Date.parse(reel.submittedAt) - 45 * 60_000).toISOString();
 }
 
-function toAdminReel(reel: MockReel, context: ListContext, syncTime: string): AdminReelItem {
+function toAdminReel(reel: MockReel, context: ListContext, syncTime: string, best: boolean): AdminReelItem {
   const { status, manualReview } = reelState(reel, context);
   const snapshotDay = lastSnapshotDay(reel);
   const views = latestViews(reel);
@@ -188,7 +214,21 @@ function toAdminReel(reel: MockReel, context: ListContext, syncTime: string): Ad
     postedAt: reel.owner ? postedAt(reel) : null,
     lastSyncedAt: snapshotDay ? lastSyncedAt(reel, snapshotDay, context.today, syncTime) : null,
     flags: [...reel.flags],
+    best,
   };
+}
+
+/**
+ * "Videolar" oynasidagi tartib (backend bilan bir xil): qabul qilinganlar ko'rishlar kamayishi
+ * bo'yicha (birinchisi — reytingdagi video), keyin tekshiruvdagilar, keyin rad etilgan va
+ * o'chirilganlar; oxirgi ikkalasida eng yangisi birinchi.
+ */
+function compareForDisplay(a: MockReel, b: MockReel, context: ListContext): number {
+  const groupA = REEL_GROUP[reelState(a, context).status];
+  const groupB = REEL_GROUP[reelState(b, context).status];
+  if (groupA !== groupB) return groupA - groupB;
+  if (groupA === REEL_GROUP.ACCEPTED) return compareAccepted(a, b);
+  return b.submittedAt.localeCompare(a.submittedAt) || b.id.localeCompare(a.id);
 }
 
 // ---------------------------------------------------------------------------
@@ -291,11 +331,9 @@ export function getParticipantReels(participantId: string): ParticipantReels {
   const context = buildContext(readStore());
   const summary = summarizeReels(participant, context);
   const { syncTime } = effectiveSettings(context.store);
-  const reels = (context.reelsByParticipant.get(participant.id) ?? [])
-    .map((reel) => ({ id: reel.id, item: toAdminReel(reel, context, syncTime) }))
-    // Eng yangisi birinchi.
-    .sort((a, b) => b.item.submittedAt.localeCompare(a.item.submittedAt) || b.id.localeCompare(a.id))
-    .map(({ item }) => item);
+  const reels = [...(context.reelsByParticipant.get(participant.id) ?? [])]
+    .sort((a, b) => compareForDisplay(a, b, context))
+    .map((reel) => toAdminReel(reel, context, syncTime, reel === summary.best));
 
   return {
     participant: {
@@ -303,7 +341,7 @@ export function getParticipantReels(participantId: string): ParticipantReels {
       fullName: `${participant.firstName} ${participant.lastName}`,
       instagramUsernames: summary.owners,
     },
-    totalViews: summary.views,
+    bestViews: summary.views,
     reels,
   };
 }

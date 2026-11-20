@@ -2,7 +2,7 @@
 
 import { useId } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Clapperboard, ExternalLink, Flag } from "lucide-react";
+import { AlertTriangle, Clapperboard, ExternalLink, Flag, Trophy } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { getParticipantReels } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import {
+  BEST_REEL_LABEL,
   MANUAL_REVIEW_REEL_LABEL,
   REEL_REJECT_REASON_LABELS,
   REEL_STATUS_LABELS,
@@ -34,7 +35,10 @@ interface ParticipantReelsDialogProps {
   onClose: () => void;
 }
 
-/** Ishtirokchining barcha yuborgan videolari: holati, ko'rishlari va shubha belgilari. */
+/**
+ * Ishtirokchining barcha yuborgan videolari: holati, ko'rishlari va shubha belgilari.
+ * Reytingda eng ko'p ko'rilgan bitta qabul qilingan videosi hisoblanadi (ko'rishlar qo'shilmaydi).
+ */
 export function ParticipantReelsDialog({ participant, onClose }: ParticipantReelsDialogProps) {
   const name = fullName(participant);
   const { data, error, isPending, isError, isFetching, refetch } = useQuery({
@@ -80,8 +84,10 @@ function countReels(reels: AdminReelItem[]): ParticipantReelCounts {
 }
 
 function ReelsBody({ data }: { data: ParticipantReels }) {
-  // Backend eng yangisini birinchi beradi; tartib shunga tayanmasin.
-  const reels = [...data.reels].sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+  // Tartib backenddan: qabul qilinganlar ko'rishlar bo'yicha (birinchisi — reytingdagi video),
+  // keyin tekshiruvdagilar, keyin rad etilganlar.
+  const reels = data.reels;
+  const hasBest = reels.some((reel) => reel.best);
   const usernames = data.participant.instagramUsernames;
   const listTitleId = useId();
 
@@ -107,11 +113,13 @@ function ReelsBody({ data }: { data: ParticipantReels }) {
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-slate-500">Jami ko&apos;rishlar</dt>
+          <dt className="text-xs text-slate-500">Eng ko&apos;p ko&apos;rilgan video</dt>
           <dd className="mt-0.5 text-base font-semibold text-slate-900 tabular-nums">
-            {formatNumber(data.totalViews)}
+            {formatNumber(data.bestViews)}
           </dd>
-          <dd className="text-xs text-slate-500">qabul qilinganlari bo&apos;yicha</dd>
+          <dd className="text-xs text-slate-500">
+            {hasBest ? "reytingda shu hisoblanadi" : "qabul qilingan video yo'q"}
+          </dd>
         </div>
         <div>
           <dt className="text-xs text-slate-500">Videolar</dt>
@@ -132,7 +140,7 @@ function ReelsBody({ data }: { data: ParticipantReels }) {
       ) : (
         <section aria-labelledby={listTitleId}>
           <h3 id={listTitleId} className="mb-1 text-xs font-medium tracking-wide text-slate-500 uppercase">
-            Yuborilgan videolar — eng yangisi yuqorida
+            {hasBest ? "Yuborilgan videolar — eng ko'p ko'rilgani yuqorida" : "Yuborilgan videolar"}
           </h3>
           <ul className="max-h-[55vh] divide-y divide-slate-100 overflow-y-auto rounded-md border border-slate-200">
             {reels.map((reel) => (
@@ -161,11 +169,19 @@ function ReelRow({ reel }: { reel: AdminReelItem }) {
           <ExternalLink className="size-3.5 shrink-0" aria-hidden />
           <span className="sr-only">(Instagramda, yangi oynada)</span>
         </a>
-        {reel.manualReview ? (
-          <Badge tone="brand">{MANUAL_REVIEW_REEL_LABEL}</Badge>
-        ) : (
-          <Badge tone={REEL_STATUS_TONES[reel.status]}>{REEL_STATUS_LABELS[reel.status]}</Badge>
-        )}
+        <span className="inline-flex flex-wrap items-center gap-1.5">
+          {reel.best && (
+            <Badge tone="brand" className="gap-1">
+              <Trophy className="size-3" aria-hidden />
+              {BEST_REEL_LABEL}
+            </Badge>
+          )}
+          {reel.manualReview ? (
+            <Badge tone="brand">{MANUAL_REVIEW_REEL_LABEL}</Badge>
+          ) : (
+            <Badge tone={REEL_STATUS_TONES[reel.status]}>{REEL_STATUS_LABELS[reel.status]}</Badge>
+          )}
+        </span>
       </div>
 
       {reel.status === "REJECTED" && reel.rejectReason && (

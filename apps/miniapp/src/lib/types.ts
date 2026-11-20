@@ -9,9 +9,10 @@
 export type IsoDate = string;
 
 /**
- * Bitta videoning holati. PENDING — avtomatik tekshiruv; ACCEPTED — ko'rishlari reytingga
- * qo'shiladi; MANUAL_REVIEW — Instagram'da 3 marta topilmadi, admin qo'lda tekshiradi;
- * REJECTED — rad etilgan (hisobga kirmaydi; shu linkni tuzatib qayta yuborish mumkin).
+ * Bitta videoning holati. PENDING — avtomatik tekshiruv; ACCEPTED — qabul qilingan (reytingda
+ * ishtirokchining eng ko'p ko'rilgan bitta ACCEPTED videosi hisoblanadi); MANUAL_REVIEW —
+ * Instagram'da 3 marta topilmadi, admin qo'lda tekshiradi; REJECTED — rad etilgan (hisobga
+ * kirmaydi; shu linkni tuzatib qayta yuborish mumkin).
  */
 export type ReelStatus = "PENDING" | "ACCEPTED" | "MANUAL_REVIEW" | "REJECTED";
 
@@ -72,6 +73,7 @@ export interface ContestRules {
 export interface RatingEntry {
   rank: number;
   fullName: string;
+  /** Ishtirokchining eng ko'p ko'rilgan qabul qilingan videosi ko'rishlari (videolar qo'shilmaydi). */
   views: number;
   /** Kechagiga nisbatan o'rin o'zgarishi: musbat — ko'tarilgan. */
   rankDelta: number;
@@ -80,7 +82,7 @@ export interface RatingEntry {
 
 export interface DailyViews {
   date: IsoDate;
-  /** Shu kungi o'sish (kun oxiridagi jami − oldingi kun). */
+  /** Shu kungi o'sish (videoning kun oxiridagi ko'rishlari − oldingi kundagi). */
   views: number;
 }
 
@@ -105,21 +107,27 @@ export interface MyReelItem {
   views: number;
   /** Yuborilgan vaqt (UTC ISO). */
   submittedAt: string;
+  /**
+   * Reytingda hisoblanadigan video: eng ko'p ko'rilgan ACCEPTED video (teng bo'lsa — oldinroq
+   * yuborilgani). Ro'yxatda faqat birinchi video va faqat ACCEPTED bo'lsa true.
+   */
+  best: boolean;
 }
 
 /**
- * Ishtirokchining barcha videolari va umumiy statistikasi. Videolar soni cheklanmagan;
- * reyting va asosiy sovrinlar uchun faqat ACCEPTED videolar ko'rishlari qo'shiladi.
+ * Ishtirokchining barcha videolari va natijasi. Videolar soni cheklanmagan; reyting, o'rin va
+ * asosiy sovrinlar uchun ishtirokchining eng ko'p ko'rilgan bitta ACCEPTED videosi hisoblanadi —
+ * videolar ko'rishlari qo'shilmaydi.
  */
 export interface MyReels {
-  /** Qabul qilingan videolar ko'rishlari yig'indisi. */
-  totalViews: number;
-  /** Oxirgi kundagi umumiy o'sish. */
+  /** Eng ko'p ko'rilgan qabul qilingan video ko'rishlari; bunday video yo'q bo'lsa — 0. */
+  bestViews: number;
+  /** Eng ko'p ko'rilgan videoning oxirgi kundagi o'sishi. */
   todayViews: number;
   /** Qabul qilingan video yo'q bo'lsa — null. */
   rank: number | null;
   rankDelta: number;
-  /** Qabul qilingan videolarning kunlik o'sishi yig'indisi, eskidan yangiga. */
+  /** Eng ko'p ko'rilgan videoning kunlik o'sishi, eskidan yangiga (oxirgi 30 kun). */
   daily: DailyViews[];
   /** Videolar ichidagi eng so'nggi yangilanish (UTC ISO). */
   lastSyncedAt: string | null;
@@ -127,7 +135,11 @@ export interface MyReels {
   nextSyncAt: string | null;
   /** Ko'rishlar necha kunda bir yangilanadi (0 — jadval yo'q). */
   syncEveryDays: number;
-  /** Barcha yuborilgan videolar, yangisidan eskisiga; video yo'q bo'lsa — bo'sh. */
+  /**
+   * Barcha yuborilgan videolar; video yo'q bo'lsa — bo'sh. Tartib: avval ACCEPTED — ko'rishlar
+   * bo'yicha kamayib (teng bo'lsa — oldinroq yuborilgani; birinchisi `best`), keyin hali hal
+   * qilinmaganlar (PENDING, MANUAL_REVIEW) — yangisi tepada, oxirida REJECTED — yangisi tepada.
+   */
   reels: MyReelItem[];
 }
 
@@ -203,7 +215,7 @@ export interface TargetReportRequest {
   comment?: string;
 }
 
-/** Asosiy sovrin toifasi (aksiya yakunida, jami ko'rishlar bo'yicha). */
+/** Asosiy sovrin toifasi (aksiya yakunida, eng ko'p ko'rilgan bitta video ko'rishlari bo'yicha). */
 export type PrizeTierKind = "tablet" | "phone" | "travel" | "car";
 
 export interface PrizeTier {
@@ -225,7 +237,7 @@ export interface MonthlyPrize {
   amount: number;
   perMonth: number;
   total: number;
-  /** Oy davomida shu oraliqda ko'rish yig'ganlar qatnashadi. */
+  /** Oy davomidagi eng ko'p ko'rilgan qabul qilingan Reeli shu oraliqda bo'lganlar qatnashadi. */
   minViews: number;
   maxViews: number;
 }

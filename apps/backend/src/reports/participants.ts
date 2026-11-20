@@ -1,7 +1,9 @@
 import { contestDay } from "../common/time";
 import {
+  bestReel,
   instagramUsernames,
   participantViews,
+  reelsForDisplay,
   reelViews,
   type Participant,
   type Reel,
@@ -52,7 +54,7 @@ export interface ParticipantListItem {
   registeredOn: string;
   /** Videolar soni holatlar bo'yicha (`pending` ga qo'lda tekshiruvdagilar ham kiradi). */
   reels: ReelCounts;
-  /** Qabul qilingan videolar oxirgi yig'ilgan ko'rishlari yig'indisi. */
+  /** Eng ko'p ko'rilgan qabul qilingan videosining oxirgi ko'rishlari (videolar qo'shilmaydi). */
   views: number;
   /** Joriy reytingdagi o'rni; reytingda bo'lmasa — null. */
   rank: number | null;
@@ -71,9 +73,9 @@ export interface ReelCounts {
 /** Foydalanuvchilar → ishtirokchi videolari (`GET /admin/participants/:id/reels`). */
 export interface ParticipantReels {
   participant: { id: string; fullName: string; instagramUsernames: string[] };
-  /** Ro'yxatdagi `views` bilan bir xil — qabul qilinganlar yig'indisi. */
-  totalViews: number;
-  /** Eng yangisi birinchi. */
+  /** Ro'yxatdagi `views` bilan bir xil — eng ko'p ko'rilgan qabul qilingan video. */
+  bestViews: number;
+  /** `reelsForDisplay` tartibida: birinchisi — reytingdagi video (qabul qilingan bo'lsa). */
   reels: AdminReelItem[];
 }
 
@@ -93,6 +95,8 @@ export interface AdminReelItem {
   lastSyncedAt: string | null;
   /** Videodagi nakrutka belgilari turlari (takrorlarsiz). */
   flags: ReelFlagType[];
+  /** Reytingda hisoblanadigan video (eng ko'p ko'rilgan qabul qilingani) — faqat bittasida true. */
+  best: boolean;
 }
 
 export type StatusCounts = Record<AdminParticipantStatus | "ALL", number>;
@@ -174,34 +178,37 @@ export function toParticipantItem(p: Participant, ctx: ParticipantContext): Part
   };
 }
 
-/** Ishtirokchining barcha videolari (admin panel → Foydalanuvchilar → ishtirokchi). Eng yangisi birinchi. */
+/**
+ * Ishtirokchining barcha videolari (admin panel → Foydalanuvchilar → ishtirokchi): eng ko'p
+ * ko'rilgani tepada (`reelsForDisplay`).
+ */
 export function toParticipantReels(p: Participant): ParticipantReels {
+  const best = bestReel(p);
   return {
     participant: {
       id: String(p.telegramId),
       fullName: `${p.firstName ?? ""} ${p.lastName ?? ""}`.trim(),
       instagramUsernames: instagramUsernames(p),
     },
-    totalViews: participantViews(p),
-    reels: [...p.reels]
-      .sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime())
-      .map((reel): AdminReelItem => {
-        const last = reel.history.at(-1);
-        return {
-          shortcode: reel.shortcode,
-          url: reel.url,
-          status: adminReelStatus(reel.status),
-          manualReview: reel.status === "MANUAL_REVIEW",
-          rejectReason: reel.status === "REJECTED" ? reel.rejectReason : null,
-          owner: reel.owner,
-          views: reelViews(reel),
-          likes: last?.likes ?? null,
-          submittedAt: reel.submittedAt.toISOString(),
-          postedAt: reel.postedAt?.toISOString() ?? null,
-          lastSyncedAt: last?.at.toISOString() ?? null,
-          flags: [...new Set(reel.flags.map((f) => f.type))],
-        };
-      }),
+    bestViews: participantViews(p),
+    reels: reelsForDisplay(p.reels).map((reel): AdminReelItem => {
+      const last = reel.history.at(-1);
+      return {
+        shortcode: reel.shortcode,
+        url: reel.url,
+        status: adminReelStatus(reel.status),
+        manualReview: reel.status === "MANUAL_REVIEW",
+        rejectReason: reel.status === "REJECTED" ? reel.rejectReason : null,
+        owner: reel.owner,
+        views: reelViews(reel),
+        likes: last?.likes ?? null,
+        submittedAt: reel.submittedAt.toISOString(),
+        postedAt: reel.postedAt?.toISOString() ?? null,
+        lastSyncedAt: last?.at.toISOString() ?? null,
+        flags: [...new Set(reel.flags.map((f) => f.type))],
+        best: reel === best,
+      };
+    }),
   };
 }
 

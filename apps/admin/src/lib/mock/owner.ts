@@ -651,15 +651,29 @@ function personReels(person: Person, context: Context): PersonReel[] {
 const isLive = ({ status }: PersonReel) => status !== "REJECTED" && status !== "REMOVED";
 
 /**
- * Asosiy video (backend: `owner.service.ts` → `mainReel`): eng ko'p ko'rishli qabul qilingani,
- * bo'lmasa — oxirgi tirik video, u ham bo'lmasa — oxirgisi.
+ * Reytingda hisoblanadigan video: eng ko'p ko'rilgan qabul qilingani, teng bo'lsa — oldinroq
+ * yuborilgani. Qabul qilingan video yo'q — null.
+ */
+function bestAccepted(reels: PersonReel[]): PersonReel | null {
+  let best: PersonReel | null = null;
+  for (const item of reels) {
+    if (item.status !== "ACCEPTED") continue;
+    if (best === null) {
+      best = item;
+      continue;
+    }
+    const diff = latestViews(item.reel) - latestViews(best.reel);
+    if (diff > 0 || (diff === 0 && item.reel.submittedAt < best.reel.submittedAt)) best = item;
+  }
+  return best;
+}
+
+/**
+ * Asosiy video (backend: `owner.service.ts` → `mainReel`): reytingda hisoblanadigan (eng ko'p
+ * ko'rilgan qabul qilingan) video, bo'lmasa — oxirgi tirik video, u ham bo'lmasa — oxirgisi.
  */
 function mainReel(reels: PersonReel[]): PersonReel | null {
-  const accepted = reels.filter((item) => item.status === "ACCEPTED");
-  if (accepted.length > 0) {
-    return accepted.reduce((best, item) => (latestViews(item.reel) > latestViews(best.reel) ? item : best));
-  }
-  return reels.filter(isLive).at(-1) ?? reels.at(-1) ?? null;
+  return bestAccepted(reels) ?? reels.filter(isLive).at(-1) ?? reels.at(-1) ?? null;
 }
 
 function ownerReel(person: Person, context: Context): OwnerParticipant["reel"] {
@@ -688,11 +702,13 @@ function participantTab(person: Person): OwnerParticipantFilter {
   return person.firstName === null ? "INCOMPLETE" : person.status;
 }
 
-/** Qabul qilingan videolar ko'rishlari yig'indisi — reyting va admin ro'yxati bilan bir xil. */
+/**
+ * Eng ko'p ko'rilgan qabul qilingan videoning ko'rishlari (videolar ko'rishlari qo'shilmaydi) —
+ * reyting va admin ro'yxati bilan bir xil. Qabul qilingan video yo'q — 0.
+ */
 function personViews(person: Person, context: Context): number {
-  return personReels(person, context)
-    .filter((item) => item.status === "ACCEPTED")
-    .reduce((sum, item) => sum + latestViews(item.reel), 0);
+  const best = bestAccepted(personReels(person, context));
+  return best ? latestViews(best.reel) : 0;
 }
 
 function toOwnerParticipant(person: Person, context: Context): OwnerParticipant {

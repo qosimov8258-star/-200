@@ -4,10 +4,12 @@ import { test } from "node:test";
 import { ApiException } from "../common/api-exception";
 import { RulesService } from "../rules/rules.service";
 import {
+  bestReel,
   instagramUsernames,
   migrateParticipant,
   participantViews,
   ParticipantsService,
+  reelsForDisplay,
   topReel,
   type Reel,
   type StoredParticipant,
@@ -145,7 +147,7 @@ test("one Instagram account — one participant, but a participant may use sever
   assert.deepEqual(instagramUsernames(svc.get(1)!), ["ali", "ali_second"]);
 });
 
-test("views are the sum of accepted Reels' latest views; the top Reel has the most views", () => {
+test("views are the most viewed accepted Reel's latest views — Reels do not add up", () => {
   const svc = make();
   active(svc, 1, "+998900000001");
   const snap = (reel: Reel, ...views: number[]) => {
@@ -164,9 +166,49 @@ test("views are the sum of accepted Reels' latest views; the top Reel has the mo
   d.status = "REJECTED";
   snap(d, 70_000);
   const p = svc.get(1)!;
-  assert.equal(participantViews(p), 6_000);
+  assert.equal(participantViews(p), 5_000);
+  assert.equal(bestReel(p), b);
   assert.equal(topReel([a, b]), b);
   assert.equal(topReel([]), null);
+  // Teng ko'rishda — oldinroq yuborilgani (ro'yxat tartibidan qat'i nazar).
+  snap(a, 5_000);
+  a.submittedAt = new Date("2026-12-01T10:00:00Z");
+  b.submittedAt = new Date("2026-12-02T10:00:00Z");
+  assert.equal(topReel([b, a]), a);
+});
+
+test("without accepted Reels the views are 0 and there is no best Reel", () => {
+  const svc = make();
+  active(svc, 1, "+998900000001");
+  const r = svc.submitReel(1, "u", "AAAAA1");
+  r.history = [{ date: "2026-12-01", at: new Date(), views: 9_000, likes: null, comments: null }];
+  const p = svc.get(1)!;
+  assert.equal(participantViews(p), 0);
+  assert.equal(bestReel(p), null);
+});
+
+test("display order: accepted by views (best first), then undecided, then rejected — newest first", () => {
+  const svc = make();
+  active(svc, 1, "+998900000001");
+  const at = (day: number) => new Date(`2026-12-${String(day).padStart(2, "0")}T10:00:00Z`);
+  const reel = (code: string, status: Reel["status"], day: number, views: number | null) => {
+    const r = svc.submitReel(1, "u", code);
+    r.status = status;
+    r.submittedAt = at(day);
+    r.history = views === null ? [] : [{ date: "2026-12-20", at: new Date(), views, likes: null, comments: null }];
+    return r;
+  };
+  reel("REJ001", "REJECTED", 1, 99_000);
+  reel("ACC001", "ACCEPTED", 2, 1_000);
+  reel("PEN001", "PENDING", 3, null);
+  reel("ACC002", "ACCEPTED", 4, 7_000);
+  reel("MAN001", "MANUAL_REVIEW", 5, 500);
+  reel("ACC003", "ACCEPTED", 6, 1_000);
+  reel("REJ002", "REJECTED", 7, null);
+  assert.deepEqual(
+    reelsForDisplay(svc.get(1)!.reels).map((r) => r.shortcode),
+    ["ACC002", "ACC001", "ACC003", "MAN001", "PEN001", "REJ002", "REJ001"],
+  );
 });
 
 test("saved state with the old single `reel` is migrated to `reels`", () => {

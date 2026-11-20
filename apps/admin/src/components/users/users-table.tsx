@@ -66,7 +66,13 @@ export function UsersTable({
             <th scope="col" className="px-4 py-2.5 text-left font-medium">
               Videolar
             </th>
-            <SortableHeader sort="views" label="Ko'rishlar" align="right" {...sortProps} />
+            <SortableHeader
+              sort="views"
+              label="Ko'rishlar"
+              hint="Eng ko'p ko'rilgan bitta qabul qilingan videosi (videolar ko'rishlari qo'shilmaydi)"
+              align="right"
+              {...sortProps}
+            />
             <th scope="col" className="px-4 py-2.5 text-left font-medium">
               Holat
             </th>
@@ -95,6 +101,8 @@ interface SortableHeaderProps {
   activeSort: ParticipantSort;
   order: SortOrder;
   onSortChange: (sort: ParticipantSort) => void;
+  /** Ustun nimani ko'rsatishi (sichqoncha ustida). */
+  hint?: string;
   align?: "left" | "right";
   className?: string;
 }
@@ -105,6 +113,7 @@ function SortableHeader({
   activeSort,
   order,
   onSortChange,
+  hint,
   align = "left",
   className,
 }: SortableHeaderProps) {
@@ -120,6 +129,7 @@ function SortableHeader({
       <button
         type="button"
         onClick={() => onSortChange(sort)}
+        title={hint}
         className={cn(
           "inline-flex items-center gap-1 rounded hover:text-slate-900",
           active && "text-slate-900",

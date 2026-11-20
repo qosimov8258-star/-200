@@ -97,7 +97,7 @@ test("only eligible participants enter the pool; the rest are counted by reason"
   assert.equal(submitted.eligibleCount, 3);
 });
 
-test("several Reels (7.2): only Reels dated inside the period count and their views add up", () => {
+test("several Reels (7.2): only Reels dated inside the period count, the most viewed of them decides (no summing)", () => {
   const { draws, add, participants, settings } = setup();
   /** Mavjud ishtirokchining yana bir videosi. */
   const extra = (
@@ -113,9 +113,9 @@ test("several Reels (7.2): only Reels dated inside the period count and their vi
     reel.history = [{ date: "2026-12-20", at: at("2026-12-20"), views: o.views, likes: 100, comments: 5 }];
     if (o.flagged) reel.flags = [{ type: "LOW_ENGAGEMENT", date: "2026-12-20", detail: "test" }];
   };
-  // 1: ikkalasi ham davrda — 600 + 700 = 1 300 (har biri alohida minimaldan past).
+  // 1: ikkalasi ham davrda — eng ko'p ko'rilgani (1 300) olinadi, link ham uniki.
   add(1, { views: 600 });
-  extra(1, "ONEB", { views: 700, posted: "2026-12-05" });
+  extra(1, "ONEB", { views: 1_300, posted: "2026-12-05" });
   // 2: davrdan tashqaridagi 200 000 hisobga olinmaydi (VIEWS_HIGH emas); rad etilgani ham.
   add(2, { views: 5_000 });
   extra(2, "TWOB", { views: 200_000, posted: "2026-11-20" });
@@ -123,20 +123,23 @@ test("several Reels (7.2): only Reels dated inside the period count and their vi
   // 3: qabul qilinganlari davrdan tashqarida, davrdagisi hali tekshirilmagan.
   add(3, { views: 5_000, posted: "2026-11-20" });
   extra(3, "THREEB", { views: 5_000, posted: "2026-12-05", status: "PENDING" });
-  // 4: davrdagilar yig'indisi chegaradan oshadi.
+  // 4: davrdagi eng ko'p ko'rilgani chegaradan oshadi.
   add(4, { views: 60_000 });
-  extra(4, "FOURB", { views: 50_000, posted: "2026-12-06" });
+  extra(4, "FOURB", { views: 150_000, posted: "2026-12-06" });
   // 5: nakrutka belgisi davrdan tashqaridagi videoda — to'siq emas; 6: davrdagisida — TARGET.
   add(5, { views: 2_000 });
   extra(5, "FIVEB", { views: 2_000, posted: "2026-11-20", flagged: true });
   add(6, { views: 2_000 });
   extra(6, "SIXB", { views: 2_000, posted: "2026-12-06", flagged: true });
+  // 7: 600 + 700 = 1 300 bo'lardi, lakin ko'rishlar qo'shilmaydi — eng ko'pi 700, minimaldan past.
+  add(7, { views: 600 });
+  extra(7, "SEVENB", { views: 700, posted: "2026-12-05" });
 
   const preview = draws.preview(settings());
-  assert.equal(preview.totalReels, 13, "barcha yuborilgan videolar");
+  assert.equal(preview.totalReels, 15, "barcha yuborilgan videolar");
   assert.deepEqual(
     Object.fromEntries(Object.entries(preview.excluded).filter(([, n]) => n > 0)),
-    { OUT_OF_PERIOD: 1, VIEWS_HIGH: 1, TARGET: 1 },
+    { OUT_OF_PERIOD: 1, VIEWS_LOW: 1, VIEWS_HIGH: 1, TARGET: 1 },
   );
   assert.deepEqual(
     preview.sample.map((c) => [c.participantId, c.views, c.reelUrl]).sort(),
@@ -150,11 +153,11 @@ test("several Reels (7.2): only Reels dated inside the period count and their vi
   assert.deepEqual([one?.instagramUsername, one?.postedOn], ["user1.oneb", "2026-12-05"]);
 
   // Ilovaga yuborilgan sana bo'yicha qo'shimcha videolar (10-dekabr) davrga kiradi: 2-ishtirokchida
-  // 205 000 (VIEWS_HIGH), 5-ishtirokchining belgili videosi ham hisobga olinadi (TARGET).
+  // 200 000 (VIEWS_HIGH), 5-ishtirokchining belgili videosi ham hisobga olinadi (TARGET).
   const bySubmitted = draws.preview(settings({ dateBasis: "SUBMITTED" }));
   assert.deepEqual(
     Object.fromEntries(Object.entries(bySubmitted.excluded).filter(([, n]) => n > 0)),
-    { OUT_OF_PERIOD: 1, VIEWS_HIGH: 2, TARGET: 2 },
+    { OUT_OF_PERIOD: 1, VIEWS_LOW: 1, VIEWS_HIGH: 2, TARGET: 2 },
   );
   assert.deepEqual(bySubmitted.sample.map((c) => [c.participantId, c.views]), [["1", 1_300]]);
 });

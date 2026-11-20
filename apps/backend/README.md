@@ -99,9 +99,10 @@ avtomatik `reels` ga o'tkaziladi.
    - **rad etadi** (sabab bilan) → `REJECTED`, ishtirokchi sababni oladi.
    Kutish paytida Apify videoni o'zi topsa — holat avtomatik yopiladi.
 4. **Tanlov tugagach** (`contest.ts` → `endsAt`) — bitta yakuniy yig'ish, keyin to'xtaydi.
-5. **Reyting** (qoidalar 7.1, 7.3) — ishtirokchining **qabul qilingan** (`ACCEPTED`) videolari oxirgi
-   ko'rishlari yig'indisi bo'yicha; teng bo'lsa, birinchi qabul qilingan videosini oldinroq yuborgan yuqorida.
-   O'rin o'zgarishi — oldingi yig'ishdagi yig'indiga nisbatan.
+5. **Reyting** (qoidalar 7.1, 7.3) — ishtirokchining **eng ko'p ko'rilgan bitta** qabul qilingan
+   (`ACCEPTED`) videosi oxirgi ko'rishlari bo'yicha; videolar ko'rishlari **qo'shilmaydi**. Teng bo'lsa,
+   shu videoni oldinroq yuborgan yuqorida. O'rin o'zgarishi — oldingi yig'ishdagi o'ringa nisbatan.
+   Oylik random tanlovda (7.2) ham davrga kirgan videolardan eng ko'p ko'rilgani olinadi.
 6. **Nakrutka belgilari** (faqat admin uchun, avtomatik jazo yo'q): `LOW_ENGAGEMENT`
    (layk/ko'rish < 0.3%), `VIEW_SPIKE` (bir kunda 10 barobardan ko'p o'sish), `ENGAGEMENT_GAP`
    (kuniga kamida +20 000 va 3 barobar o'sish, shu kungi layk ulushi odatdagidan 4 marta past),
@@ -150,7 +151,7 @@ bot xabari) yoki ro'yxatdan chiqarishni Admin hal qiladi.
 
 | So'rov | Vazifa |
 |---|---|
-| `GET /miniapp/reels` | "Mening videolarim" — `MyReels`: jami ko'rishlar, bugungi o'sish, o'rin va uning o'zgarishi, kunlik o'sish (oxirgi 30 kun), oxirgi va keyingi yig'ish, `reels` (eng yangisi birinchi; holat, rad sababi, ko'rishlar). Video bo'lmasa ham obyekt (`reels: []`). Ko'rishlar — faqat qabul qilinganlar bo'yicha |
+| `GET /miniapp/reels` | "Mening videolarim" — `MyReels`: `bestViews` (eng ko'p ko'rilgan qabul qilingan video — reytingdagi natija), shu videoning bugungi va kunlik o'sishi (oxirgi 30 kun), o'rin va uning o'zgarishi, oxirgi va keyingi yig'ish, `reels` (avval qabul qilinganlar ko'rishlar kamayishi bo'yicha — birinchisi `best: true`, keyin tekshiruvdagilar, keyin rad etilganlar; holat, rad sababi, ko'rishlar). Video bo'lmasa ham obyekt (`reels: []`) |
 | `POST /miniapp/reels` | `{ url }` — yangi video (soni cheklanmagan), javob — yangilangan `MyReels`. Xatolar: `422 INVALID_LINK`, `409 REEL_ALREADY_SUBMITTED`, `409 REEL_TAKEN`, `403 UNAUTHORIZED` |
 
   Ishtirokchi ikki yo'l bilan tanilgan, ikkalasi ham bitta `telegramId`
@@ -182,8 +183,8 @@ bot xabari) yoki ro'yxatdan chiqarishni Admin hal qiladi.
 | `GET /admin/settings`, `PUT /admin/settings` | Tanlov muddati, ko'rishlar yig'ish vaqti, minimal yosh (boshlangach boshlanish sanasi qulflanadi) |
 | `GET /admin/audit-log` | Audit log: `search`, `entity`, `actorRole`, `page`, `pageSize` |
 | `GET /admin/rules`, `PUT /admin/rules` | Tanlov qoidalari |
-| `GET /admin/participants` | Foydalanuvchilar: `search` (ism, telefon, istalgan Instagram akkaunti), `status`, `reel` (`PENDING`/`ACCEPTED`/`REJECTED` — shu holatda kamida bitta videosi bor; `NONE` — videosi yo'q), `sort`, `order`, `page`, `pageSize`. Qatorda `reels` — videolar soni holatlar bo'yicha, `views` — qabul qilinganlar yig'indisi |
-| `GET /admin/participants/:id/reels` | Ishtirokchining barcha videolari (eng yangisi birinchi): holat, qo'lda tekshiruvdami, rad sababi, egasi, ko'rishlar, layklar, sanalar, nakrutka belgilari; `404` — ishtirokchi topilmadi |
+| `GET /admin/participants` | Foydalanuvchilar: `search` (ism, telefon, istalgan Instagram akkaunti), `status`, `reel` (`PENDING`/`ACCEPTED`/`REJECTED` — shu holatda kamida bitta videosi bor; `NONE` — videosi yo'q), `sort`, `order`, `page`, `pageSize`. Qatorda `reels` — videolar soni holatlar bo'yicha, `views` — eng ko'p ko'rilgan qabul qilingan videosi |
+| `GET /admin/participants/:id/reels` | Ishtirokchining barcha videolari (`/miniapp/reels` tartibida — eng ko'p ko'rilgani tepada, `best: true`; `bestViews`): holat, qo'lda tekshiruvdami, rad sababi, egasi, ko'rishlar, layklar, sanalar, nakrutka belgilari; `404` — ishtirokchi topilmadi |
 | `POST /admin/participants/:id/{block,unblock,disqualify}` | `{ reason }` — bloklash, blokdan chiqarish, diskvalifikatsiya |
 | `GET /admin/reels` | Barcha videolar (har bir ishtirokchining hammasi): holat, egasi, ko'rishlar tarixi, nakrutka belgilari |
 | `GET /admin/stats` | Yig'ish jadvali, oxirgi natija, holatlar bo'yicha soni |
@@ -192,7 +193,7 @@ bot xabari) yoki ro'yxatdan chiqarishni Admin hal qiladi.
 | `GET /admin/manual-reviews?status=OPEN\|APPROVED\|REJECTED` | Qo'lda tekshiruv ro'yxati |
 | `POST /admin/manual-reviews/:shortcode/decision` | `{ decision: "approve" }` yoki `{ decision: "reject", reason, note? }` |
 | `GET /admin/draws/setup` | Random tanlov: bosqichlar, oylik sovg'a, boshlang'ich sozlamalar |
-| `POST /admin/draws/preview` | Sozlamalar bo'yicha nomzodlar soni va chetda qolganlar sababi. Qoidalar 7.2: davrga faqat sanasi (`dateBasis` — Instagram'da joylangan yoki ilovaga yuborilgan kun) davr ichidagi qabul qilingan videolar kiradi, nomzod ko'rishlari — ular yig'indisi; `totalReels` — barcha yuborilgan videolar |
+| `POST /admin/draws/preview` | Sozlamalar bo'yicha nomzodlar soni va chetda qolganlar sababi. Qoidalar 7.2: davrga faqat sanasi (`dateBasis` — Instagram'da joylangan yoki ilovaga yuborilgan kun) davr ichidagi qabul qilingan videolar kiradi, nomzod ko'rishlari — ulardan eng ko'p ko'rilganiniki; `totalReels` — barcha yuborilgan videolar |
 | `POST /admin/draws` | Random tanlovni o'tkazish (kriptografik `seed`, natija — qoralama) |
 | `GET /admin/draws`, `GET /admin/draws/:id` | Tanlovlar tarixi va natija |
 | `GET /admin/draws/stock` | Voucherlar qoldig'i: jami, yuborilgan, tasdiqlangan, qoralamada, qolgan (bosqichlar bo'yicha) |

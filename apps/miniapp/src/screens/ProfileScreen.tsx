@@ -60,7 +60,8 @@ export function ProfileScreen({
 
   const reels = useQuery({ queryKey: ["reels"], queryFn: api.getMyReels });
   const contest = useQuery({ queryKey: ["contest"], queryFn: api.getContest });
-  // O'rin va ko'rishlar — qabul qilingan videolar bo'yicha; bunday video yo'q bo'lsa — "—".
+  // O'rin va ko'rishlar — eng ko'p ko'rilgan qabul qilingan video bo'yicha (videolar qo'shilmaydi);
+  // bunday video yo'q bo'lsa — "—".
   const summary = reels.data?.reels.some((r) => r.status === "ACCEPTED") ? reels.data : null;
   const daysLeft = contest.data ? daysUntil(contest.data.endsAt) : null;
 
@@ -128,7 +129,7 @@ export function ProfileScreen({
           <HeroStat
             icon={<Eye />}
             label={t.profileStatViews}
-            value={summary ? formatCount(summary.totalViews) : "—"}
+            value={summary ? formatCount(summary.bestViews) : "—"}
           />
           <HeroStat
             icon={<CalendarDays />}

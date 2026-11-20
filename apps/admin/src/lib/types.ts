@@ -106,7 +106,10 @@ export interface ParticipantListItem {
   registeredOn: IsoDate;
   /** Yuborilgan videolar soni holat bo'yicha. Videolarning o'zi — `getParticipantReels`. */
   reels: ParticipantReelCounts;
-  /** Qabul qilingan barcha videolarning oxirgi yig'ilgan ko'rishlari yig'indisi. */
+  /**
+   * Eng ko'p ko'rilgan qabul qilingan videosining oxirgi yig'ilgan ko'rishlari — reytingdagi natija
+   * (videolar ko'rishlari qo'shilmaydi). Qabul qilingan video yo'q — 0.
+   */
   views: number;
   /** Bugungi reytingdagi o'rni; reytingda bo'lmasa — null. */
   rank: number | null;
@@ -169,9 +172,16 @@ export interface ParticipantReels {
     /** Rad etilmagan videolardagi Instagram akkauntlar (takrorlanmaydi). */
     instagramUsernames: string[];
   };
-  /** Ro'yxatdagi `views` bilan bir xil: qabul qilingan videolar ko'rishlari yig'indisi. */
-  totalViews: number;
-  /** Eng yangisi birinchi. */
+  /**
+   * Ro'yxatdagi `views` bilan bir xil: eng ko'p ko'rilgan qabul qilingan videoning ko'rishlari
+   * (videolar ko'rishlari qo'shilmaydi). Qabul qilingan video yo'q — 0.
+   */
+  bestViews: number;
+  /**
+   * Tartib: qabul qilinganlar ko'rishlar kamayishi bo'yicha (teng bo'lsa — oldinroq yuborilgani;
+   * birinchisi — reytingdagi video), keyin tekshiruvdagilar (qo'lda tekshiruvdagilar ham),
+   * keyin rad etilgan va o'chirilganlar; oxirgi ikkalasida eng yangisi birinchi.
+   */
   reels: AdminReelItem[];
 }
 
@@ -197,6 +207,11 @@ export interface AdminReelItem {
   lastSyncedAt: string | null;
   /** Nakrutka shubhasi belgilari (`ReelFlagType` qiymatlari, takrorlanmaydi). */
   flags: string[];
+  /**
+   * Reytingda hisoblanadigan video (eng ko'p ko'rilgan qabul qilingani): ro'yxatda birinchi turadi,
+   * faqat bittasida true; qabul qilingan video bo'lmasa — hammasida false.
+   */
+  best: boolean;
 }
 
 /** Admin ishtirokchi ustida bajaradigan amallar. */
@@ -569,8 +584,12 @@ export interface DrawCandidate {
   lastName: string;
   phone: string;
   instagramUsername: string | null;
+  /** Davrdagi eng ko'p ko'rilgan qabul qilingan videosi. */
   reelUrl: string;
-  /** `viewsAsOf` kunidagi tasdiqlangan ko'rishlar. */
+  /**
+   * Shu videoning `viewsAsOf` kunidagi ko'rishlari (davrdagi videolar ko'rishlari qo'shilmaydi);
+   * ko'rishlar chegarasi ham shunga qo'llanadi.
+   */
   views: number;
   postedOn: IsoDate;
   submittedOn: IsoDate;
@@ -774,7 +793,9 @@ export interface WinnerCandidate {
     instagramUsername: string | null;
   };
   rank: number;
+  /** Eng ko'p ko'rilgan qabul qilingan videosining ko'rishlari (videolar ko'rishlari qo'shilmaydi). */
   views: number;
+  /** Shu video. */
   reelUrl: string;
   checks: WinnerCheck[];
 }
@@ -1003,10 +1024,11 @@ export interface RatingEntry {
   firstName: string;
   lastName: string;
   instagramUsername: string | null;
+  /** Shu kuni eng ko'p ko'rilgan qabul qilingan videosi. */
   reelUrl: string;
-  /** Shu kungacha yig'ilgan ko'rishlar. */
+  /** Shu videoning shu kungacha yig'ilgan ko'rishlari (videolar ko'rishlari qo'shilmaydi). */
   views: number;
-  /** Shu kuni yig'ilgan yangi ko'rishlar. */
+  /** Shu kungi natija minus oldingi kungi natija (ikkalasi ham eng ko'p ko'rilgan video bo'yicha). */
   viewsGrowth: number;
   /** Oldingi kundagi o'rin; oldingi kuni reytingda bo'lmagan bo'lsa — null. */
   previousRank: number | null;

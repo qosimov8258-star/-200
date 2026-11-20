@@ -157,7 +157,9 @@ export async function startViewsRefresh(request: ViewsRefreshRequest): Promise<{
 }
 
 /**
- * Ishtirokchining barcha yuborgan videolari (eng yangisi birinchi) va jami ko'rishlari.
+ * Ishtirokchining barcha yuborgan videolari va natijasi (`bestViews` — eng ko'p ko'rilgan qabul
+ * qilingan videosi, ko'rishlar qo'shilmaydi). Tartib: qabul qilinganlar ko'rishlar bo'yicha
+ * (birinchisi `best`), keyin tekshiruvdagilar, keyin rad etilganlar.
  * @endpoint GET /api/v1/admin/participants/:id/reels
  * @throws ApiError 404 — ishtirokchi topilmadi
  */
