@@ -6,6 +6,8 @@ import { ReelStatsProvider, type ReelStats } from "./reel-stats";
 const ACTOR = "apify~instagram-scraper";
 /** Bitta ishga (run) nechta link beriladi. */
 const CHUNK_SIZE = 100;
+/** Bitta Reel natijasi narxi — bepul rejada (aktorning minimal chegarasi ham shu). */
+const PRICE_PER_REEL_USD = 0.0027;
 
 /** Aktor natijasidagi bizga kerakli maydonlar (`resultsType: "details"`). */
 interface ApifyItem {
@@ -62,7 +64,7 @@ export class ApifyReelStatsProvider extends ReelStatsProvider {
     return this.client.run<ApifyItem>(
       ACTOR,
       { directUrls: shortcodes.map(canonicalReelUrl), resultsType: "details", resultsLimit: 1 },
-      shortcodes.length,
+      { maxItems: shortcodes.length, pricePerItemUsd: PRICE_PER_REEL_USD },
     );
   }
 }

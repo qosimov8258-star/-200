@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { maxChargeUsd } from "./apify-client";
 import { ApifyReelStatsProvider } from "./apify.provider";
 
 interface Call {
@@ -68,7 +69,8 @@ test("maps Apify items to Reel stats and marks missing Reels as null", async () 
 
   const start = calls[0];
   assert.equal(start.method, "POST");
-  assert.match(start.url, /\/acts\/apify~instagram-scraper\/runs\?maxItems=3$/);
+  // 3 × $0.0027 = $0.0081 — Apify faqat `maxItems` bilan kelgan ishni rad etadi (2026-11-21).
+  assert.match(start.url, /\/acts\/apify~instagram-scraper\/runs\?maxItems=3&maxTotalChargeUsd=0\.0081$/);
   assert.equal(start.auth, "Bearer secret-token");
   assert.deepEqual(start.body, {
     directUrls: [
@@ -95,4 +97,12 @@ test("large batches are split into several runs", async () => {
   const result = await provider.fetch(codes);
   assert.equal(result.size, 150);
   assert.equal(calls.filter((c) => c.method === "POST").length, 2);
+});
+
+test("maxChargeUsd: natijalar × narx, kamida bitta natija narxi (Apify minimumi)", () => {
+  assert.equal(maxChargeUsd({ maxItems: 1, pricePerItemUsd: 0.0027 }), 0.0027);
+  assert.equal(maxChargeUsd({ maxItems: 3, pricePerItemUsd: 0.0027 }), 0.0081);
+  assert.equal(maxChargeUsd({ maxItems: 100, pricePerItemUsd: 0.0027 }), 0.27);
+  assert.equal(maxChargeUsd({ maxItems: 0, pricePerItemUsd: 0.0027 }), 0.0027);
+  assert.equal(maxChargeUsd({ maxItems: 15, pricePerItemUsd: 0.0058 }), 0.087);
 });

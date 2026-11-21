@@ -25,6 +25,8 @@ const ACTOR = "apify~facebook-ads-scraper";
 const CHUNK_SIZE = 50;
 /** Bitta qidiruvdan ko'pi bilan nechta reklama olinadi (pul faqat topilgan reklama uchun). */
 const RESULTS_PER_ACCOUNT = 5;
+/** Bitta reklama natijasi narxi — bepul rejada (aktorning minimal chegarasi ham shu). */
+const PRICE_PER_AD_USD = 0.0058;
 
 interface AdItem {
   inputUrl?: string;
@@ -74,7 +76,7 @@ export class ApifyAdLibraryProvider extends AdLibraryProvider {
           activeStatus: "active",
           isDetailsPerAd: true,
         },
-        chunk.length * RESULTS_PER_ACCOUNT,
+        { maxItems: chunk.length * RESULTS_PER_ACCOUNT, pricePerItemUsd: PRICE_PER_AD_USD },
       );
       for (const item of items) {
         if (!item.adArchiveID || item.isActive === false) continue;

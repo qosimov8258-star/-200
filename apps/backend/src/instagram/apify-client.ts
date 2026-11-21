@@ -18,6 +18,30 @@ interface ApifyRun {
 
 export type FetchFn = typeof fetch;
 
+/**
+ * Bitta ish uchun pul chegarasi (pay-per-event aktorlar). Apify 2026-11-21 dan faqat `maxItems`
+ * bilan kelgan ishni "max-total-charge-usd-below-minimum" (HTTP 400) bilan rad etadi — shuning
+ * uchun `maxTotalChargeUsd` ham aniq yuboriladi.
+ */
+export interface RunBudget {
+  /** Ko'pi bilan nechta natija uchun pul yechiladi. */
+  maxItems: number;
+  /**
+   * Bitta natija narxi — bepul (FREE) rejadagi, ya'ni eng qimmati. Yuqori rejalarda natija
+   * arzonroq, chegara baribir yetadi; ortiqcha pul yechilmaydi — natijalar soni `maxItems` bilan cheklangan.
+   */
+  pricePerItemUsd: number;
+}
+
+/**
+ * `maxTotalChargeUsd`: natijalar × narx, 0.0001 $ gacha yuqoriga yaxlitlangan va kamida bitta
+ * natija narxi (aktorning minimal chegarasi — shu narx; suzuvchi nuqta xatosi pastga tushirmasin).
+ */
+export function maxChargeUsd({ maxItems, pricePerItemUsd }: RunBudget): number {
+  const total = Math.ceil(maxItems * pricePerItemUsd * 10_000) / 10_000;
+  return Math.max(total, pricePerItemUsd);
+}
+
 export class ApifyClient {
   constructor(
     private readonly token: string,
@@ -26,10 +50,11 @@ export class ApifyClient {
 
   /**
    * Aktorni ishga tushirib, natijalarini qaytaradi.
-   * `maxItems` — shu ishda ko'pi bilan nechta natija uchun pul yechilishi (pay-per-result).
+   * `budget` — shu ishda ko'pi bilan nechta natija va qancha pul (pay-per-event).
    */
-  async run<T>(actor: string, input: unknown, maxItems?: number): Promise<T[]> {
-    const query = maxItems === undefined ? "" : `?maxItems=${maxItems}`;
+  async run<T>(actor: string, input: unknown, budget?: RunBudget): Promise<T[]> {
+    const query =
+      budget === undefined ? "" : `?maxItems=${budget.maxItems}&maxTotalChargeUsd=${maxChargeUsd(budget)}`;
     let run = await this.call<ApifyRun>("POST", `/acts/${actor}/runs${query}`, input);
     const started = Date.now();
     while (!FINISHED.has(run.status)) {
