@@ -50,7 +50,7 @@ test("only ads whose advertiser is exactly the participant's account count", asy
   assert.deepEqual(result.get("vali"), []);
   assert.deepEqual(result.get("sardor"), []);
 
-  assert.match(urls[0], /\/acts\/apify~facebook-ads-scraper\/runs\?maxItems=15$/);
+  assert.match(urls[0], /\/acts\/apify~facebook-ads-scraper\/runs\?maxItems=15&maxTotalChargeUsd=0\.087$/);
   assert.deepEqual(posts[0], {
     startUrls: ["ali_shop", "vali", "sardor"].map((u) => ({ url: adLibrarySearchUrl(u) })),
     resultsLimit: 5,
