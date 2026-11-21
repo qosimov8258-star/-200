@@ -69,7 +69,8 @@ test("maps Apify items to Reel stats and marks missing Reels as null", async () 
 
   const start = calls[0];
   assert.equal(start.method, "POST");
-  // 3 × $0.0027 = $0.0081 — Apify faqat `maxItems` bilan kelgan ishni rad etadi (2026-11-21).
+  // 3 × $0.0027 = $0.0081 — chegara bepul reja narxi bo'yicha (`RunBudget` izohi: arzonroq rejada
+  // faqat `maxItems` bilan bitta videolik ish Apify minimumidan kam bo'lib, rad etilardi).
   assert.match(start.url, /\/acts\/apify~instagram-scraper\/runs\?maxItems=3&maxTotalChargeUsd=0\.0081$/);
   assert.equal(start.auth, "Bearer secret-token");
   assert.deepEqual(start.body, {

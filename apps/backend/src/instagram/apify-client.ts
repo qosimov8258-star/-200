@@ -19,9 +19,11 @@ interface ApifyRun {
 export type FetchFn = typeof fetch;
 
 /**
- * Bitta ish uchun pul chegarasi (pay-per-event aktorlar). Apify 2026-11-21 dan faqat `maxItems`
- * bilan kelgan ishni "max-total-charge-usd-below-minimum" (HTTP 400) bilan rad etadi — shuning
- * uchun `maxTotalChargeUsd` ham aniq yuboriladi.
+ * Bitta ish uchun pul chegarasi (pay-per-event aktorlar). Faqat `maxItems` berilsa, Apify chegarani
+ * hisobning o'z rejasidagi narx bo'yicha hisoblaydi: Starter (BRONZE) rejada Reel $0.0023, aktorning
+ * minimumi esa $0.0027 — bitta videolik ish "max-total-charge-usd-below-minimum" (HTTP 400) bilan rad
+ * etilardi (2026-11-21, hisob bepul rejadan Starter'ga o'tganda). Shuning uchun `maxTotalChargeUsd`
+ * aniq yuboriladi — bepul reja narxi bo'yicha, u har qanday rejada minimumdan kam bo'lmaydi.
  */
 export interface RunBudget {
   /** Ko'pi bilan nechta natija uchun pul yechiladi. */
