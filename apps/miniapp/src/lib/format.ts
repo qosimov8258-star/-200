@@ -45,6 +45,14 @@ export function formatDayMonthTime(iso: string): string {
   return `${d.getDate()}-${t.months[d.getMonth()]}, ${two(d.getHours())}:${two(d.getMinutes())}`;
 }
 
+/** ISO vaqt → "hozirgina", "12 daqiqa oldin", "5 soat oldin" (istoriyalar 24 soat yashaydi). */
+export function formatAgo(iso: string, now = Date.now()): string {
+  const minutes = Math.floor((now - Date.parse(iso)) / 60_000);
+  if (!Number.isFinite(minutes) || minutes < 1) return t.agoJustNow;
+  if (minutes < 60) return t.agoMinutes(minutes);
+  return t.agoHours(Math.floor(minutes / 60));
+}
+
 /** Bugundan necha kalendar kun keyin (bugun — 0, ertaga — 1). */
 export function calendarDaysUntil(iso: string, now = new Date()): number {
   const from = new Date(now);

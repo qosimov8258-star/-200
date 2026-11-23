@@ -8,6 +8,7 @@ import { GiftWrap } from "../components/GiftWrap";
 import { HomeGreeting } from "../components/HomeGreeting";
 import { OliviaFestive } from "../components/OliviaFestive";
 import { Snowfall } from "../components/Snowfall";
+import { StoriesBar } from "../components/StoriesBar";
 import { Spinner } from "../components/ui";
 import { t } from "../i18n/uz";
 import * as api from "../lib/api";
@@ -40,15 +41,21 @@ const viewsRange = (min: number, max: number | null) =>
 
 const dmy = (iso: string) => iso.split("-").reverse().join(".");
 
-/** Bosh sahifa ("Asosiy"): "Olivia tanlovi boshlandi" xabari va tanlov sovg'alari. */
+/**
+ * Bosh sahifa ("Asosiy"): istoriyalar qatori, "Olivia tanlovi boshlandi" xabari va tanlov
+ * sovg'alari.
+ */
 export function HomeScreen({
   firstName,
   fullName,
+  canPostStory,
   onOpenPrizes,
   onJoin,
 }: {
   firstName: string;
   fullName: string;
+  /** Ro'yxatdan o'tgan faol ishtirokchi — "Istoriya qo'shish" ko'rinadi (mehmonga — yo'q). */
+  canPostStory: boolean;
   onOpenPrizes: () => void;
   /** Faqat mehmon uchun: bannerda "Ishtirok etish" tugmasi (Profil — ro'yxatdan o'tish). */
   onJoin?: () => void;
@@ -59,6 +66,8 @@ export function HomeScreen({
   return (
     <div className="space-y-5">
       <HomeGreeting firstName={firstName} fullName={fullName} />
+
+      <StoriesBar canPost={canPostStory} />
 
       <StartedBanner
         endsAt={contest.data?.endsAt ?? null}

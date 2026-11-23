@@ -13,8 +13,10 @@
  *   ko'rsatiladigan o'zbekcha matn.
  */
 import { ApiError } from "./api-error";
-import { requestJson, requestVoid, segment } from "./http-client";
+import { apiUrl, requestJson, requestVoid, segment } from "./http-client";
 import type {
+  AdminStoryListQuery,
+  AdminStoryListResponse,
   AdminUser,
   AuditLogQuery,
   AuditLogResponse,
@@ -249,6 +251,41 @@ export async function decideManualReview(
   return requestJson<ManualReviewItem>("POST", `/admin/manual-reviews/${segment(id)}/decision`, {
     body: request,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Istoriyalar
+// ---------------------------------------------------------------------------
+
+/**
+ * Faol istoriyalar (muddati tugamagan va o'chirilmagan), eng yangilari yuqorida. Bloklangan va
+ * diskvalifikatsiya qilinganlarning istoriyalari kelmaydi.
+ * @endpoint GET /api/v1/admin/stories?page=&pageSize=
+ */
+export async function getStories(query: AdminStoryListQuery): Promise<AdminStoryListResponse> {
+  return requestJson<AdminStoryListResponse>("GET", "/admin/stories", { query });
+}
+
+/**
+ * Istoriyani o'chirish (Mini App va saytdan darhol yo'qoladi). Sabab audit logga yoziladi
+ * (`story.remove`).
+ * @endpoint POST /api/v1/admin/stories/:id/remove
+ * @throws ApiError 400 — sabab 5–500 belgi emas; 404 — muddati tugagan yoki allaqachon o'chirilgan
+ */
+export async function removeStory(id: string, reason: string): Promise<void> {
+  await requestVoid("POST", `/admin/stories/${segment(id)}/remove`, {
+    body: { reason },
+    fallback: { 404: "Istoriya topilmadi: muddati tugagan yoki allaqachon o'chirilgan." },
+  });
+}
+
+/**
+ * Istoriya videosi — `<video src>` uchun manzil (ochiq endpoint, HTTP Range bilan).
+ * Muddati tugagan yoki o'chirilgan bo'lsa — 404.
+ * @endpoint GET /api/v1/miniapp/stories/:id/video
+ */
+export function storyVideoUrl(id: string): string {
+  return apiUrl(`/miniapp/stories/${segment(id)}/video`);
 }
 
 // ---------------------------------------------------------------------------

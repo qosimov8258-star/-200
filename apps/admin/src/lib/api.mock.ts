@@ -54,6 +54,11 @@ import {
   updateContestSettings as mockUpdateContestSettings,
 } from "./mock/settings";
 import {
+  listStories,
+  mockStoryVideoPath,
+  removeStory as mockRemoveStory,
+} from "./mock/stories";
+import {
   addSupportReply,
   getSupportTicketDetail,
   listSupportTickets,
@@ -82,6 +87,8 @@ import {
 } from "./mock/winner";
 import type {
   AdminRole,
+  AdminStoryListQuery,
+  AdminStoryListResponse,
   AdminUser,
   AuditLogQuery,
   AuditLogResponse,
@@ -427,6 +434,38 @@ export async function decideManualReview(
 ): Promise<ManualReviewItem> {
   await delay(450);
   return mockDecideManualReview(id, request, requireRole("ADMIN"));
+}
+
+// ---------------------------------------------------------------------------
+// Istoriyalar
+// ---------------------------------------------------------------------------
+
+/**
+ * Faol istoriyalar (muddati tugamagan va o'chirilmagan), eng yangilari yuqorida.
+ * @endpoint GET /api/v1/admin/stories?page=&pageSize=
+ */
+export async function getStories(query: AdminStoryListQuery): Promise<AdminStoryListResponse> {
+  await delay(350);
+  requireRole("ADMIN");
+  return listStories(query);
+}
+
+/**
+ * Istoriyani o'chirish. Sabab audit logga yoziladi (`story.remove`).
+ * @endpoint POST /api/v1/admin/stories/:id/remove
+ * @throws ApiError 400 — sabab 5–500 belgi emas; 404 — muddati tugagan yoki allaqachon o'chirilgan
+ */
+export async function removeStory(id: string, reason: string): Promise<void> {
+  await delay(450);
+  mockRemoveStory(id, reason, requireRole("ADMIN"));
+}
+
+/**
+ * Istoriya videosi — mock'da `public/mock/stories/` dagi namunaviy klip.
+ * @endpoint GET /api/v1/miniapp/stories/:id/video
+ */
+export function storyVideoUrl(id: string): string {
+  return mockStoryVideoPath(id);
 }
 
 // ---------------------------------------------------------------------------

@@ -9,6 +9,7 @@ import { AdminRulesController } from "./admin/admin-rules.controller";
 import { AdminSettingsController } from "./admin/admin-settings.controller";
 import { AdminSupportController } from "./admin/admin-support.controller";
 import { AdminStatsController } from "./admin/admin-stats.controller";
+import { AdminStoriesController } from "./admin/admin-stories.controller";
 import { AdminTargetsController } from "./admin/admin-targets.controller";
 import { AdminTelegramController } from "./admin/admin-telegram.controller";
 import { AdminWinnerController } from "./admin/admin-winner.controller";
@@ -32,6 +33,8 @@ import { ParticipantsService } from "./participants/participants.service";
 import { STATE_STORE_OPTIONS, StateStore } from "./persistence/state-store";
 import { RulesService } from "./rules/rules.service";
 import { STATS_OPTIONS, StatsService, type StatsOptions } from "./stats/stats.service";
+import { MiniappStoriesController } from "./stories/miniapp-stories.controller";
+import { StoriesService } from "./stories/stories.service";
 import { SupportRelay } from "./support/support-relay";
 import { SupportService } from "./support/support.service";
 import { TARGETS_OPTIONS, TargetsService, type TargetsOptions } from "./targets/targets.service";
@@ -88,6 +91,7 @@ function targetsOptions(contest: ContestSettingsService): TargetsOptions {
   controllers: [
     AuthController,
     MiniappController,
+    MiniappStoriesController,
     AdminAuthController,
     AdminSettingsController,
     AdminAuditController,
@@ -101,6 +105,7 @@ function targetsOptions(contest: ContestSettingsService): TargetsOptions {
     AdminManualReviewController,
     AdminDrawsController,
     AdminTargetsController,
+    AdminStoriesController,
     // Tashkilot egalari — yashirin bo'lim (alohida kirish, audit log'siz).
     OwnerAuthController,
     OwnerParticipantsController,
@@ -118,6 +123,7 @@ function targetsOptions(contest: ContestSettingsService): TargetsOptions {
     ContestSettingsService,
     RulesService,
     ParticipantsService,
+    StoriesService,
     SupportService,
     MessageLogService,
     TelegramService,

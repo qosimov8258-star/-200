@@ -33,10 +33,15 @@ import { parseReelShortcode } from "../lib/reel-url";
 import { haptic, openExternal } from "../lib/telegram";
 import type { MyReelItem, MyReels, ReelStatus } from "../lib/types";
 
-/** Biror video avtomatik tekshiruvda bo'lsa, ro'yxat shuncha millisoniyada bir so'raladi. */
+/** Yangi yuborilgan video tekshiruvda bo'lsa, ro'yxat shuncha millisoniyada bir so'raladi. */
 const PENDING_POLL_MS = 5000;
-/** Qo'lda tekshiruv soatlab cho'zilishi mumkin — kamroq so'raymiz (natija botga ham keladi). */
-const MANUAL_REVIEW_POLL_MS = 60_000;
+/** Shuncha vaqt ichida yuborilgan PENDING video — "yangi" (tez so'raymiz). */
+const FRESH_PENDING_MS = 10 * 60_000;
+/**
+ * Eski PENDING (navbatdagi haftalik tekshiruvni kutmoqda) va qo'lda tekshiruv soatlab-kunlab
+ * cho'zilishi mumkin — kamroq so'raymiz (natija botga ham keladi).
+ */
+const SLOW_POLL_MS = 60_000;
 
 const WAITING: ReadonlySet<ReelStatus> = new Set(["PENDING", "MANUAL_REVIEW"]);
 
@@ -55,8 +60,11 @@ export function MyReelScreen() {
     queryFn: api.getMyReels,
     refetchInterval: (query) => {
       const list = query.state.data?.reels ?? [];
-      if (list.some((r) => r.status === "PENDING")) return PENDING_POLL_MS;
-      if (list.some((r) => r.status === "MANUAL_REVIEW")) return MANUAL_REVIEW_POLL_MS;
+      const now = Date.now();
+      if (list.some((r) => r.status === "PENDING" && now - Date.parse(r.submittedAt) < FRESH_PENDING_MS)) {
+        return PENDING_POLL_MS;
+      }
+      if (list.some((r) => WAITING.has(r.status))) return SLOW_POLL_MS;
       return false;
     },
   });
@@ -111,7 +119,14 @@ function ReelsContent({ data }: { data: MyReels }) {
       ) : (
         <SubmitCard title={t.addReelTitle} body={t.addReelBody} style={rise(accepted > 0 ? 5 : 1)} />
       )}
-      {total > 0 && <ReelList reels={data.reels} accepted={accepted} style={rise(accepted > 0 ? 6 : 2)} />}
+      {total > 0 && (
+        <ReelList
+          reels={data.reels}
+          accepted={accepted}
+          syncEveryDays={data.syncEveryDays}
+          style={rise(accepted > 0 ? 6 : 2)}
+        />
+      )}
       {accepted > 0 && data.daily.length > 0 && (
         <Card className="animate-rise" style={rise(7)}>
           <h2 className="font-semibold">{t.chartTitle}</h2>
@@ -302,7 +317,18 @@ const STATUS: Record<ReelStatus, { label: string; pill: string; note: string | n
  * eng ko'p ko'rilgani (eng yaxshi natija) tepada, keyin tekshiruvdagilar va rad etilganlar.
  * Har bir qabul qilingan video reytingda alohida qator — yonida o'z o'rni ko'rsatiladi.
  */
-function ReelList({ reels, accepted, style }: { reels: MyReelItem[]; accepted: number; style: CSSProperties }) {
+function ReelList({
+  reels,
+  accepted,
+  syncEveryDays,
+  style,
+}: {
+  reels: MyReelItem[];
+  accepted: number;
+  /** Tekshiruv davri — "Tekshirilmoqda" videolar ostidagi izoh uchun (0 — jadval yo'q, izoh chiqmaydi). */
+  syncEveryDays: number;
+  style: CSSProperties;
+}) {
   return (
     <section
       className="relative isolate animate-rise overflow-hidden rounded-card bg-[linear-gradient(155deg,#2c3874_0%,#1a2050_55%,#10142f_100%)] px-4 pt-11 pb-1.5 text-white shadow-[0_22px_44px_-24px_rgba(16,20,47,0.9)]"
@@ -319,18 +345,20 @@ function ReelList({ reels, accepted, style }: { reels: MyReelItem[]; accepted: n
       </div>
       <ul className="mt-1 divide-y divide-white/10">
         {reels.map((reel) => (
-          <ReelRow key={reel.shortcode} reel={reel} />
+          <ReelRow key={reel.shortcode} reel={reel} syncEveryDays={syncEveryDays} />
         ))}
       </ul>
     </section>
   );
 }
 
-function ReelRow({ reel }: { reel: MyReelItem }) {
+function ReelRow({ reel, syncEveryDays }: { reel: MyReelItem; syncEveryDays: number }) {
   const toast = useToast();
   const status = STATUS[reel.status];
   const accepted = reel.status === "ACCEPTED";
   const note = reel.rejectReason ? t.rejectReasons[reel.rejectReason] : status.note;
+  // Tekshiruvni kutayotgan video: videolar qachon tekshirilishi (buyurtmachi talabi — aniq ko'rinsin).
+  const weeklyNote = WAITING.has(reel.status) && syncEveryDays > 0 ? t.weeklyCheckNote(syncEveryDays) : null;
 
   const copy = async () => {
     try {
@@ -422,10 +450,16 @@ function ReelRow({ reel }: { reel: MyReelItem }) {
         </button>
       </div>
 
-      {!accepted && note && (
-        <p className="mt-3 rounded-[16px] bg-white/10 px-3.5 py-2.5 text-[13.5px] leading-snug text-white/90 ring-1 ring-white/15">
-          {note}
-        </p>
+      {!accepted && (note || weeklyNote) && (
+        <div className="mt-3 rounded-[16px] bg-white/10 px-3.5 py-2.5 text-[13.5px] leading-snug text-white/90 ring-1 ring-white/15">
+          {weeklyNote && (
+            <p className="flex items-start gap-2 font-semibold text-[#ffd96b]">
+              <CalendarClock className="mt-px size-4 shrink-0" aria-hidden />
+              {weeklyNote}
+            </p>
+          )}
+          {note && <p className={clsx(weeklyNote && "mt-1.5")}>{note}</p>}
+        </div>
       )}
     </li>
   );

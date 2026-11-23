@@ -5,6 +5,7 @@
  */
 import { ApiError } from "../api-error";
 import { canonicalReelUrl, parseReelShortcode } from "../reel-url";
+import { STORY_MAX_ACTIVE, STORY_MAX_BYTES, storyMime } from "../stories";
 import type {
   AuthConfig,
   ContestInfo,
@@ -18,6 +19,8 @@ import type {
   ReelRejectReason,
   ReelStatus,
   RegisterRequest,
+  StoryGroup,
+  StoryItem,
   SupportMessage,
   SupportThread,
   TargetReportRequest,
@@ -107,6 +110,7 @@ const update = (patch: Partial<MockState>) => {
 export function resetMockStore(): void {
   state = { ...EMPTY };
   save(state);
+  clearMyStories();
 }
 
 const wait = (ms = 350) => new Promise((r) => setTimeout(r, ms));
@@ -255,9 +259,9 @@ const DELTAS = [0, 1, -1, 2, 0, -2, 3, 0, 1, -1, 0, 4];
 /** Namunaviy videoning kunlar bo'yicha ko'rishlari (kun oxirida); har bir video o'z koeffitsiyentiga ko'paytiriladi. */
 const SAMPLE_TOTALS = [3120, 5480, 9050, 12890, 15400, 19760, 22310, 26255];
 
-/** Backend jadvali bilan bir xil: tanlov boshidan har 10 kunda, soat 06:00 (Toshkent). */
+/** Backend jadvali bilan bir xil: tanlov boshidan haftada bir marta (har 7 kunda), soat 06:00 (Toshkent). */
 const MOCK_CONTEST_STARTS_ON = "2026-11-25";
-const MOCK_SYNC_EVERY_DAYS = 10;
+const MOCK_SYNC_EVERY_DAYS = 7;
 
 function mockNextSyncAt(now = new Date()): string | null {
   for (let k = 1; k <= 50; k++) {
@@ -553,4 +557,154 @@ export async function getWinner(): Promise<Winner | null> {
 export async function deleteAccount(): Promise<void> {
   await wait();
   resetMockStore();
+}
+
+// --- Istoriyalar ----------------------------------------------------------------
+// Namunaviy guruhlar — `public/stories/` dagi kichik kliplar (ffmpeg bilan yasalgan, 9:16, 4 soniya).
+// O'zingiz yuklaganlar faqat xotirada (`URL.createObjectURL`), sahifa yangilansa yo'qoladi.
+
+const STORY_TTL_MS = 24 * 60 * 60 * 1000;
+const SAMPLE_CLIPS = [1, 2, 3].map((n) => `${import.meta.env.BASE_URL}stories/sample-${n}.mp4`);
+/** Mock'dagi o'z guruhimning kaliti (haqiqiy backendda — shaffof bo'lmagan tasodifiy kalit). */
+const MY_STORY_AUTHOR_KEY = "mock-me";
+
+interface MockStory extends StoryItem {
+  /** `<video src>`: namunaviy klip yoki yuklangan faylning object URL'i. */
+  src: string;
+}
+
+interface MockStoryGroup {
+  authorKey: string;
+  fullName: string;
+  stories: MockStory[];
+}
+
+/** Namunaviy istoriya: necha daqiqa oldin joylangan va qaysi klip. */
+const sampleStory = (id: string, minutesAgo: number, clip: number): MockStory => {
+  const created = Date.now() - minutesAgo * 60_000;
+  return {
+    id,
+    createdAt: new Date(created).toISOString(),
+    expiresAt: new Date(created + STORY_TTL_MS).toISOString(),
+    src: SAMPLE_CLIPS[clip],
+  };
+};
+
+/** Boshqa (soxta) ishtirokchilarning istoriyalari, eskisidan yangisiga. */
+const SAMPLE_STORY_GROUPS: MockStoryGroup[] = [
+  {
+    authorKey: "mock-a1",
+    fullName: NAMES[0],
+    stories: [sampleStory("s-a1-1", 95, 0), sampleStory("s-a1-2", 38, 1)],
+  },
+  {
+    authorKey: "mock-a2",
+    fullName: NAMES[2],
+    stories: [sampleStory("s-a2-1", 300, 2), sampleStory("s-a2-2", 240, 0), sampleStory("s-a2-3", 125, 1)],
+  },
+  { authorKey: "mock-a3", fullName: NAMES[1], stories: [sampleStory("s-a3-1", 190, 1)] },
+  { authorKey: "mock-a4", fullName: NAMES[5], stories: [sampleStory("s-a4-1", 545, 2)] },
+  { authorKey: "mock-a5", fullName: NAMES[4], stories: [sampleStory("s-a5-1", 1260, 0)] },
+];
+
+/** O'zim yuklagan istoriyalar (faqat xotirada), eskisidan yangisiga. */
+let myStories: MockStory[] = [];
+let storySeq = 0;
+
+const isLive = (story: StoryItem, now = Date.now()) => Date.parse(story.expiresAt) > now;
+
+/** "Boshidan boshlash" va ishtirokni bekor qilish — o'z istoriyalarim ham o'chadi. */
+function clearMyStories(): void {
+  for (const story of myStories) URL.revokeObjectURL(story.src);
+  myStories = [];
+}
+
+/** Muddati tugagan o'z istoriyalarim olib tashlanadi (serverdagidek — fayl ham o'chadi). */
+function pruneMyStories(): void {
+  const now = Date.now();
+  for (const story of myStories) if (!isLive(story, now)) URL.revokeObjectURL(story.src);
+  myStories = myStories.filter((story) => isLive(story, now));
+}
+
+/** Ishtirokchi istoriya joylay oladimi: kirgan, profili to'liq, qoidalarga rozi (ACTIVE). */
+const canPostStory = () =>
+  state.webSession && state.phone !== null && state.profile !== null && state.consentVersion === RULES_VERSION;
+
+const publicStory = ({ id, createdAt, expiresAt }: MockStory): StoryItem => ({ id, createdAt, expiresAt });
+const newestAt = (group: StoryGroup) => Date.parse(group.stories[group.stories.length - 1].createdAt);
+
+function currentStories(): StoryGroup[] {
+  pruneMyStories();
+  const now = Date.now();
+  const others: StoryGroup[] = SAMPLE_STORY_GROUPS.map((group) => ({
+    authorKey: group.authorKey,
+    fullName: group.fullName,
+    isMe: false,
+    stories: group.stories.filter((story) => isLive(story, now)).map(publicStory),
+  }))
+    .filter((group) => group.stories.length > 0)
+    .sort((a, b) => newestAt(b) - newestAt(a));
+  // Saytdan chiqilgan bo'lsa ham istoriyalar ommaviy, faqat "isMe" belgisi bo'lmaydi.
+  if (myStories.length === 0 || !state.profile) return others;
+  const mine: StoryGroup = {
+    authorKey: MY_STORY_AUTHOR_KEY,
+    fullName: `${state.profile.firstName} ${state.profile.lastName}`,
+    isMe: state.webSession,
+    stories: myStories.map(publicStory),
+  };
+  return state.webSession ? [mine, ...others] : [...others, mine].sort((a, b) => newestAt(b) - newestAt(a));
+}
+
+/** Ochiq: mehmon ham ko'radi. */
+export async function getStories(): Promise<StoryGroup[]> {
+  await wait(300);
+  return currentStories();
+}
+
+/** Yuklanishni taqlid qiladi: foiz ~1,5 soniyada bosqichma-bosqich o'sadi. */
+export async function uploadStory(file: File, onProgress: (fraction: number) => void): Promise<StoryGroup[]> {
+  if (!canPostStory()) {
+    await wait(300);
+    throw new ApiError("UNAUTHORIZED");
+  }
+  if (file.size > STORY_MAX_BYTES) {
+    // nginx kabi — tana o'qilmasdan rad etiladi.
+    await wait(300);
+    throw new ApiError("STORY_TOO_LARGE");
+  }
+  const steps = 12;
+  for (let i = 1; i <= steps; i++) {
+    await wait(120);
+    onProgress(i / steps);
+  }
+  await wait(250);
+  if (!storyMime(file) || file.size === 0) throw new ApiError("STORY_INVALID_FILE");
+  pruneMyStories();
+  if (myStories.length >= STORY_MAX_ACTIVE) throw new ApiError("STORY_LIMIT");
+  const created = Date.now();
+  storySeq += 1;
+  myStories = [
+    ...myStories,
+    {
+      id: `mine-${created.toString(36)}-${storySeq}`,
+      createdAt: new Date(created).toISOString(),
+      expiresAt: new Date(created + STORY_TTL_MS).toISOString(),
+      src: URL.createObjectURL(file),
+    },
+  ];
+  return currentStories();
+}
+
+export async function deleteStory(id: string): Promise<void> {
+  await wait(300);
+  const story = myStories.find((s) => s.id === id);
+  if (!state.webSession || !story) throw new ApiError("NOT_FOUND");
+  URL.revokeObjectURL(story.src);
+  myStories = myStories.filter((s) => s.id !== id);
+}
+
+/** Topilmasa — mavjud bo'lmagan manzil (`<video>` xato beradi, xuddi backenddagi 404 kabi). */
+export function storyVideoUrl(id: string): string {
+  const all = [...myStories, ...SAMPLE_STORY_GROUPS.flatMap((group) => group.stories)];
+  return all.find((story) => story.id === id)?.src ?? `${import.meta.env.BASE_URL}stories/not-found-${encodeURIComponent(id)}.mp4`;
 }

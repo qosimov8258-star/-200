@@ -55,6 +55,9 @@ ko'rish uchun istalgan statik server yetadi (masalan, `npx serve out` — `ADMIN
 
 - ichki havolalar — faqat `next/link` va `router.push/replace` (ular `/admin` ni o'zi qo'shadi);
   `window.location` ga yoki `<a href="/...">` ga yo'l qo'lda yozilmaydi;
+- `public/` dagi fayllarga (`<video src>`, `<img src>`) `basePath` o'zi qo'shilmaydi — oldiga
+  `process.env.NEXT_PUBLIC_BASE_PATH` qo'yiladi (`next.config.ts` uni `ADMIN_BASE_PATH` dan o'zi
+  beradi, alohida sozlanmaydi);
 - server funksiyalari (`redirect()`, route handler, `cookies()`) ishlatilmaydi — statik eksport;
 - API manzillari (`/api/v1/...`) domen ildizida — ularga `basePath` qo'shilmaydi.
 
@@ -93,9 +96,15 @@ Backendsiz ishlash uchun (`npm run dev` da standart):
   random tanlov ham shunday hisoblaydi).
 - Mock sessiya brauzerning `localStorage` ida saqlanadi.
 - Admin amallari (bloklash, blokdan chiqarish, diskvalifikatsiya, support javoblari va
-  holatlari, target bo'yicha qarorlar) va ularning audit yozuvlari ham `localStorage` da
+  holatlari, target bo'yicha qarorlar, istoriyani o'chirish) va ularning audit yozuvlari ham `localStorage` da
   (`reels-admin:mock-store` kaliti). Mock ma'lumotlarni boshlang'ich holatga qaytarish uchun
   shu kalitni o'chiring.
+- Istoriyalar ([`src/lib/mock/stories.ts`](src/lib/mock/stories.ts)) — 8 ta ishtirokchining 1–3 tadan
+  istoriyasi, sahifa ochilgan vaqtga nisbatan oxirgi 24 soat ichida yuklangan (sahifa ochiq tursa,
+  muddati tugaganlari ro'yxatdan tushadi). Video o'rniga
+  [`public/mock/stories/`](public/mock/stories/) dagi kichik namunaviy kliplar (9:16, 4 soniya,
+  ffmpeg'da yasalgan) ko'rsatiladi. Ular statik eksportga ham tushadi (~60 KB), lekin `http`
+  rejimda ishlatilmaydi.
 
 **Mock boshqaruvlari:** G'olib sahifasida "Tanlovni tugagan deb ko'rish" tugmasi bor — mock'da
 tanlov hali tugamagan, oqimni sinash uchun. U faqat `mockControls` bo'lsa (mock rejimda) ko'rinadi.
@@ -156,6 +165,35 @@ ishtirokchi; random tanlov va target tekshiruvi ham ishtirokchi bo'yicha.
   ikkalasida eng yangisi yuqorida).
 - Video filtri (`reel` URL parametri): "shu holatdagi videosi bor" yoki "Video yo'q".
 
+## Istoriyalar
+
+Ishtirokchilar Mini App'dan o'z qisqa videosini (istoriya) yuklaydi — uni Mini App va saytga
+kirgan hamma (mehmonlar ham) ko'radi. Istoriya 24 soat turadi (`expiresAt = createdAt + 24h`),
+keyin server faylni o'chiradi. Tekshiruvdan o'tmaydi, reyting va sovg'alarga ta'sir qilmaydi.
+Cheklovlar (backend): `video/mp4`, `video/quicktime` (iPhone .mov), `video/webm`, ko'pi bilan
+50 MB, bir ishtirokchida ko'pi bilan 10 ta faol istoriya. Bloklangan va diskvalifikatsiya
+qilinganlarning istoriyalari ko'rinmaydi.
+
+"Istoriyalar" sahifasi (`/stories`, faqat `ADMIN`):
+
+- faol istoriyalar kartalarda, eng yangisi birinchi, 12 tadan sahifalab; ro'yxat har daqiqada
+  o'zi yangilanadi;
+- har bir kartada video (ovozsiz, boshqaruvlar bilan, `preload="metadata"` — faqat metadata
+  oldindan yuklanadi), ishtirokchi ismi va telefoni, yuklangan vaqt ("3 soat oldin"),
+  yo'qolishiga qolgan vaqt ("5 soat 20 daqiqa qoldi", tepadagi chiziq ham shuni ko'rsatadi),
+  hajmi va formati (MP4 / MOV / WebM);
+- **O'chirish** — sabab majburiy (5–500 belgi), audit logga `story.remove` bo'lib yoziladi
+  (obyekt turi — "Istoriya"). Karta qayta so'rovni kutmasdan darhol yo'qoladi.
+
+| Funksiya (`src/lib/api.ts`) | Endpoint |
+|---|---|
+| `getStories({ page, pageSize })` | `GET /api/v1/admin/stories?page=&pageSize=` → `Page<AdminStoryItem>` |
+| `removeStory(id, reason)` | `POST /api/v1/admin/stories/:id/remove`, body `{ reason }` → `204`; `404` — muddati tugagan yoki o'chirilgan |
+| `storyVideoUrl(id)` | `GET /api/v1/miniapp/stories/:id/video` — ochiq endpoint, HTTP Range bilan (`<video src>`) |
+
+`AdminStoryItem` — [`src/lib/types.ts`](src/lib/types.ts): `id`, `participant { id, fullName, phone }`
+(`id` — telegramId), `createdAt`, `expiresAt`, `sizeBytes`, `mime`.
+
 ## Rollar
 
 | Rol | Ko'radigan bo'limlar |
@@ -176,6 +214,7 @@ src/
 │   │   ├── dashboard/
 │   │   ├── users/
 │   │   ├── ratings/
+│   │   ├── stories/
 │   │   └── support/
 │   ├── layout.tsx        # ildiz layout
 │   └── globals.css       # Tailwind va dizayn tokenlari
@@ -189,6 +228,7 @@ src/
 │   ├── telegram/         # xabarlar holati (yuborildi/yetkazildi/o'qildi), qayta yuborish
 │   ├── winner/           # g'olib: nomzod, tekshiruv ro'yxati, tasdiqlash, e'lon
 │   ├── settings/         # tanlov muddati, yangilanish vaqti, minimal yosh, qoidalar
+│   ├── stories/          # istoriyalar: video kartalar, o'chirish oynasi
 │   ├── audit/            # audit log (faqat o'qish)
 │   ├── users/            # ishtirokchilar jadvali, filtrlar, amal oynasi, "Videolar" oynasi
 │   └── ui/               # tugma, input, select, dialog, amallar menyusi, sahifalash...
@@ -206,4 +246,6 @@ src/
     ├── users-filters.ts  # Foydalanuvchilar filtrlari (URL bilan)
     ├── types.ts          # API tiplari
     └── mock/             # mock backend: ma'lumotlar, reyting, amallar, audit
+public/
+└── mock/stories/         # mock rejimdagi namunaviy istoriya kliplari
 ```

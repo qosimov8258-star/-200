@@ -1,3 +1,10 @@
+/**
+ * Ko'rishlar yig'ilishi va videolar tekshirilishi davri (`MyReels.syncEveryDays`):
+ * 1 → "har kuni", 7 → "haftada bir marta", boshqasi → "har N kunda".
+ */
+const syncPeriod = (days: number) =>
+  days === 1 ? "har kuni" : days === 7 ? "haftada bir marta" : `har ${days} kunda`;
+
 /** Foydalanuvchiga ko'rinadigan barcha matnlar (o'zbek, lotin). Rus tili — keyin. */
 export const t = {
   appTitle: "Reels tanlovi",
@@ -126,6 +133,37 @@ export const t = {
   /** Ekran o'quvchi uchun: reyting qatori — bitta video. */
   ratingVideo: "Video",
 
+  // Istoriyalar (24 soatlik videolar, bosh sahifada)
+  storiesLabel: "Istoriyalar",
+  storyAdd: "Istoriya qo'shish",
+  storyAddHint: "Mahsulot haqida qisqa video joylang — 24 soat davomida hammaga ko'rinadi.",
+  storyUploadingLabel: "Yuklanmoqda",
+  storyUploadingAria: (percent: number) => `Istoriya yuklanmoqda: ${percent}%`,
+  storyUploaded: "Istoriya joylandi — 24 soat ko'rinadi",
+  storyBusy: "Oldingi video hali yuklanmoqda — biroz kuting.",
+  storyErrorType: "Faqat video yuklash mumkin: MP4, MOV yoki WebM.",
+  storyErrorSize: "Video juda katta — hajmi 50 MB gacha bo'lishi kerak.",
+  storyErrorInvalid: "Videoni o'qib bo'lmadi. Boshqa video tanlang.",
+  storyErrorLimit:
+    "Bir vaqtda ko'pi bilan 10 ta istoriya bo'ladi. Eskisini o'chiring yoki muddati tugashini kuting.",
+  storyErrorUnauthorized: "Istoriya joylash uchun ro'yxatdan o'tgan faol ishtirokchi bo'lishingiz kerak.",
+  storyErrorNetwork: "Video yuklanmadi. Internetni tekshirib, qayta urinib ko'ring.",
+  storyDismiss: "Yopish",
+  storyViewerLabel: (name: string) => `${name} istoriyasi`,
+  storyClose: "Yopish",
+  storyMute: "Ovozni o'chirish",
+  storyUnmute: "Ovozni yoqish",
+  storyDelete: "Istoriyani o'chirish",
+  storyDeleteConfirm: "Bu istoriya o'chirilsinmi? Uni endi hech kim ko'rmaydi.",
+  storyDeleted: "Istoriya o'chirildi",
+  storyDeleteFailed: "Istoriyani o'chirib bo'lmadi. Qayta urinib ko'ring.",
+  storyUnavailable: "Istoriya muddati tugagan yoki o'chirilgan",
+  storyPrev: "Oldingi istoriya",
+  storyNext: "Keyingi istoriya",
+  agoJustNow: "hozirgina",
+  agoMinutes: (n: number) => `${n} daqiqa oldin`,
+  agoHours: (n: number) => `${n} soat oldin`,
+
   // Mening videolarim
   reelTitle: "Mening videolarim",
   reelSubtitle: "Linklar va ko'rishlar statistikasi",
@@ -164,8 +202,10 @@ export const t = {
   statusAccepted: "Qabul qilindi",
   statusRejected: "Rad etildi",
   statusManualReview: "Qo'lda tekshirilmoqda",
-  pendingNote:
-    "Video Instagram'da tekshirilmoqda — odatda bir necha daqiqa. Natijani bot ham xabar qiladi.",
+  pendingNote: "Video tekshiruv navbatida. Natijani bot ham xabar qiladi.",
+  /** "Tekshirilmoqda" va "Qo'lda tekshirilmoqda" videolar ostidagi izoh (buyurtmachi matni). */
+  weeklyCheckNote: (days: number) =>
+    `Videolar ${syncPeriod(days)} tekshiriladi — tekshiruvdan so'ng reytingdagi o'rningiz aniqlanadi.`,
   rejectedNote: "Video rad etildi. Savollar bo'lsa, bot orqali supportga yozing.",
   rejectReasons: {
     NOT_FOUND:
@@ -186,8 +226,7 @@ export const t = {
   chartSubtitle: "Eng ko'p ko'rilgan videongiz — har bir yangilanishdagi o'sish",
   lastSyncedLabel: "Oxirgi yangilanish",
   nextSyncLabel: "Keyingi yangilanish",
-  syncEvery: (days: number) =>
-    days === 1 ? "Ko'rishlar har kuni yangilanadi" : `Ko'rishlar har ${days} kunda yangilanadi`,
+  syncEvery: (days: number) => `Ko'rishlar ${syncPeriod(days)} yangilanadi`,
   inDays: (days: number) => (days <= 0 ? "bugun" : days === 1 ? "ertaga" : `${days} kundan keyin`),
   months: [
     "yanvar",

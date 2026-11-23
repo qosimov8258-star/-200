@@ -21,9 +21,11 @@ export function eachDay(from: string, to: string): string[] {
 
 /**
  * Hisobotda tanlash mumkin bo'lgan kunlar: tanlov boshidan bugungacha, tugash kunidan oshmaydi.
- * Tanlov hali boshlanmagan bo'lsa — faqat boshlanish kuni (ma'lumot bo'sh bo'ladi).
+ * Tanlov hali boshlanmagan bo'lsa — faqat bugungi kun: sinov davrida yuborilgan va qabul qilingan
+ * videolar ham reyting va dashboard'da ko'rinsin (aks holda boshlanishgacha hammasi bo'sh turardi).
  */
 export function reportWindow(startsOn: string, endsOn: string, today: string): { from: string; to: string } {
+  if (today < startsOn) return { from: today, to: today };
   const last = today < endsOn ? today : endsOn;
-  return { from: startsOn, to: last < startsOn ? startsOn : last };
+  return { from: startsOn, to: last };
 }

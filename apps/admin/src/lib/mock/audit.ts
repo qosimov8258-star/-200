@@ -13,6 +13,7 @@ import type { AdminRole, AuditLogEntry, AuditLogQuery, AuditLogResponse } from "
 import { eventTime, getContestData } from "./contest";
 import { mockAdmins } from "./db";
 import { effectivePrizes } from "./prizes";
+import { storyParticipantId } from "./stories";
 import { auditId, readStore, writeStore, type MockAuditEntry } from "./store";
 import { normalizeSearch } from "./text";
 
@@ -111,6 +112,7 @@ function entityLabelResolver(): (entry: MockAuditEntry) => string {
   const tickets = new Map(data.tickets.map((ticket) => [ticket.id, ticket.subject]));
   const targets = new Map(data.targets.map((target) => [target.id, target.participantId]));
   const prizes = new Map(effectivePrizes().map((prize) => [prize.id, prize.title]));
+  const removedStories = readStore().removedStories;
 
   return (entry) => {
     switch (entry.entity) {
@@ -133,6 +135,11 @@ function entityLabelResolver(): (entry: MockAuditEntry) => string {
       case "voucher_draw": {
         const draw = readStore().draws.find((item) => item.id === entry.entityId);
         return draw ? `#${draw.number} — ${draw.prizeTitle}` : entry.entityId;
+      }
+      case "story": {
+        // Istoriya o'chirilgan yoki muddati tugagan bo'lsa ham egasi ma'lum.
+        const owner = removedStories[entry.entityId]?.participantId ?? storyParticipantId(entry.entityId);
+        return participants.get(owner ?? "") ?? entry.entityId;
       }
       case "auth":
         return entry.actorName;

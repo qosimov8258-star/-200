@@ -26,6 +26,14 @@ export type ApiErrorCode =
   | "SUPPORT_INVALID"
   /** Support: qisqa vaqtda juda ko'p xabar. */
   | "SUPPORT_LIMIT"
+  /** Istoriya: video 50 MB dan katta. */
+  | "STORY_TOO_LARGE"
+  /** Istoriya: video emas (MP4, MOV, WebM), buzilgan yoki bo'sh fayl. */
+  | "STORY_INVALID_FILE"
+  /** Istoriya: bir vaqtda 10 tadan ortiq faol istoriya bo'lmaydi. */
+  | "STORY_LIMIT"
+  /** So'ralgan narsa (masalan, istoriya) topilmadi yoki muddati o'tgan. */
+  | "NOT_FOUND"
   | "UNAUTHORIZED"
   | "SERVER";
 
