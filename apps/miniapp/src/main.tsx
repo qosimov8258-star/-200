@@ -3,6 +3,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import App from "./App";
+import { ConfirmHost } from "./components/ConfirmHost";
 import { ToastProvider } from "./components/Toast";
 import "./index.css";
 import { errorCode } from "./lib/api-error";
@@ -26,6 +27,7 @@ createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
         <App />
+        <ConfirmHost />
       </ToastProvider>
     </QueryClientProvider>
   </StrictMode>,

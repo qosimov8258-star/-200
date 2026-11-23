@@ -69,6 +69,9 @@ export const t = {
   nameInvalid: "Kamida 2 ta harf kiriting",
   ageInvalid: "Yoshni raqam bilan kiriting",
   ageTooYoung: (min: number) => `Tanlovda ${min} yoshdan boshlab qatnashish mumkin`,
+  // Tasdiqlash oynasi (Telegram'dan tashqarida)
+  confirmOk: "Tasdiqlash",
+  confirmCancel: "Bekor qilish",
   confirmProfile: (first: string, last: string, age: number) =>
     `Ma'lumotlar to'g'rimi?\n\n${first} ${last}, ${age} yosh\n\nTasdiqlagandan keyin ularni o'zgartirib bo'lmaydi.`,
 
@@ -150,6 +153,7 @@ export const t = {
   storyErrorNetwork: "Video yuklanmadi. Internetni tekshirib, qayta urinib ko'ring.",
   storyDismiss: "Yopish",
   storyViewerLabel: (name: string) => `${name} istoriyasi`,
+  storyMineOpen: "Istoriyamni ko'rish",
   storyClose: "Yopish",
   storyMute: "Ovozni o'chirish",
   storyUnmute: "Ovozni yoqish",

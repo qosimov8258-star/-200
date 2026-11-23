@@ -1,23 +1,11 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { Plus, X } from "lucide-react";
-import { useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useRef, type ChangeEvent } from "react";
 
 import { t } from "../i18n/uz";
-import * as api from "../lib/api";
 import { displayName } from "../lib/format";
-import {
-  STORY_ACCEPT,
-  STORY_MAX_ACTIVE,
-  activeGroups,
-  firstUnseenIndex,
-  hasUnseen,
-  loadSeen,
-  markSeen,
-  storyFileProblem,
-  type SeenMap,
-  type StoryFileProblem,
-} from "../lib/stories";
+import { STORY_ACCEPT, STORY_MAX_ACTIVE, hasUnseen, storyFileProblem, type StoryFileProblem } from "../lib/stories";
 import {
   dismissStoryUploadError,
   showStoryUploadError,
@@ -26,12 +14,9 @@ import {
 } from "../lib/story-upload";
 import { haptic } from "../lib/telegram";
 import type { StoryGroup } from "../lib/types";
+import type { StoryFeed } from "../lib/use-story-feed";
 import { StoryAvatar } from "./StoryAvatar";
-import { StoryViewer } from "./StoryViewer";
 import { useToast } from "./toast-context";
-
-/** Ro'yxat sahifa ochiq turganda ham yangilanib tursin (yangi istoriyalar, muddati tugaganlari). */
-const REFRESH_MS = 2 * 60_000;
 
 const PROBLEM_TEXT: Record<StoryFileProblem, string> = {
   type: t.storyErrorType,
@@ -44,27 +29,26 @@ const CIRCLE = 68;
 
 /**
  * Bosh sahifadagi istoriyalar qatori (Instagram kabi): birinchi — "Istoriya qo'shish"
- * (faqat ro'yxatdan o'tgan faol ishtirokchiga), keyin o'z istoriyalarim, keyin boshqalar —
- * ko'rilmaganlari oldinda, rangli halqa bilan. Mehmon ham ko'radi, lekin joylay olmaydi.
+ * (faqat ro'yxatdan o'tgan faol ishtirokchiga), keyin boshqa ishtirokchilar — ko'rilmaganlari
+ * oldinda, rangli halqa bilan. O'z istoriyalarim bu qatorda emas — ular salomlashuvdagi avatar
+ * orqali ochiladi. Mehmon ham ko'radi, lekin joylay olmaydi. Ko'ruvchi — `HomeScreen` da.
  */
-export function StoriesBar({ canPost }: { canPost: boolean }) {
+export function StoriesBar({
+  canPost,
+  feed,
+  onOpen,
+}: {
+  canPost: boolean;
+  feed: StoryFeed;
+  /** `feed.others` dagi aylana bosildi. */
+  onOpen: (index: number) => void;
+}) {
   const queryClient = useQueryClient();
   const toast = useToast();
-  const stories = useQuery({ queryKey: ["stories"], queryFn: api.getStories, refetchInterval: REFRESH_MS });
   const upload = useStoryUpload();
-  const [seen, setSeen] = useState<SeenMap>(loadSeen);
-  const [viewer, setViewer] = useState<{ groups: StoryGroup[]; group: number; story: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const groups = useMemo(() => {
-    const live = activeGroups(stories.data ?? []);
-    const mine = live.filter((g) => g.isMe);
-    const others = live.filter((g) => !g.isMe);
-    // Server tartibi saqlanadi, faqat to'liq ko'rilganlar oxiriga suriladi.
-    return [...mine, ...others.filter((g) => hasUnseen(seen, g)), ...others.filter((g) => !hasUnseen(seen, g))];
-  }, [stories.data, seen]);
-
-  const myCount = groups.find((g) => g.isMe)?.stories.length ?? 0;
+  const myCount = feed.mine?.stories.length ?? 0;
   const uploading = upload.status === "uploading";
 
   const pick = () => {
@@ -101,13 +85,8 @@ export function StoriesBar({ canPost }: { canPost: boolean }) {
     });
   };
 
-  const open = (index: number) => {
-    haptic.tap();
-    setViewer({ groups, group: index, story: firstUnseenIndex(seen, groups[index]) });
-  };
-
-  // Mehmon va istoriya yo'q — qator umuman ko'rinmaydi.
-  if (!canPost && groups.length === 0) return null;
+  // Mehmon va boshqalarning istoriyasi yo'q — qator umuman ko'rinmaydi.
+  if (!canPost && feed.others.length === 0) return null;
 
   return (
     <section aria-label={t.storiesLabel} className="-mx-5">
@@ -117,19 +96,26 @@ export function StoriesBar({ canPost }: { canPost: boolean }) {
             <AddStoryButton progress={upload.status === "uploading" ? upload.progress : null} onClick={pick} />
           </li>
         )}
-        {stories.isPending
+        {feed.isPending
           ? [0, 1, 2, 3].map((i) => (
               <li key={i} className="flex w-[76px] shrink-0 flex-col items-center gap-1.5" aria-hidden>
                 <span className="block animate-pulse rounded-full bg-line" style={{ width: CIRCLE, height: CIRCLE }} />
                 <span className="block h-2.5 w-12 animate-pulse rounded-full bg-line" />
               </li>
             ))
-          : groups.map((group, index) => (
+          : feed.others.map((group, index) => (
               <li key={group.authorKey} className="shrink-0">
-                <StoryCircle group={group} unseen={hasUnseen(seen, group)} onOpen={() => open(index)} />
+                <StoryCircle
+                  group={group}
+                  unseen={hasUnseen(feed.seen, group)}
+                  onOpen={() => {
+                    haptic.tap();
+                    onOpen(index);
+                  }}
+                />
               </li>
             ))}
-        {canPost && !stories.isPending && groups.length === 0 && (
+        {canPost && !feed.isPending && feed.others.length === 0 && !feed.mine && (
           <li className="max-w-[230px] shrink-0 self-center pr-4 text-[13px] leading-snug text-muted">{t.storyAddHint}</li>
         )}
       </ul>
@@ -154,17 +140,6 @@ export function StoriesBar({ canPost }: { canPost: boolean }) {
 
       {canPost && (
         <input ref={inputRef} type="file" accept={STORY_ACCEPT} className="hidden" onChange={onFile} tabIndex={-1} />
-      )}
-
-      {viewer && (
-        <StoryViewer
-          groups={viewer.groups}
-          startGroup={viewer.group}
-          startStory={viewer.story}
-          seen={seen}
-          onSeen={(authorKey, story) => setSeen((prev) => markSeen(prev, authorKey, story))}
-          onClose={() => setViewer(null)}
-        />
       )}
     </section>
   );
@@ -193,7 +168,7 @@ function StoryCircle({ group, unseen, onOpen }: { group: StoryGroup; unseen: boo
         </span>
       </span>
       <span className={clsx("w-full truncate text-center text-[12px] leading-tight", unseen ? "font-semibold" : "text-ink/70")}>
-        {group.isMe ? t.you : name.split(" ")[0]}
+        {name.split(" ")[0]}
       </span>
     </button>
   );

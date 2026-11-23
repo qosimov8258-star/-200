@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import { ArrowRight, CalendarDays } from "lucide-react";
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 
 import carFallback from "../assets/hero_car.webp";
 import { GiftWrap } from "../components/GiftWrap";
@@ -9,12 +9,15 @@ import { HomeGreeting } from "../components/HomeGreeting";
 import { OliviaFestive } from "../components/OliviaFestive";
 import { Snowfall } from "../components/Snowfall";
 import { StoriesBar } from "../components/StoriesBar";
+import { StoryViewer } from "../components/StoryViewer";
 import { Spinner } from "../components/ui";
 import { t } from "../i18n/uz";
 import * as api from "../lib/api";
 import { formatCount } from "../lib/format";
-import type { ContestPrizes, PrizeTier } from "../lib/types";
+import { firstUnseenIndex, hasUnseen } from "../lib/stories";
+import type { ContestPrizes, PrizeTier, StoryGroup } from "../lib/types";
 import { useCountdown } from "../lib/use-countdown";
+import { useStoryFeed } from "../lib/use-story-feed";
 
 /**
  * Sovg'alarning haqiqiy rasmlari: `src/assets/prizes/<nom>.<webp|png|jpg>`
@@ -43,7 +46,8 @@ const dmy = (iso: string) => iso.split("-").reverse().join(".");
 
 /**
  * Bosh sahifa ("Asosiy"): istoriyalar qatori, "Olivia tanlovi boshlandi" xabari va tanlov
- * sovg'alari.
+ * sovg'alari. O'z istoriyalarim — salomlashuvdagi avatar orqali, boshqalarniki — qatordan;
+ * ikkalasi ham bitta ko'ruvchini ochadi.
  */
 export function HomeScreen({
   firstName,
@@ -62,12 +66,23 @@ export function HomeScreen({
 }) {
   const contest = useQuery({ queryKey: ["contest"], queryFn: api.getContest });
   const prizes = useQuery({ queryKey: ["prizes"], queryFn: api.getPrizes });
+  const feed = useStoryFeed();
+  const [viewer, setViewer] = useState<{ groups: StoryGroup[]; group: number; story: number } | null>(null);
+
+  const openViewer = (groups: StoryGroup[], index: number) =>
+    setViewer({ groups, group: index, story: firstUnseenIndex(feed.seen, groups[index]) });
 
   return (
     <div className="space-y-5">
-      <HomeGreeting firstName={firstName} fullName={fullName} />
+      <HomeGreeting
+        firstName={firstName}
+        fullName={fullName}
+        myStory={feed.mine ? { unseen: hasUnseen(feed.seen, feed.mine) } : null}
+        // O'zimnikidan keyin boshqalarniki davom etadi (Instagram'dagidek).
+        onOpenMyStory={() => feed.mine && openViewer([feed.mine, ...feed.others], 0)}
+      />
 
-      <StoriesBar canPost={canPostStory} />
+      <StoriesBar canPost={canPostStory} feed={feed} onOpen={(index) => openViewer(feed.others, index)} />
 
       <StartedBanner
         endsAt={contest.data?.endsAt ?? null}
@@ -80,6 +95,18 @@ export function HomeScreen({
       />
 
       {prizes.isPending ? <Spinner /> : prizes.data ? <PrizeShowcase prizes={prizes.data} onOpenPrizes={onOpenPrizes} /> : null}
+
+      {/* Oxirgi bola bo'lsin: `space-y` pastki margin bermaydi (ko'ruvchi butun ekranni egallaydi). */}
+      {viewer && (
+        <StoryViewer
+          groups={viewer.groups}
+          startGroup={viewer.group}
+          startStory={viewer.story}
+          seen={feed.seen}
+          onSeen={feed.onSeen}
+          onClose={() => setViewer(null)}
+        />
+      )}
     </div>
   );
 }
