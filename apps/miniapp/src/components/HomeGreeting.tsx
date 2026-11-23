@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { useEffect, useState } from "react";
 
 import { t } from "../i18n/uz";
@@ -18,9 +19,21 @@ function dayPart(hour: number): DayPart {
 
 /**
  * Bosh sahifa salomlashuvi: bayramona logo, kun vaqtiga qarab salom ("Xayrli tong / kun / kech")
- * qo'l silkitish bilan, ism brend ranglarida, ostida almashib turadigan satrlar.
+ * qo'l silkitish bilan, ism brend ranglarida, ostida almashib turadigan satrlar. O'ngdagi avatar —
+ * o'z istoriyalarim: istoriya bo'lsa, bosilganda ko'ruvchi ochiladi (Instagram'dagidek).
  */
-export function HomeGreeting({ firstName, fullName }: { firstName: string; fullName: string }) {
+export function HomeGreeting({
+  firstName,
+  fullName,
+  myStory = null,
+  onOpenMyStory,
+}: {
+  firstName: string;
+  fullName: string;
+  /** Faol istoriyalarim bo'lsa — `unseen`: hali ko'rilmagani bormi; bo'lmasa — null. */
+  myStory?: { unseen: boolean } | null;
+  onOpenMyStory?: () => void;
+}) {
   const [part] = useState(() => dayPart(new Date().getHours()));
 
   return (
@@ -45,7 +58,7 @@ export function HomeGreeting({ firstName, fullName }: { firstName: string; fullN
         </h1>
         <Tagline />
       </div>
-      <FestiveAvatar name={fullName} />
+      <FestiveAvatar name={fullName} story={myStory} onOpen={onOpenMyStory} />
     </header>
   );
 }
@@ -69,15 +82,50 @@ function Tagline() {
   );
 }
 
-/** Avatar: brend ranglaridagi halqa va ustiga qo'ngan qor. */
-function FestiveAvatar({ name }: { name: string }) {
+/**
+ * Avatar: brend ranglaridagi halqa va ustiga qo'ngan qor. Istoriyam bo'lsa — tugma, halqa esa
+ * istoriya qatoridagidek: ko'rilmagani bo'lsa rangli, hammasi ko'rilgan bo'lsa kulrang.
+ */
+function FestiveAvatar({
+  name,
+  story,
+  onOpen,
+}: {
+  name: string;
+  story: { unseen: boolean } | null;
+  onOpen?: () => void;
+}) {
+  const ring = (
+    <span
+      className={clsx(
+        "block rounded-full p-[2.5px]",
+        !story
+          ? "bg-[linear-gradient(140deg,#f2583f,#df3425_45%,#eda32f)]"
+          : story.unseen
+            ? "bg-[conic-gradient(from_200deg,#f3c656,#f2583f,#df3425,#e2457a,#f3c656)] shadow-[0_6px_16px_-8px_rgba(223,52,37,0.7)]"
+            : "bg-[#cfd2d8]",
+      )}
+    >
+      <span className="block rounded-full bg-bg p-[2px]">
+        <Avatar name={name} dark size={46} />
+      </span>
+    </span>
+  );
   return (
     <span className="relative mb-1 shrink-0">
-      <span className="block rounded-full bg-[linear-gradient(140deg,#f2583f,#df3425_45%,#eda32f)] p-[2.5px]">
-        <span className="block rounded-full bg-bg p-[2px]">
-          <Avatar name={name} dark size={46} />
-        </span>
-      </span>
+      {story && onOpen ? (
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-label={t.storyMineOpen}
+          title={t.storyMineOpen}
+          className="block rounded-full transition active:scale-95"
+        >
+          {ring}
+        </button>
+      ) : (
+        ring
+      )}
       <svg
         viewBox="0 0 44 44"
         aria-hidden

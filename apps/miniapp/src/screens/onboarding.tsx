@@ -309,9 +309,9 @@ export function RulesContent({ requireConsent = false }: { requireConsent?: bool
             >
               {agreed && <Check className="size-4" strokeWidth={3} />}
             </button>
-            <span className="text-[15px]" onClick={() => setAgreed((a) => !a)}>
-              {t.rulesAgree}
-            </span>
+            {/* Yozuvga bosish — `label` tugmani o'zi bosadi. Bu yerga alohida `onClick` qo'yilmaydi:
+                aks holda belgi ikki marta almashib, umuman qo'yilmasdi. */}
+            <span className="text-[15px]">{t.rulesAgree}</span>
           </label>
           {error && <p className="mb-2 px-1 text-[13px] text-negative">{error}</p>}
           <PillButton

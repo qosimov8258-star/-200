@@ -6,6 +6,7 @@
  * ilova dev rejimida ishlaydi va Telegram funksiyalari o'rniga zaxira yo'l ishlatiladi.
  */
 
+import { requestConfirm } from "./confirm-store";
 import type { TelegramLoginUser } from "./types";
 
 type HapticImpact = "light" | "medium" | "heavy" | "rigid" | "soft";
@@ -121,12 +122,16 @@ export const haptic = {
   error: () => isInTelegram && webApp!.HapticFeedback.notificationOccurred("error"),
 };
 
-/** Tasdiqlash oynasi: Telegram'da — tizim oynasi, brauzerda — `confirm`. */
+/**
+ * Tasdiqlash oynasi: Telegram'da — Telegram'ning tizim oynasi, brauzerda — ilovaning o'z oynasi
+ * (`ConfirmHost`). `window.confirm` ishlatilmaydi: ba'zi brauzerlarda u chiqmay, darhol "yo'q"
+ * qaytaradi va ro'yxatdan o'tish jim to'xtab qolardi.
+ */
 export function confirmDialog(message: string): Promise<boolean> {
   if (isInTelegram) {
     return new Promise((resolve) => webApp!.showConfirm(message, resolve));
   }
-  return Promise.resolve(window.confirm(message));
+  return requestConfirm(message);
 }
 
 /** Tashqi havola (masalan, Reel'ni Instagram'da ochish) — Telegram'dan tashqarida ochiladi. */

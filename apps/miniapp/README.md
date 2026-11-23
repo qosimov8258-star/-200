@@ -82,6 +82,10 @@ kirmaydi — shunchaki kontent.
   tur bo'sh bo'lsa — kengaytmaga qaraladi) va hajm (≤ 50 MB) shu yerning o'zida tekshiriladi.
   Yuklanayotganda aylanada foiz va to'layotgan halqa; boshqa bo'limga o'tib qaytilsa ham saqlanadi
   (`src/lib/story-upload.ts`). Xatolar qator ostida o'zbekcha.
+- **O'z istoriyalarim** qatorda alohida aylana bo'lib chiqmaydi — ular salomlashuvdagi avatar
+  (o'ng tomondagi bosh harflar) orqali ochiladi: istoriya bo'lsa, avatar halqasi istoriya ranglarida
+  (hammasi ko'rilgan bo'lsa — kulrang) va bosilganda ko'ruvchi ochiladi, keyin boshqalarniki davom
+  etadi. Holat (`src/lib/use-story-feed.ts`) va ko'ruvchi — `HomeScreen` da.
 - Cheklovlar (backend bilan bir xil): 24 soat yashaydi; bir vaqtda ko'pi bilan 10 ta faol istoriya;
   o'z istoriyasini o'chirish mumkin.
 - **Ko'ruvchi** (to'liq ekran): tepada har bir istoriya uchun chiziq, muallif va "N soat oldin".
