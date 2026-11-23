@@ -42,7 +42,7 @@ TypeScript 6 da qoladi: Nest CLI hozircha TypeScript 7 bilan ishlamaydi.
 | `APIFY_API_TOKEN` | Apify Console → Settings → API & Integrations. **Maxfiy** |
 | `STATS_PROVIDER` | `apify` (haqiqiy) yoki `mock` (lokal sinov — SOXTA ko'rishlar) |
 | `STATS_SYNC_TIME` | Ko'rishlar soat nechada yig'iladi, Toshkent vaqti (standart `06:00`). Faqat birinchi ishga tushishda — keyin admin panel → Sozlamalar |
-| `STATS_SYNC_EVERY_DAYS` | Tanlov boshidan (Sozlamalar → boshlanish sanasi, 25-noyabr) necha kunda bir: `10` (standart) — 5, 15, 25-dekabr…; `1` — har kuni; `0` — o'chiq |
+| `STATS_SYNC_EVERY_DAYS` | Tanlov boshidan (Sozlamalar → boshlanish sanasi, 25-noyabr) necha kunda bir: `7` (standart, haftada bir marta) — 2, 9, 16-dekabr…; `1` — har kuni; `0` — o'chiq |
 | `STATS_VERIFY_DELAY_MS` | Yangi videolar shuncha yig'ilib, bitta so'rovda tekshiriladi (standart `5000`) |
 | `TARGET_CHECK_TOP` | Reklama kutubxonasida reytingning nechta yetakchisi tekshiriladi (standart `30`) |
 | `TARGET_CHECK_EVERY_DAYS` | Tanlov boshidan necha kunda bir tekshiriladi (standart `30` — oyiga bir marta; `0` — faqat qo'lda) |
@@ -157,6 +157,10 @@ bot xabari) yoki ro'yxatdan chiqarishni Admin hal qiladi.
 |---|---|
 | `GET /miniapp/reels` | "Mening videolarim" — `MyReels`: `bestViews` (eng ko'p ko'rilgan qabul qilingan video — reytingdagi natija), shu videoning bugungi va kunlik o'sishi (oxirgi 30 kun), o'rin (eng ko'p ko'rilgan videosi joyi) va uning o'zgarishi, oxirgi va keyingi yig'ish, `reels` (avval qabul qilinganlar ko'rishlar kamayishi bo'yicha — birinchisi `best: true`, keyin tekshiruvdagilar, keyin rad etilganlar; holat, rad sababi, ko'rishlar, `rank` — videoning reytingdagi o'rni). Video bo'lmasa ham obyekt (`reels: []`) |
 | `POST /miniapp/reels` | `{ url }` — yangi video (soni cheklanmagan), javob — yangilangan `MyReels`. Xatolar: `422 INVALID_LINK`, `409 REEL_ALREADY_SUBMITTED`, `409 REEL_TAKEN`, `403 UNAUTHORIZED` |
+| `GET /miniapp/stories` | Istoriyalar (ochiq, mehmonlarga ham): `StoryGroup[]` — ishtirokchi bo'yicha (`authorKey`, `fullName`, `isMe`, `stories` eskidan yangiga), o'zimniki birinchi, keyin eng yangisi bo'yicha. Bloklangan/chetlatilganlarniki ko'rinmaydi |
+| `POST /miniapp/stories` | Yangi istoriya: so'rov tanasi — videoning o'zi (raw), `Content-Type: video/mp4 \| video/quicktime \| video/webm`, 50 MB gacha; faqat ro'yxatdan o'tgan faol ishtirokchi, bir vaqtda 10 tagacha. Javob `201` — yangi ro'yxat. Xatolar: `403 UNAUTHORIZED`, `413 STORY_TOO_LARGE`, `422 STORY_INVALID_FILE`, `429 STORY_LIMIT`. Istoriya 24 soat yashaydi, keyin fayli o'chiriladi |
+| `DELETE /miniapp/stories/:id` | O'z istoriyasini o'chirish (`204`; boshqaniki — `404 NOT_FOUND`) |
+| `GET /miniapp/stories/:id/video` | Video fayl (ochiq, Range so'rovlari bilan — `<video src>` uchun); muddati o'tgan — `404` |
 
   Ishtirokchi ikki yo'l bilan tanilgan, ikkalasi ham bitta `telegramId`
   ([`src/miniapp/telegram-auth.guard.ts`](src/miniapp/telegram-auth.guard.ts)):
@@ -189,6 +193,8 @@ bot xabari) yoki ro'yxatdan chiqarishni Admin hal qiladi.
 | `GET /admin/rules`, `PUT /admin/rules` | Tanlov qoidalari |
 | `GET /admin/participants` | Foydalanuvchilar: `search` (ism, telefon, istalgan Instagram akkaunti), `status`, `reel` (`PENDING`/`ACCEPTED`/`REJECTED` — shu holatda kamida bitta videosi bor; `NONE` — videosi yo'q), `sort`, `order`, `page`, `pageSize`. Qatorda `reels` — videolar soni holatlar bo'yicha, `views` — eng ko'p ko'rilgan qabul qilingan videosi |
 | `GET /admin/participants/:id/reels` | Ishtirokchining barcha videolari (`/miniapp/reels` tartibida — eng ko'p ko'rilgani tepada, `best: true`; `bestViews`; `rank` — videoning reytingdagi o'rni): holat, qo'lda tekshiruvdami, rad sababi, egasi, ko'rishlar, layklar, sanalar, nakrutka belgilari; `404` — ishtirokchi topilmadi |
+| `GET /admin/stories` | Istoriyalar: faol istoriyalar (bloklanganlarniki ham), eng yangisi birinchi — ishtirokchi (id, ism, telefon), sanalar, hajmi; `page`, `pageSize`. Video — `GET /miniapp/stories/:id/video` |
+| `POST /admin/stories/:id/remove` | `{ reason }` — istoriyani o'chirish (nomaqbul video), audit log: `story.remove`; `404` — topilmadi yoki muddati o'tgan |
 | `POST /admin/participants/:id/{block,unblock,disqualify}` | `{ reason }` — bloklash, blokdan chiqarish, diskvalifikatsiya |
 | `GET /admin/reels` | Barcha videolar (har bir ishtirokchining hammasi): holat, egasi, ko'rishlar tarixi, nakrutka belgilari |
 | `GET /admin/stats` | Yig'ish jadvali, oxirgi natija, holatlar bo'yicha soni |

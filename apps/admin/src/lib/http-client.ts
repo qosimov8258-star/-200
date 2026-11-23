@@ -146,6 +146,14 @@ export function segment(value: string): string {
   return encodeURIComponent(value);
 }
 
+/**
+ * `fetch` dan tashqarida ishlatiladigan API manzili (masalan, `<video src>`): `/api/v1` + `path`.
+ * Domen ildizida — admin panel `basePath` i (`/admin`) qo'shilmaydi.
+ */
+export function apiUrl(path: string): string {
+  return `${API_BASE}${path}`;
+}
+
 export interface RequestOptions {
   query?: object;
   body?: unknown;

@@ -14,6 +14,7 @@ export type AuditEntity =
   | "settings"
   | "prize"
   | "voucher_draw"
+  | "story"
   | "auth";
 
 export const AUDIT_ENTITIES: AuditEntity[] = [
@@ -26,6 +27,7 @@ export const AUDIT_ENTITIES: AuditEntity[] = [
   "settings",
   "prize",
   "voucher_draw",
+  "story",
   "auth",
 ];
 

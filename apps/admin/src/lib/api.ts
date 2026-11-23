@@ -62,6 +62,11 @@ export const getDailyRating = impl.getDailyRating;
 export const getManualReviews = impl.getManualReviews;
 export const decideManualReview = impl.decideManualReview;
 
+// Istoriyalar
+export const getStories = impl.getStories;
+export const removeStory = impl.removeStory;
+export const storyVideoUrl = impl.storyVideoUrl;
+
 // Target yoqqanlar
 export const getTargetCases = impl.getTargetCases;
 export const getTargetCase = impl.getTargetCase;

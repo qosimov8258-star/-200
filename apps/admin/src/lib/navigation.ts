@@ -1,5 +1,6 @@
 import {
   Award,
+  CirclePlay,
   ClipboardCheck,
   Crosshair,
   Dices,
@@ -34,6 +35,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/support", title: "Support", icon: LifeBuoy, roles: ["ADMIN", "SUPPORT"], ready: true },
   { href: "/telegram", title: "Telegram", icon: Send, roles: ["ADMIN"], ready: true },
   { href: "/targets", title: "Target yoqqanlar", icon: Crosshair, roles: ["ADMIN"], ready: true },
+  { href: "/stories", title: "Istoriyalar", icon: CirclePlay, roles: ["ADMIN"], ready: true },
   { href: "/draws", title: "Random tanlov", icon: Dices, roles: ["ADMIN"], ready: true },
   { href: "/winner", title: "G'olib", icon: Award, roles: ["ADMIN"], ready: true },
   { href: "/settings", title: "Sozlamalar", icon: Settings, roles: ["ADMIN"], ready: true },

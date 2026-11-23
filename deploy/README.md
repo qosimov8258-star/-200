@@ -43,6 +43,10 @@ backend ─► /app/data  =  host: /srv/konkurs/data   (ishtirokchilar, reellar,
 - `nginx.conf` Mezon nginx konteyneriga **bitta fayl** bo'lib bind-mount qilingan: uni faqat joyida
   tahrirlang (masalan, `cat >>` yoki faylni qayta ochib yozish). `sed -i` faylni almashtiradi — konteyner
   eski nusxani ko'raveradi. Keyin: `docker exec mezon-nginx-1 nginx -t` va `nginx -s reload`.
+- **Istoriya videolari** (Mini App → istoriya qo'shish) 50 MB gacha bo'ladi. `web.conf` da
+  `location = /api/v1/miniapp/stories` uchun `client_max_body_size 55m` bor, lekin oldidagi Mezon
+  nginx'ining `konkurs-olivia.uz` blokida ham chegara kamida `55m` bo'lishi kerak (hozir `10m`),
+  aks holda 10 MB dan katta video `413` bilan qaytadi.
 
 ## Serverdagi papkalar
 
@@ -88,7 +92,8 @@ Ular endi shu papkadagi fayllar bilan almashadi.
 
 4. Eski `shared/compose.yml` va `shared/web.conf` ni o'chirmasdan `*.old` qilib qoldiring (qaytish uchun).
 
-5. Mezon nginx'iga tegish shart emas: unda `client_max_body_size 10m` bor, standart 60 soniyalik
+5. Mezon nginx'ida `client_max_body_size 10m` bor — istoriya videolari uchun uni `55m` ga oshiring
+   (yuqoridagi "Domen" bo'limiga qarang). Standart 60 soniyalik
    `proxy_read_timeout` ham yetadi — "Reklama kutubxonasini hoziroq tekshirish" 45 soniyadan
    cho'zilsa, backend "davom etmoqda" deb javob beradi, tekshiruv esa fonda tugaydi.
 

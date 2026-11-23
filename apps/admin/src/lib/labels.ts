@@ -262,6 +262,17 @@ export const DRAW_NOTIFY_TONES: Record<DrawNotifyStatus, BadgeTone> = {
 };
 
 // ---------------------------------------------------------------------------
+// Istoriyalar
+// ---------------------------------------------------------------------------
+
+/** Istoriya video formati: `video/quicktime` — iPhone'dagi .mov. Noma'lumi o'zicha ko'rsatiladi. */
+export const STORY_MIME_LABELS: Record<string, string> = {
+  "video/mp4": "MP4",
+  "video/quicktime": "MOV",
+  "video/webm": "WebM",
+};
+
+// ---------------------------------------------------------------------------
 // Audit log
 // ---------------------------------------------------------------------------
 
@@ -275,6 +286,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntity, string> = {
   settings: "Sozlamalar",
   prize: "Sovg'alar",
   voucher_draw: "Random tanlov",
+  story: "Istoriya",
   auth: "Kirish",
 };
 
@@ -319,6 +331,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "draw.period.delete": "Random tanlov davrini o'chirdi",
   "draw.stage.delete": "Random tanlov bosqichini o'chirdi",
   "draw.stage.restore": "Random tanlov bosqichini tikladi",
+  "story.remove": "Istoriyani o'chirdi",
 };
 
 const WINNER_VALUE_LABELS: Record<string, string> = {

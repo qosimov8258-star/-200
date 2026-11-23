@@ -59,13 +59,15 @@ const base = (participants: Participant[], o: Partial<DailyRatingInput> = {}): D
 const rows = (r: ReturnType<typeof buildDailyRating>) =>
   r.entries.map((e) => [e.participantId, e.rank, e.views, e.viewsGrowth, e.previousRank]);
 
-test("before the contest starts the response is empty, not an error", () => {
+test("before the contest starts today's rating is shown (test period), with no previous day", () => {
   const people = [person(1, reel("A", { "2026-11-20": 500 }))];
   const r = buildDailyRating(base(people, { today: "2026-11-20", date: "2026-11-22" }));
-  assert.equal(r.date, "2026-11-25");
-  assert.deepEqual(r.availableRange, { from: "2026-11-25", to: "2026-11-25" });
-  assert.deepEqual(r.entries, []);
-  assert.deepEqual(r.summary, { participants: 0, videos: 0, totalViews: 0, totalGrowth: 0, newEntries: 0 });
+  assert.equal(r.date, "2026-11-20");
+  assert.deepEqual(r.availableRange, { from: "2026-11-20", to: "2026-11-20" });
+  assert.deepEqual(rows(r), [["1", 1, 500, 500, null]]);
+  assert.deepEqual(r.summary, { participants: 1, videos: 1, totalViews: 500, totalGrowth: 500, newEntries: 1 });
+  // Bo'sh tanlov — xato emas, bo'sh reyting.
+  assert.deepEqual(buildDailyRating(base([], { today: "2026-11-20" })).entries, []);
 });
 
 test("an empty contest gives an empty rating for today", () => {

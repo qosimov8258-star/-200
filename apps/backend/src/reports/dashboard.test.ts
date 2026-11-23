@@ -58,13 +58,13 @@ const input = (o: Partial<DashboardInput> = {}): DashboardInput => ({
   ...o,
 });
 
-test("an empty contest that has not started yet gives zeros for the start day", () => {
+test("an empty contest that has not started yet gives zeros for today (test period)", () => {
   const s = buildDashboard(input({ today: "2026-11-20", from: "2026-11-01", to: "2026-11-30" }));
-  assert.deepEqual(s.range, { from: "2026-11-25", to: "2026-11-25" });
+  assert.deepEqual(s.range, { from: "2026-11-20", to: "2026-11-20" });
   assert.deepEqual(s.contest, { startsOn: "2026-11-25", endsOn: "2027-02-25" });
   assert.deepEqual(s.views, { total: 0, growthInRange: 0 });
-  assert.deepEqual(s.lastDay, { date: "2026-11-25", growth: 0, previousGrowth: null });
-  assert.deepEqual(s.daily, [{ date: "2026-11-25", viewsGrowth: 0, newParticipants: 0 }]);
+  assert.deepEqual(s.lastDay, { date: "2026-11-20", growth: 0, previousGrowth: null });
+  assert.deepEqual(s.daily, [{ date: "2026-11-20", viewsGrowth: 0, newParticipants: 0 }]);
   assert.equal(s.dataUpdatedAt, "2026-12-10T01:00:00.000Z");
 });
 

@@ -1,6 +1,6 @@
 /**
  * MOCK backend "bazasi"ning o'zgaradigan qismi: admin amallari natijasi
- * (ishtirokchi holati, murojaat holati va javoblar) va audit log. Sahifa
+ * (ishtirokchi holati, murojaat holati va javoblar, o'chirilgan istoriyalar) va audit log. Sahifa
  * yangilanganda yo'qolmasligi uchun brauzer `localStorage` ida saqlanadi.
  *
  * Haqiqiy backendda bular `users.status`, `support_tickets`,
@@ -68,7 +68,16 @@ export interface MockStore {
   drawPeriods: DrawPeriod[];
   /** Admin o'chirgan bosqichlar (raqamlari). */
   removedStages: number[];
+  /** Istoriya id -> Admin o'chirgani (`stories.ts`). */
+  removedStories: Record<string, MockRemovedStory>;
   audit: MockAuditEntry[];
+}
+
+export interface MockRemovedStory {
+  participantId: string;
+  reason: string;
+  at: string;
+  by: string;
 }
 
 export interface MockManualDecision {
@@ -134,6 +143,7 @@ function emptyStore(): MockStore {
     draws: [],
     drawPeriods: [],
     removedStages: [],
+    removedStories: {},
     audit: [],
   };
 }

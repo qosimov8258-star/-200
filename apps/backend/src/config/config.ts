@@ -45,9 +45,10 @@ export const config = {
     syncTime: str("STATS_SYNC_TIME") ?? "06:00",
     /**
      * Tanlov boshlangan kundan (`contest.ts` → `startsOn`) boshlab necha kunda bir marta:
-     * 10 — har 10 kunda, 1 — har kuni; 0 — avtomatik yig'ish o'chiq.
+     * 7 — haftada bir marta (standart; Mini App "haftada bir marta tekshiriladi" deb yozadi),
+     * 1 — har kuni; 0 — avtomatik yig'ish o'chiq.
      */
-    syncEveryDays: Number(str("STATS_SYNC_EVERY_DAYS") ?? 10),
+    syncEveryDays: Number(str("STATS_SYNC_EVERY_DAYS") ?? 7),
     /** Yangi videolar shuncha kutib, bitta so'rovda tekshiriladi (pulni tejash uchun). */
     verifyDelayMs: Number(str("STATS_VERIFY_DELAY_MS") ?? 5_000),
   },

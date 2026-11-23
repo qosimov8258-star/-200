@@ -139,6 +139,17 @@ export class StateStore implements OnModuleInit, OnApplicationShutdown {
     return existsSync(path) ? readFileSync(path) : null;
   }
 
+  /** Faylning diskdagi to'liq yo'li (katta fayllarni oqim bilan berish uchun); bo'lmasa — null. */
+  fileLocation(name: string): string | null {
+    const path = this.filePath(name);
+    return existsSync(path) ? path : null;
+  }
+
+  /** Faylni o'chiradi (bo'lmasa — hech narsa qilmaydi). */
+  deleteFile(name: string): void {
+    rmSync(this.filePath(name), { force: true });
+  }
+
   private filePath(name: string): string {
     if (!BLOB_NAME.test(name)) throw new Error(`Fayl nomi noto'g'ri: ${name}`);
     return join(this.dir, BLOB_DIR, name);

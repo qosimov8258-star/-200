@@ -159,6 +159,7 @@ function MainShell({ me }: { me: Me | null }) {
           <HomeScreen
             firstName={firstName}
             fullName={fullName}
+            canPostStory={me?.stage === "ACTIVE"}
             onOpenPrizes={() => open({ tab: "prizes" })}
             onJoin={me ? undefined : toProfile}
           />

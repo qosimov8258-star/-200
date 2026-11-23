@@ -10,6 +10,7 @@
  */
 import { ApiError } from "./api-error";
 import * as mock from "./mock/store";
+import { storyMime } from "./stories";
 import { initData } from "./telegram";
 import type {
   ApiErrorCode,
@@ -21,6 +22,7 @@ import type {
   MyReels,
   RatingEntry,
   RegisterRequest,
+  StoryGroup,
   SupportThread,
   TargetReportRequest,
   TelegramLoginUser,
@@ -154,6 +156,79 @@ export const getWinner = (): Promise<Winner | null> =>
 /** @endpoint DELETE /miniapp/me */
 export const deleteAccount = (): Promise<void> =>
   IS_MOCK_API ? mock.deleteAccount() : request("DELETE", "/miniapp/me");
+
+// --- Istoriyalar (24 soatlik videolar) ---------------------------------------
+
+/**
+ * @endpoint GET /miniapp/stories — ochiq (mehmon ham ko'radi); kirgan bo'lsa `isMe` to'ldiriladi.
+ * Tartib: o'z guruhim birinchi (faol istoriyam bo'lsa), keyin boshqalar — eng yangi istoriyasi
+ * bo'yicha, yangisi oldin. Har bir guruh ichida — eskisidan yangisiga.
+ */
+export const getStories = (): Promise<StoryGroup[]> =>
+  IS_MOCK_API ? mock.getStories() : request("GET", "/miniapp/stories");
+
+/**
+ * @endpoint POST /miniapp/stories — so'rov tanasi videoning O'ZI (multipart ham, JSON ham emas),
+ * `Content-Type` — fayl turi (`video/mp4` | `video/quicktime` | `video/webm`). Yuklanish foizini
+ * ko'rsatish uchun XMLHttpRequest. Javob (201) — yangilangan ro'yxat.
+ * Xatolar: UNAUTHORIZED (ro'yxatdan o'tmagan yoki faol emas), STORY_TOO_LARGE (har qanday 413 —
+ * nginx HTML bilan javob berishi mumkin), STORY_INVALID_FILE, STORY_LIMIT (10 ta faol).
+ *
+ * @param onProgress 0..1 — yuborilgan qism.
+ */
+export function uploadStory(file: File, onProgress: (fraction: number) => void): Promise<StoryGroup[]> {
+  if (IS_MOCK_API) return mock.uploadStory(file, onProgress);
+  const mime = storyMime(file);
+  if (!mime) return Promise.reject(new ApiError("STORY_INVALID_FILE"));
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API_URL}/miniapp/stories`);
+    xhr.setRequestHeader("Content-Type", mime);
+    if (initData) xhr.setRequestHeader("X-Telegram-Init-Data", initData);
+    // Veb-saytda sessiya cookie'si (fetch'dagi `credentials: "include"` kabi).
+    xhr.withCredentials = true;
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) onProgress(Math.min(1, event.loaded / event.total));
+    };
+    xhr.onerror = () => reject(new ApiError("SERVER", "Network error"));
+    xhr.ontimeout = () => reject(new ApiError("SERVER", "Timeout"));
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText) as StoryGroup[]);
+        } catch {
+          reject(new ApiError("SERVER", "Invalid JSON"));
+        }
+        return;
+      }
+      // nginx `client_max_body_size` 413 ni HTML bilan qaytaradi — kodga qaramasdan "juda katta".
+      if (xhr.status === 413) return reject(new ApiError("STORY_TOO_LARGE"));
+      let code: ApiErrorCode = xhr.status === 401 ? "UNAUTHORIZED" : "SERVER";
+      try {
+        const data = JSON.parse(xhr.responseText) as { code?: ApiErrorCode };
+        if (data.code) code = data.code;
+      } catch {
+        // Javob JSON emas — umumiy xato.
+      }
+      reject(new ApiError(code));
+    };
+    xhr.send(file);
+  });
+}
+
+/** @endpoint DELETE /miniapp/stories/:id — faqat o'z istoriyasi (204); aks holda NOT_FOUND. */
+export const deleteStory = (id: string): Promise<void> =>
+  IS_MOCK_API
+    ? mock.deleteStory(id)
+    : request("DELETE", `/miniapp/stories/${encodeURIComponent(id)}`);
+
+/**
+ * @endpoint GET /miniapp/stories/:id/video — ochiq, HTTP Range bilan (`<video src>` iOS/Android'da
+ * ishlaydi). Muddati tugagan yoki o'chirilgan bo'lsa — 404 (`<video>` da `error` hodisasi).
+ */
+export const storyVideoUrl = (id: string): string =>
+  IS_MOCK_API ? mock.storyVideoUrl(id) : `${API_URL}/miniapp/stories/${encodeURIComponent(id)}/video`;
 
 // --- Veb-sayt: kirish va chiqish ---------------------------------------------
 

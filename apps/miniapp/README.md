@@ -29,7 +29,7 @@ Brauzerda: <http://localhost:3002>. Telegram'dan tashqarida ochilganda yuqorida 
 1. Foydalanuvchi botda `/start` bosadi → **raqamini ulashadi** (bot faqat o'z raqamini qabul qiladi).
 2. Mini App ochiladi → **ism, familiya, yosh** (bir marta, keyin qulflanadi).
 3. **Qoidalarga rozilik**.
-4. Asosiy ekranlar: Reyting · Videom · Profil.
+4. Asosiy ekranlar: Asosiy (istoriyalar) · Reyting · Videom · Profil.
 
 Raqamni Mini App ichidan ham so'rash mumkin (`requestContact`) — Telegram uni baribir botga
 yuboradi, Mini App esa holat o'zgarguncha `GET /me` ni qayta so'raydi.
@@ -55,12 +55,60 @@ ochiladigan link). Ro'yxat tartibi serverdan keladi:
 2. hali hal qilinmaganlar (tekshirilmoqda, qo'lda tekshirilmoqda) — yangisi tepada;
 3. rad etilganlar — yangisi tepada.
 
-Biror video tekshiruvda bo'lsa, ro'yxat har 5 soniyada (qo'lda tekshiruvda — har daqiqada)
-qayta so'raladi.
+Tekshiruvni kutayotgan har bir video ("Tekshirilmoqda", "Qo'lda tekshirilmoqda") ostida izoh
+chiqadi: "Videolar haftada bir marta tekshiriladi — tekshiruvdan so'ng reytingdagi o'rningiz
+aniqlanadi." Davr `MyReels.syncEveryDays` dan: 7 — "haftada bir marta", 1 — "har kuni", boshqasi —
+"har N kunda" (0 — jadval yo'q, izoh chiqmaydi). Shu so'z "Ko'rishlar … yangilanadi" satrida ham.
+
+Yangi yuborilgan video (10 daqiqagacha) tekshiruvda bo'lsa, ro'yxat har 5 soniyada, eskiroq
+kutayotgan yoki qo'lda tekshiruvdagi video bo'lsa — har daqiqada qayta so'raladi.
 
 Takror yuborish: o'zingizning hali rad etilmagan videongiz — `REEL_ALREADY_SUBMITTED`,
 boshqa ishtirokchiniki — `REEL_TAKEN`. Rad etilgan videoni qayta yuborish mumkin (eski yozuv
 almashtiriladi).
+
+## Istoriyalar (Istoriya)
+
+Instagram istoriyalari kabi: ishtirokchi o'zi haqidagi qisqa **videoni** joylaydi, Mini App yoki
+saytni ochgan har kim (kirmagan mehmon ham) uni ko'radi. Tekshirilmaydi, reyting va sovrinlarga
+kirmaydi — shunchaki kontent.
+
+- **Asosiy** ekranda, salomlashuv ostida — aylanalar qatori (bosh harflar, rangi muallifga qarab).
+  Ko'rilmagan istoriyasi bor aylana — brend ranglaridagi halqa, hammasi ko'rilgan — kulrang va
+  qator oxiriga suriladi. "Ko'rilgan" belgisi faqat shu brauzerda: `localStorage`
+  (`reels-miniapp:stories-seen`, kalit — `authorKey/storyId`), muddati o'tganlari o'zi tozalanadi.
+- Birinchi aylana — **"Istoriya qo'shish"** (faqat ro'yxatdan o'tgan faol ishtirokchiga): galereyadan
+  video tanlanadi (`accept="video/mp4,video/quicktime,video/webm,video/*"`). Tur (MP4, MOV, WebM;
+  tur bo'sh bo'lsa — kengaytmaga qaraladi) va hajm (≤ 50 MB) shu yerning o'zida tekshiriladi.
+  Yuklanayotganda aylanada foiz va to'layotgan halqa; boshqa bo'limga o'tib qaytilsa ham saqlanadi
+  (`src/lib/story-upload.ts`). Xatolar qator ostida o'zbekcha.
+- Cheklovlar (backend bilan bir xil): 24 soat yashaydi; bir vaqtda ko'pi bilan 10 ta faol istoriya;
+  o'z istoriyasini o'chirish mumkin.
+- **Ko'ruvchi** (to'liq ekran): tepada har bir istoriya uchun chiziq, muallif va "N soat oldin".
+  Video ovozsiz o'zi boshlanadi (brauzerlar ovozli avtoijroni bloklaydi), tugma bilan ovoz yoqiladi
+  (tanlov sahifa yangilanguncha eslab qolinadi). O'ngga bosish — keyingisi, chapga (ekranning 30 %)
+  — oldingisi; tugagach o'zi keyingisiga, oxirgisidan keyin — keyingi muallifga o'tadi. Ushlab
+  turish — pauza, yonga surish — boshqa muallif, pastga surish, ✕, Escape yoki Telegram "Orqaga" —
+  yopish. O'z istoriyasida — o'chirish (tasdiqlash bilan). Video ochilmasa (muddati tugagan yoki
+  o'chirilgan — 404) qisqa xabar chiqadi va keyingisiga o'tiladi.
+
+Endpointlar (`src/lib/api.ts`):
+
+| Funksiya | So'rov |
+|---|---|
+| `getStories()` | `GET /miniapp/stories` — ochiq; `StoryGroup[]` (o'z guruhim birinchi, keyin eng yangisi bo'yicha) |
+| `uploadStory(file, onProgress)` | `POST /miniapp/stories` — tana **videoning o'zi** (multipart emas), `Content-Type` — fayl turi; XMLHttpRequest (foiz uchun). Xatolar: 403 `UNAUTHORIZED`, har qanday 413 → `STORY_TOO_LARGE`, 422 `STORY_INVALID_FILE`, 429 `STORY_LIMIT` |
+| `deleteStory(id)` | `DELETE /miniapp/stories/:id` — 204; 404 `NOT_FOUND` |
+| `storyVideoUrl(id)` | `GET /miniapp/stories/:id/video` — ochiq, Range bilan; `<video src>` uchun manzil |
+
+Mock rejimda: bir nechta soxta ishtirokchining namunaviy istoriyalari — `public/stories/sample-*.mp4`
+(ffmpeg bilan yasalgan, 360×640, 4 soniya, ~50 KB). O'zingiz yuklaganlar faqat xotirada
+(`URL.createObjectURL`), sahifa yangilansa yo'qoladi; 10 ta chegara va 24 soat muddat ham
+taqlid qilinadi, yuklanish foizi ~1,5 soniyada o'sadi.
+
+> Serverda nginx yuklash manzili uchun alohida chegara qo'yadi (`deploy/web.conf`,
+> `location = /api/v1/miniapp/stories`); undan oshsa nginx HTML bilan 413 qaytaradi — ilova uni
+> ham "juda katta" deb ko'rsatadi.
 
 ## Reyting
 
@@ -87,6 +135,8 @@ haqda izoh bor, har bir qatorda video belgisi.
   (`REEL_TAKEN`). O'zingiz yuborgan (rad etilmagan) linkni qayta yuborish —
   `REEL_ALREADY_SUBMITTED`. Mock reytingda ba'zi soxta ishtirokchilarning 2–3 ta videosi bor,
   o'zingizning har bir qabul qilingan videongiz esa ko'rishlariga qarab alohida qator bo'lib qo'shiladi.
+  Ko'rishlar jadvali — haftada bir marta (`syncEveryDays: 7`). Istoriyalar mock'i — yuqorida,
+  "Istoriyalar" bo'limida.
 - `VITE_API_URL=http://localhost:3000/api/v1` → haqiqiy backend. Telegram ichida har bir so'rov
   `X-Telegram-Init-Data` sarlavhasi bilan ketadi; backend uni bot tokeni bilan tekshiradi.
 

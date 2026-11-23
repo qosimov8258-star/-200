@@ -108,7 +108,10 @@ export type ReelRejectReason =
 export interface MyReelItem {
   url: string;
   shortcode: string;
-  /** PENDING — server Instagram'da tekshirmoqda (odatda bir necha daqiqa). */
+  /**
+   * PENDING — server Instagram'da tekshiradi (ko'rishlar jadvali — `MyReels.syncEveryDays`;
+   * ekranda shu haqda izoh chiqadi).
+   */
   status: ReelStatus;
   /** Rad etilgan bo'lsa — sababi. */
   rejectReason: ReelRejectReason | null;
@@ -198,6 +201,34 @@ export interface Winner {
   announcedAt: string;
 }
 
+/**
+ * Istoriya — ishtirokchining 24 soat ko'rinadigan qisqa videosi (Instagram istoriyalari kabi).
+ * Tekshirilmaydi, reyting va sovrinlarga kirmaydi. Video: `api.storyVideoUrl(id)`.
+ */
+export interface StoryItem {
+  /** Tasodifiy (shaffof bo'lmagan) identifikator. */
+  id: string;
+  /** Joylangan vaqt (UTC ISO). */
+  createdAt: string;
+  /** O'chib ketish vaqti (UTC ISO) — `createdAt` + 24 soat. */
+  expiresAt: string;
+}
+
+/** Bitta ishtirokchining istoriyalari (aylana — bitta guruh). */
+export interface StoryGroup {
+  /**
+   * Ishtirokchining barqaror shaffof bo'lmagan kaliti (telegramId EMAS) — React kaliti va
+   * "ko'rilgan" belgisi uchun.
+   */
+  authorKey: string;
+  /** "Ism Familiya". */
+  fullName: string;
+  /** Joriy ishtirokchining o'z istoriyalari (ro'yxatda birinchi). */
+  isMe: boolean;
+  /** Eskisidan yangisiga — ko'rsatish tartibi. */
+  stories: StoryItem[];
+}
+
 /** Xato kodlari — ekranda mos matn ko'rsatish uchun. */
 export type ApiErrorCode =
   | "INVALID_LINK"
@@ -223,6 +254,14 @@ export type ApiErrorCode =
   | "SUPPORT_INVALID"
   /** Support: qisqa vaqtda juda ko'p xabar. */
   | "SUPPORT_LIMIT"
+  /** Istoriya: video 50 MB dan katta (nginx'ning HTML 413 javobi ham shu). */
+  | "STORY_TOO_LARGE"
+  /** Istoriya: qo'llab-quvvatlanmaydigan, buzilgan yoki bo'sh video. */
+  | "STORY_INVALID_FILE"
+  /** Istoriya: 10 ta faol istoriya chegarasi. */
+  | "STORY_LIMIT"
+  /** Topilmadi (masalan, o'chirilgan yoki muddati tugagan istoriya). */
+  | "NOT_FOUND"
   | "UNAUTHORIZED"
   | "SERVER";
 

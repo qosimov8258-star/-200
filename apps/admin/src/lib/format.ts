@@ -99,3 +99,26 @@ export function formatFileSize(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${shortDecimal(bytes / (1024 * 1024))} MB`;
   return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
+
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+
+/** O'tgan vaqt: "Hozirgina", "12 daqiqa oldin", "3 soat oldin", "2 kun oldin". */
+export function formatTimeAgo(value: string, now: number): string {
+  const elapsed = Math.max(0, now - Date.parse(value));
+  if (elapsed < MINUTE_MS) return "Hozirgina";
+  if (elapsed < HOUR_MS) return `${Math.floor(elapsed / MINUTE_MS)} daqiqa oldin`;
+  if (elapsed < DAY_MS) return `${Math.floor(elapsed / HOUR_MS)} soat oldin`;
+  return `${Math.floor(elapsed / DAY_MS)} kun oldin`;
+}
+
+/** Qolgan vaqt: "5 soat 20 daqiqa", "45 daqiqa", "1 daqiqadan kam"; vaqt o'tib ketgan bo'lsa — null. */
+export function formatTimeLeft(value: string, now: number): string | null {
+  const left = Date.parse(value) - now;
+  if (!(left > 0)) return null;
+  const hours = Math.floor(left / HOUR_MS);
+  const minutes = Math.floor((left % HOUR_MS) / MINUTE_MS);
+  if (hours === 0) return minutes === 0 ? "1 daqiqadan kam" : `${minutes} daqiqa`;
+  return minutes === 0 ? `${hours} soat` : `${hours} soat ${minutes} daqiqa`;
+}
