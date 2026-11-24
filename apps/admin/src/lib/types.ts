@@ -564,11 +564,37 @@ export interface DrawSettings {
   excludeWarned: boolean;
   /** Target (pullik reklama) aniqlanganlar qatnashmaydi. */
   excludeTargets: boolean;
-  /** Shu sovg'ani oldingi bosqichlarda yutganlar qatnashmaydi. */
+  /**
+   * Voucher olganlar (bekor qilinmagan istalgan tanlovning faol g'oliblari) qatnashmaydi.
+   * Har doim `true`: voucher bir kishiga aksiya davomida bir marta — backend ham shunday majburlaydi.
+   */
   excludePreviousWinners: boolean;
   /** G'oliblarga bot xabari; `{ism}`, `{sovrin}` kabi o'rinbosarlar bilan. */
   messageTemplate: string;
 }
+
+/**
+ * Doimiy tanlov sozlamalari: bir marta tasdiqlanadi, keyin tahrirlanadi. Har bir tanlovda
+ * faqat bosqich yoki davr tanlanadi, qolgani shu yerdan olinadi.
+ */
+export interface SavedDrawSettings {
+  dateBasis: DrawDateBasis;
+  minViews: number;
+  maxViews: number;
+  winnersCount: number;
+  reservesCount: number;
+  excludeWarned: boolean;
+  excludeTargets: boolean;
+  /** Har doim yoqiq — o'chirib bo'lmaydi. */
+  excludePreviousWinners: true;
+  messageTemplate: string;
+  updatedAt: string;
+  /** Saqlagan xodimning to'liq ismi. */
+  updatedBy: string;
+}
+
+/** `PUT /admin/draws/settings` tanasi. */
+export type DrawSettingsInput = Omit<SavedDrawSettings, "excludePreviousWinners" | "updatedAt" | "updatedBy">
 
 export interface DrawPlaceholder {
   /** Masalan "{ism}". */
@@ -600,7 +626,12 @@ export interface DrawSetup {
   removedStages: DrawStage[];
   /** Oylik sovg'alar (random tanlov faqat ular uchun). */
   prizes: Array<Pick<Prize, "id" | "title" | "quantity" | "minViews" | "maxViews">>;
-  /** Joriy (yoki eng oxirgi tugagan) bosqich va birinchi oylik sovg'a bo'yicha boshlang'ich sozlamalar. */
+  /** Tasdiqlangan doimiy sozlamalar; null — hali tasdiqlanmagan. */
+  saved: SavedDrawSettings | null;
+  /**
+   * Joriy (yoki eng oxirgi tugagan) bosqich va birinchi oylik sovg'a bo'yicha boshlang'ich sozlamalar.
+   * `saved` bo'lsa — uning qiymatlari bilan; `excludePreviousWinners` har doim `true`.
+   */
   defaults: DrawSettings;
   placeholders: DrawPlaceholder[];
 }
@@ -883,6 +914,59 @@ export interface WinnerManualCheckRequest {
 export interface WinnerSkipRequest {
   participantId: string;
   reason: string;
+}
+
+// ---------------------------------------------------------------------------
+// Asosiy sovrinlar — reyting bo'yicha (random emas)
+// ---------------------------------------------------------------------------
+
+/** Asosiy sovrin turi; eng qimmatidan: avtomobil, sayohat, iPhone, planshet. */
+export type RatingPrizeKind = "car" | "travel" | "phone" | "tablet";
+
+export interface RatingPrizeEntry {
+  /** Shu sovrin ichidagi o'rin (1 dan; navbatdagilar raqamlashni davom ettiradi). */
+  place: number;
+  /** Umumiy reytingdagi o'rin (eng ko'p ko'rilgan videosining joyi). */
+  rank: number;
+  participant: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+    instagramUsername: string | null;
+  };
+  /** Eng ko'p ko'rilgan qabul qilingan videosining ko'rishlari. */
+  views: number;
+  /** Shu video. */
+  reelUrl: string;
+  /** Ochiq (ro'yxatdan chiqarilmagan) target holati bor. */
+  hasTarget: boolean;
+  /** Shu videoda nakrutka (soxta ko'rish) belgilari bor. */
+  flagged: boolean;
+}
+
+export interface RatingPrizeTier {
+  kind: RatingPrizeKind;
+  title: string;
+  quantity: number;
+  /** Masalan "yo'llanma"; bo'lmasa — null. */
+  unit: string | null;
+  minViews: number;
+  /** null — yuqori chegara yo'q. */
+  maxViews: number | null;
+  /** Eng ko'p ko'rilgan videosi shu oraliqdagi ishtirokchilar soni. */
+  eligibleCount: number;
+  /** Reyting bo'yicha birinchi `quantity` tasi. */
+  winners: RatingPrizeEntry[];
+  /** Navbatdagilar (zaxira) — ko'pi bilan 5 ta. */
+  next: RatingPrizeEntry[];
+}
+
+export interface RatingPrizes {
+  /** Ko'rishlar oxirgi marta muvaffaqiyatli yig'ilgan vaqt (ISO); hali yig'ilmagan bo'lsa — null. */
+  updatedAt: string | null;
+  /** Tartib: avtomobil, sayohat, iPhone, planshet. */
+  tiers: RatingPrizeTier[];
 }
 
 // ---------------------------------------------------------------------------

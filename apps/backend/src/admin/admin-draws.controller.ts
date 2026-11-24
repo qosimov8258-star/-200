@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpException, Param, Post, Put, UseGuards } from "@nestjs/common";
 
 import { AuditService, type AuditInput } from "../audit/audit.service";
-import type { DrawPeriodInput, DrawSettings } from "../draws/draw-rules";
+import type { DrawPeriodInput, DrawSettings, DrawSettingsInput } from "../draws/draw-rules";
 import { DrawsService } from "../draws/draws.service";
 import type { AdminUser } from "./auth/admin-accounts";
 import { AdminAuthGuard, CurrentAdmin } from "./auth/admin-auth.guard";
@@ -48,6 +48,33 @@ function parseSettings(body: unknown): DrawSettings {
   return b as unknown as DrawSettings;
 }
 
+/** Doimiy sozlamalar maydonlari; `excludePreviousWinners` yuborilishi mumkin, lekin e'tiborga olinmaydi. */
+const SAVED_FIELDS: Record<keyof DrawSettingsInput, "number" | "boolean" | "string" | "basis"> = {
+  dateBasis: "basis",
+  minViews: "number",
+  maxViews: "number",
+  winnersCount: "number",
+  reservesCount: "number",
+  excludeWarned: "boolean",
+  excludeTargets: "boolean",
+  messageTemplate: "string",
+};
+
+/** `PUT /admin/draws/settings` tanasi: barcha maydonlar majburiy, noma'lumlari rad etiladi. */
+function parseSavedSettings(body: unknown): DrawSettingsInput {
+  const b = objectOf(body, [...Object.keys(SAVED_FIELDS), "excludePreviousWinners"]);
+  for (const [key, kind] of Object.entries(SAVED_FIELDS)) {
+    const v = b[key];
+    const ok = kind === "basis" ? v === "POSTED" || v === "SUBMITTED" : typeof v === kind;
+    if (!ok) throw bad(`Maydon noto'g'ri: ${key}`);
+  }
+  if (b.excludePreviousWinners !== undefined && typeof b.excludePreviousWinners !== "boolean") {
+    throw bad("Maydon noto'g'ri: excludePreviousWinners");
+  }
+  const input = Object.fromEntries(Object.keys(SAVED_FIELDS).map((k) => [k, b[k]]));
+  return input as unknown as DrawSettingsInput;
+}
+
 /** Davr: faqat `title`, `startsOn`, `endsOn` — hammasi matn. */
 function parsePeriod(body: unknown): DrawPeriodInput {
   const b = objectOf(body, ["title", "startsOn", "endsOn"]);
@@ -83,6 +110,24 @@ export class AdminDrawsController {
 
   @Get("setup")
   setup() {
+    return this.draws.setup();
+  }
+
+  /**
+   * Doimiy sozlamalar: bir marta tasdiqlanadi, keyin tahrirlanadi. Javob — yangilangan `setup`.
+   * Oldingi g'oliblar har doim chetda (voucher bir kishiga aksiya davomida bir marta).
+   */
+  @Put("settings")
+  saveSettings(@Body() body: unknown, @CurrentAdmin() admin: AdminUser) {
+    const before = this.draws.setup().saved;
+    const saved = this.draws.saveSettings(parseSavedSettings(body), admin.fullName);
+    const summary = (s: { dateBasis: string; minViews: number; maxViews: number; winnersCount: number; reservesCount: number }) =>
+      `${s.dateBasis === "POSTED" ? "Instagram'da joylangan" : "Ilovaga yuborilgan"} sana; ` +
+      `${s.minViews}–${s.maxViews} ko'rish; ${s.winnersCount} g'olib, ${s.reservesCount} zaxira`;
+    this.log(admin, "draw.settings.update", "settings", "Random tanlov sozlamalari", {
+      before: before ? summary(before) : "",
+      after: summary(saved),
+    });
     return this.draws.setup();
   }
 

@@ -122,3 +122,8 @@ export function formatTimeLeft(value: string, now: number): string | null {
   if (hours === 0) return minutes === 0 ? "1 daqiqadan kam" : `${minutes} daqiqa`;
   return minutes === 0 ? `${hours} soat` : `${hours} soat ${minutes} daqiqa`;
 }
+
+/** Ko'rishlar oralig'i: (1000, 100000) -> "1 000 – 100 000", yuqori chegara yo'q bo'lsa -> "4 000 000+". */
+export function formatViewsRange(min: number, max: number | null): string {
+  return max === null ? `${formatNumber(min)}+` : `${formatNumber(min)} – ${formatNumber(max)}`;
+}

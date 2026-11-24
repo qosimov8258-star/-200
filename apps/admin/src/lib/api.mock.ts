@@ -29,11 +29,13 @@ import {
   previewDraw as mockPreviewDraw,
   replaceDrawWinner as mockReplaceDrawWinner,
   runDraw as mockRunDraw,
+  saveDrawSettings as mockSaveDrawSettings,
   updateDrawPeriod as mockUpdateDrawPeriod,
   sendDraw as mockSendDraw,
 } from "./mock/draws";
 import { computeDashboardStats } from "./mock/dashboard";
 import { mockAdmins } from "./mock/db";
+import { getRatingPrizes as mockGetRatingPrizes } from "./mock/rating-prizes";
 import {
   decideManualReview as mockDecideManualReview,
   listManualReviews,
@@ -104,6 +106,7 @@ import type {
   DrawPreview,
   DrawReplaceRequest,
   DrawSettings,
+  DrawSettingsInput,
   DrawPeriod,
   DrawPeriodInput,
   DrawSetup,
@@ -136,6 +139,7 @@ import type {
   ViewsRefreshPreview,
   ViewsRefreshRequest,
   WinnerOverview,
+  RatingPrizes,
   VoucherDraw,
   VoucherDrawSummary,
   WinnerManualCheckRequest,
@@ -594,6 +598,17 @@ export async function getDrawSetup(): Promise<DrawSetup> {
 }
 
 /**
+ * Doimiy tanlov sozlamalarini tasdiqlash yoki o'zgartirish (har bir tanlovda faqat davr tanlanadi).
+ * Oldingi g'oliblar har doim chetda — bu maydon yuborilmaydi. Javob — yangilangan `setup`.
+ * @endpoint PUT /api/v1/admin/draws/settings
+ * @throws ApiError 400 — sozlama noto'g'ri
+ */
+export async function saveDrawSettings(input: DrawSettingsInput): Promise<DrawSetup> {
+  await delay(400);
+  return mockSaveDrawSettings(input, requireRole("ADMIN"));
+}
+
+/**
  * Sozlamalar bo'yicha nomzodlar: soni, chetda qolganlar sababi, namuna. Hech narsa saqlanmaydi.
  * @endpoint POST /api/v1/admin/draws/preview
  * @throws ApiError 400 — sozlama noto'g'ri
@@ -761,6 +776,17 @@ export async function getWinnerOverview(): Promise<WinnerOverview> {
   await delay(400);
   requireRole("ADMIN");
   return mockGetWinnerOverview();
+}
+
+/**
+ * Asosiy sovrinlar (avtomobil, sayohat, iPhone, planshet) — random emas, reyting bo'yicha: har birining
+ * ko'rishlar oralig'ida eng ko'p ko'rilgan videosi bor ishtirokchilar, joriy holat.
+ * @endpoint GET /api/v1/admin/winner/prizes
+ */
+export async function getRatingPrizes(): Promise<RatingPrizes> {
+  await delay(350);
+  requireRole("ADMIN");
+  return mockGetRatingPrizes();
 }
 
 /**

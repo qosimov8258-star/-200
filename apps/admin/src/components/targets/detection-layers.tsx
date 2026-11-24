@@ -131,7 +131,7 @@ export function DetectionLayers({ onChecked }: { onChecked: (message: string) =>
             href="/winner"
             className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700"
           >
-            G&apos;olib bo&apos;limiga o&apos;tish
+            G&apos;oliblar bo&apos;limiga o&apos;tish
             <ArrowUpRight className="size-3.5" aria-hidden />
           </Link>
         }

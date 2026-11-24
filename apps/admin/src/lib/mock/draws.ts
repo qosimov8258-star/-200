@@ -1,6 +1,7 @@
 /**
  * MOCK backend: oylik voucherlar uchun random tanlov. Haqiqiy backendda:
  *   GET  /api/v1/admin/draws/setup
+ *   PUT  /api/v1/admin/draws/settings  (doimiy sozlamalar: bir marta tasdiqlanadi, keyin tahrirlanadi)
  *   POST /api/v1/admin/draws/preview
  *   POST /api/v1/admin/draws
  *   GET  /api/v1/admin/draws
@@ -22,6 +23,7 @@ import {
   stageLabel,
   validateDrawPeriod,
   validateDrawSettings,
+  validateDrawSettingsInput,
 } from "../draw-rules";
 import { formatNumber } from "../format";
 import type {
@@ -35,11 +37,13 @@ import type {
   DrawPreview,
   DrawReplaceRequest,
   DrawSettings,
+  DrawSettingsInput,
   DrawSetup,
   DrawStatus,
   DrawStock,
   IsoDate,
   Prize,
+  SavedDrawSettings,
   VoucherDraw,
   VoucherDrawSummary,
 } from "../types";
@@ -100,12 +104,14 @@ function findDraw(store: MockStore, id: string): VoucherDraw {
   return draw;
 }
 
-/** Shu sovg'ani oldingi (bekor qilinmagan, tasdiqlangan) tanlovlarda yutganlar. */
-function previousWinnerIds(store: MockStore, prizeId: string, exceptId?: string): Set<string> {
+/**
+ * Voucher olganlar: bekor qilinmagan (qoralama, tasdiqlangan yoki yuborilgan) istalgan tanlovning
+ * faol g'oliblari. Voucher bir kishiga aksiya davomida bir marta beriladi (backend bilan bir xil).
+ */
+function previousWinnerIds(store: MockStore, exceptId?: string): Set<string> {
   const ids = new Set<string>();
   for (const draw of drawsOf(store)) {
-    if (draw.id === exceptId || draw.settings.prizeId !== prizeId) continue;
-    if (draw.status !== "CONFIRMED" && draw.status !== "SENT") continue;
+    if (draw.id === exceptId || draw.status === "CANCELLED") continue;
     for (const entry of draw.winnerEntries) {
       if (entry.state === "ACTIVE") ids.add(entry.candidate.participantId);
     }
@@ -139,7 +145,8 @@ function cleanSettings(settings: DrawSettings, store: MockStore): DrawSettings {
     reservesCount: Number(settings.reservesCount),
     excludeWarned: Boolean(settings.excludeWarned),
     excludeTargets: Boolean(settings.excludeTargets),
-    excludePreviousWinners: Boolean(settings.excludePreviousWinners),
+    // Har doim yoqiq — yuborilgan qiymat e'tiborga olinmaydi (backend ham shunday).
+    excludePreviousWinners: true,
     messageTemplate: String(settings.messageTemplate ?? "").trim(),
   };
   const errors = Object.values(validateDrawSettings(clean));
@@ -166,9 +173,7 @@ function buildPool(settings: DrawSettings, store: MockStore, exceptDrawId?: stri
   const viewsAsOf = settings.periodTo < data.today ? settings.periodTo : data.today;
   const participants = new Map(data.participants.map((item) => [item.id, item]));
   const targets = activeTargetParticipants(store, viewsAsOf);
-  const previous = settings.excludePreviousWinners
-    ? previousWinnerIds(store, settings.prizeId, exceptDrawId)
-    : new Set<string>();
+  const previous = previousWinnerIds(store, exceptDrawId);
   const excluded = Object.fromEntries(EXCLUSIONS.map((key) => [key, 0])) as Record<DrawExclusion, number>;
   const eligible: DrawCandidate[] = [];
 
@@ -313,30 +318,82 @@ export function getDrawSetup(): DrawSetup {
     allStages.find((item) => item.startsOn <= data.today && data.today <= item.endsOn) ??
     allStages[0];
   const prize = prizes[0];
+  const saved = store.drawSettings ?? null;
 
   return {
     today: data.today,
     stages: allStages,
     prizes: prizes.map(({ id, title, quantity, minViews, maxViews }) => ({ id, title, quantity, minViews, maxViews })),
+    saved,
+    // Saqlangan sozlamalar bo'lsa — ular; bo'lmasa standartlar (Instagram'da joylangan sana).
     defaults: {
       prizeId: prize?.id ?? "",
       stage: stage?.index ?? null,
       periodFrom: stage?.startsOn ?? data.today,
       periodTo: stage?.endsOn ?? data.today,
-      dateBasis: "POSTED",
-      minViews: prize?.minViews ?? 0,
-      maxViews: prize?.maxViews ?? 100_000,
-      winnersCount: prize?.quantity ?? 1,
-      reservesCount: Math.ceil((prize?.quantity ?? 10) / 10),
-      excludeWarned: false,
-      excludeTargets: true,
-      excludePreviousWinners: false,
-      messageTemplate: DEFAULT_DRAW_MESSAGE,
+      dateBasis: saved?.dateBasis ?? "POSTED",
+      minViews: saved?.minViews ?? prize?.minViews ?? 0,
+      maxViews: saved?.maxViews ?? prize?.maxViews ?? 100_000,
+      winnersCount: saved?.winnersCount ?? prize?.quantity ?? 1,
+      reservesCount: saved?.reservesCount ?? Math.ceil((prize?.quantity ?? 10) / 10),
+      excludeWarned: saved?.excludeWarned ?? false,
+      excludeTargets: saved?.excludeTargets ?? true,
+      excludePreviousWinners: true,
+      messageTemplate: saved?.messageTemplate ?? DEFAULT_DRAW_MESSAGE,
     },
     placeholders: DRAW_PLACEHOLDERS,
     periods: periodsOf(store),
     removedStages: allStagesOf(store).filter((item) => (store.removedStages ?? []).includes(item.index)),
   };
+}
+
+const describeSaved = (s: DrawSettingsInput) =>
+  `${s.dateBasis === "POSTED" ? "Instagram'da joylangan" : "Ilovaga yuborilgan"} sana; ` +
+  `${s.minViews}–${s.maxViews} ko'rish; ${s.winnersCount} g'olib, ${s.reservesCount} zaxira`;
+
+/** Doimiy sozlamalarni saqlash (backend `PUT /admin/draws/settings` bilan bir xil qoidalar). */
+export function saveDrawSettings(input: DrawSettingsInput, actor: AdminUser): DrawSetup {
+  const store = readStore();
+  const clean: DrawSettingsInput = {
+    dateBasis: input.dateBasis === "SUBMITTED" ? "SUBMITTED" : "POSTED",
+    minViews: Number(input.minViews),
+    maxViews: Number(input.maxViews),
+    winnersCount: Number(input.winnersCount),
+    reservesCount: Number(input.reservesCount),
+    excludeWarned: Boolean(input.excludeWarned),
+    excludeTargets: Boolean(input.excludeTargets),
+    messageTemplate: String(input.messageTemplate ?? "").trim(),
+  };
+  const error = Object.values(validateDrawSettingsInput(clean))[0];
+  if (error) throw new ApiError(400, error);
+
+  const before = store.drawSettings;
+  const saved: SavedDrawSettings = {
+    ...clean,
+    excludePreviousWinners: true,
+    updatedAt: new Date().toISOString(),
+    updatedBy: actor.fullName,
+  };
+  writeStore({
+    ...store,
+    drawSettings: saved,
+    audit: [
+      ...store.audit,
+      {
+        id: auditId(),
+        at: saved.updatedAt,
+        actorId: actor.id,
+        actorName: actor.fullName,
+        action: "draw.settings.update",
+        entity: "voucher_draw",
+        entityId: "settings",
+        before: before ? describeSaved(before) : "",
+        after: describeSaved(saved),
+        reason: "",
+      },
+    ],
+  });
+  return getDrawSetup();
 }
 
 // ---------------------------------------------------------------------------

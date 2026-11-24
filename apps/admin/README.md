@@ -105,8 +105,12 @@ Backendsiz ishlash uchun (`npm run dev` da standart):
   [`public/mock/stories/`](public/mock/stories/) dagi kichik namunaviy kliplar (9:16, 4 soniya,
   ffmpeg'da yasalgan) ko'rsatiladi. Ular statik eksportga ham tushadi (~60 KB), lekin `http`
   rejimda ishlatilmaydi.
+- Random tanlov sozlamalari va o'tkazilgan tanlovlar ham shu `localStorage` kalitida
+  (`drawSettings`, `draws`). Asosiy sovrinlar (`GET /admin/winner/prizes`) mock reytingdan
+  hisoblanadi ([`src/lib/mock/rating-prizes.ts`](src/lib/mock/rating-prizes.ts)) — mock'da
+  ko'rishlar kam, shuning uchun odatda faqat "Planshet" oralig'ida ishtirokchi bo'ladi.
 
-**Mock boshqaruvlari:** G'olib sahifasida "Tanlovni tugagan deb ko'rish" tugmasi bor — mock'da
+**Mock boshqaruvlari:** G'oliblar sahifasida "Tanlovni tugagan deb ko'rish" tugmasi bor — mock'da
 tanlov hali tugamagan, oqimni sinash uchun. U faqat `mockControls` bo'lsa (mock rejimda) ko'rinadi.
 
 ## Qabul qilingan qarorlar (17.11.2026)
@@ -194,6 +198,40 @@ qilinganlarning istoriyalari ko'rinmaydi.
 `AdminStoryItem` — [`src/lib/types.ts`](src/lib/types.ts): `id`, `participant { id, fullName, phone }`
 (`id` — telegramId), `createdAt`, `expiresAt`, `sizeBytes`, `mime`.
 
+## G'oliblar va Random tanlov
+
+Tepadagi menyuda ikkita alohida bo'lim (kompyuterda ikkalasi ham doim ko'rinadi):
+
+- **Random tanlov** (`/draws`) — tepada sovg'a tanlanadi. **Faqat 500 000 so'mlik Korzinka voucheri
+  random**; avtomobil, sayohat, iPhone va planshet — random emas, reyting bo'yicha (sahifada shu
+  eslatma bor).
+  - *Voucher:* "Sozlamalar" bir marta tasdiqlanadi (`PUT /api/v1/admin/draws/settings`), keyin
+    qisqa xulosa ko'rinadi va "Tahrirlash" bilan o'zgartiriladi — har tanlovda qayta kiritilmaydi.
+    Har tanlovda faqat bosqich (1-, 2-, 3-bosqich) yoki admin yaratgan davr tanlanadi. **"Tanlash"
+    bitta bosishda** tanlovni o'tkazadi (`POST /api/v1/admin/draws`: saqlangan sozlamalar + davr) va
+    natijani darhol ochadi (qoralama → tasdiqlash → botda yuborish, almashtirish, bekor qilish —
+    avvalgidek). Nomzodlar soni (`POST /admin/draws/preview`) faqat ma'lumot uchun, alohida qadam emas.
+  - **Voucher olganlar qatnashmaydi** — bir kishiga aksiya davomida bir marta. Bu qoida o'chirilmaydi
+    (sozlamalarda qulf bilan ko'rsatiladi): bekor qilinmagan istalgan tanlovning (qoralama,
+    tasdiqlangan, yuborilgan) faol g'oliblari keyingi tanlovlarga kirmaydi; "Chetda qolganlar"da
+    "Voucher olgan (qayta berilmaydi)" bo'lib sanaladi.
+  - *Asosiy sovrin* tanlansa: qoida va "G'oliblarni ko'rsatish" tugmasi — bir bosishda
+    `GET /api/v1/admin/winner/prizes` dan shu sovrin g'oliblari (o'rin, ism, telefon, Instagram,
+    ko'rishlar, Reel, target / nakrutka belgilari) va "Navbatdagilar".
+  - URL: `?id=` — tanlov natijasi, `?prize=car|travel|phone|tablet` — asosiy sovrin.
+- **G'oliblar** (`/winner`), ikki tab (`?tab=vouchers`):
+  - *Asosiy sovrinlar* — "Bosh sovrin — BYD Chazor": g'olibni aniqlash oqimi (joriy yetakchi,
+    tekshiruvlar, tasdiqlash, e'lon); ostida Tailand sayohati, iPhone, Planshet ro'yxatlari (reyting bo'yicha).
+  - *Voucher g'oliblari* — bekor qilinmagan barcha random tanlovlar g'oliblari, tanlov bo'yicha
+    (holati, ism, telefon, ko'rishlar, qidiruv), har biridan Random tanlovdagi natijaga havola.
+
+| Funksiya (`src/lib/api.ts`) | Endpoint |
+|---|---|
+| `getDrawSetup()` | `GET /api/v1/admin/draws/setup` → `DrawSetup` (`saved: SavedDrawSettings \| null`) |
+| `saveDrawSettings(input)` | `PUT /api/v1/admin/draws/settings`, body `DrawSettingsInput` → `DrawSetup`; audit `draw.settings.update` |
+| `runDraw(settings)` | `POST /api/v1/admin/draws` → `VoucherDraw` (`excludePreviousWinners` har doim `true`) |
+| `getRatingPrizes()` | `GET /api/v1/admin/winner/prizes` → `RatingPrizes` |
+
 ## Rollar
 
 | Rol | Ko'radigan bo'limlar |
@@ -226,7 +264,9 @@ src/
 │   ├── support/          # murojaatlar ro'yxati, yozishma, javob va holat
 │   ├── targets/          # target yoqqanlar: ro'yxat, dalil oynasi, qarorlar
 │   ├── telegram/         # xabarlar holati (yuborildi/yetkazildi/o'qildi), qayta yuborish
-│   ├── winner/           # g'olib: nomzod, tekshiruv ro'yxati, tasdiqlash, e'lon
+│   ├── draws/            # random tanlov: sovg'a tanlash, sozlamalar, bosqich, natija, tarix
+│   ├── prizes/           # asosiy sovrinlar (reyting bo'yicha) jadvali — draws va winner uchun umumiy
+│   ├── winner/           # g'oliblar: bosh sovrin oqimi, asosiy sovrinlar, voucher g'oliblari
 │   ├── settings/         # tanlov muddati, yangilanish vaqti, minimal yosh, qoidalar
 │   ├── stories/          # istoriyalar: video kartalar, o'chirish oynasi
 │   ├── audit/            # audit log (faqat o'qish)

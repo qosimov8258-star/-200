@@ -312,7 +312,7 @@ export const t = {
   prizesSubtitle: "Ko'rish yig'ing — sovrinlarni oling",
   fundLabel: "Sovrin fondi",
   fundTotal: "ta sovrin",
-  fundBody: "Har oy voucherlar o'ynaladi, aksiya yakunida esa asosiy sovrinlar topshiriladi.",
+  fundBody: "Har oy voucherlar random o'ynaladi (bir kishiga bir marta), aksiya yakunida esa asosiy sovrinlar reyting bo'yicha topshiriladi.",
   monthlyTag: "Har oylik sovrin",
   sum: "so'm",
   perMonth: "har oy",
@@ -320,7 +320,7 @@ export const t = {
   randomDraw: "Tasodifiy tanlov",
   monthlyWho: (min: string, max: string) =>
     `Oy davomidagi eng ko'p ko'rilgan tasdiqlangan Reeli ${min} dan ${max} gacha ko'rish yig'gan ishtirokchilar qatnashadi`,
-  monthlyDraw: "G'oliblar tasodifiy tanlov (random) orqali aniqlanadi",
+  monthlyDraw: "G'oliblar tasodifiy tanlov (random) orqali aniqlanadi. Voucher bir kishiga aksiya davomida faqat bir marta beriladi",
   stagesTitle: "Bosqichlar",
   stageLabel: (n: number) => `${n}-bosqich`,
   stageNow: "Hozir",
