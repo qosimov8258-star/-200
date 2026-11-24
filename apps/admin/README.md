@@ -236,8 +236,8 @@ boshidagi baytlarni tekshiradi (video bo'lmasa — `422`).
 Tepadagi menyuda ikkita alohida bo'lim (kompyuterda ikkalasi ham doim ko'rinadi):
 
 - **Random tanlov** (`/draws`) — tepada sovg'a tanlanadi. **Faqat 500 000 so'mlik Korzinka voucheri
-  random**; avtomobil, sayohat, iPhone va planshet — random emas, reyting bo'yicha (sahifada shu
-  eslatma bor).
+  random**; avtomobil, sayohat, iPhone va planshet — random emas, reyting bo'yicha (kartalardagi
+  "Random" / "Reyting bo'yicha" belgilari).
   - *Voucher:* "Sozlamalar" bir marta tasdiqlanadi (`PUT /api/v1/admin/draws/settings`), keyin
     qisqa xulosa ko'rinadi va "Tahrirlash" bilan o'zgartiriladi — har tanlovda qayta kiritilmaydi.
     Har tanlovda faqat bosqich (1-, 2-, 3-bosqich) yoki admin yaratgan davr tanlanadi. **"Tanlash"

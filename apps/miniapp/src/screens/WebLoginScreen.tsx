@@ -1,11 +1,10 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, LoaderCircle, Send } from "lucide-react";
+import { LoaderCircle, Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Spinner } from "../components/ui";
 import { t } from "../i18n/uz";
 import * as api from "../lib/api";
-import { botLink } from "../lib/telegram";
 import type { TelegramLoginUser } from "../lib/types";
 
 /** Mock rejimda widget o'rniga — imzo tekshirilmaydi. */
@@ -13,7 +12,7 @@ const MOCK_USER: TelegramLoginUser = { id: 1, first_name: "Sinov", auth_date: 0,
 
 /**
  * Veb-saytda ro'yxatdan o'tish / kirish bloki (mehmonning "Profil" bo'limida, qizil karta ichida —
- * yozuvlar oq, asosiy tugma oq fonda qizil).
+ * yozuvlar oq, tugma oq fonda qizil). Sarlavha va bitta tugma — boshqa havola yo'q.
  * Telegram Login Widget orqali kiriladi — Mini App bilan bir xil akkaunt (telegramId).
  * Kirgandan keyin hamma so'rovlar qayta yuklanadi: ilova ro'yxatdan o'tish qadamlariga
  * (raqam, ism, qoidalar) yoki to'g'ridan-to'g'ri bosh sahifaga o'tadi.
@@ -41,8 +40,8 @@ export function WebLoginPanel() {
 
   return (
     <div>
-      <h2 className="text-[19px] font-bold tracking-tight">{t.guestJoinTitle}</h2>
-      <p className="mt-1.5 text-[14px] leading-snug text-white/85">{t.webLoginBody}</p>
+      <h2 className="text-[19px] font-bold tracking-tight">{t.webJoinTitle}</h2>
+      <p className="mt-1 text-[14px] leading-snug text-white/85">{t.webJoinVia}</p>
       <div className="mt-4">
         {auth.isPending ? (
           <Spinner />
@@ -67,17 +66,6 @@ export function WebLoginPanel() {
       </div>
       {busy && !api.mockControls && <Spinner />}
       {error && <p className="mt-3 rounded-xl bg-black/20 px-3 py-2 text-[13px] font-medium">{t.webLoginFailed}</p>}
-      {bot && (
-        <a
-          href={botLink(bot)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-3 flex h-12 items-center justify-center gap-2 rounded-full bg-white/15 text-[15px] font-semibold ring-1 ring-white/35 backdrop-blur-sm transition active:scale-[0.98]"
-        >
-          {t.webOpenBot}
-          <ExternalLink className="size-4" aria-hidden />
-        </a>
-      )}
     </div>
   );
 }

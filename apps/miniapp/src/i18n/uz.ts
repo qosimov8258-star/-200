@@ -32,13 +32,12 @@ export const t = {
     "Raqam Telegram bot orqali ulashiladi: tugmani bosing, ochilgan chatda «Raqamni ulashish» ni tanlang va shu sahifaga qayting. Bitta raqam — bitta ishtirokchi.",
   contactWebWaiting: "Telegram'da raqamni ulashgach, sahifa o'zi yangilanadi…",
 
-  // Veb-sayt: kirish
-  webLoginBody:
-    "Telegram akkauntingiz orqali kiring — parol yoki SMS kerak emas. Botda va saytda akkauntingiz bitta, ma'lumotlar bir xil.",
+  // Veb-sayt: kirish (mehmon "Profil" kartasi — sarlavha, bir qator va bitta tugma)
+  webJoinTitle: "Saytdan ro'yxatdan o'tish",
+  webJoinVia: "Telegram bot orqali",
   webLoginFailed: "Kirib bo'lmadi. Qayta urinib ko'ring.",
   webLoginNotConfigured: "Saytga kirish hali sozlanmagan. Tanlovda Telegram bot orqali qatnashing.",
   webLoginMock: "Telegram orqali kirish (sinov)",
-  webOpenBot: "Telegram'da botni ochish",
   webLogout: "Saytdan chiqish",
   logoutConfirmTitle: "Saytdan chiqasizmi?",
   logoutConfirmBody:
