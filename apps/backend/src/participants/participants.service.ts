@@ -176,7 +176,7 @@ export function participantViews(p: Participant): number {
 const displayGroup = (reel: Reel): number => (reel.status === "ACCEPTED" ? 0 : reel.status === "REJECTED" ? 2 : 1);
 
 /**
- * Ishtirokchi videolari ko'rsatiladigan tartib (Mini App "Videom", admin → ishtirokchi videolari):
+ * Ishtirokchi videolari ko'rsatiladigan tartib (Mini App "Videolarim", admin → ishtirokchi videolari):
  * avval qabul qilinganlar — ko'rishlar kamayishi bo'yicha (teng bo'lsa — oldinroq yuborilgani), ya'ni
  * birinchisi reytingda hisoblanadigan video (`bestReel`); keyin qaror kutilayotganlar, oxirida rad
  * etilganlar — ikkalasida yangisi birinchi.

@@ -29,12 +29,12 @@ Brauzerda: <http://localhost:3002>. Telegram'dan tashqarida ochilganda yuqorida 
 1. Foydalanuvchi botda `/start` bosadi → **raqamini ulashadi** (bot faqat o'z raqamini qabul qiladi).
 2. Mini App ochiladi → **ism, familiya, yosh** (bir marta, keyin qulflanadi).
 3. **Qoidalarga rozilik**.
-4. Asosiy ekranlar: Asosiy (istoriyalar) · Reyting · Videom · Profil.
+4. Asosiy ekranlar: Asosiy (istoriyalar) · Reyting · Videolarim · Profil.
 
 Raqamni Mini App ichidan ham so'rash mumkin (`requestContact`) — Telegram uni baribir botga
 yuboradi, Mini App esa holat o'zgarguncha `GET /me` ni qayta so'raydi.
 
-## Videolar ("Videom")
+## Videolar ("Videolarim")
 
 Ishtirokchi **xohlagancha** Reel linki yuboradi (`GET`/`POST /miniapp/reels`). Har bir video
 alohida tekshiriladi va ko'rishlari alohida yig'iladi. Reytingda **har bir qabul qilingan video —

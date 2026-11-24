@@ -89,7 +89,8 @@ export const t = {
   // Navigatsiya
   navHome: "Asosiy",
   navRating: "Reyting",
-  navReel: "Videom",
+  // Videolar soni cheklanmagan — bo'lim nomi ko'plikda.
+  navReel: "Videolarim",
   navProfile: "Profil",
   navMore: "Ko'proq",
   navPrizes: "Sovg'alar",
