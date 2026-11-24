@@ -18,13 +18,14 @@ export function prizePhoto(key: PrizePhotoKey): string | null {
 }
 
 /**
- * Rasmning o'z foni bormi: shaffof (car, phone) — `object-contain` bilan oq plitkada; fonli
- * (tablet, travel, voucher — och pushti/bej) — plitkani to'liq to'ldiradi (`object-cover`).
+ * Rasmning o'z foni bormi: shaffof yoki oq fonli (car, phone, tablet — foni qirqilgan) —
+ * `object-contain`; fonli (travel, voucher — och pushti/bej) — plitkani to'ldiradi (`object-cover`),
+ * "Sovg'alar" ekranida esa chetlari yumshoq so'nadi.
  */
 export const PRIZE_PHOTO_HAS_BACKGROUND: Record<PrizePhotoKey, boolean> = {
   car: false,
   phone: false,
-  tablet: true,
+  tablet: false,
   travel: true,
   voucher: true,
 };

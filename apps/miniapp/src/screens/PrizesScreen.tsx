@@ -424,7 +424,7 @@ function TierRow({
         <CornerPhoto
           kind={tier.kind}
           alt={tier.title}
-          className={isCar ? "right-3 bottom-3 h-[84px] w-[132px]" : "right-3 bottom-3 size-[92px]"}
+          className={isCar ? "right-2 bottom-3 h-[96px] w-[150px]" : "right-2 bottom-2 size-[104px]"}
         />
       ) : (
         <Icon
@@ -471,7 +471,7 @@ function TierRow({
       </div>
 
       {/* Matn rasm ustiga chiqmasin — o'ngda rasm eni qadar joy. */}
-      <div className={clsx(hasPhoto && (isCar ? "pr-[144px]" : "pr-[104px]"))}>
+      <div className={clsx(hasPhoto && (isCar ? "pr-[150px]" : "pr-[104px]"))}>
         <h3 className={clsx("mt-3 leading-tight font-bold tracking-tight", isCar ? "text-[24px]" : "text-[20px]")}>
           {tier.title}
         </h3>
@@ -571,25 +571,23 @@ function Notes({ notes, style }: { notes: string[]; style: CSSProperties }) {
 }
 
 /**
- * Kartaning burchagidagi sovg'a rasmi — oq, yumaloq plitkada. Shaffof rasm (avtomobil, telefon)
- * plitka ichida to'liq ko'rinadi; o'z foni bor rasm (planshet, sayohat, voucher) plitkani to'ldiradi.
+ * Kartaning burchagidagi sovg'a rasmi — ramkasiz (oq plitka, chiziq va soya yo'q). Rasmning oq foni
+ * karta bilan qo'shilib ketadi (`multiply`); o'z foni bor rasm (planshet, sayohat) chetlari esa
+ * yumshoq so'nadi — to'rtburchak ko'rinmaydi.
  */
 function CornerPhoto({ kind, alt, className }: { kind: PrizePhotoKey; alt: string; className: string }) {
   const src = prizePhoto(kind);
   if (!src) return null;
   return (
-    <div
+    <img
+      src={src}
+      alt={alt}
+      draggable={false}
       className={clsx(
-        "pointer-events-none absolute overflow-hidden rounded-[18px] bg-white shadow-[0_10px_22px_-12px_rgba(0,0,0,0.4)] ring-1 ring-black/[0.06]",
+        "pointer-events-none absolute object-contain mix-blend-multiply",
+        PRIZE_PHOTO_HAS_BACKGROUND[kind] && "[mask-image:radial-gradient(closest-side,#000_64%,transparent)]",
         className,
       )}
-    >
-      <img
-        src={src}
-        alt={alt}
-        draggable={false}
-        className={clsx("size-full", PRIZE_PHOTO_HAS_BACKGROUND[kind] ? "object-cover" : "object-contain p-1.5")}
-      />
-    </div>
+    />
   );
 }
