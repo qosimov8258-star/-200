@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Check, Lock, Phone, Send, Snowflake } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { GiftButton } from "../components/GiftButton";
 import { PrizeHero } from "../components/PrizeHero";
@@ -222,40 +222,84 @@ function Bauble({ label }: { label: string }) {
   );
 }
 
-/** Qoida videosining eng katta balandligi, px — telefon ekranining taxminan uchdan biri. */
-const RULES_VIDEO_MAX_HEIGHT = 320;
-/** Ramka videoning o'zidan shuncha keng (har ikki chetida 25 px). */
-const RULES_VIDEO_EXTRA_WIDTH = 50;
+/** Qoida videosi oynasining balandligi, px — telefon ekranining taxminan uchdan biri. */
+const RULES_VIDEO_HEIGHT = 320;
+/** O'ynayotganda orqa fon kadri shuncha millisoniyada bir yangilanadi. */
+const BACKDROP_REFRESH_MS = 250;
 
 /**
  * Qoidalarni tushuntiruvchi video (admin panelda yuklanadi) — qoidalar ustida, eng tepada.
- * Balandligi 320 px gacha (telefonga mos); ramka eni videoning o'z enidan 50 px katta (vertikal videoda yon
- * tomonlarda katta qora joy qolmaydi), o'rtada. Brauzer o'zi o'ynatmaydi: foydalanuvchi bosadi.
+ * Oyna boshqa kartalar bilan bir xil enda, balandligi 320 px. Tik videoning yon tomonlari qora
+ * emas — videoning o'zidan olingan xira (blur) kadr bilan to'ldiriladi (Instagram'dagidek).
+ * Brauzer o'zi o'ynatmaydi: foydalanuvchi bosadi (ovozli avtoijro baribir bloklanadi).
  */
 function RulesVideo({ id }: { id: string }) {
-  // Video eni / bo'yi — metadata kelgach ma'lum bo'ladi.
-  const [ratio, setRatio] = useState<number | null>(null);
-  const maxWidth = ratio === null ? undefined : Math.round(RULES_VIDEO_MAX_HEIGHT * ratio) + RULES_VIDEO_EXTRA_WIDTH;
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const backdropRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    const ctx = backdropRef.current?.getContext("2d");
+    if (!video || !ctx) return;
+    let timer = 0;
+    const draw = () => {
+      if (video.readyState < 2) return;
+      try {
+        ctx.drawImage(video, 0, 0, ctx.canvas.width, ctx.canvas.height);
+      } catch {
+        // Kadr hali tayyor emas — keyingisida chiziladi.
+      }
+    };
+    const loop = () => {
+      draw();
+      timer = window.setTimeout(loop, BACKDROP_REFRESH_MS);
+    };
+    const onPlay = () => {
+      window.clearTimeout(timer);
+      loop();
+    };
+    const onStop = () => {
+      window.clearTimeout(timer);
+      draw();
+    };
+    video.addEventListener("loadeddata", draw);
+    video.addEventListener("seeked", draw);
+    video.addEventListener("play", onPlay);
+    video.addEventListener("pause", onStop);
+    video.addEventListener("ended", onStop);
+    draw();
+    return () => {
+      window.clearTimeout(timer);
+      video.removeEventListener("loadeddata", draw);
+      video.removeEventListener("seeked", draw);
+      video.removeEventListener("play", onPlay);
+      video.removeEventListener("pause", onStop);
+      video.removeEventListener("ended", onStop);
+    };
+  }, [id]);
+
   return (
-    <figure
-      className="mx-auto mb-4 animate-rise overflow-hidden rounded-card bg-ink shadow-[0_18px_40px_-24px_rgba(30,31,34,0.8)]"
-      style={{ maxWidth }}
-    >
-      <video
-        key={id}
-        // `#t=0.1` — o'ynatilmaguncha qora to'rtburchak emas, birinchi kadr ko'rinsin (iOS ham).
-        src={`${api.rulesVideoUrl(id)}#t=0.1`}
-        controls
-        playsInline
-        preload="metadata"
-        onLoadedMetadata={(event) => {
-          const { videoWidth, videoHeight } = event.currentTarget;
-          if (videoWidth > 0 && videoHeight > 0) setRatio(videoWidth / videoHeight);
-        }}
-        className="block w-full bg-black object-contain"
-        style={{ maxHeight: RULES_VIDEO_MAX_HEIGHT }}
-        aria-label={t.rulesVideoLabel}
-      />
+    <figure className="mb-4 animate-rise overflow-hidden rounded-card bg-ink shadow-[0_18px_40px_-24px_rgba(30,31,34,0.8)]">
+      <div className="relative isolate overflow-hidden bg-black" style={{ height: RULES_VIDEO_HEIGHT }}>
+        <canvas
+          ref={backdropRef}
+          width={36}
+          height={64}
+          aria-hidden
+          className="absolute inset-0 -z-10 size-full scale-125 object-cover opacity-75 blur-2xl"
+        />
+        <video
+          ref={videoRef}
+          key={id}
+          // `#t=0.1` — o'ynatilmaguncha qora to'rtburchak emas, birinchi kadr ko'rinsin (iOS ham).
+          src={`${api.rulesVideoUrl(id)}#t=0.1`}
+          controls
+          playsInline
+          preload="metadata"
+          className="block size-full object-contain"
+          aria-label={t.rulesVideoLabel}
+        />
+      </div>
       <figcaption className="px-4 py-2.5 text-[13px] font-semibold text-white/80">{t.rulesVideoLabel}</figcaption>
     </figure>
   );
