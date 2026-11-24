@@ -30,6 +30,7 @@ export type ParticipantStage =
 
 export interface Profile {
   firstName: string;
+  /** Eski ishtirokchilarda bo'lishi mumkin; yangilarida — bo'sh satr. */
   lastName: string;
   age: number;
 }
@@ -44,11 +45,24 @@ export interface Me {
    * qaytadan rozilik so'raladi (`stage` = NEEDS_CONSENT).
    */
   rulesUpdated: boolean;
+  /**
+   * `web` — saytda (Telegram'siz) ro'yxatdan o'tgan: hisob faqat shu brauzerdagi sessiya bilan
+   * tanilgan (chiqib bo'lmaydi). Eski backend yubormasa — Telegram deb hisoblanadi.
+   */
+  account?: "telegram" | "web";
 }
 
+/** Profil: ism va yosh (familiya endi so'ralmaydi — uning o'rnida telefon raqam). */
 export interface RegisterRequest {
   firstName: string;
-  lastName: string;
+  lastName?: string;
+  age: number;
+}
+
+/** Saytdan (Telegram'siz) ro'yxatdan o'tish. `phone` — "90 123 45 67" (+998 siz) yoki to'liq. */
+export interface WebRegisterRequest {
+  firstName: string;
+  phone: string;
   age: number;
 }
 
@@ -267,6 +281,12 @@ export type ApiErrorCode =
   | "STORY_LIMIT"
   /** Topilmadi (masalan, o'chirilgan yoki muddati tugagan istoriya). */
   | "NOT_FOUND"
+  /** Saytdan ro'yxatdan o'tish: raqam noto'g'ri. */
+  | "INVALID_PHONE"
+  /** Saytdan ro'yxatdan o'tish: bu raqam bilan allaqachon ro'yxatdan o'tilgan. */
+  | "PHONE_TAKEN"
+  /** Qisqa vaqtda juda ko'p urinish. */
+  | "TOO_MANY"
   | "UNAUTHORIZED"
   | "SERVER";
 

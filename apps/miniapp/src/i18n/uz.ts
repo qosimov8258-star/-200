@@ -34,11 +34,24 @@ export const t = {
 
   // Veb-sayt: kirish (mehmon "Profil" kartasi — sarlavha, bir qator va bitta tugma)
   webJoinTitle: "Saytdan ro'yxatdan o'tish",
-  webJoinVia: "Telegram bot orqali",
+  webJoinVia: "Ism, telefon raqam va yosh — bir daqiqa. Parol va SMS kerak emas.",
+  webSignupCta: "Ro'yxatdan o'tish",
+  webTelegramLink: "Telegram orqali kirish",
+  webSignupTitle: "Ro'yxatdan o'tish",
+  webSignupSubtitle: "Ismingiz, telefon raqamingiz va yoshingizni kiriting.",
+  webSignupBack: "Orqaga",
+  webSignupDeviceNote:
+    "Hisobingiz shu brauzerda saqlanadi — keyin ham shu telefon yoki kompyuterdan kiring.",
   webLoginFailed: "Kirib bo'lmadi. Qayta urinib ko'ring.",
   webLoginNotConfigured: "Saytga kirish hali sozlanmagan. Tanlovda Telegram bot orqali qatnashing.",
   webLoginMock: "Telegram orqali kirish (sinov)",
   webLogout: "Saytdan chiqish",
+  phonePlaceholder: "90 123 45 67",
+  phoneInvalid: "Raqamni to'liq kiriting: 90 123 45 67",
+  phoneTaken:
+    "Bu raqam bilan ro'yxatdan o'tilgan. Telegram'da ro'yxatdan o'tgan bo'lsangiz — Telegram orqali kiring.",
+  tooManyAttempts: "Juda ko'p urinish. Birozdan keyin qayta urinib ko'ring.",
+  phoneVerified: "Tasdiqlangan",
   logoutConfirmTitle: "Saytdan chiqasizmi?",
   logoutConfirmBody:
     "Hisobingiz va ko'rishlaringiz saqlanib qoladi. Qaytish uchun yana Telegram orqali kirasiz — sovg'alar sizni kutadi.",
@@ -52,16 +65,15 @@ export const t = {
   guestJoinCta: "Ro'yxatdan o'tish",
   guestReelTitle: "Videongizni yuborish uchun ro'yxatdan o'ting",
   guestReelBody:
-    "Telegram orqali kiring — parol yoki SMS kerak emas. Keyin Reel linklarini yuborasiz — har bir qabul qilingan videongiz reytingda alohida o'rin oladi.",
+    "Saytda ro'yxatdan o'ting yoki Telegram orqali kiring — parol yoki SMS kerak emas. Keyin Reel linklarini yuborasiz — har bir qabul qilingan videongiz reytingda alohida o'rin oladi.",
   guestReportTitle: "Xabar yuborish uchun ro'yxatdan o'ting",
-  guestReportBody: "Reklama haqida faqat tanlov ishtirokchilari xabar bera oladi. Telegram orqali kirish bir daqiqa oladi.",
+  guestReportBody: "Reklama haqida faqat tanlov ishtirokchilari xabar bera oladi. Ro'yxatdan o'tish bir daqiqa oladi.",
   supportWebHint: "Support Telegram botda — ochilgan chatga savolingizni yozing.",
 
   // Ro'yxatdan o'tish
   registerTitle: "Ro'yxatdan o'tish",
   registerSubtitle: "Ma'lumotlarni hujjatdagidek kiriting.",
-  registerWarning:
-    "Diqqat: ism, familiya va yosh bir marta kiritiladi. Keyin ularni o'zgartirib bo'lmaydi.",
+  registerWarning: "Diqqat: ism va yosh bir marta kiritiladi. Keyin ularni o'zgartirib bo'lmaydi.",
   firstName: "Ism",
   lastName: "Familiya",
   age: "Yosh",
@@ -71,8 +83,8 @@ export const t = {
   // Tasdiqlash oynasi (Telegram'dan tashqarida)
   confirmOk: "Tasdiqlash",
   confirmCancel: "Bekor qilish",
-  confirmProfile: (first: string, last: string, age: number) =>
-    `Ma'lumotlar to'g'rimi?\n\n${first} ${last}, ${age} yosh\n\nTasdiqlagandan keyin ularni o'zgartirib bo'lmaydi.`,
+  confirmProfile: (first: string, phone: string, age: number) =>
+    `Ma'lumotlar to'g'rimi?\n\n${first}, ${age} yosh\n${phone}\n\nTasdiqlagandan keyin ism va yoshni o'zgartirib bo'lmaydi.`,
 
   // Qoidalar
   rulesTitle: "Tanlov qoidalari",
@@ -257,9 +269,8 @@ export const t = {
   profileStatDays: "Kun qoldi",
   profileFooter: "Yangi yilingiz omadli kelsin! — Olivia jamoasi",
   profileDevTeam: "Dasturchilar jamoasi:",
-  phone: "Telefon",
-  profileLocked:
-    "Ism, familiya va yosh ro'yxatdan o'tishda bir marta kiritiladi va o'zgartirilmaydi.",
+  phone: "Telefon raqam",
+  profileLocked: "Ism va yosh ro'yxatdan o'tishda bir marta kiritiladi va o'zgartirilmaydi.",
   menuSupport: "Supportga yozish",
   supportTitle: "Support",
   supportIntroTitle: "Savolingiz bormi? Yozing!",

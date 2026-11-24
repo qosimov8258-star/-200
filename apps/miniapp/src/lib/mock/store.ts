@@ -19,6 +19,7 @@ import type {
   ReelRejectReason,
   ReelStatus,
   RegisterRequest,
+  WebRegisterRequest,
   StoryGroup,
   StoryItem,
   SupportMessage,
@@ -51,8 +52,10 @@ interface MockReel {
 interface MockState {
   /** Veb-saytga "Telegram orqali kirish" bajarilganmi (mock — Telegram'dan tashqarida). */
   webSession: boolean;
+  /** Saytning o'zida (Telegram'siz) ro'yxatdan o'tilganmi. */
+  webAccount?: boolean;
   phone: string | null;
-  profile: RegisterRequest | null;
+  profile: { firstName: string; lastName: string; age: number } | null;
   consentVersion: number | null;
   /** Yuborilgan videolar, eskisidan yangisiga (backenddagi `Participant.reels` kabi). */
   reels: MockReel[];
@@ -147,6 +150,7 @@ export async function getMe(): Promise<Me> {
     phoneMasked: state.phone ? maskPhone(state.phone) : null,
     profile: state.profile,
     rulesUpdated: state.consentVersion !== null && state.consentVersion !== RULES_VERSION,
+    account: state.webAccount ? "web" : "telegram",
   };
 }
 
@@ -158,7 +162,24 @@ export async function getAuthConfig(): Promise<AuthConfig> {
 /** Login Widget'ni taqlid qiladi (haqiqiy widget faqat BotFather'da ko'rsatilgan domenda ishlaydi). */
 export async function webLogin(): Promise<void> {
   await wait(400);
-  update({ webSession: true });
+  update({ webSession: true, webAccount: false });
+}
+
+/** Saytdan ro'yxatdan o'tish (backenddagidek tekshiruvlar; "+998 90 000 00 00" — band raqam sinovi). */
+export async function webRegister(body: WebRegisterRequest): Promise<void> {
+  await wait(500);
+  const digits = body.phone.replace(/\D/g, "");
+  const local = digits.length === 12 && digits.startsWith("998") ? digits.slice(3) : digits;
+  if (body.firstName.trim().length < 2) throw new ApiError("INVALID_PROFILE");
+  if (!/^\d{9}$/.test(local)) throw new ApiError("INVALID_PHONE");
+  if (local === "900000000") throw new ApiError("PHONE_TAKEN");
+  if (body.age < MIN_AGE) throw new ApiError("UNDER_AGE");
+  update({
+    webSession: true,
+    webAccount: true,
+    phone: `+998${local}`,
+    profile: { firstName: body.firstName.trim(), lastName: "", age: body.age },
+  });
 }
 
 export async function webLogout(): Promise<void> {
@@ -179,14 +200,12 @@ export async function register(body: RegisterRequest): Promise<void> {
   await wait();
   if (!state.phone) throw new ApiError("UNAUTHORIZED");
   if (state.profile) throw new ApiError("PROFILE_LOCKED");
-  if (body.firstName.trim().length < 2 || body.lastName.trim().length < 2) {
-    throw new ApiError("INVALID_PROFILE");
-  }
+  if (body.firstName.trim().length < 2) throw new ApiError("INVALID_PROFILE");
   if (body.age < MIN_AGE) throw new ApiError("UNDER_AGE");
   update({
     profile: {
       firstName: body.firstName.trim(),
-      lastName: body.lastName.trim(),
+      lastName: body.lastName?.trim() ?? "",
       age: body.age,
     },
   });
@@ -340,7 +359,7 @@ function mockRating(): MockRatingRow[] {
     submittedAt: 0,
   }));
   if (state.profile) {
-    const fullName = `${state.profile.firstName} ${state.profile.lastName}`;
+    const fullName = `${state.profile.firstName} ${state.profile.lastName}`.trim();
     for (const reel of state.reels) {
       const totals = acceptedTotals(reel);
       if (!totals) continue;

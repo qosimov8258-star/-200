@@ -2,17 +2,21 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { ApiException } from "../common/api-exception";
+import { parseRegister, parseWebRegister } from "../miniapp/validation";
 import { RulesService } from "../rules/rules.service";
 import {
   bestReel,
   instagramUsernames,
+  isWebAccount,
   migrateParticipant,
+  parseUzPhone,
   participantViews,
   ParticipantsService,
   reelsForDisplay,
   topReel,
   type Reel,
   type StoredParticipant,
+  WEB_ID_BASE,
 } from "./participants.service";
 
 const RULES_VERSION = 1;
@@ -242,4 +246,62 @@ test("a major rules change asks active participants to consent again", () => {
   assert.equal(code(() => svc.acceptRules(1, 1)), "RULES_OUTDATED");
   svc.acceptRules(1, 2);
   assert.equal(svc.stage(svc.get(1)!), "ACTIVE");
+});
+
+test("web sign-up: name, phone and age create a separate account; phone stays unique", () => {
+  const participants = new ParticipantsService(new RulesService());
+  assert.equal(parseUzPhone("90 123 45 67"), "+998901234567");
+  assert.equal(parseUzPhone("+998 (90) 123-45-67"), "+998901234567");
+  assert.equal(parseUzPhone("998901234567"), "+998901234567");
+  assert.equal(parseUzPhone("+7 901 234 56 78"), null);
+  assert.equal(parseUzPhone("12345"), null);
+
+  const id = participants.registerWeb("Dilnoza", "90 123 45 67", 25);
+  assert.ok(isWebAccount(id) && id > WEB_ID_BASE && Number.isSafeInteger(id));
+  const p = participants.get(id)!;
+  assert.equal(p.phone, "+998901234567");
+  assert.equal(p.firstName, "Dilnoza");
+  assert.equal(p.lastName, "", "familiya so'ralmaydi");
+  assert.equal(p.chatId, null);
+  assert.equal(participants.stage(p), "NEEDS_CONSENT");
+
+  const second = participants.registerWeb("Jasur", "+998 91 000 00 01", 30);
+  assert.equal(second, id + 1);
+  const code = (fn: () => unknown) => {
+    try {
+      fn();
+    } catch (e) {
+      return (e as ApiException).getResponse();
+    }
+    return null;
+  };
+  assert.deepEqual(code(() => participants.registerWeb("Ali", "998901234567", 20)), { code: "PHONE_TAKEN" });
+  assert.deepEqual(code(() => participants.registerWeb("Ali", "+7 999 111 22 33", 20)), { code: "INVALID_PHONE" });
+  assert.deepEqual(code(() => participants.registerWeb("Ali", "93 111 22 33", 15)), { code: "UNDER_AGE" });
+
+  // Shu raqamni Telegram bot orqali ulashsa — saytdagi akkaunt haqida aytiladi.
+  assert.equal(participants.setPhone(555, 555, "+998901234567"), "TAKEN_WEB");
+  assert.equal(participants.setPhone(556, 556, "+998901234568"), "OK");
+  participants.setPhone(557, 557, "+998901234569");
+  assert.equal(participants.setPhone(558, 558, "+998901234569"), "TAKEN");
+});
+
+test("profile without a surname is accepted; an old app may still send one", () => {
+  const participants = new ParticipantsService(new RulesService());
+  participants.setPhone(1, 1, "+998900000001");
+  participants.register(1, "Ali", "", 20);
+  assert.equal(participants.stage(participants.get(1)!), "NEEDS_CONSENT");
+  assert.deepEqual(parseRegister({ firstName: "Ali", age: 20 }), { firstName: "Ali", lastName: "", age: 20 });
+  assert.deepEqual(parseRegister({ firstName: "Ali", lastName: "Valiyev", age: 20 }), {
+    firstName: "Ali",
+    lastName: "Valiyev",
+    age: 20,
+  });
+  assert.throws(() => parseRegister({ firstName: "Ali", lastName: "1", age: 20 }));
+  assert.throws(() => parseWebRegister({ firstName: "Ali", phone: "901234567", age: 20, lastName: "X" }));
+  assert.deepEqual(parseWebRegister({ firstName: " Ali ", phone: "901234567", age: 20 }), {
+    firstName: "Ali",
+    phone: "901234567",
+    age: 20,
+  });
 });

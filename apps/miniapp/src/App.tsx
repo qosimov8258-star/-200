@@ -90,7 +90,7 @@ function Stage({ me, prizeName, minAge }: { me: Me; prizeName: string; minAge: n
     case "NEEDS_CONTACT":
       return <ContactScreen prizeName={prizeName} />;
     case "NEEDS_PROFILE":
-      return <RegisterScreen minAge={minAge} />;
+      return <RegisterScreen minAge={minAge} phoneMasked={me.phoneMasked} />;
     case "NEEDS_CONSENT":
       return <ConsentScreen rulesUpdated={me.rulesUpdated} />;
     case "BLOCKED":
@@ -105,7 +105,7 @@ function Stage({ me, prizeName, minAge }: { me: Me; prizeName: string; minAge: n
 /** `me === null` — veb-saytdagi mehmon: ochiq bo'limlarni ko'radi, qolganlarida ro'yxatdan o'tish taklifi. */
 function MainShell({ me }: { me: Me | null }) {
   const firstName = me?.profile?.firstName ?? t.guestName;
-  const fullName = me?.profile ? `${me.profile.firstName} ${me.profile.lastName}` : t.guestName;
+  const fullName = me?.profile ? `${me.profile.firstName} ${me.profile.lastName}`.trim() : t.guestName;
 
   const [tab, setTab] = useState<Tab>("home");
   const [sub, setSub] = useState<SubPage>(null);

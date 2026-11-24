@@ -26,6 +26,7 @@ import type {
   SupportThread,
   TargetReportRequest,
   TelegramLoginUser,
+  WebRegisterRequest,
   Winner,
 } from "./types";
 
@@ -246,6 +247,15 @@ export const getAuthConfig = (): Promise<AuthConfig> =>
  */
 export const telegramLogin = (user: TelegramLoginUser): Promise<void> =>
   IS_MOCK_API ? mock.webLogin() : request("POST", "/auth/telegram-login", user);
+
+/**
+ * @endpoint POST /auth/web-register — saytdan (Telegram'siz) ro'yxatdan o'tish: ism, telefon
+ * raqam, yosh. Backend akkaunt yaratib, `HttpOnly` sessiya cookie'sini qo'yadi; keyin ilova
+ * qoidalarga rozilik qadamiga o'tadi. Xatolar: INVALID_PROFILE, INVALID_PHONE, UNDER_AGE,
+ * PHONE_TAKEN, TOO_MANY.
+ */
+export const webRegister = (body: WebRegisterRequest): Promise<void> =>
+  IS_MOCK_API ? mock.webRegister(body) : request("POST", "/auth/web-register", body);
 
 /** @endpoint POST /auth/logout */
 export const logout = (): Promise<void> =>

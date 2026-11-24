@@ -231,6 +231,7 @@ Kerak: `ffmpeg` va `ffprobe` (`brew install ffmpeg`). Serverda — [`deploy/READ
 |---|---|
 | `GET /auth/config` | `{ botUsername, prizeName }` — kirish sahifasi uchun |
 | `POST /auth/telegram-login` | Login Widget natijasi; imzo to'g'ri bo'lsa — sessiya cookie'si |
+| `POST /auth/web-register` | Saytdan (Telegram'siz) ro'yxatdan o'tish: `{ firstName, phone, age }` — raqam "+998" va 9 raqam (`90 123 45 67` ham bo'ladi). Akkaunt alohida ID oralig'ida (`WEB_ID_BASE`, 9·10¹⁵ dan) yaratiladi, sessiya cookie'si 400 kunlik (boshqa kirish yo'li yo'q — sayt bunday hisobda "chiqish"ni ko'rsatmaydi), keyin — qoidalarga rozilik. Raqam tasdiqlanmaydi (SMS yo'q) — sovrin topshirishda shaxsan tekshiriladi; band raqam — `409 PHONE_TAKEN` (bot orqali shu raqam ulashilsa — "saytda ro'yxatdan o'tilgan" deydi). Xatolar: `422 INVALID_PROFILE \| INVALID_PHONE \| UNDER_AGE`, `429 TOO_MANY` (bitta IP dan soatiga 5 ta, jami soatiga 300 ta) |
 | `POST /auth/logout` | Cookie'ni o'chiradi |
 
   Widget ishlashi uchun **@BotFather → `/setdomain`** da sayt domeni ko'rsatilishi shart.
