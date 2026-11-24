@@ -182,6 +182,15 @@ export async function webRegister(body: WebRegisterRequest): Promise<void> {
   });
 }
 
+/**
+ * Bot orqali raqam ulashilib, saytdagi hisob Telegram'ga ulanganini taqlid qiladi: hisob endi
+ * Telegram hisobi, eski sayt sessiyasi yopiladi (qayta "Telegram orqali kirish" kerak).
+ */
+export async function simulateTelegramLink(): Promise<void> {
+  await wait(600);
+  update({ webAccount: false, webSession: false });
+}
+
 export async function webLogout(): Promise<void> {
   await wait(200);
   update({ webSession: false });

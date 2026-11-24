@@ -33,18 +33,25 @@ export function createSessionToken(
   now: number = Date.now(),
   ttlSeconds: number = SESSION_TTL_SECONDS,
 ): string {
-  const payload = b64url(
-    Buffer.from(JSON.stringify({ t: telegramId, e: Math.floor(now / 1000) + ttlSeconds })),
-  );
+  const issued = Math.floor(now / 1000);
+  const payload = b64url(Buffer.from(JSON.stringify({ t: telegramId, e: issued + ttlSeconds, i: issued })));
   return `${payload}.${b64url(sign(payload, botToken))}`;
 }
 
 /** Imzo to'g'ri va muddati o'tmagan bo'lsa — telegramId, aks holda null. */
-export function verifySessionToken(
+export function verifySessionToken(token: string, botToken: string, now: number = Date.now()): number | null {
+  return readSessionToken(token, botToken, now)?.id ?? null;
+}
+
+/**
+ * Imzo to'g'ri va muddati o'tmagan bo'lsa — ID va berilgan vaqt (soniya; eski tokenlarda yo'q — 0),
+ * aks holda null.
+ */
+export function readSessionToken(
   token: string,
   botToken: string,
   now: number = Date.now(),
-): number | null {
+): { id: number; issuedAt: number } | null {
   if (!botToken) return null;
   const [payload, signature, extra] = token.split(".");
   if (!payload || !signature || extra !== undefined) return null;
@@ -54,9 +61,9 @@ export function verifySessionToken(
   try {
     const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as unknown;
     if (typeof data !== "object" || data === null) return null;
-    const { t, e } = data as { t?: unknown; e?: unknown };
+    const { t, e, i } = data as { t?: unknown; e?: unknown; i?: unknown };
     if (!Number.isSafeInteger(t) || typeof e !== "number" || e * 1000 <= now) return null;
-    return t as number;
+    return { id: t as number, issuedAt: typeof i === "number" ? i : 0 };
   } catch {
     return null;
   }

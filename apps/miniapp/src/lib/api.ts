@@ -39,6 +39,7 @@ export const mockControls = IS_MOCK_API
   ? {
       reset: mock.resetMockStore,
       shareContact: mock.simulateContactShared,
+      linkTelegram: mock.simulateTelegramLink,
     }
   : null;
 

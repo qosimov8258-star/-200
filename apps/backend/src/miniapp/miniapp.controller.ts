@@ -110,7 +110,7 @@ export class MiniappController {
       /** Avval rozilik bergan, lekin qoidalar shundan keyin muhim tarzda o'zgargan. */
       rulesUpdated: p.consentVersion !== null && p.consentVersion !== this.rulesService.version,
       /** `web` — saytda (Telegram'siz) ro'yxatdan o'tgan: faqat shu brauzer orqali kiriladi. */
-      account: isWebAccount(p.telegramId) ? "web" : "telegram",
+      account: isWebAccount(p.telegramId) && !p.linkedTelegramId ? "web" : "telegram",
     };
   }
 

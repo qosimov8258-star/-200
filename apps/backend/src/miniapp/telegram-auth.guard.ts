@@ -1,6 +1,8 @@
 import {
   createParamDecorator,
+  Inject,
   Injectable,
+  Optional,
   SetMetadata,
   type CanActivate,
   type ExecutionContext,
@@ -10,8 +12,9 @@ import type { Request } from "express";
 
 import { ApiException } from "../common/api-exception";
 import { config } from "../config/config";
+import { ParticipantsService } from "../participants/participants.service";
 import { verifyInitData, type TelegramIdentity } from "../telegram/init-data";
-import { readCookie, SESSION_COOKIE, verifySessionToken } from "../web/web-session";
+import { readCookie, readSessionToken, SESSION_COOKIE } from "../web/web-session";
 
 type AuthedRequest = Request & { telegram?: TelegramIdentity };
 
@@ -26,13 +29,20 @@ export const Public = () => SetMetadata(PUBLIC_ROUTE, true);
 /**
  * Ishtirokchini taniydi — ikki yo'l, ikkalasi ham bitta telegramId ga olib keladi:
  * 1) Telegram Mini App: `X-Telegram-Init-Data` sarlavhasi (bot tokeni bilan HMAC);
- * 2) veb-sayt: Telegram Login Widget orqali kirgandan keyingi `reels_session` cookie.
+ * 2) veb-sayt: Telegram Login Widget orqali kirgandan yoki saytda ro'yxatdan o'tgandan keyingi
+ *    `reels_session` cookie.
+ * Telegram foydalanuvchisi saytdagi hisobga ulangan bo'lsa — o'sha hisob (`ParticipantsService.resolve`);
+ * hisob ulangandan oldin berilgan sayt sessiyalari qabul qilinmaydi.
  * Bot tokeni sozlanmagan bo'lsa yoki foydalanuvchi tanilmasa — rad etiladi
  * (`@Public()` yo'llardan tashqari: ular mehmonga ham ochiq).
  */
 @Injectable()
 export class TelegramAuthGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    // Testlarda ulanmasligi mumkin — shunda ID o'zgarmaydi. `@Inject` shart (`| null` turi).
+    @Optional() @Inject(ParticipantsService) private readonly participants: ParticipantsService | null = null,
+  ) {}
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<AuthedRequest>();
@@ -42,7 +52,7 @@ export class TelegramAuthGuard implements CanActivate {
         context.getClass(),
       ]) === true;
 
-    const identity = identify(request);
+    const identity = identify(request, this.participants);
     if (identity) {
       request.telegram = identity;
       return true;
@@ -52,16 +62,24 @@ export class TelegramAuthGuard implements CanActivate {
   }
 }
 
-function identify(request: AuthedRequest): TelegramIdentity | null {
+function identify(request: AuthedRequest, participants: ParticipantsService | null): TelegramIdentity | null {
   const token = config.telegram.botToken;
   if (!token) return null;
+  const resolve = (id: number) => participants?.resolve(id) ?? id;
 
   const header = request.header("x-telegram-init-data") ?? "";
-  if (header) return verifyInitData(header, token, config.telegram.initDataMaxAgeSeconds);
+  if (header) {
+    const identity = verifyInitData(header, token, config.telegram.initDataMaxAgeSeconds);
+    return identity ? { ...identity, telegramId: resolve(identity.telegramId) } : null;
+  }
 
-  const session = readCookie(request.header("cookie"), SESSION_COOKIE);
-  const telegramId = session ? verifySessionToken(session, token) : null;
-  return telegramId !== null ? { telegramId, firstName: "", username: null } : null;
+  const cookie = readCookie(request.header("cookie"), SESSION_COOKIE);
+  const session = cookie ? readSessionToken(cookie, token) : null;
+  if (!session) return null;
+  // Hisob Telegram'ga ulangan: undan oldingi sayt sessiyalari bekor (raqamni boshqa odam yozgan bo'lishi mumkin).
+  const sessionsFrom = participants?.get(session.id)?.sessionsFrom;
+  if (sessionsFrom && session.issuedAt * 1000 < sessionsFrom.getTime()) return null;
+  return { telegramId: resolve(session.id), firstName: "", username: null };
 }
 
 /** Tekshirilgan Telegram foydalanuvchisi (faqat `TelegramAuthGuard` dan keyin, ochiq bo'lmagan yo'lda). */

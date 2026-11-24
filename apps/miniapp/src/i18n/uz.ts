@@ -46,6 +46,12 @@ export const t = {
   webLoginNotConfigured: "Saytga kirish hali sozlanmagan. Tanlovda Telegram bot orqali qatnashing.",
   webLoginMock: "Telegram orqali kirish (sinov)",
   webLogout: "Saytdan chiqish",
+  linkTelegramTitle: "Hisobingizni Telegram'ga ulang",
+  linkTelegramBody:
+    "Hozir hisobingiz faqat shu brauzerda. Telegram'ga ulasangiz — boshqa telefon yoki kompyuterdan ham kirasiz va natijalar haqida bot xabar beradi.",
+  linkTelegramCta: "Telegram'ga ulash",
+  linkTelegramWaiting:
+    "Botda raqamingizni ulashing — saytda yozgan raqamingiz. Ulangach, saytda «Telegram orqali kirish» ni bosasiz.",
   phonePlaceholder: "90 123 45 67",
   phoneInvalid: "Raqamni to'liq kiriting: 90 123 45 67",
   phoneTaken:
@@ -270,6 +276,7 @@ export const t = {
   profileFooter: "Yangi yilingiz omadli kelsin! — Olivia jamoasi",
   profileDevTeam: "Dasturchilar jamoasi:",
   phone: "Telefon raqam",
+  phoneShort: "Telefon",
   profileLocked: "Ism va yosh ro'yxatdan o'tishda bir marta kiritiladi va o'zgartirilmaydi.",
   menuSupport: "Supportga yozish",
   supportTitle: "Support",

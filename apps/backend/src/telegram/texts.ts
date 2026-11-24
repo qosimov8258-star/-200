@@ -7,7 +7,11 @@ export const texts = {
   contactTaken:
     "Bu raqam boshqa Telegram akkauntiga bog'langan. Bitta raqam — bitta ishtirokchi. Savol bo'lsa, shu yerga yozing.",
   contactTakenWeb:
-    "Bu raqam bilan saytda ro'yxatdan o'tilgan. Tanlovda saytdan davom eting. Savol bo'lsa, shu yerga yozing.",
+    "Bu raqam bilan saytda ro'yxatdan o'tilgan, sizning Telegram hisobingizda esa alohida profil bor — ikkalasini o'zimiz qo'sha olmaymiz. Shu yerga yozing, support yordam beradi.",
+  welcomeLink:
+    "Assalomu alaykum! 👋\n\nSaytdagi hisobingizni Telegram'ga ulash uchun pastdagi tugma orqali raqamingizni ulashing. Saytda ro'yxatdan o'tganda yozgan raqamingiz bo'lishi kerak.",
+  contactLinked:
+    "✅ Raqam tasdiqlandi — saytdagi hisobingiz Telegram'ga ulandi!\n\nEndi tanlovni shu yerdan ham ochasiz. Saytda (istalgan qurilmada) «Telegram orqali kirish» ni bosing — xavfsizlik uchun saytdagi eski kirish yopildi.",
   contactSaved: "✅ Raqam qabul qilindi!\n\nEndi tanlov ilovasini ochib, ro'yxatdan o'ting:",
   welcomeFromWeb:
     "Assalomu alaykum! 👋\n\nSaytda ro'yxatdan o'tish uchun pastdagi tugma orqali telefon raqamingizni ulashing — keyin saytga qayting.",

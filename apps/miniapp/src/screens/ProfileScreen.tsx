@@ -13,19 +13,20 @@ import {
   Medal,
   MessageCircle,
   Phone,
+  Send,
   Snowflake,
   Trash2,
   Trophy,
   User,
   UserPlus,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { Card, ErrorBlock, PageHeader, PillButton, Spinner } from "../components/ui";
 import { useToast } from "../components/toast-context";
 import { t } from "../i18n/uz";
 import * as api from "../lib/api";
-import { confirmDialog, haptic, isInTelegram, openExternal } from "../lib/telegram";
+import { botLink, confirmDialog, haptic, isInTelegram, openExternal, openTelegram } from "../lib/telegram";
 import type { Me } from "../lib/types";
 import { FestiveConfirm } from "../components/FestiveConfirm";
 import { LockedFieldSheet } from "../components/LockedFieldSheet";
@@ -142,6 +143,8 @@ export function ProfileScreen({
         </div>
       </section>
 
+      {webAccount && <LinkTelegramCard />}
+
       {/* Ma'lumotlar — ustiga qor qo'ngan karta. */}
       <Card className="relative mt-6 px-[18px] py-1.5">
         <SnowCap className="absolute -top-[11px] left-4 h-[18px] w-[calc(100%-2rem)] drop-shadow-[0_1px_1.5px_rgba(60,70,110,0.28)]" />
@@ -149,7 +152,7 @@ export function ProfileScreen({
           { icon: <User />, label: t.firstName, value: profile.firstName },
           // Eski ishtirokchilarda familiya bor — ko'rsatiladi; yangilarida uning o'rnida telefon raqam.
           ...(profile.lastName ? [{ icon: <IdCard />, label: t.lastName, value: profile.lastName }] : []),
-          ...(me.phoneMasked ? [{ icon: <Phone />, label: t.phone, value: me.phoneMasked }] : []),
+          ...(me.phoneMasked ? [{ icon: <Phone />, label: t.phoneShort, value: me.phoneMasked }] : []),
           { icon: <Cake />, label: t.age, value: String(profile.age) },
         ].map((row, i) => (
           // Bosilsa — o'zgartirib bo'lmasligi va support'ga yozish taklifi.
@@ -255,6 +258,56 @@ function HeroStat({ icon, label, value }: { icon: ReactNode; label: string; valu
       </span>
       <span className="mt-0.5 block truncate text-[18px] font-extrabold tracking-tight tabular-nums">{value}</span>
     </div>
+  );
+}
+
+/**
+ * Saytda ro'yxatdan o'tgan hisob: Telegram'ga ulash taklifi. Bot `?start=link` bilan ochiladi,
+ * foydalanuvchi saytda yozgan raqamini ulashadi — hisob Telegram'ga ulanadi (boshqa qurilmadan
+ * kirish va bot xabarlari). Xavfsizlik uchun shu paytgacha bo'lgan sayt sessiyasi yopiladi —
+ * ilova mehmon ko'rinishiga o'tadi va foydalanuvchi "Telegram orqali kirish" ni bosadi.
+ */
+function LinkTelegramCard() {
+  const queryClient = useQueryClient();
+  const auth = useQuery({ queryKey: ["auth-config"], queryFn: api.getAuthConfig });
+  const [waiting, setWaiting] = useState(false);
+
+  // Ulangach sayt sessiyasi yopiladi — `me` 401 qaytaradi va ilova o'zi kirish sahifasiga o'tadi.
+  useEffect(() => {
+    if (!waiting) return;
+    const id = window.setInterval(() => void queryClient.invalidateQueries({ queryKey: ["me"] }), 3000);
+    return () => window.clearInterval(id);
+  }, [waiting, queryClient]);
+
+  const link = async () => {
+    haptic.tap();
+    if (api.mockControls) {
+      await api.mockControls.linkTelegram();
+      await queryClient.invalidateQueries();
+      return;
+    }
+    const bot = auth.data?.botUsername;
+    if (!bot) return;
+    openTelegram(botLink(bot, "link"));
+    setWaiting(true);
+  };
+
+  return (
+    <Card className="mt-6 space-y-4 p-5">
+      <div className="flex gap-3">
+        <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[#2aabee]/12 text-[#1d8fcf]">
+          <Send className="size-5" />
+        </span>
+        <div>
+          <h3 className="text-[16px] leading-tight font-bold">{t.linkTelegramTitle}</h3>
+          <p className="mt-1 text-[13.5px] leading-snug text-muted">{t.linkTelegramBody}</p>
+        </div>
+      </div>
+      <PillButton onClick={() => void link()} icon={<Send className="size-5" />}>
+        {t.linkTelegramCta}
+      </PillButton>
+      {waiting && <p className="px-1 text-[13px] leading-snug text-muted">{t.linkTelegramWaiting}</p>}
+    </Card>
   );
 }
 

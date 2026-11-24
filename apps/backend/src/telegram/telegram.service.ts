@@ -9,6 +9,8 @@ import { failureReasonOf, MessageLogService } from "./message-log.service";
 import type { ParticipantNotifier, TelegramMessageKind } from "./notifier";
 import { texts } from "./texts";
 
+/** Saytdagi hisobni Telegram'ga ulash: `https://t.me/<bot>?start=link`. */
+const LINK_START_PAYLOAD = "link";
 /** Sayt botga shu parametr bilan yuboradi: `https://t.me/<bot>?start=web`. */
 const WEB_START_PAYLOAD = "web";
 /** Xabarnoma ostidagi "✅ O'qidim" tugmasi: `read:<jurnal yozuvi ID si>`. */
@@ -148,14 +150,16 @@ export class TelegramService
 
     // Ishtirokchining @username i — Telegram jurnalida ko'rsatish uchun.
     bot.use(async (ctx, next) => {
-      if (ctx.from && isPrivate(ctx)) this.log.noteUsername(ctx.from.id, ctx.from.username ?? null);
+      if (ctx.from && isPrivate(ctx)) {
+        this.log.noteUsername(this.participants.resolve(ctx.from.id), ctx.from.username ?? null);
+      }
       await next();
     });
 
     // "✅ O'qidim": xabar o'qilgan deb belgilanadi, tugma olib tashlanadi.
     bot.callbackQuery(new RegExp(`^${READ_PREFIX}`), async (ctx) => {
       const id = ctx.callbackQuery.data.slice(READ_PREFIX.length);
-      const marked = this.log.markRead(id, ctx.from.id);
+      const marked = this.log.markRead(id, this.participants.resolve(ctx.from.id));
       await ctx.answerCallbackQuery(marked ? { text: texts.readThanks } : undefined);
       await ctx.editMessageReplyMarkup().catch(() => undefined);
     });
@@ -164,15 +168,15 @@ export class TelegramService
 
     bot.command("start", async (ctx) => {
       if (!isPrivate(ctx) || !ctx.from) return;
-      const p = this.participants.getOrCreate(ctx.from.id);
+      const p = this.participants.getOrCreate(this.participants.resolve(ctx.from.id));
       p.chatId = ctx.chat.id;
-      // Saytdan "Botda raqamni ulashish" orqali kelgan: t.me/<bot>?start=web
-      const fromWeb = ctx.match === WEB_START_PAYLOAD;
+      // Saytdan "Botda raqamni ulashish" (`?start=web`) yoki "Telegram'ga ulash" (`?start=link`).
+      const fromWeb = ctx.match === WEB_START_PAYLOAD || ctx.match === LINK_START_PAYLOAD;
       if (fromWeb) this.webStarts.add(ctx.from.id);
       if (!p.phone) {
-        await ctx.reply(fromWeb ? texts.welcomeFromWeb : texts.welcome, {
-          reply_markup: this.contactKeyboard(),
-        });
+        const welcome =
+          ctx.match === LINK_START_PAYLOAD ? texts.welcomeLink : fromWeb ? texts.welcomeFromWeb : texts.welcome;
+        await ctx.reply(welcome, { reply_markup: this.contactKeyboard() });
         return;
       }
       await this.replyWithMiniApp(ctx, texts.alreadyRegistered);
@@ -187,6 +191,12 @@ export class TelegramService
         return;
       }
       const result = this.participants.setPhone(ctx.from.id, ctx.chat.id, contact.phone_number);
+      if (result === "LINKED") {
+        this.webStarts.delete(ctx.from.id);
+        await ctx.reply(texts.contactLinked, { reply_markup: { remove_keyboard: true } });
+        await this.replyWithMiniApp(ctx, texts.openMiniApp);
+        return;
+      }
       if (result !== "OK") {
         await ctx.reply(result === "TAKEN_WEB" ? texts.contactTakenWeb : texts.contactTaken, {
           reply_markup: { remove_keyboard: true },
@@ -228,7 +238,7 @@ export class TelegramService
     // Shaxsiy chatdagi qolgan xabarlar — support murojaati.
     bot.on("message", async (ctx) => {
       if (!isPrivate(ctx)) return;
-      const p = this.participants.get(ctx.from.id);
+      const p = this.participants.get(this.participants.resolve(ctx.from.id));
       if (!p?.phone) {
         await ctx.reply(texts.supportNeedsContact, { reply_markup: this.contactKeyboard() });
         return;

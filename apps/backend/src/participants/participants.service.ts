@@ -117,6 +117,14 @@ export interface Participant {
   reels: Reel[];
   status: "ACTIVE" | "BLOCKED" | "DISQUALIFIED";
   createdAt: Date;
+  /**
+   * Saytda ro'yxatdan o'tgan hisob Telegram'ga ulangan bo'lsa — o'sha Telegram foydalanuvchisi
+   * (bot orqali shu raqamni ulashgan). Shundan keyin u Telegram'dan ham, istalgan qurilmadagi
+   * saytdan ham (Telegram orqali kirib) shu hisobga kiradi.
+   */
+  linkedTelegramId?: number | null;
+  /** Shu vaqtdan oldin berilgan sayt sessiyalari bekor (hisob Telegram'ga ulanganda). */
+  sessionsFrom?: Date | null;
 }
 
 /** `ownerUpdate` uchun o'zgarishlar (faqat berilganlari yoziladi). */
@@ -231,6 +239,8 @@ export function topReel(reels: readonly Reel[], views: (reel: Reel) => number = 
 @Injectable()
 export class ParticipantsService {
   private readonly byTelegramId = new Map<number, Participant>();
+  /** Telegram ID → unga ulangan saytdagi hisob ID si. */
+  private readonly linked = new Map<number, number>();
 
   constructor(
     private readonly rules: RulesService,
@@ -243,7 +253,16 @@ export class ParticipantsService {
     for (const stored of saved?.participants ?? []) {
       const p = migrateParticipant(stored);
       this.byTelegramId.set(p.telegramId, p);
+      if (p.linkedTelegramId) this.linked.set(p.linkedTelegramId, p.telegramId);
     }
+  }
+
+  /**
+   * Kiruvchi ID (Telegram yoki sayt sessiyasi) → ishtirokchi ID si: Telegram foydalanuvchisi
+   * saytdagi hisobga ulangan bo'lsa — o'sha hisob, aks holda o'zi.
+   */
+  resolve(id: number): number {
+    return this.linked.get(id) ?? id;
   }
 
   get(telegramId: number): Participant | null {
@@ -284,13 +303,42 @@ export class ParticipantsService {
   }
 
   /**
-   * Bot orqali ulashilgan raqamni saqlaydi. Raqam boshqa akkauntga bog'langan bo'lsa — rad etadi
-   * (bitta raqam — bitta ishtirokchi): `TAKEN_WEB` — shu raqam bilan saytda ro'yxatdan o'tilgan.
+   * Bot orqali ulashilgan (Telegram tasdiqlagan) raqamni saqlaydi. Bitta raqam — bitta ishtirokchi:
+   * - raqam boshqa Telegram hisobida — `TAKEN`;
+   * - raqam saytdagi hisobda — o'sha hisob shu Telegram foydalanuvchisiga ulanadi (`LINKED`):
+   *   raqam egasi Telegram orqali tasdiqlandi. Shu paytgacha berilgan sayt sessiyalari bekor
+   *   bo'ladi (raqamni begona odam yozgan bo'lsa — u hisobdan chiqariladi); saytga endi Telegram
+   *   orqali kiriladi. Telegram foydalanuvchisining o'z alohida profili yoki videolari bo'lsa —
+   *   ikki hisob qo'shilmaydi: `TAKEN_WEB` (support hal qiladi).
    */
-  setPhone(telegramId: number, chatId: number, rawPhone: string): "OK" | "TAKEN" | "TAKEN_WEB" {
+  setPhone(
+    telegramId: number,
+    chatId: number,
+    rawPhone: string,
+    now: Date = new Date(),
+  ): "OK" | "TAKEN" | "TAKEN_WEB" | "LINKED" {
     const phone = normalizePhone(rawPhone);
-    const owner = this.all().find((p) => p.phone === phone && p.telegramId !== telegramId);
-    if (owner) return isWebAccount(owner.telegramId) ? "TAKEN_WEB" : "TAKEN";
+    const self = this.resolve(telegramId);
+    const owner = this.all().find((p) => p.phone === phone && p.telegramId !== self);
+    if (owner) {
+      if (!isWebAccount(owner.telegramId) || owner.linkedTelegramId) return "TAKEN";
+      const own = this.get(telegramId);
+      if (own && (own.firstName || own.reels.length > 0)) return "TAKEN_WEB";
+      // Hali ro'yxatdan o'tmagan Telegram yozuvi (faqat /start) — o'rnini saytdagi hisob oladi.
+      if (own) this.byTelegramId.delete(telegramId);
+      owner.linkedTelegramId = telegramId;
+      owner.chatId = chatId;
+      owner.sessionsFrom = now;
+      this.linked.set(telegramId, owner.telegramId);
+      return "LINKED";
+    }
+    if (self !== telegramId) {
+      // Saytdagi hisobga ulangan foydalanuvchi raqamni qayta ulashdi — hisob raqami o'zgarmaydi
+      // (boshqa raqam bo'lsa ham alohida yozuv ochilmaydi), faqat chat yangilanadi.
+      const linkedAccount = this.get(self);
+      if (linkedAccount) linkedAccount.chatId = chatId;
+      return "OK";
+    }
     const p = this.getOrCreate(telegramId);
     p.phone = phone;
     p.chatId = chatId;
@@ -460,6 +508,8 @@ export class ParticipantsService {
 
   /** Ishtirokni bekor qilish (do'kon talabi: akkauntni o'chirish). */
   delete(telegramId: number): void {
+    const p = this.byTelegramId.get(telegramId);
+    if (p?.linkedTelegramId) this.linked.delete(p.linkedTelegramId);
     this.byTelegramId.delete(telegramId);
   }
 
