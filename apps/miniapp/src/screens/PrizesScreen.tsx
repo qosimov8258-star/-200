@@ -24,6 +24,7 @@ import { Card, ErrorBlock, PageHeader, Spinner } from "../components/ui";
 import { t } from "../i18n/uz";
 import * as api from "../lib/api";
 import { daysBetween, formatCount, formatDayMonth, tashkentToday } from "../lib/format";
+import { PRIZE_PHOTO_HAS_BACKGROUND, prizePhoto, type PrizePhotoKey } from "../lib/prize-photos";
 import type { ContestPrizes, PrizeStage, PrizeTier, PrizeTierKind } from "../lib/types";
 
 /** Har bir toifaning rangi va belgisi. */
@@ -183,7 +184,11 @@ function MonthlySection({ prizes, style }: { prizes: ContestPrizes; style: CSSPr
       <div className="relative isolate overflow-hidden rounded-card bg-[linear-gradient(140deg,#1fb36a,#0c6b3b)] text-white shadow-[0_14px_30px_rgba(16,120,70,0.28)]">
         <div aria-hidden className="absolute -top-14 -right-10 -z-10 size-44 rounded-full bg-white/10" />
         <div aria-hidden className="absolute top-16 -right-16 -z-10 size-44 rounded-full bg-white/[0.07]" />
-        <ShoppingCart aria-hidden className="absolute top-6 right-5 -z-10 size-20 -rotate-12 text-white/15" strokeWidth={1.6} />
+        {prizePhoto("voucher") ? (
+          <CornerPhoto kind="voucher" alt={monthly.title} className="top-4 right-4 h-[66px] w-[86px] rotate-[-5deg]" />
+        ) : (
+          <ShoppingCart aria-hidden className="absolute top-6 right-5 -z-10 size-20 -rotate-12 text-white/15" strokeWidth={1.6} />
+        )}
 
         <div className="px-[22px] pt-5 pb-4">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-[12px] font-bold tracking-wide uppercase">
@@ -403,6 +408,7 @@ function TierRow({
   const style = TIER_STYLE[tier.kind];
   const Icon = style.icon;
   const isCar = tier.kind === "car";
+  const hasPhoto = prizePhoto(tier.kind) !== null;
   const inTier =
     current && tier.maxViews !== null
       ? (views - tier.minViews) / (tier.maxViews - tier.minViews)
@@ -416,11 +422,19 @@ function TierRow({
         style.card,
       )}
     >
-      <Icon
-        aria-hidden
-        className="absolute -right-5 -bottom-6 -z-10 size-32 -rotate-12 text-white/15"
-        strokeWidth={1.4}
-      />
+      {hasPhoto ? (
+        <CornerPhoto
+          kind={tier.kind}
+          alt={tier.title}
+          className={isCar ? "right-3 bottom-3 h-[84px] w-[132px]" : "right-3 bottom-3 size-[92px]"}
+        />
+      ) : (
+        <Icon
+          aria-hidden
+          className="absolute -right-5 -bottom-6 -z-10 size-32 -rotate-12 text-white/15"
+          strokeWidth={1.4}
+        />
+      )}
       {isCar && (
         <span
           aria-hidden
@@ -458,17 +472,20 @@ function TierRow({
         ) : null}
       </div>
 
-      <h3 className={clsx("mt-3 leading-tight font-bold tracking-tight", isCar ? "text-[24px]" : "text-[20px]")}>
-        {tier.title}
-      </h3>
-      <p className="mt-1 text-[13px] font-medium text-white/80 tabular-nums">{rangeLabel(tier)}</p>
+      {/* Matn rasm ustiga chiqmasin — o'ngda rasm eni qadar joy. */}
+      <div className={clsx(hasPhoto && (isCar ? "pr-[144px]" : "pr-[104px]"))}>
+        <h3 className={clsx("mt-3 leading-tight font-bold tracking-tight", isCar ? "text-[24px]" : "text-[20px]")}>
+          {tier.title}
+        </h3>
+        <p className="mt-1 text-[13px] font-medium text-white/80 tabular-nums">{rangeLabel(tier)}</p>
 
-      {inTier !== null && (
-        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/25">
-          <div className="h-full rounded-full bg-white" style={{ width: `${Math.max(4, Math.round(inTier * 100))}%` }} />
-        </div>
-      )}
-      <p className="mt-2.5 text-[12px] text-white/75">{t.tierWinners(tier.quantity)}</p>
+        {inTier !== null && (
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/25">
+            <div className="h-full rounded-full bg-white" style={{ width: `${Math.max(4, Math.round(inTier * 100))}%` }} />
+          </div>
+        )}
+        <p className="mt-2.5 text-[12px] text-white/75">{t.tierWinners(tier.quantity)}</p>
+      </div>
     </div>
   );
 
@@ -552,5 +569,29 @@ function Notes({ notes, style }: { notes: string[]; style: CSSProperties }) {
         ))}
       </ul>
     </Card>
+  );
+}
+
+/**
+ * Kartaning burchagidagi sovg'a rasmi — oq, yumaloq plitkada. Shaffof rasm (avtomobil, telefon)
+ * plitka ichida to'liq ko'rinadi; o'z foni bor rasm (planshet, sayohat, voucher) plitkani to'ldiradi.
+ */
+function CornerPhoto({ kind, alt, className }: { kind: PrizePhotoKey; alt: string; className: string }) {
+  const src = prizePhoto(kind);
+  if (!src) return null;
+  return (
+    <div
+      className={clsx(
+        "pointer-events-none absolute overflow-hidden rounded-[18px] bg-white shadow-[0_10px_22px_-10px_rgba(0,0,0,0.55)] ring-2 ring-white/60",
+        className,
+      )}
+    >
+      <img
+        src={src}
+        alt={alt}
+        draggable={false}
+        className={clsx("size-full", PRIZE_PHOTO_HAS_BACKGROUND[kind] ? "object-cover" : "object-contain p-1.5")}
+      />
+    </div>
   );
 }

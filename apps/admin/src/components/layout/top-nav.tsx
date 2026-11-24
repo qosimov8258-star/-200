@@ -20,11 +20,12 @@ interface TopNavProps {
 
 /**
  * Panelda to'g'ridan-to'g'ri ko'rinadigan bandlar soni; qolganlari — "Yana" ichida.
- * 1024–1279px da joy tor — ikkita kam. "G'oliblar" va "Random tanlov" ikkala o'lchamda ham tepada.
+ * 1280px dan: Dashboard … Support (6 ta); 1024–1279px da joy tor — bittasi kam ("Support" ham
+ * "Yana" ichida). "G'oliblar" ikkala o'lchamda ham tepada.
  * 1280–1535px da profil tugmasida faqat bosh harflar (ism 1536px dan) — bo'limlarga joy qoladi.
  */
 const LG_VISIBLE = 5;
-const XL_VISIBLE = 7;
+const XL_VISIBLE = 6;
 
 type MenuName = "more" | "profile" | "mobile";
 

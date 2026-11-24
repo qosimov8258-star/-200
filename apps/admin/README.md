@@ -96,16 +96,10 @@ Backendsiz ishlash uchun (`npm run dev` da standart):
   random tanlov ham shunday hisoblaydi).
 - Mock sessiya brauzerning `localStorage` ida saqlanadi.
 - Admin amallari (bloklash, blokdan chiqarish, diskvalifikatsiya, support javoblari va
-  holatlari, target bo'yicha qarorlar, istoriyani o'chirish) va ularning audit yozuvlari ham `localStorage` da
+  holatlari, target bo'yicha qarorlar) va ularning audit yozuvlari ham `localStorage` da
   (`reels-admin:mock-store` kaliti). Mock ma'lumotlarni boshlang'ich holatga qaytarish uchun
   shu kalitni o'chiring.
-- Istoriyalar ([`src/lib/mock/stories.ts`](src/lib/mock/stories.ts)) — 8 ta ishtirokchining 1–3 tadan
-  istoriyasi, sahifa ochilgan vaqtga nisbatan oxirgi 24 soat ichida yuklangan (sahifa ochiq tursa,
-  muddati tugaganlari ro'yxatdan tushadi). Video o'rniga
-  [`public/mock/stories/`](public/mock/stories/) dagi kichik namunaviy kliplar (9:16, 4 soniya,
-  ffmpeg'da yasalgan) ko'rsatiladi. Ular statik eksportga ham tushadi (~60 KB), lekin `http`
-  rejimda ishlatilmaydi.
-- Random tanlov sozlamalari va o'tkazilgan tanlovlar ham shu `localStorage` kalitida
+- Voucher random tanlovi sozlamalari va o'tkazilgan tanlovlar ham shu `localStorage` kalitida
   (`drawSettings`, `draws`). Asosiy sovrinlar (`GET /admin/winner/prizes`) mock reytingdan
   hisoblanadi ([`src/lib/mock/rating-prizes.ts`](src/lib/mock/rating-prizes.ts)) — mock'da
   ko'rishlar kam, shuning uchun odatda faqat "Planshet" oralig'ida ishtirokchi bo'ladi.
@@ -169,34 +163,11 @@ ishtirokchi; random tanlov va target tekshiruvi ham ishtirokchi bo'yicha.
   ikkalasida eng yangisi yuqorida).
 - Video filtri (`reel` URL parametri): "shu holatdagi videosi bor" yoki "Video yo'q".
 
-## Istoriyalar
+## Istoriyalar (olib tashlangan)
 
-Ishtirokchilar Mini App'dan o'z qisqa videosini (istoriya) yuklaydi — uni Mini App va saytga
-kirgan hamma (mehmonlar ham) ko'radi. Istoriya 24 soat turadi (`expiresAt = createdAt + 24h`),
-keyin server faylni o'chiradi. Tekshiruvdan o'tmaydi, reyting va sovg'alarga ta'sir qilmaydi.
-Cheklovlar (backend): `video/mp4`, `video/quicktime` (iPhone .mov), `video/webm`, ko'pi bilan
-50 MB, bir ishtirokchida ko'pi bilan 10 ta faol istoriya. Bloklangan va diskvalifikatsiya
-qilinganlarning istoriyalari ko'rinmaydi.
-
-"Istoriyalar" sahifasi (`/stories`, faqat `ADMIN`):
-
-- faol istoriyalar kartalarda, eng yangisi birinchi, 12 tadan sahifalab; ro'yxat har daqiqada
-  o'zi yangilanadi;
-- har bir kartada video (ovozsiz, boshqaruvlar bilan, `preload="metadata"` — faqat metadata
-  oldindan yuklanadi), ishtirokchi ismi va telefoni, yuklangan vaqt ("3 soat oldin"),
-  yo'qolishiga qolgan vaqt ("5 soat 20 daqiqa qoldi", tepadagi chiziq ham shuni ko'rsatadi),
-  hajmi va formati (MP4 / MOV / WebM);
-- **O'chirish** — sabab majburiy (5–500 belgi), audit logga `story.remove` bo'lib yoziladi
-  (obyekt turi — "Istoriya"). Karta qayta so'rovni kutmasdan darhol yo'qoladi.
-
-| Funksiya (`src/lib/api.ts`) | Endpoint |
-|---|---|
-| `getStories({ page, pageSize })` | `GET /api/v1/admin/stories?page=&pageSize=` → `Page<AdminStoryItem>` |
-| `removeStory(id, reason)` | `POST /api/v1/admin/stories/:id/remove`, body `{ reason }` → `204`; `404` — muddati tugagan yoki o'chirilgan |
-| `storyVideoUrl(id)` | `GET /api/v1/miniapp/stories/:id/video` — ochiq endpoint, HTTP Range bilan (`<video src>`) |
-
-`AdminStoryItem` — [`src/lib/types.ts`](src/lib/types.ts): `id`, `participant { id, fullName, phone }`
-(`id` — telegramId), `createdAt`, `expiresAt`, `sizeBytes`, `mime`.
+"Istoriyalar" bo'limi (`/stories`) paneldan olib tashlangan (24.11.2026) — menyu, sahifa, komponentlar,
+mock va API qatlamidagi funksiyalar yo'q; backend o'zgarmagan. Audit logdagi eski yozuvlar o'qilishi
+uchun obyekt turi `story` ("Istoriya") va amal `story.remove` ("Istoriyani o'chirdi") nomlari qolgan.
 
 ## Qoida videosi
 
@@ -231,32 +202,39 @@ Mock rejimda video faqat sahifa xotirasida (`URL.createObjectURL`) — sahifa ya
 audit yozuvlari esa boshqa mock amallar kabi `localStorage` da qoladi. Mock ham backend kabi fayl
 boshidagi baytlarni tekshiradi (video bo'lmasa — `422`).
 
-## G'oliblar va Random tanlov
+## G'oliblar
 
-Tepadagi menyuda ikkita alohida bo'lim (kompyuterda ikkalasi ham doim ko'rinadi):
+Tepadagi menyuda bitta bo'lim — **G'oliblar** (`/winner`), ikki tab. Alohida "Random tanlov" bo'limi
+yo'q: voucher random tanlovi "Voucher" tabining ichida.
 
-- **Random tanlov** (`/draws`) — tepada sovg'a tanlanadi. **Faqat 500 000 so'mlik Korzinka voucheri
-  random**; avtomobil, sayohat, iPhone va planshet — random emas, reyting bo'yicha (kartalardagi
-  "Random" / "Reyting bo'yicha" belgilari).
-  - *Voucher:* "Sozlamalar" bir marta tasdiqlanadi (`PUT /api/v1/admin/draws/settings`), keyin
+- *Asosiy sovrinlar* (`/winner`) — "Bosh sovrin — BYD Chazor": g'olibni aniqlash oqimi (joriy yetakchi,
+  tekshiruvlar, tasdiqlash, e'lon); ostida "Boshqa asosiy sovrinlar" — Tailand sayohati, iPhone,
+  Planshet kartalari (eni 350, bo'yi 400 px, yonma-yon; ro'yxat karta ichida aylanadi, tor telefonda
+  karta ekranga sig'adigan qilib qisqaradi). Bular **random emas** — reyting bo'yicha
+  (`GET /api/v1/admin/winner/prizes`).
+- *Voucher* (`/winner?tab=voucher`) — **faqat 500 000 so'mlik Korzinka voucheri random**:
+  - tepada — voucherlar qoldig'i (jami / yuborilgan / tasdiqlangan / qoralamada, bosqichlar bo'yicha);
+  - "Yangi tanlov": "Sozlamalar" bir marta tasdiqlanadi (`PUT /api/v1/admin/draws/settings`), keyin
     qisqa xulosa ko'rinadi va "Tahrirlash" bilan o'zgartiriladi — har tanlovda qayta kiritilmaydi.
     Har tanlovda faqat bosqich (1-, 2-, 3-bosqich) yoki admin yaratgan davr tanlanadi. **"Tanlash"
     bitta bosishda** tanlovni o'tkazadi (`POST /api/v1/admin/draws`: saqlangan sozlamalar + davr) va
-    natijani darhol ochadi (qoralama → tasdiqlash → botda yuborish, almashtirish, bekor qilish —
-    avvalgidek). Nomzodlar soni (`POST /admin/draws/preview`) faqat ma'lumot uchun, alohida qadam emas.
+    natijani shu tabning o'zida, "Yangi tanlov" o'rnida ochadi: xulosa, uch qadam (o'tkazildi →
+    tasdiqlash → botda yuborish), texnik ma'lumot va g'oliblar ro'yxati (almashtirish, bekor qilish —
+    avvalgidek). "Yangi tanlov" tugmasi formaga qaytaradi. Nomzodlar soni (`POST /admin/draws/preview`)
+    faqat ma'lumot uchun, alohida qadam emas;
+  - o'ng ustunda (1280px dan; torroq ekranda — pastda) "Tanlovlar tarixi" — bosilsa, o'sha tanlov
+    natijasi ochiladi — va adolatli tanlov izohi;
+  - pastda — "Voucher g'oliblari": bekor qilinmagan barcha tanlovlar g'oliblari, tanlov bo'yicha
+    (holati, ism, telefon, ko'rishlar, qidiruv), har biridan "Natijani ochish".
   - **Voucher olganlar qatnashmaydi** — bir kishiga aksiya davomida bir marta. Bu qoida o'chirilmaydi
     (sozlamalarda qulf bilan ko'rsatiladi): bekor qilinmagan istalgan tanlovning (qoralama,
     tasdiqlangan, yuborilgan) faol g'oliblari keyingi tanlovlarga kirmaydi; "Chetda qolganlar"da
     "Voucher olgan (qayta berilmaydi)" bo'lib sanaladi.
-  - *Asosiy sovrin* tanlansa: qoida va "G'oliblarni ko'rsatish" tugmasi — bir bosishda
-    `GET /api/v1/admin/winner/prizes` dan shu sovrin g'oliblari (o'rin, ism, telefon, Instagram,
-    ko'rishlar, Reel, target / nakrutka belgilari) va "Navbatdagilar".
-  - URL: `?id=` — tanlov natijasi, `?prize=car|travel|phone|tablet` — asosiy sovrin.
-- **G'oliblar** (`/winner`), ikki tab (`?tab=vouchers`):
-  - *Asosiy sovrinlar* — "Bosh sovrin — BYD Chazor": g'olibni aniqlash oqimi (joriy yetakchi,
-    tekshiruvlar, tasdiqlash, e'lon); ostida Tailand sayohati, iPhone, Planshet ro'yxatlari (reyting bo'yicha).
-  - *Voucher g'oliblari* — bekor qilinmagan barcha random tanlovlar g'oliblari, tanlov bo'yicha
-    (holati, ism, telefon, ko'rishlar, qidiruv), har biridan Random tanlovdagi natijaga havola.
+- URL ([`src/lib/winner-links.ts`](src/lib/winner-links.ts)): `?tab=voucher`, ochiq tanlov —
+  `&draw=<id>` (brauzerning "Orqaga" tugmasi ishlaydi); eski `?tab=vouchers` ham "Voucher" tabini
+  ochadi. Eski "Random tanlov" havolalari brauzerda yo'naltiriladi ([`src/app/draws/`](src/app/draws/),
+  panel layout'idan tashqarida): `/draws` → `/winner?tab=voucher`, `/draws?id=X` →
+  `/winner?tab=voucher&draw=X`, `/draws?prize=…` → `/winner`.
 
 | Funksiya (`src/lib/api.ts`) | Endpoint |
 |---|---|
@@ -281,11 +259,12 @@ Bu faqat UI darajasidagi cheklov — haqiqiy himoya backend RBAC'da bo'ladi.
 src/
 ├── app/
 │   ├── login/            # login sahifasi
+│   ├── draws/            # eski /draws havolalari → /winner?tab=voucher (brauzerda yo'naltirish)
 │   ├── (panel)/          # sessiya talab qiladigan sahifalar + umumiy layout
 │   │   ├── dashboard/
 │   │   ├── users/
 │   │   ├── ratings/
-│   │   ├── stories/
+│   │   ├── winner/       # G'oliblar: "Asosiy sovrinlar" va "Voucher" tablari
 │   │   └── support/
 │   ├── layout.tsx        # ildiz layout
 │   └── globals.css       # Tailwind va dizayn tokenlari
@@ -297,11 +276,10 @@ src/
 │   ├── support/          # murojaatlar ro'yxati, yozishma, javob va holat
 │   ├── targets/          # target yoqqanlar: ro'yxat, dalil oynasi, qarorlar
 │   ├── telegram/         # xabarlar holati (yuborildi/yetkazildi/o'qildi), qayta yuborish
-│   ├── draws/            # random tanlov: sovg'a tanlash, sozlamalar, bosqich, natija, tarix
-│   ├── prizes/           # asosiy sovrinlar (reyting bo'yicha) jadvali — draws va winner uchun umumiy
-│   ├── winner/           # g'oliblar: bosh sovrin oqimi, asosiy sovrinlar, voucher g'oliblari
+│   ├── draws/            # voucher random tanlovi qismlari: sozlamalar, bosqich, nomzodlar, natija, qoldiq
+│   ├── prizes/           # asosiy sovrinlar (reyting bo'yicha): ikonkalar, soni
+│   ├── winner/           # g'oliblar: bosh sovrin oqimi, asosiy sovrinlar, "Voucher" tabi (tanlov, tarix, g'oliblar)
 │   ├── settings/         # tanlov muddati, yangilanish vaqti, minimal yosh, qoidalar, qoida videosi
-│   ├── stories/          # istoriyalar: video kartalar, o'chirish oynasi
 │   ├── audit/            # audit log (faqat o'qish)
 │   ├── users/            # ishtirokchilar jadvali, filtrlar, amal oynasi, "Videolar" oynasi
 │   └── ui/               # tugma, input, select, dialog, amallar menyusi, sahifalash...
@@ -318,8 +296,7 @@ src/
     ├── navigation.ts     # menyu, rollar
     ├── period.ts         # dashboard davri (URL bilan)
     ├── users-filters.ts  # Foydalanuvchilar filtrlari (URL bilan)
+    ├── winner-links.ts   # G'oliblar tablari va ochiq tanlov manzillari
     ├── types.ts          # API tiplari
     └── mock/             # mock backend: ma'lumotlar, reyting, amallar, audit
-public/
-└── mock/stories/         # mock rejimdagi namunaviy istoriya kliplari
 ```

@@ -13,7 +13,7 @@ import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { canAccess, findNavItem, homePathForRole } from "@/lib/navigation";
 
 /** O'z sarlavhasini (izoh, tugmalar bilan) o'zi chiqaradigan sahifalar. */
-const OWN_TITLE_PATHS = ["/dashboard", "/draws"];
+const OWN_TITLE_PATHS = ["/dashboard"];
 
 /**
  * Panelning umumiy layout'i: sessiya tekshiruvi, rolga qarab kirish huquqi,
@@ -37,7 +37,7 @@ function PanelShell({ children }: { children: React.ReactNode }) {
 
   const admin = state.status === "authenticated" ? state.admin : null;
   const allowed = admin ? canAccess(admin.role, pathname) : false;
-  // Dashboard va Random tanlov sarlavhasini o'zi chiqaradi — boshqa sahifalarda shu yerda.
+  // Dashboard sarlavhasini o'zi chiqaradi — boshqa sahifalarda shu yerda.
   const ownTitle = OWN_TITLE_PATHS.some((path) => pathname.startsWith(path));
   const pageTitle = ownTitle ? null : (findNavItem(pathname)?.title ?? "Admin panel");
 

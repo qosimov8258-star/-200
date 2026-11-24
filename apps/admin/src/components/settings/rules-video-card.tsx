@@ -24,7 +24,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { deleteRulesVideo, getRulesVideo, rulesVideoUrl, uploadRulesVideo } from "@/lib/api";
 import { ApiError, errorMessage } from "@/lib/api-error";
 import { formatDateTime, formatFileSize } from "@/lib/format";
-import { STORY_MIME_LABELS } from "@/lib/labels";
+import { VIDEO_MIME_LABELS } from "@/lib/labels";
 import { rulesVideoFileError } from "@/lib/rules-video";
 import { RULES_VIDEO_LIMITS, type RulesVideo } from "@/lib/types";
 
@@ -149,7 +149,7 @@ export function RulesVideoCard() {
                 <span className="sr-only">Hajmi</span>
               </dt>
               <dd className="tabular-nums">
-                {formatFileSize(video.sizeBytes)} · {STORY_MIME_LABELS[video.mime] ?? video.mime}
+                {formatFileSize(video.sizeBytes)} · {VIDEO_MIME_LABELS[video.mime] ?? video.mime}
               </dd>
             </div>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
