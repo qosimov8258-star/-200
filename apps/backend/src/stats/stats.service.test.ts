@@ -111,18 +111,47 @@ test("a Reel not found 3 times goes to manual review — the participant is told
   assert.equal(stats.ranking().length, 0);
 });
 
-test("admin approves a manual review: the Reel joins the rating and is not sent back while unreadable", async () => {
-  const { provider, stats, sent, join, reel, setNow } = setup();
+test("admin approves a manual review: the Reel joins the rating and its views are read right away", async () => {
+  const { provider, stats, sent, join, reel } = setup();
   provider.set("GONE01", null);
   join(1, "GONE01");
   await threeAttempts(stats, 1);
+  assert.equal(provider.requests.length, 3);
 
+  // Apify endi o'qiy oladi (avvalgi urinishlarda vaqtincha topa olmagan edi).
+  provider.set("GONE01", { owner: "ali", views: 4_200, likes: 300 });
   stats.decideManualReview("GONE01", { approve: true, note: "Video ochiq, mahsulot ko'rinadi" }, "Admin");
   assert.equal(reel(1)?.status, "ACCEPTED");
   assert.equal(reel(1)?.review?.decision?.approved, true);
   assert.equal(reel(1)?.review?.decision?.by, "Admin");
   assert.match(sent.at(-1)?.text ?? "", /administrator tomonidan tekshirildi/);
+
+  // Kunlik yig'ishni kutmaydi: tasdiqlangan zahoti Apify'dan so'raladi — ko'rishlar 0 bo'lib qolmaydi.
+  await stats.flushVerification();
+  assert.equal(provider.requests.length, 4);
+  assert.deepEqual(provider.requests.at(-1), ["GONE01"]);
+  assert.equal(reel(1)?.history.at(-1)?.views, 4_200);
+  assert.equal(reel(1)?.owner, "ali", "egasi ham birinchi o'qishda yoziladi");
+  assert.deepEqual(stats.ranking().map((e) => [e.participant.telegramId, e.views]), [[1, 4_200]]);
+});
+
+test("an approved Reel Apify still cannot read is retried soon, but never sent back to manual review", async () => {
+  const { provider, stats, join, reel, setNow } = setup();
+  provider.set("GONE01", null);
+  join(1, "GONE01");
+  await threeAttempts(stats, 1);
+  stats.decideManualReview("GONE01", { approve: true, note: "" }, "Admin");
+  await stats.flushVerification();
+  assert.equal(provider.requests.length, 4, "tasdiqdan keyin darhol bir marta so'raldi");
   assert.deepEqual(stats.ranking().map((e) => [e.participant.telegramId, e.views]), [[1, 0]]);
+
+  // Qayta urinishlar (haqiqatda 2, 10, 30 daqiqa… dan keyin taymer bilan) — topilmasa ham qabul qilingan qoladi.
+  for (let i = 0; i < 3; i++) {
+    stats.queueVerification(1);
+    await stats.flushVerification();
+  }
+  assert.equal(provider.requests.length, 7);
+  assert.equal(reel(1)?.status, "ACCEPTED");
 
   // Apify hamon topa olmaydi — admin ko'rgan video qayta-qayta tekshiruvga tushmaydi.
   for (const day of ["2026-12-02", "2026-12-03", "2026-12-04"]) {
@@ -137,6 +166,36 @@ test("admin approves a manual review: the Reel joins the rating and is not sent 
   await stats.syncAll("schedule");
   assert.equal(reel(1)?.history.at(-1)?.views, 4_200);
   assert.equal(stats.ranking()[0]?.views, 4_200);
+});
+
+test("a glitchy 0 from Apify never wipes known views (refresh, re-check and sync)", async () => {
+  const { provider, stats, join, reel, setNow } = setup();
+  provider.set("ZERO01", { owner: "ali", views: 52_000, likes: 2_000 });
+  join(1, "ZERO01");
+  await stats.flushVerification();
+  assert.equal(reel(1)?.history.at(-1)?.views, 52_000);
+
+  // Admin "Ko'rishlarni yangilash" bosdi, Apify esa ko'rishlarni 0 qilib qaytardi.
+  provider.set("ZERO01", { owner: "ali", views: 0, likes: 2_100 });
+  const report = await stats.refreshReels([1], "Admin: test");
+  assert.equal(report?.updated, 0);
+  assert.equal(reel(1)?.history.at(-1)?.views, 52_000, "0 yozilmaydi — oxirgi ma'lum ko'rishlar qoladi");
+  assert.equal(reel(1)?.status, "ACCEPTED");
+
+  // Bir necha kun shunday kelsa ham — video yo'qolgan emas: qo'lda tekshiruvga tushmaydi, reytingda qoladi.
+  for (const day of ["2026-12-02", "2026-12-03", "2026-12-04"]) {
+    setNow(`${day} 06:01`);
+    await stats.syncAll("schedule");
+  }
+  assert.equal(reel(1)?.status, "ACCEPTED");
+  assert.equal(stats.ranking()[0]?.views, 52_000);
+  assert.ok(!reel(1)?.flags.some((f) => f.type === "VIEW_DROP"), "soxta pasayish belgisi qo'yilmaydi");
+
+  // Haqiqiy son kelganda — odatdagidek yoziladi.
+  provider.set("ZERO01", { owner: "ali", views: 61_000, likes: 2_400 });
+  setNow("2026-12-05 06:01");
+  await stats.syncAll("schedule");
+  assert.equal(stats.ranking()[0]?.views, 61_000);
 });
 
 test("admin rejects a manual review: the reason is sent and a new link can be submitted", async () => {

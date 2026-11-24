@@ -108,11 +108,15 @@ avtomatik `reels` ga o'tkaziladi.
 2. **Muntazam yig'ish** — tanlov boshlangan kundan (25-noyabr) har `STATS_SYNC_EVERY_DAYS` kunda soat `STATS_SYNC_TIME` da
    rad etilmagan barcha videolar; har kunga bitta yozuv (tarix → Mini App grafigi). Qabul qilingan video topilmasa, 2 va 10
    daqiqadan keyin qayta tekshiriladi; 3 marta topilmasa — uning ko'rishlari reytingda vaqtincha hisobga olinmaydi va
-   video **qo'lda tekshiruvga** o'tadi (ishtirokchining boshqa videolari reytingda qoladi).
+   video **qo'lda tekshiruvga** o'tadi (ishtirokchining boshqa videolari reytingda qoladi). Video topilib,
+   ko'rishlari kelmasa yoki ilgari ko'rishi bo'lgan videoda 0 bo'lib kelsa (Apify nosozligi) — 0 yozilmaydi,
+   oxirgi ma'lum ko'rishlar qoladi va video qo'lda tekshiruvga yuborilmaydi. Ko'rishlar — `videoPlayCount`
+   va `videoViewCount` dan kattasi.
 3. **Qo'lda tekshiruv** (`MANUAL_REVIEW`) — avval ishtirokchiga bot orqali xabar boradi, so'ng video
    admin paneldagi "Qo'lda tekshiruv" bo'limida paydo bo'ladi. Admin linkni ochib:
-   - **tasdiqlaydi** → `ACCEPTED`, video reytingga qo'shiladi (ko'rishlar Apify topganda yangilanadi);
-     Apify topa olmasa ham qayta-qayta tekshiruvga tushmaydi;
+   - **tasdiqlaydi** → `ACCEPTED`, video reytingga qo'shiladi. Ko'rishlari hali o'qilmagan yangi video
+     uchun Apify **darhol** so'raladi (kunlik yig'ish kutilmaydi), topilmasa — 2, 10, 30 daqiqa, 1, 3 va
+     6 soatdan keyin qayta; Apify topa olmasa ham qayta-qayta tekshiruvga tushmaydi;
    - **rad etadi** (sabab bilan) → `REJECTED`, ishtirokchi sababni oladi.
    Kutish paytida Apify videoni o'zi topsa — holat avtomatik yopiladi.
 4. **Tanlov tugagach** (`contest.ts` → `endsAt`) — bitta yakuniy yig'ish, keyin to'xtaydi.
