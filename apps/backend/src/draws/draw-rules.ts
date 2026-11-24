@@ -26,6 +26,19 @@ export interface DrawSettings {
   messageTemplate: string;
 }
 
+/**
+ * Doimiy (bir marta tasdiqlanadigan, keyin tahrirlanadigan) tanlov sozlamalari — har bir tanlovda
+ * faqat bosqich/davr tanlanadi. Oldingi g'oliblar har doim chetda (voucher bir kishiga bir marta).
+ */
+export type SavedDrawSettings = Omit<DrawSettings, "prizeId" | "stage" | "periodFrom" | "periodTo" | "excludePreviousWinners"> & {
+  excludePreviousWinners: true;
+  updatedAt: string;
+  updatedBy: string;
+};
+
+/** `PUT /admin/draws/settings` tanasi. */
+export type DrawSettingsInput = Omit<SavedDrawSettings, "excludePreviousWinners" | "updatedAt" | "updatedBy">;
+
 export const DRAW_LIMITS = {
   winnersMax: 10_000,
   reservesMax: 1_000,

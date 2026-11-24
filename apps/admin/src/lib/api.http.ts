@@ -13,6 +13,7 @@
  *   ko'rsatiladigan o'zbekcha matn.
  */
 import { ApiError } from "./api-error";
+import { drawSettingsInputOf } from "./draw-rules";
 import { apiUrl, requestJson, requestVoid, segment } from "./http-client";
 import type {
   AdminStoryListQuery,
@@ -34,6 +35,7 @@ import type {
   DrawPreview,
   DrawReplaceRequest,
   DrawSettings,
+  DrawSettingsInput,
   DrawSetup,
   DrawStock,
   LoginRequest,
@@ -63,6 +65,7 @@ import type {
   TelegramResendUnreadRequest,
   ViewsRefreshPreview,
   ViewsRefreshRequest,
+  RatingPrizes,
   VoucherDraw,
   VoucherDrawSummary,
   WinnerManualCheckRequest,
@@ -414,6 +417,16 @@ export async function getDrawSetup(): Promise<DrawSetup> {
 }
 
 /**
+ * Doimiy tanlov sozlamalarini tasdiqlash yoki o'zgartirish (har bir tanlovda faqat davr tanlanadi).
+ * Oldingi g'oliblar har doim chetda — bu maydon yuborilmaydi. Javob — yangilangan `setup`.
+ * @endpoint PUT /api/v1/admin/draws/settings
+ * @throws ApiError 400 — sozlama noto'g'ri
+ */
+export async function saveDrawSettings(input: DrawSettingsInput): Promise<DrawSetup> {
+  return requestJson<DrawSetup>("PUT", "/admin/draws/settings", { body: drawSettingsInputOf(input) });
+}
+
+/**
  * Sozlamalar bo'yicha nomzodlar: soni, chetda qolganlar sababi, namuna. Hech narsa saqlanmaydi.
  * @endpoint POST /api/v1/admin/draws/preview
  * @throws ApiError 400 — sozlama noto'g'ri
@@ -432,7 +445,10 @@ export async function runDraw(settings: DrawSettings): Promise<VoucherDraw> {
   return requestJson<VoucherDraw>("POST", "/admin/draws", { body: drawSettingsBody(settings) });
 }
 
-/** Backend noma'lum maydonlarni rad etadi — faqat `DrawSettings` maydonlari yuboriladi. */
+/**
+ * Backend noma'lum maydonlarni rad etadi — faqat `DrawSettings` maydonlari yuboriladi.
+ * Oldingi g'oliblar har doim chetda (backend ham shunday majburlaydi).
+ */
 function drawSettingsBody(settings: DrawSettings): DrawSettings {
   return {
     prizeId: settings.prizeId,
@@ -446,7 +462,7 @@ function drawSettingsBody(settings: DrawSettings): DrawSettings {
     reservesCount: settings.reservesCount,
     excludeWarned: settings.excludeWarned,
     excludeTargets: settings.excludeTargets,
-    excludePreviousWinners: settings.excludePreviousWinners,
+    excludePreviousWinners: true,
     messageTemplate: settings.messageTemplate,
   };
 }
@@ -591,6 +607,15 @@ export async function getAuditLog(query: AuditLogQuery): Promise<AuditLogRespons
  */
 export async function getWinnerOverview(): Promise<WinnerOverview> {
   return requestJson<WinnerOverview>("GET", "/admin/winner");
+}
+
+/**
+ * Asosiy sovrinlar (avtomobil, sayohat, iPhone, planshet) — random emas, reyting bo'yicha: har birining
+ * ko'rishlar oralig'ida eng ko'p ko'rilgan videosi bor ishtirokchilar, joriy holat.
+ * @endpoint GET /api/v1/admin/winner/prizes
+ */
+export async function getRatingPrizes(): Promise<RatingPrizes> {
+  return requestJson<RatingPrizes>("GET", "/admin/winner/prizes");
 }
 
 /**

@@ -15,6 +15,7 @@ import type {
   Prize,
   SupportTicketStatus,
   DrawPeriod,
+  SavedDrawSettings,
   VoucherDraw,
   TargetAdsCheckReport,
   TargetCaseStatus,
@@ -68,6 +69,8 @@ export interface MockStore {
   drawPeriods: DrawPeriod[];
   /** Admin o'chirgan bosqichlar (raqamlari). */
   removedStages: number[];
+  /** Random tanlovning tasdiqlangan doimiy sozlamalari; null — hali tasdiqlanmagan. */
+  drawSettings: SavedDrawSettings | null;
   /** Istoriya id -> Admin o'chirgani (`stories.ts`). */
   removedStories: Record<string, MockRemovedStory>;
   audit: MockAuditEntry[];
@@ -143,6 +146,7 @@ function emptyStore(): MockStore {
     draws: [],
     drawPeriods: [],
     removedStages: [],
+    drawSettings: null,
     removedStories: {},
     audit: [],
   };

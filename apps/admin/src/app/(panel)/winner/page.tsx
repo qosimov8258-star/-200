@@ -1,11 +1,18 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 
-import { WinnerView } from "@/components/winner/winner-view";
+import { WinnersView } from "@/components/winner/winners-view";
+import { Spinner } from "@/components/ui/spinner";
 
 export const metadata: Metadata = {
-  title: "G'olib",
+  title: "G'oliblar",
 };
 
 export default function WinnerPage() {
-  return <WinnerView />;
+  // `useSearchParams` (tab: `?tab=vouchers`) Suspense ichida bo'lishi kerak.
+  return (
+    <Suspense fallback={<Spinner />}>
+      <WinnersView />
+    </Suspense>
+  );
 }

@@ -1,5 +1,9 @@
 import { Body, Controller, Delete, Get, HttpCode, Post, Put, UseGuards } from "@nestjs/common";
 
+import { contestPrizes } from "../miniapp/prizes";
+import { buildRatingPrizes, type RatingPrizes } from "../reports/rating-prizes";
+import { StatsService } from "../stats/stats.service";
+import { TargetsService } from "../targets/targets.service";
 import { parseConfirm, parseManualCheck, parseSkip, WinnerService, type WinnerOverview } from "../winner/winner.service";
 import type { AdminUser } from "./auth/admin-accounts";
 import { AdminAuthGuard, CurrentAdmin } from "./auth/admin-auth.guard";
@@ -13,11 +17,29 @@ import { actorOf } from "./auth/admin-auth.service";
 @Controller("admin/winner")
 @UseGuards(AdminAuthGuard)
 export class AdminWinnerController {
-  constructor(private readonly winner: WinnerService) {}
+  constructor(
+    private readonly winner: WinnerService,
+    private readonly stats: StatsService,
+    private readonly targets: TargetsService,
+  ) {}
 
   @Get()
   overview(): WinnerOverview {
     return this.winner.overview();
+  }
+
+  /**
+   * `GET /admin/winner/prizes` — asosiy sovrinlar (avtomobil, sayohat, iPhone, planshet) reyting
+   * bo'yicha: har birining ko'rishlar oralig'ida eng ko'p ko'rilganlar. Random emas, joriy holat.
+   */
+  @Get("prizes")
+  prizes(): RatingPrizes {
+    return buildRatingPrizes({
+      ranking: this.stats.ranking(),
+      tiers: contestPrizes.tiers,
+      cases: this.targets.allCases(),
+      updatedAt: this.stats.status().lastSuccessAt,
+    });
   }
 
   /** Qo'lda tekshiriladigan band: mahsulot xaridi yoki "Reklama vositalari". Izoh majburiy. */

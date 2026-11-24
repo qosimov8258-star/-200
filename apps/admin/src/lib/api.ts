@@ -82,6 +82,7 @@ export const updateContestRules = impl.updateContestRules;
 
 // Random tanlov
 export const getDrawSetup = impl.getDrawSetup;
+export const saveDrawSettings = impl.saveDrawSettings;
 export const previewDraw = impl.previewDraw;
 export const runDraw = impl.runDraw;
 export const createDrawPeriod = impl.createDrawPeriod;
@@ -102,6 +103,7 @@ export const getAuditLog = impl.getAuditLog;
 
 // G'olib
 export const getWinnerOverview = impl.getWinnerOverview;
+export const getRatingPrizes = impl.getRatingPrizes;
 export const setWinnerManualCheck = impl.setWinnerManualCheck;
 export const skipWinnerCandidate = impl.skipWinnerCandidate;
 export const confirmWinner = impl.confirmWinner;

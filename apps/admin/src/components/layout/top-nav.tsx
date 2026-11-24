@@ -20,10 +20,11 @@ interface TopNavProps {
 
 /**
  * Panelda to'g'ridan-to'g'ri ko'rinadigan bandlar soni; qolganlari — "Yana" ichida.
- * 1024–1279px da logotip va profil joy oladi — bitta kam.
+ * 1024–1279px da joy tor — ikkita kam. "G'oliblar" va "Random tanlov" ikkala o'lchamda ham tepada.
+ * 1280–1535px da profil tugmasida faqat bosh harflar (ism 1536px dan) — bo'limlarga joy qoladi.
  */
-const LG_VISIBLE = 4;
-const XL_VISIBLE = 5;
+const LG_VISIBLE = 5;
+const XL_VISIBLE = 7;
 
 type MenuName = "more" | "profile" | "mobile";
 
@@ -222,11 +223,11 @@ export function TopNav({ admin, onLogout, loggingOut }: TopNavProps) {
             aria-expanded={open === "profile"}
             aria-controls={profileId}
             aria-label={`Profil: ${admin.fullName}`}
-            className="flex h-12 items-center gap-2 rounded-full bg-white pr-3 pl-1.5 xl:gap-2.5 xl:pr-4 text-[15px] font-medium text-slate-900 shadow-[0_4px_12px_-4px_rgba(30,20,60,0.45)] transition duration-200 hover:bg-violet-50 active:scale-[0.98] focus-visible:outline-white"
+            className="flex h-12 items-center gap-2 rounded-full bg-white pr-3 pl-1.5 2xl:gap-2.5 2xl:pr-4 text-[15px] font-medium text-slate-900 shadow-[0_4px_12px_-4px_rgba(30,20,60,0.45)] transition duration-200 hover:bg-violet-50 active:scale-[0.98] focus-visible:outline-white"
           >
             <Initials name={admin.fullName} />
-            {/* 1024–1280px da joy tor — faqat bosh harflar. */}
-            <span className="hidden max-w-[10rem] truncate xl:inline">{admin.fullName}</span>
+            {/* 1536px dan tor ekranda joy bo'limlarga kerak — faqat bosh harflar. */}
+            <span className="hidden max-w-[10rem] truncate 2xl:inline">{admin.fullName}</span>
             <ChevronDown
               className={cn("size-4 text-slate-400 transition-transform duration-200", open === "profile" && "rotate-180")}
               aria-hidden
@@ -298,8 +299,9 @@ function initials(fullName: string): string {
     .join("");
 }
 
+/** 1536px dan keng ekranda profil tugmasida ism ham bor — bo'limlar biroz zichroq. */
 const BAR_ITEM =
-  "relative flex items-center rounded-full px-3.5 py-2 text-[15px] whitespace-nowrap transition-colors duration-200 focus-visible:outline-white";
+  "relative flex items-center rounded-full px-3.5 py-2 text-[15px] whitespace-nowrap transition-colors duration-200 focus-visible:outline-white 2xl:px-3";
 
 /** Faol bo'lim belgisi — matn ostidagi kichik nuqta. */
 function ActiveDot({ className }: { className?: string }) {

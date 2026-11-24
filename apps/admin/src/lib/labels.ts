@@ -8,6 +8,7 @@ import type {
   ManualReviewRejectReason,
   ManualReviewStatus,
   ParticipantStatus,
+  RatingPrizeKind,
   ReelFlagType,
   ReelRejectReason,
   ReelStatus,
@@ -215,6 +216,17 @@ export const SUPPORT_STATUS_TONES: Record<SupportTicketStatus, BadgeTone> = {
 // Sovg'alar
 // ---------------------------------------------------------------------------
 
+/** Yagona random sovg'a — oylik voucher. */
+export const VOUCHER_PRIZE_LABEL = "Korzinka voucheri · 500 000 so'm";
+
+/** Asosiy sovrinlarning qisqa nomlari (reyting bo'yicha beriladi, random emas). */
+export const RATING_PRIZE_LABELS: Record<RatingPrizeKind, string> = {
+  car: "BYD Chazor",
+  travel: "Tailand sayohati",
+  phone: "iPhone 18 Pro",
+  tablet: "Planshet",
+};
+
 // ---------------------------------------------------------------------------
 // Random tanlov
 // ---------------------------------------------------------------------------
@@ -222,7 +234,7 @@ export const SUPPORT_STATUS_TONES: Record<SupportTicketStatus, BadgeTone> = {
 export const DRAW_STATUS_LABELS: Record<DrawStatus, string> = {
   DRAFT: "Qoralama",
   CONFIRMED: "Tasdiqlangan",
-  SENT: "Botga yuborilgan",
+  SENT: "Yuborilgan",
   CANCELLED: "Bekor qilingan",
 };
 
@@ -246,7 +258,7 @@ export const DRAW_EXCLUSION_LABELS: Record<DrawExclusion, string> = {
   STATUS: "Bloklangan yoki diskvalifikatsiya",
   WARNED: "Ogohlantirilgan",
   TARGET: "Target aniqlangan",
-  PREVIOUS_WINNER: "Oldingi bosqich g'olibi",
+  PREVIOUS_WINNER: "Voucher olgan (qayta berilmaydi)",
 };
 
 export const DRAW_NOTIFY_LABELS: Record<DrawNotifyStatus, string> = {
@@ -331,6 +343,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "draw.period.delete": "Random tanlov davrini o'chirdi",
   "draw.stage.delete": "Random tanlov bosqichini o'chirdi",
   "draw.stage.restore": "Random tanlov bosqichini tikladi",
+  "draw.settings.update": "Random tanlov sozlamalarini saqladi",
   "story.remove": "Istoriyani o'chirdi",
 };
 

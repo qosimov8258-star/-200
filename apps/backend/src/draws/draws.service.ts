@@ -18,6 +18,8 @@ import {
   validateDrawSettings,
   type DrawPeriodInput,
   type DrawSettings,
+  type DrawSettingsInput,
+  type SavedDrawSettings,
 } from "./draw-rules";
 
 /** Javob shakllari admin paneldagi `apps/admin/src/lib/types.ts` (Random tanlov) bilan bir xil. */
@@ -167,6 +169,8 @@ export class DrawsService {
   private periodSeq = 0;
   /** Admin o'chirgan bosqichlar (raqamlari). Raqamlar o'zgarmaydi — tanlovlar ularga bog'langan. */
   private removedStages: number[] = [];
+  /** Bir marta tasdiqlangan tanlov sozlamalari (null — hali saqlanmagan, standartlar ishlaydi). */
+  private savedSettings: SavedDrawSettings | null = null;
   private readonly now: () => Date;
   private readonly sendIntervalMs: number;
 
@@ -183,13 +187,15 @@ export class DrawsService {
       periods: this.periods,
       periodSeq: this.periodSeq,
       removedStages: this.removedStages,
+      savedSettings: this.savedSettings,
     }));
     if (saved) {
       this.draws.push(...saved.draws);
       this.periods.push(...saved.periods);
       this.periodSeq = saved.periodSeq;
-      // Eski saqlangan holatda bu maydon yo'q.
+      // Eski saqlangan holatda bu maydonlar yo'q.
       this.removedStages = saved.removedStages ?? [];
+      this.savedSettings = saved.savedSettings ?? null;
     }
   }
 
@@ -212,6 +218,7 @@ export class DrawsService {
       stages.find((s) => s.startsOn <= today && today <= s.endsOn) ??
       stages[0];
     const { monthly } = contestPrizes;
+    const saved = this.savedSettings;
     return {
       today,
       stages,
@@ -227,24 +234,58 @@ export class DrawsService {
           maxViews: monthly.maxViews,
         },
       ],
+      // Saqlangan sozlamalar bo'lsa — ular; bo'lmasa standartlar (Instagram'da joylangan sana).
+      saved,
       defaults: {
         prizeId: MONTHLY_PRIZE_ID,
         stage: stage?.index ?? null,
         periodFrom: stage?.startsOn ?? today,
         periodTo: stage?.endsOn ?? today,
-        dateBasis: "POSTED",
-        minViews: monthly.minViews,
-        maxViews: monthly.maxViews,
-        winnersCount: monthly.perMonth,
-        reservesCount: Math.ceil(monthly.perMonth / 10),
-        excludeWarned: false,
-        excludeTargets: true,
-        excludePreviousWinners: false,
-        messageTemplate: DEFAULT_DRAW_MESSAGE,
+        dateBasis: saved?.dateBasis ?? "POSTED",
+        minViews: saved?.minViews ?? monthly.minViews,
+        maxViews: saved?.maxViews ?? monthly.maxViews,
+        winnersCount: saved?.winnersCount ?? monthly.perMonth,
+        reservesCount: saved?.reservesCount ?? Math.ceil(monthly.perMonth / 10),
+        excludeWarned: saved?.excludeWarned ?? false,
+        excludeTargets: saved?.excludeTargets ?? true,
+        excludePreviousWinners: true,
+        messageTemplate: saved?.messageTemplate ?? DEFAULT_DRAW_MESSAGE,
       } satisfies DrawSettings,
       placeholders: DRAW_PLACEHOLDERS,
       periods: this.listPeriods(),
     };
+  }
+
+  /**
+   * Doimiy sozlamalarni saqlaydi (bir marta tasdiqlash, keyin tahrirlash). Tekshiruv — tanlovdagi
+   * bilan bir xil; oldingi g'oliblar har doim chetda. Xato — 400.
+   */
+  saveSettings(input: DrawSettingsInput, actor: string): SavedDrawSettings {
+    const today = contestDay(this.now());
+    const error = validateDrawSettings({
+      ...input,
+      prizeId: MONTHLY_PRIZE_ID,
+      stage: null,
+      periodFrom: today,
+      periodTo: today,
+      excludePreviousWinners: true,
+    });
+    if (error) throw fail(400, error);
+    this.savedSettings = {
+      dateBasis: input.dateBasis,
+      minViews: input.minViews,
+      maxViews: input.maxViews,
+      winnersCount: input.winnersCount,
+      reservesCount: input.reservesCount,
+      excludeWarned: input.excludeWarned,
+      excludeTargets: input.excludeTargets,
+      excludePreviousWinners: true,
+      messageTemplate: input.messageTemplate.trim(),
+      updatedAt: this.now().toISOString(),
+      updatedBy: actor,
+    };
+    this.logger.log(`${actor}: random tanlov sozlamalari saqlandi.`);
+    return this.savedSettings;
   }
 
   preview(settings: DrawSettings) {
@@ -571,6 +612,8 @@ export class DrawsService {
   // -------------------------------------------------------------------------
 
   private check(settings: DrawSettings): void {
+    // Voucher bir kishiga aksiya davomida bir marta — oldingi g'oliblar har doim chetda.
+    settings.excludePreviousWinners = true;
     const error = validateDrawSettings(settings);
     if (error) throw fail(400, error);
     if (settings.prizeId !== MONTHLY_PRIZE_ID) throw fail(400, "Oylik sovg'a tanlanmagan.");
@@ -591,10 +634,14 @@ export class DrawsService {
     );
   }
 
+  /**
+   * Voucher olganlar: bekor qilinmagan barcha tanlovlarning (qoralama ham — u tasdiqlansa, bir kishi
+   * ikki bosqichda yutib qolmasin) faol g'oliblari. Voucher bir kishiga aksiya davomida bir marta.
+   */
   private previousWinners(prizeId: string): Set<string> {
     const ids = new Set<string>();
     for (const d of this.draws) {
-      if (d.settings.prizeId !== prizeId || (d.status !== "CONFIRMED" && d.status !== "SENT")) continue;
+      if (d.settings.prizeId !== prizeId || d.status === "CANCELLED") continue;
       for (const e of d.winnerEntries) if (e.state === "ACTIVE") ids.add(e.candidate.participantId);
     }
     return ids;
@@ -607,7 +654,7 @@ export class DrawsService {
   private pool(settings: DrawSettings) {
     const today = contestDay(this.now());
     const viewsAsOf = settings.periodTo < today ? settings.periodTo : today;
-    const previous = settings.excludePreviousWinners ? this.previousWinners(settings.prizeId) : new Set<string>();
+    const previous = this.previousWinners(settings.prizeId);
     const excluded = Object.fromEntries(EXCLUSIONS.map((k) => [k, 0])) as Record<DrawExclusion, number>;
     const eligible: DrawCandidate[] = [];
     let totalReels = 0;

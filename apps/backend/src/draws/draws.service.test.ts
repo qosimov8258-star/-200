@@ -235,16 +235,63 @@ test("winners are notified through the bot only after confirmation; failures can
   assert.equal(status(() => draws.cancel(draw.id, "Kech qoldi", "Admin")), 409);
 });
 
-test("previous winners can be excluded from the next stage", () => {
+test("a voucher is given once for the whole contest: previous winners are always excluded, drafts too", () => {
   const { draws, add, settings } = setup();
-  for (let id = 1; id <= 4; id++) add(id, { posted: "2026-12-01" });
+  for (let id = 1; id <= 5; id++) add(id, { posted: "2026-12-01" });
   const first = draws.run(settings({ winnersCount: 2, reservesCount: 0 }), "Admin");
   draws.confirm(first.id, "Admin");
 
   const custom = { stage: null, periodFrom: "2026-11-25", periodTo: "2026-12-25" } as const;
-  const preview = draws.preview(settings({ ...custom, excludePreviousWinners: true }));
-  assert.equal(preview.eligibleCount, 2);
+  // Bayroq o'chirib yuborilsa ham — chetda qoladi (voucher bir kishiga bir marta).
+  const preview = draws.preview(settings({ ...custom, excludePreviousWinners: false }));
+  assert.equal(preview.eligibleCount, 3);
   assert.equal(preview.excluded.PREVIOUS_WINNER, 2);
+
+  // Tasdiqlanmagan (qoralama) tanlov g'oliblari ham boshqa davrda qatnashmaydi.
+  const second = draws.run(settings({ ...custom, winnersCount: 1, reservesCount: 0 }), "Admin");
+  assert.equal(second.settings.excludePreviousWinners, true);
+  const third = { stage: null, periodFrom: "2026-11-26", periodTo: "2026-12-25" } as const;
+  assert.equal(draws.preview(settings(third)).excluded.PREVIOUS_WINNER, 3);
+  // Bekor qilingan tanlov g'oliblari yana qatnasha oladi.
+  draws.cancel(second.id, "Xato davr tanlandi", "Admin");
+  assert.equal(draws.preview(settings(third)).excluded.PREVIOUS_WINNER, 2);
+});
+
+test("settings are saved once and reused as defaults; invalid ones are refused", () => {
+  const { draws } = setup();
+  assert.equal(draws.setup().saved, null);
+  assert.equal(draws.setup().defaults.dateBasis, "POSTED");
+  assert.equal(draws.setup().defaults.excludePreviousWinners, true);
+
+  const input = {
+    dateBasis: "SUBMITTED" as const,
+    minViews: 2_000,
+    maxViews: 90_000,
+    winnersCount: 250,
+    reservesCount: 20,
+    excludeWarned: true,
+    excludeTargets: false,
+    messageTemplate: "  Tabriklaymiz, {ism}! Siz {sovrin} yutdingiz.  ",
+  };
+  const saved = draws.saveSettings(input, "Bosh Admin");
+  assert.equal(saved.excludePreviousWinners, true);
+  assert.equal(saved.updatedBy, "Bosh Admin");
+  assert.equal(saved.messageTemplate, "Tabriklaymiz, {ism}! Siz {sovrin} yutdingiz.");
+
+  const s = draws.setup();
+  assert.deepEqual(s.saved, saved);
+  assert.deepEqual(
+    [s.defaults.dateBasis, s.defaults.minViews, s.defaults.maxViews, s.defaults.winnersCount, s.defaults.reservesCount],
+    ["SUBMITTED", 2_000, 90_000, 250, 20],
+  );
+  assert.deepEqual([s.defaults.excludeWarned, s.defaults.excludeTargets, s.defaults.excludePreviousWinners], [true, false, true]);
+  // Bosqich va davr har safar alohida tanlanadi — saqlanmaydi.
+  assert.equal(s.defaults.stage, 1);
+
+  assert.equal(status(() => draws.saveSettings({ ...input, maxViews: 100 }, "Admin")), 400);
+  assert.equal(status(() => draws.saveSettings({ ...input, winnersCount: 0 }, "Admin")), 400);
+  assert.equal(status(() => draws.saveSettings({ ...input, messageTemplate: "{noma'lum} 1234567890" }, "Admin")), 400);
+  assert.deepEqual(draws.setup().saved, saved, "xato bo'lsa — eskisi qoladi");
 });
 
 test("stock: drafts do not reduce the remaining vouchers, confirmed and sent ones do; cancelled are ignored", async () => {

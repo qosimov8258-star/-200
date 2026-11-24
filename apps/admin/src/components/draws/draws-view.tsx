@@ -1,43 +1,67 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, ArrowLeft, Dices, History, Plus, Scale } from "lucide-react";
+import { AlertCircle, ArrowLeft, Dices, History, PartyPopper, Plus, Scale } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
-import { getDraw, getDraws, getDrawSetup, previewDraw, runDraw } from "@/lib/api";
+import { getDraw, getDraws, getDrawSetup, getRatingPrizes, previewDraw, runDraw } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
-import { periodLabel, stageLabel, validateDrawSettings } from "@/lib/draw-rules";
+import { drawRunSettings, stageLabel, type DrawPeriodChoice } from "@/lib/draw-rules";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { DRAW_STATUS_LABELS, DRAW_STATUS_TONES } from "@/lib/labels";
-import type { DrawSettings, VoucherDraw, VoucherDrawSummary } from "@/lib/types";
+import type { DrawSettings, DrawSetup, RatingPrizeKind, VoucherDraw, VoucherDrawSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+import { DrawPeriodPicker } from "./draw-period-picker";
 import { DrawPoolCard } from "./draw-pool-card";
+import { DrawPrizePicker, type DrawPrizeChoice } from "./draw-prize-picker";
+import { DrawRatingPrize } from "./draw-rating-prize";
 import { DrawResult } from "./draw-result";
-import { DrawRollingDialog } from "./draw-rolling-dialog";
-import { DrawSettingsForm } from "./draw-settings-form";
+import { DrawSettingsCard } from "./draw-settings-card";
 import { DrawStockSummary } from "./draw-stock-card";
 
-const PREVIEW_DEBOUNCE_MS = 400;
+const RATING_KINDS: RatingPrizeKind[] = ["car", "travel", "phone", "tablet"];
 
-/** Random tanlov bo'limi: yangi tanlov (sozlamalar + nomzodlar) yoki tanlangan tanlov natijasi. */
+const isRatingKind = (value: string | null): value is RatingPrizeKind =>
+  value !== null && (RATING_KINDS as string[]).includes(value);
+
+/**
+ * Random tanlov bo'limi. Tepada sovg'a tanlanadi: voucher — random tanlov (sozlamalar, bosqich,
+ * "Tanlash", natija va tarix); avtomobil, sayohat, iPhone, planshet — reyting bo'yicha g'oliblar.
+ * URL: `?id=` — tanlangan tanlov natijasi, `?prize=car|travel|phone|tablet` — asosiy sovrin.
+ */
 export function DrawsView() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const selectedId = searchParams.get("id");
+  const prizeParam = searchParams.get("prize");
+  const choice: DrawPrizeChoice = !selectedId && isRatingKind(prizeParam) ? prizeParam : "voucher";
 
-  const select = (id: string | null) => {
-    router.push(id ? `${pathname}?id=${encodeURIComponent(id)}` : pathname, { scroll: true });
+  const go = (params: { id?: string; prize?: RatingPrizeKind }) => {
+    const query = params.id
+      ? `?id=${encodeURIComponent(params.id)}`
+      : params.prize
+        ? `?prize=${params.prize}`
+        : "";
+    router.push(`${pathname}${query}`, { scroll: !params.prize });
   };
 
+  const setup = useQuery({ queryKey: ["draw-setup"], queryFn: getDrawSetup });
+  const ratingPrizes = useQuery({ queryKey: ["rating-prizes"], queryFn: getRatingPrizes });
   const draws = useQuery({ queryKey: ["draws"], queryFn: getDraws });
+
+  /** "Tanlash" bilan hozirgina o'tkazilgan tanlov — natija ustida qisqa xabar ko'rsatiladi. */
+  const [freshId, setFreshId] = useState<string | null>(null);
+  /** "G'oliblarni ko'rsatish" bosilgan sovrin. */
+  const [shownKind, setShownKind] = useState<RatingPrizeKind | null>(null);
+
+  const tier = choice === "voucher" ? null : ratingPrizes.data?.tiers.find((item) => item.kind === choice);
 
   return (
     <div className="space-y-6">
@@ -48,71 +72,109 @@ export function DrawsView() {
             Random tanlov
           </h1>
           <p className="mt-1 text-sm text-slate-600">
-            Oylik voucher g&apos;oliblarini talabga javob beradigan ishtirokchilar orasidan adolatli tasodifiy tanlash.
+            Oylik voucher g&apos;oliblari tasodifiy tanlanadi. Asosiy sovrinlar — faqat reyting bo&apos;yicha.
           </p>
         </div>
         {selectedId && (
-          <Button variant="secondary" onClick={() => select(null)}>
+          <Button variant="secondary" onClick={() => go({})}>
             <Plus className="size-4" aria-hidden />
             Yangi tanlov
           </Button>
         )}
       </header>
 
-      <DrawStockSummary />
+      <DrawPrizePicker
+        voucher={setup.data?.prizes.find((prize) => prize.id === setup.data?.defaults.prizeId)}
+        tiers={ratingPrizes.data?.tiers}
+        tiersError={ratingPrizes.isError ? errorMessage(ratingPrizes.error) : null}
+        value={choice}
+        onChange={(next) => go(next === "voucher" ? {} : { prize: next })}
+      />
 
-      <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="min-w-0">
-          {selectedId ? (
-            <SelectedDraw id={selectedId} onBack={() => select(null)} />
-          ) : (
-            <NewDraw onCreated={(draw) => select(draw.id)} />
-          )}
-        </div>
-        <aside className="grid gap-4 md:grid-cols-2 2xl:block 2xl:space-y-4">
-          <DrawHistory
-            items={draws.data}
-            loading={draws.isPending}
-            error={draws.isError ? errorMessage(draws.error) : null}
-            selectedId={selectedId}
-            onSelect={select}
+      {choice !== "voucher" ? (
+        tier ? (
+          <DrawRatingPrize
+            tier={tier}
+            updatedAt={ratingPrizes.data?.updatedAt ?? null}
+            shown={shownKind === choice}
+            loading={shownKind === choice && ratingPrizes.isFetching}
+            onShow={() => {
+              setShownKind(choice);
+              void ratingPrizes.refetch();
+            }}
           />
-          <FairnessNote />
-        </aside>
-      </div>
+        ) : ratingPrizes.isPending ? (
+          <Spinner />
+        ) : null
+      ) : (
+        <>
+          <DrawStockSummary />
+
+          <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="min-w-0">
+              {selectedId ? (
+                <SelectedDraw id={selectedId} fresh={freshId === selectedId} onBack={() => go({})} />
+              ) : setup.isPending ? (
+                <Spinner />
+              ) : setup.isError || !setup.data ? (
+                <p role="alert" className="text-sm text-red-700">
+                  {setup.isError ? errorMessage(setup.error) : "Sozlamalarni yuklab bo'lmadi."}
+                </p>
+              ) : (
+                <NewDraw
+                  setup={setup.data}
+                  onCreated={(draw) => {
+                    setFreshId(draw.id);
+                    go({ id: draw.id });
+                  }}
+                />
+              )}
+            </div>
+            <aside className="grid gap-4 md:grid-cols-2 2xl:block 2xl:space-y-4">
+              <DrawHistory
+                items={draws.data}
+                loading={draws.isPending}
+                error={draws.isError ? errorMessage(draws.error) : null}
+                selectedId={selectedId}
+                onSelect={(id) => go({ id })}
+              />
+              <FairnessNote />
+            </aside>
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
 
-function NewDraw({ onCreated }: { onCreated: (draw: VoucherDraw) => void }) {
+/** Yangi tanlov: doimiy sozlamalar, bosqich va bitta "Tanlash" tugmasi. */
+function NewDraw({ setup, onCreated }: { setup: DrawSetup; onCreated: (draw: VoucherDraw) => void }) {
   const queryClient = useQueryClient();
-  const setup = useQuery({ queryKey: ["draw-setup"], queryFn: getDrawSetup });
-  const [settings, setSettings] = useState<DrawSettings | null>(null);
-  const value = settings ?? setup.data?.defaults ?? null;
-  const errors = useMemo(() => (value ? validateDrawSettings(value) : {}), [value]);
-  const valid = Object.keys(errors).length === 0;
+  const [editing, setEditing] = useState(false);
+  const [picked, setPicked] = useState<DrawPeriodChoice | null>(null);
+  const period: DrawPeriodChoice = picked ?? {
+    stage: setup.defaults.stage,
+    periodFrom: setup.defaults.periodFrom,
+    periodTo: setup.defaults.periodTo,
+  };
+  const saved = setup.saved;
+  const settings = saved ? drawRunSettings(setup.defaults.prizeId, saved, period) : null;
 
-  // Har harfda emas, sozlash to'xtagach hisoblaymiz.
-  const [debounced, setDebounced] = useState<DrawSettings | null>(null);
-  useEffect(() => {
-    if (!value || !valid) return;
-    const timer = setTimeout(() => setDebounced(value), PREVIEW_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [value, valid]);
-
+  // Nomzodlar soni — ma'lumot uchun (alohida qadam emas): "Tanlash" uni kutmaydi.
   const preview = useQuery({
-    queryKey: ["draw-preview", debounced],
-    queryFn: () => previewDraw(debounced as DrawSettings),
-    enabled: debounced !== null,
+    queryKey: ["draw-preview", settings],
+    queryFn: () => previewDraw(settings as DrawSettings),
+    enabled: settings !== null,
     placeholderData: keepPreviousData,
   });
 
-  const [confirming, setConfirming] = useState(false);
   const run = useMutation({
-    mutationFn: (s: DrawSettings) => runDraw(s),
-    onSuccess: async () => {
+    mutationFn: runDraw,
+    onSuccess: async (draw) => {
+      queryClient.setQueryData(["draw", draw.id], draw);
+      onCreated(draw);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["draws"] }),
         queryClient.invalidateQueries({ queryKey: ["draw-preview"] }),
@@ -120,40 +182,43 @@ function NewDraw({ onCreated }: { onCreated: (draw: VoucherDraw) => void }) {
       ]);
     },
   });
-  const rolling = run.isPending || run.isSuccess;
 
-  if (setup.isPending) return <Spinner />;
-  if (setup.isError || !value || !setup.data) {
-    return (
-      <p role="alert" className="text-sm text-red-700">
-        {setup.isError ? errorMessage(setup.error) : "Sozlamalarni yuklab bo'lmadi."}
-      </p>
-    );
-  }
-
-  const blocked =
-    !valid ||
-    !preview.data ||
-    preview.data.eligibleCount === 0 ||
-    preview.data.warnings.some((w) => w.includes("allaqachon o'tkazilgan"));
+  // Oldingi davrning (placeholder) natijasi bo'yicha to'smaymiz.
+  const current = preview.isPlaceholderData ? undefined : preview.data;
+  const existing = current?.warnings.some((w) => w.includes("allaqachon o'tkazilgan")) ?? false;
+  const empty = current !== undefined && current.eligibleCount === 0;
+  const blocker = !saved
+    ? "Avval sozlamalarni tasdiqlang."
+    : editing
+      ? "Avval sozlamalarni saqlang yoki tahrirlashni bekor qiling."
+      : existing
+        ? "Bu bosqich uchun tanlov o'tkazilgan — natija tarixda."
+        : empty
+          ? "Bu bosqichda talabga javob beradigan nomzod yo'q."
+          : null;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <DrawSettingsForm
-        setup={setup.data}
-        value={value}
-        errors={errors}
-        onChange={setSettings}
-        disabled={rolling}
-      />
+      <div className="min-w-0 space-y-4">
+        <DrawSettingsCard setup={setup} editing={editing} onEditingChange={setEditing} />
+        <DrawPeriodPicker
+          setup={setup}
+          value={period}
+          onChange={(next) => {
+            run.reset();
+            setPicked(next);
+          }}
+          disabled={run.isPending}
+        />
+      </div>
 
       <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">
         <DrawPoolCard
-          preview={preview.data}
+          preview={settings ? preview.data : undefined}
           loading={preview.isFetching}
           error={preview.isError ? errorMessage(preview.error) : null}
-          winnersCount={value.winnersCount}
-          reservesCount={value.reservesCount}
+          winnersCount={saved?.winnersCount ?? setup.defaults.winnersCount}
+          reservesCount={saved?.reservesCount ?? setup.defaults.reservesCount}
         />
         {run.isError && (
           <p role="alert" className="flex gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -163,68 +228,28 @@ function NewDraw({ onCreated }: { onCreated: (draw: VoucherDraw) => void }) {
         )}
         <Button
           className="h-12 w-full text-base"
-          disabled={blocked || preview.isFetching}
-          onClick={() => setConfirming(true)}
+          disabled={settings === null || blocker !== null}
+          loading={run.isPending}
+          onClick={() => settings && run.mutate(settings)}
         >
-          <Dices className="size-5" aria-hidden />
-          Random tanlovni o&apos;tkazish
+          {!run.isPending && <Dices className="size-5" aria-hidden />}
+          {run.isPending ? "Tanlanmoqda…" : "Tanlash"}
         </Button>
-        <p className="text-center text-xs text-slate-500">
-          Natija avval qoralama bo&apos;ladi — tekshirib, tasdiqlagandan keyingina g&apos;oliblarga yuboriladi.
+        <p className={cn("text-center text-xs", blocker ? "text-amber-700" : "text-slate-500")}>
+          {blocker ?? (
+            <>
+              Bir bosishda {formatNumber(saved?.winnersCount ?? 0)} g&apos;olib va{" "}
+              {formatNumber(saved?.reservesCount ?? 0)} zaxira tanlanadi. Natija qoralama bo&apos;ladi — tekshirib,
+              tasdiqlagach g&apos;oliblarga yuboriladi.
+            </>
+          )}
         </p>
       </div>
-
-      {confirming && preview.data && (
-        <Dialog
-          open
-          onClose={() => setConfirming(false)}
-          title="Random tanlovni o'tkazish"
-          description={
-            <>
-              {formatNumber(preview.data.eligibleCount)} nomzod orasidan{" "}
-              <b>{formatNumber(Math.min(value.winnersCount, preview.data.eligibleCount))} g&apos;olib</b> va{" "}
-              {formatNumber(
-                Math.max(0, Math.min(value.reservesCount, preview.data.eligibleCount - value.winnersCount)),
-              )}{" "}
-              zaxira tasodifiy tanlanadi ({stageLabel(value.stage)}, {periodLabel(value.periodFrom, value.periodTo)}).
-              Natija va tasodifiy kalit audit logga yoziladi.
-            </>
-          }
-        >
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="secondary" onClick={() => setConfirming(false)}>
-              Bekor qilish
-            </Button>
-            <Button
-              data-autofocus
-              onClick={() => {
-                setConfirming(false);
-                run.mutate(value);
-              }}
-            >
-              <Dices className="size-4" aria-hidden />
-              O&apos;tkazish
-            </Button>
-          </div>
-        </Dialog>
-      )}
-
-      {rolling && (
-        <DrawRollingDialog
-          names={(preview.data?.sample ?? []).map((c) => `${c.firstName} ${c.lastName}`)}
-          result={run.data ?? null}
-          onOpen={(draw) => {
-            queryClient.setQueryData(["draw", draw.id], draw);
-            run.reset();
-            onCreated(draw);
-          }}
-        />
-      )}
     </div>
   );
 }
 
-function SelectedDraw({ id, onBack }: { id: string; onBack: () => void }) {
+function SelectedDraw({ id, fresh, onBack }: { id: string; fresh: boolean; onBack: () => void }) {
   const draw = useQuery({ queryKey: ["draw", id], queryFn: () => getDraw(id) });
   if (draw.isPending) return <Spinner />;
   if (draw.isError) {
@@ -240,7 +265,24 @@ function SelectedDraw({ id, onBack }: { id: string; onBack: () => void }) {
       </div>
     );
   }
-  return <DrawResult draw={draw.data} />;
+  return (
+    <div className="space-y-4">
+      {fresh && (
+        <p
+          role="status"
+          className="flex items-start gap-2.5 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900"
+        >
+          <PartyPopper className="mt-0.5 size-4 shrink-0 text-green-700" aria-hidden />
+          <span>
+            <b className="font-semibold">Tanlandi!</b> {formatNumber(draw.data.poolSize)} nomzod orasidan{" "}
+            {formatNumber(draw.data.winners)} g&apos;olib va {formatNumber(draw.data.reserves)} zaxira tasodifiy
+            aniqlandi. Natija qoralama — tekshirib, «Natijani tasdiqlash»ni bosing.
+          </span>
+        </p>
+      )}
+      <DrawResult draw={draw.data} />
+    </div>
+  );
 }
 
 function DrawHistory({
@@ -311,6 +353,7 @@ function FairnessNote() {
         </p>
         <ol className="list-decimal space-y-1 pl-4">
           <li>Talabga javob beradigan har bir ishtirokchida teng imkoniyat bor.</li>
+          <li>Voucher olganlar keyingi tanlovlarga kirmaydi — bir kishiga bir marta.</li>
           <li>Server kriptografik tasodifiy kalit (seed) yaratadi va nomzodlarni aralashtiradi.</li>
           <li>Birinchilari — g&apos;oliblar, keyingilari — zaxira.</li>
           <li>Kalit va nomzodlar izi saqlanadi: natijani istalgan payt qayta tekshirish mumkin.</li>

@@ -8,7 +8,15 @@
  * `seed` va nomzodlar ro'yxati saqlanadi — natijani istalgan payt qayta hisoblab tekshirish mumkin.
  */
 import { addDays, isIsoDate } from "./dates";
-import type { DrawPeriodInput, DrawPlaceholder, DrawSettings, DrawStage, IsoDate } from "./types";
+import type {
+  DrawPeriodInput,
+  DrawPlaceholder,
+  DrawSettings,
+  DrawSettingsInput,
+  DrawStage,
+  IsoDate,
+  SavedDrawSettings,
+} from "./types";
 
 export const DRAW_LIMITS = {
   winnersMax: 10_000,
@@ -74,18 +82,26 @@ function daysInclusive(from: IsoDate, to: IsoDate): number {
 // ---------------------------------------------------------------------------
 
 export type DrawSettingsErrors = Partial<Record<keyof DrawSettings, string>>;
+export type DrawSettingsInputErrors = Partial<Record<keyof DrawSettingsInput, string>>;
 
 const PLACEHOLDER_PATTERN = /\{[^{}\s]*\}/g;
 
+/** Tanlov sozlamalari: davr + doimiy sozlamalar (`validateDrawSettingsInput`). */
 export function validateDrawSettings(settings: DrawSettings): DrawSettingsErrors {
   const errors: DrawSettingsErrors = {};
-  const isCount = (n: number, max: number) => Number.isInteger(n) && n >= 0 && n <= max;
-
   if (!isIsoDate(settings.periodFrom)) errors.periodFrom = "Sana noto'g'ri.";
   if (!isIsoDate(settings.periodTo)) errors.periodTo = "Sana noto'g'ri.";
   else if (isIsoDate(settings.periodFrom) && settings.periodTo < settings.periodFrom) {
     errors.periodTo = "Tugash sanasi boshlanishdan oldin bo'lmasin.";
   }
+  return { ...errors, ...validateDrawSettingsInput(settings) };
+}
+
+/** Doimiy sozlamalar (`PUT /admin/draws/settings`): ko'rishlar, g'oliblar soni va bot xabari. */
+export function validateDrawSettingsInput(settings: DrawSettingsInput): DrawSettingsInputErrors {
+  const errors: DrawSettingsInputErrors = {};
+  const isCount = (n: number, max: number) => Number.isInteger(n) && n >= 0 && n <= max;
+
   if (!isCount(settings.minViews, DRAW_LIMITS.viewsMax)) errors.minViews = "0 yoki musbat butun son.";
   if (!isCount(settings.maxViews, DRAW_LIMITS.viewsMax)) errors.maxViews = "0 yoki musbat butun son.";
   else if (settings.maxViews < settings.minViews) errors.maxViews = "Eng kamidan kichik bo'lmasin.";
@@ -105,6 +121,39 @@ export function validateDrawSettings(settings: DrawSettings): DrawSettingsErrors
     if (unknown.length > 0) errors.messageTemplate = `Noma'lum o'rinbosar: ${unknown[0]}`;
   }
   return errors;
+}
+
+/** Saqlanadigan maydonlargina (`PUT /admin/draws/settings` tanasi — noma'lum maydonlar rad etiladi). */
+export function drawSettingsInputOf(source: DrawSettingsInput): DrawSettingsInput {
+  return {
+    dateBasis: source.dateBasis,
+    minViews: source.minViews,
+    maxViews: source.maxViews,
+    winnersCount: source.winnersCount,
+    reservesCount: source.reservesCount,
+    excludeWarned: source.excludeWarned,
+    excludeTargets: source.excludeTargets,
+    messageTemplate: source.messageTemplate,
+  };
+}
+
+/** Tanlanadigan davr: bosqich (raqami bilan) yoki admin yaratgan davr (`stage: null`). */
+export interface DrawPeriodChoice {
+  stage: number | null;
+  periodFrom: IsoDate;
+  periodTo: IsoDate;
+}
+
+/** Tanlov uchun to'liq sozlamalar: saqlangan sozlamalar + tanlangan davr. Oldingi g'oliblar har doim chetda. */
+export function drawRunSettings(prizeId: string, saved: SavedDrawSettings, period: DrawPeriodChoice): DrawSettings {
+  return {
+    prizeId,
+    stage: period.stage,
+    periodFrom: period.periodFrom,
+    periodTo: period.periodTo,
+    ...drawSettingsInputOf(saved),
+    excludePreviousWinners: true,
+  };
 }
 
 // ---------------------------------------------------------------------------

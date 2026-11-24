@@ -53,7 +53,8 @@ export const contestPrizes: ContestPrizes = {
     { kind: "car", title: "BYD Chazor avtomobili", quantity: 1, unit: null, minViews: 4_000_000, maxViews: null },
   ],
   notes: [
-    "Talablarni bajarsangiz, har oy voucher yutishingiz mumkin",
+    "500 000 so'mlik voucher random tanlanadi va bir kishiga aksiya davomida faqat bir marta beriladi",
+    "Asosiy sovrinlar random emas — reyting bo'yicha: har bir sovrinning ko'rishlar oralig'ida eng ko'p ko'rilgan videosi bor ishtirokchilar oladi",
     "Voucherlardan tashqari bitta asosiy sovrinni ham yutishingiz mumkin",
     "Bitta ishtirokchiga faqat bitta asosiy sovrin beriladi",
     "Oylik sovrin uchun faqat shu oyda yuklangan Reellar hisoblanadi",
