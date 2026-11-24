@@ -48,7 +48,9 @@ keyingi `HttpOnly` sessiya cookie'si (ikkalasi ham bitta `telegramId`) yoki sayt
 ro'yxatdan o'tgan hisob (ism, telefon raqam, yosh; `POST /auth/web-register`, ID — `WEB_ID_BASE`
 oralig'ida, shu brauzer sessiyasi bilan; bot orqali shu raqamni ulashib Telegram'ga ulanadi —
 `ParticipantsService.resolve` Telegram ID ni o'sha hisobga olib boradi). Familiya endi so'ralmaydi
-(o'rnida — telefon raqam).
+(o'rnida — telefon raqam). Saytga qaytib kirish — "Hisobim bor": Telegram bot orqali tasdiq
+(`POST /auth/bot-login` → bot `?start=login_<id>` → "Ha, kirish" → `POST /auth/bot-login/poll`;
+`BotLoginService`). Faqat telefon raqam bilan kirish yo'q — raqam egasini Telegram tasdiqlaydi.
 
 Mobil ilovada Material vidjetlari `package:material_ui/material_ui.dart` dan import qilinadi
 (Flutter 3.50 da `flutter/material.dart` alohida paketga ko'chgan). Backend bilan aloqa faqat

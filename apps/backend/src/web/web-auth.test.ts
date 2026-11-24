@@ -9,8 +9,9 @@ import { config } from "../config/config";
 import { ParticipantsService } from "../participants/participants.service";
 import { RulesService } from "../rules/rules.service";
 import { AuthController } from "./auth.controller";
+import { BOT_LOGIN_TTL_MS, BotLoginService } from "./bot-login.service";
 import { parseLoginWidget, verifyLoginWidget, type LoginWidgetData } from "./login-widget";
-import { createSessionToken, readCookie, sessionCookie, verifySessionToken } from "./web-session";
+import { createSessionToken, readCookie, readSessionToken, sessionCookie, verifySessionToken } from "./web-session";
 
 const BOT_TOKEN = "123456:TEST_TOKEN";
 const NOW = 1_795_000_000_000;
@@ -81,7 +82,7 @@ test("web-register creates an account with a session cookie and is rate limited 
   settings.botToken = BOT_TOKEN;
   try {
     const participants = new ParticipantsService(new RulesService());
-    const controller = new AuthController(participants);
+    const controller = new AuthController(participants, new BotLoginService());
     const cookies: string[] = [];
     const res = { setHeader: (_name: string, value: string) => cookies.push(value) } as unknown as Response;
     const req = (ip: string) =>
@@ -113,5 +114,68 @@ test("web-register creates an account with a session cookie and is rate limited 
     assert.equal(status(() => controller.webRegister({ firstName: "Ali", phone: "91 000 00 09", age: 22 }, req("3.3.3.3"), res)), 204);
   } finally {
     settings.botToken = previous;
+  }
+});
+
+test("bot login: start sets a secret cookie; poll gives the session only to that browser, once", () => {
+  const settings = config.telegram as { botToken: string | null; botUsername: string | null };
+  const previous = { ...settings };
+  settings.botToken = BOT_TOKEN;
+  settings.botUsername = "olivia_test_bot";
+  try {
+    const participants = new ParticipantsService(new RulesService());
+    const botLogin = new BotLoginService();
+    const controller = new AuthController(participants, botLogin);
+    const webId = participants.registerWeb("Dilnoza", "90 123 45 67", 22);
+    let cookies: string[] = [];
+    const res = {
+      setHeader: (_name: string, value: string | string[]) => {
+        cookies = Array.isArray(value) ? value : [value];
+      },
+    } as unknown as Response;
+    const req = (cookie?: string, ip = "1.1.1.1") =>
+      ({
+        secure: false,
+        header: (h: string) => (h === "x-forwarded-for" ? ip : h === "cookie" ? cookie : undefined),
+        socket: {},
+      }) as unknown as Request;
+
+    const started = controller.startBotLogin({}, req(), res);
+    assert.match(started.botUrl, new RegExp(`^https://t\\.me/olivia_test_bot\\?start=login_${started.id}$`));
+    assert.match(started.code, /^\d{4}$/);
+    assert.match(cookies[0], /^reels_bot_login=[^;]+; Path=\/api\/v1\/auth\/bot-login; HttpOnly; SameSite=Lax; Max-Age=600$/);
+    const secretCookie = cookies[0].split(";")[0];
+
+    assert.deepEqual(controller.pollBotLogin({ id: started.id }, req(secretCookie), res), { status: "PENDING" });
+
+    // Bot tomoni: hisob Telegram'ga ulanadi (eski sayt sessiyalari bekor) va tasdiqlanadi.
+    assert.equal(participants.setPhone(42, 42, "+998901234567"), "LINKED");
+    assert.ok(botLogin.claim(started.id, 42));
+    assert.ok(botLogin.confirm(started.id, 42, participants.resolve(42)));
+
+    // Havolani (id) bilgan, lekin kalit cookie'si yo'q boshqa brauzer — sessiya olmaydi.
+    cookies = [];
+    assert.deepEqual(controller.pollBotLogin({ id: started.id }, req("reels_bot_login=begona"), res), { status: "EXPIRED" });
+    assert.deepEqual(cookies, []);
+
+    assert.deepEqual(controller.pollBotLogin({ id: started.id }, req(secretCookie), res), { status: "CONFIRMED" });
+    const session = readSessionToken(readCookie(cookies[0].split(";")[0], "reels_session") ?? "", BOT_TOKEN);
+    assert.equal(session?.id, webId, "sessiya saytdagi hisobga");
+    const sessionsFrom = participants.get(webId)?.sessionsFrom?.getTime() ?? 0;
+    assert.ok((session?.issuedAt ?? 0) * 1000 >= sessionsFrom, "ulangandan keyin berilgan — guard rad etmaydi");
+    assert.match(cookies[0], /Max-Age=34560000/, "saytdagi hisob — uzoq sessiya");
+    assert.match(cookies[1], /^reels_bot_login=; .*Max-Age=0/);
+    assert.deepEqual(controller.pollBotLogin({ id: started.id }, req(secretCookie), res), { status: "EXPIRED" }, "bir martalik");
+
+    // Noto'g'ri tana va IP chegarasi.
+    assert.throws(() => controller.startBotLogin({ x: 1 }, req(), res));
+    assert.throws(() => controller.pollBotLogin({ id: "../../etc" }, req(), res));
+    for (let i = 0; i < 10; i += 1) controller.startBotLogin({}, req(undefined, "9.9.9.9"), res);
+    assert.throws(() => controller.startBotLogin(undefined, req(undefined, "9.9.9.9"), res), "bitta IP dan 10 daqiqada 10 tadan ko'p emas");
+    assert.ok(controller.startBotLogin(undefined, req(undefined, "8.8.8.8"), res));
+    assert.equal(BOT_LOGIN_TTL_MS, 600_000);
+  } finally {
+    settings.botToken = previous.botToken;
+    settings.botUsername = previous.botUsername;
   }
 });

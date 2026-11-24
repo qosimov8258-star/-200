@@ -36,7 +36,6 @@ export const t = {
   webJoinTitle: "Saytdan ro'yxatdan o'tish",
   webJoinVia: "Ism, telefon raqam va yosh — bir daqiqa. Parol va SMS kerak emas.",
   webSignupCta: "Ro'yxatdan o'tish",
-  webTelegramLink: "Telegram orqali kirish",
   webSignupTitle: "Ro'yxatdan o'tish",
   webSignupSubtitle: "Ismingiz, telefon raqamingiz va yoshingizni kiriting.",
   webSignupBack: "Orqaga",
@@ -46,21 +45,44 @@ export const t = {
   webLoginNotConfigured: "Saytga kirish hali sozlanmagan. Tanlovda Telegram bot orqali qatnashing.",
   webLoginMock: "Telegram orqali kirish (sinov)",
   webLogout: "Saytdan chiqish",
+  // Veb-sayt: "Hisobim bor" — Telegram bot orqali qaytib kirish (parol va SMS'siz)
+  webHaveAccount: "Hisobim bor — kirish",
+  webLoginTitle: "Hisobingizga kirish",
+  webLoginSubtitle:
+    "Telegram bot orqali bir necha soniyada — parol va SMS kerak emas. Saytda ro'yxatdan o'tgan bo'lsangiz ham shu yo'l.",
+  webLoginCodeLabel: "Botda shu kodni ko'rasiz",
+  webLoginSteps: [
+    "Pastdagi tugmani bosing — Telegram bot ochiladi.",
+    "Kerak bo'lsa, ro'yxatdan o'tgan raqamingizni ulashing.",
+    "Kod bir xil bo'lsa, botda «Ha, kirish» ni bosing va shu sahifaga qayting.",
+  ],
+  webLoginOpenBot: "Botda tasdiqlash",
+  webLoginWaiting: "Botdagi tasdiq kutilmoqda — sahifa o'zi ochiladi…",
+  webLoginMockNote: "Sinov rejimi: bir necha soniyada o'zi tasdiqlanadi.",
+  webLoginDenied: "Kirish bekor qilindi («Men emas»).",
+  webLoginTaken:
+    "Bu raqam boshqa Telegram hisobiga bog'langan — botdagi xabarni o'qing yoki botga yozing, support yordam beradi.",
+  webLoginExpired: "Kod eskirdi yoki ishlatildi.",
+  webLoginTooMany: "Juda ko'p urinish. 10 daqiqadan keyin qayta urinib ko'ring.",
+  webLoginRetry: "Yangi kod olish",
+  webLoginOr: "yoki",
+  webLoginWidget: "Telegram hisobi bilan kirish",
+  webLoginBack: "Orqaga",
   linkTelegramTitle: "Hisobingizni Telegram'ga ulang",
   linkTelegramBody:
     "Hozir hisobingiz faqat shu brauzerda. Telegram'ga ulasangiz — boshqa telefon yoki kompyuterdan ham kirasiz va natijalar haqida bot xabar beradi.",
   linkTelegramCta: "Telegram'ga ulash",
   linkTelegramWaiting:
-    "Botda raqamingizni ulashing — saytda yozgan raqamingiz. Ulangach, saytda «Telegram orqali kirish» ni bosasiz.",
+    "Botda raqamingizni ulashing — saytda yozgan raqamingiz. Ulangach, saytga «Hisobim bor — kirish» orqali kirasiz.",
   phonePlaceholder: "90 123 45 67",
   phoneInvalid: "Raqamni to'liq kiriting: 90 123 45 67",
-  phoneTaken:
-    "Bu raqam bilan ro'yxatdan o'tilgan. Telegram'da ro'yxatdan o'tgan bo'lsangiz — Telegram orqali kiring.",
+  phoneTaken: "Bu raqam bilan hisob bor — qayta ro'yxatdan o'tish shart emas.",
+  phoneTakenLogin: "Hisobimga kirish",
   tooManyAttempts: "Juda ko'p urinish. Birozdan keyin qayta urinib ko'ring.",
   phoneVerified: "Tasdiqlangan",
   logoutConfirmTitle: "Saytdan chiqasizmi?",
   logoutConfirmBody:
-    "Hisobingiz va ko'rishlaringiz saqlanib qoladi. Qaytish uchun yana Telegram orqali kirasiz — sovg'alar sizni kutadi.",
+    "Hisobingiz va ko'rishlaringiz saqlanib qoladi. Qaytish uchun «Hisobim bor — kirish» ni bosasiz — sovg'alar sizni kutadi.",
   logoutStay: "Qolaman",
   logoutLeave: "Ha, chiqish",
 

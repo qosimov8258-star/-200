@@ -8,6 +8,8 @@ import { canonicalReelUrl, parseReelShortcode } from "../reel-url";
 import { STORY_MAX_ACTIVE, STORY_MAX_BYTES, storyMime } from "../stories";
 import type {
   AuthConfig,
+  BotLoginStart,
+  BotLoginStatus,
   ContestInfo,
   ContestPrizes,
   ContestRules,
@@ -189,6 +191,45 @@ export async function webRegister(body: WebRegisterRequest): Promise<void> {
 export async function simulateTelegramLink(): Promise<void> {
   await wait(600);
   update({ webAccount: false, webSession: false });
+}
+
+/**
+ * "Hisobim bor" — mock: "Botda tasdiqlash" bosilgach (`simulateBotLoginConfirm`), botdagi
+ * "Ha, kirish" bir necha soniyadan keyin o'zi "bosiladi". Bosilmasa — kutishda qoladi.
+ */
+const MOCK_BOT_LOGIN_CONFIRM_MS = 2_500;
+let mockBotLogin: { id: string; confirmAt: number | null } | null = null;
+
+export async function startBotLogin(): Promise<BotLoginStart> {
+  await wait(300);
+  const id = Math.random().toString(36).slice(2, 12).padEnd(22, "x");
+  mockBotLogin = { id, confirmAt: null };
+  return {
+    id,
+    code: String(Math.floor(Math.random() * 10_000)).padStart(4, "0"),
+    botUrl: `https://t.me/olivia_konkursbot?start=login_${id}`,
+    expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+  };
+}
+
+/** Tasdiqlansa — mavjud hisob ochiladi (bo'lmasa — sinov profili bilan, Telegram'ga ulangan). */
+export async function pollBotLogin(id: string): Promise<{ status: BotLoginStatus }> {
+  await wait(200);
+  if (!mockBotLogin || mockBotLogin.id !== id) return { status: "EXPIRED" };
+  if (mockBotLogin.confirmAt === null || Date.now() < mockBotLogin.confirmAt) return { status: "PENDING" };
+  mockBotLogin = null;
+  update({
+    webSession: true,
+    webAccount: false,
+    phone: state.phone ?? "+998901234567",
+    profile: state.profile ?? { firstName: "Sinov", lastName: "", age: 25 },
+  });
+  return { status: "CONFIRMED" };
+}
+
+/** Mock: foydalanuvchi botni ochdi — tasdiq birozdan keyin keladi. */
+export function simulateBotLoginConfirm(id: string): void {
+  if (mockBotLogin?.id === id) mockBotLogin.confirmAt = Date.now() + MOCK_BOT_LOGIN_CONFIRM_MS;
 }
 
 export async function webLogout(): Promise<void> {

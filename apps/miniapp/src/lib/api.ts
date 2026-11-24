@@ -15,6 +15,8 @@ import { initData } from "./telegram";
 import type {
   ApiErrorCode,
   AuthConfig,
+  BotLoginStart,
+  BotLoginStatus,
   ContestInfo,
   ContestPrizes,
   ContestRules,
@@ -40,6 +42,7 @@ export const mockControls = IS_MOCK_API
       reset: mock.resetMockStore,
       shareContact: mock.simulateContactShared,
       linkTelegram: mock.simulateTelegramLink,
+      confirmBotLogin: mock.simulateBotLoginConfirm,
     }
   : null;
 
@@ -257,6 +260,21 @@ export const telegramLogin = (user: TelegramLoginUser): Promise<void> =>
  */
 export const webRegister = (body: WebRegisterRequest): Promise<void> =>
   IS_MOCK_API ? mock.webRegister(body) : request("POST", "/auth/web-register", body);
+
+/**
+ * @endpoint POST /auth/bot-login — "Hisobim bor": Telegram bot orqali kirish so'rovi (bot havolasi
+ * va 4 xonali kod). Maxfiy kalitni backend shu brauzerning cookie'siga qo'yadi.
+ * Xatolar: TOO_MANY (10 daqiqada 10 tadan ko'p), SERVER (bot sozlanmagan).
+ */
+export const startBotLogin = (): Promise<BotLoginStart> =>
+  IS_MOCK_API ? mock.startBotLogin() : request("POST", "/auth/bot-login", {});
+
+/**
+ * @endpoint POST /auth/bot-login/poll — holat; CONFIRMED bo'lsa shu javob bilan sessiya cookie'si
+ * qo'yiladi (keyin `me` va boshqa so'rovlar qayta yuklanadi).
+ */
+export const pollBotLogin = (id: string): Promise<{ status: BotLoginStatus }> =>
+  IS_MOCK_API ? mock.pollBotLogin(id) : request("POST", "/auth/bot-login/poll", { id });
 
 /** @endpoint POST /auth/logout */
 export const logout = (): Promise<void> =>

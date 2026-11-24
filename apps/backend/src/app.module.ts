@@ -46,6 +46,7 @@ import { ParticipantNotifier } from "./telegram/notifier";
 import { MessageLogService } from "./telegram/message-log.service";
 import { TelegramService } from "./telegram/telegram.service";
 import { AuthController } from "./web/auth.controller";
+import { BotLoginService } from "./web/bot-login.service";
 import { WinnerService } from "./winner/winner.service";
 
 /**
@@ -145,6 +146,8 @@ function aiReviewOptions(): AiReviewOptions {
     ContestSettingsService,
     RulesService,
     ParticipantsService,
+    // "Hisobim bor" — bot orqali tasdiqlanadigan saytga kirish (AuthController va bot birga ishlatadi).
+    BotLoginService,
     StoriesService,
     RulesVideoService,
     SupportService,

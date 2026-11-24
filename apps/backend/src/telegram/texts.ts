@@ -20,6 +20,19 @@ export const texts = {
   openMiniApp: "🏆 Tanlovni ochish",
   menuButton: "Tanlov",
   alreadyRegistered: "Tanlov ilovasini ochish uchun pastdagi tugmani bosing:",
+  // Saytdagi "Hisobim bor" — bot orqali kirish.
+  loginShareContact: (code: string) =>
+    `🔐 Saytga kirish\n\nSaytdagi kod: ${code}\n\nKirish uchun pastdagi tugma orqali Telegram'dagi raqamingizni ulashing. Saytda ro'yxatdan o'tgan bo'lsangiz — o'sha raqam bo'lsin.\n\n⚠️ Saytda «Hisobim bor» ni o'zingiz bosmagan bo'lsangiz — hech narsa qilmang.`,
+  loginConfirm: (name: string, code: string) =>
+    `🔐 Saytga kirish so'rovi\n\nHisob: ${name}\nSaytdagi kod: ${code}\n\nKod saytdagi bilan bir xil va kirishni o'zingiz so'ragan bo'lsangiz — «Ha, kirish» ni bosing.\n\n⚠️ Havolani boshqa odam yuborgan bo'lsa — «Men emas» ni bosing.`,
+  loginConfirmButton: "✅ Ha, kirish",
+  loginDenyButton: "✖️ Men emas",
+  loginConfirmedToast: "Tasdiqlandi",
+  loginDone: "✅ Tasdiqlandi! Saytga qayting — hisobingiz o'zi ochiladi.",
+  loginDenied: "Kirish bekor qilindi. Hisobingiz xavfsiz.",
+  loginExpired: "Bu kirish havolasi eskirgan yoki ishlatilgan. Saytda «Hisobim bor» ni qayta bosing.",
+  loginContactLinked: "✅ Raqam tasdiqlandi — saytdagi hisobingiz Telegram'ga ulandi.",
+  loginContactSaved: "✅ Raqam qabul qilindi.",
   miniAppNotConfigured:
     "Tanlov ilovasi hali ulanmagan. Tez orada ishga tushadi.",
   tooManyRequests: "⏳ Juda tez yozyapsiz. Bir daqiqadan keyin qayta urinib ko'ring.",

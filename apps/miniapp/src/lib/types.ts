@@ -192,6 +192,24 @@ export interface AuthConfig {
   prizeName: string;
 }
 
+/**
+ * "Hisobim bor" — Telegram bot orqali kirish so'rovi (POST /auth/bot-login). `code` saytda va
+ * botda ko'rinadi; maxfiy kalit brauzerning `HttpOnly` cookie'sida (JavaScript ko'rmaydi).
+ */
+export interface BotLoginStart {
+  id: string;
+  code: string;
+  /** `https://t.me/<bot>?start=login_<id>` */
+  botUrl: string;
+  expiresAt: string;
+}
+
+/**
+ * PENDING — botda tasdiq kutilmoqda; CONFIRMED — kirildi (sessiya cookie'si qo'yildi);
+ * DENIED — botda "Men emas"; FAILED — raqam boshqa hisobga bog'langan; EXPIRED — eskirgan/ishlatilgan.
+ */
+export type BotLoginStatus = "PENDING" | "CONFIRMED" | "DENIED" | "FAILED" | "EXPIRED";
+
 /** Telegram Login Widget `onauth` qaytaradigan obyekt — backendga o'zgartirmasdan yuboriladi. */
 export interface TelegramLoginUser {
   id: number;
