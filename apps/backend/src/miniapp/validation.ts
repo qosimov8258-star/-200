@@ -38,6 +38,19 @@ export function parseWebRegister(body: unknown): { firstName: string; phone: str
   return { firstName, phone: b.phone, age: parseAge(b.age) };
 }
 
+/** "Hisobim bor" — yangi so'rov: tana bo'sh obyekt (yoki umuman yo'q). */
+export function parseBotLoginStart(body: unknown): void {
+  if (body === undefined || body === null) return;
+  object(body, []);
+}
+
+/** "Hisobim bor" — holatni so'rash: `{ id }` (bot havolasidagi 22 belgilik ID). */
+export function parseBotLoginPoll(body: unknown): string {
+  const b = object(body, ["id"]);
+  if (typeof b.id !== "string" || !/^[A-Za-z0-9_-]{22}$/.test(b.id)) throw new ApiException(400, "SERVER");
+  return b.id;
+}
+
 function parseAge(age: unknown): number {
   if (typeof age !== "number" || !Number.isInteger(age) || age < 1 || age > 100) {
     throw new ApiException(422, "INVALID_PROFILE");

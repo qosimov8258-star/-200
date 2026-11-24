@@ -87,9 +87,22 @@ export function readCookie(header: string | undefined, name: string): string | n
 
 /** `Set-Cookie` qiymati. `maxAge` 0 — cookie o'chiriladi (chiqish). */
 export function sessionCookie(value: string, maxAgeSeconds: number, secure: boolean): string {
+  return cookie(SESSION_COOKIE, value, "/", maxAgeSeconds, secure);
+}
+
+/** "Hisobim bor" so'rovining maxfiy kaliti — faqat shu so'rovni ochgan brauzerda. */
+export const BOT_LOGIN_COOKIE = "reels_bot_login";
+const BOT_LOGIN_COOKIE_PATH = "/api/v1/auth/bot-login";
+
+/** `maxAge` 0 — o'chiriladi (sessiya berilgach). Faqat `/auth/bot-login*` so'rovlariga yuboriladi. */
+export function botLoginCookie(value: string, maxAgeSeconds: number, secure: boolean): string {
+  return cookie(BOT_LOGIN_COOKIE, value, BOT_LOGIN_COOKIE_PATH, maxAgeSeconds, secure);
+}
+
+function cookie(name: string, value: string, path: string, maxAgeSeconds: number, secure: boolean): string {
   return [
-    `${SESSION_COOKIE}=${encodeURIComponent(value)}`,
-    "Path=/",
+    `${name}=${encodeURIComponent(value)}`,
+    `Path=${path}`,
     "HttpOnly",
     "SameSite=Lax",
     `Max-Age=${maxAgeSeconds}`,

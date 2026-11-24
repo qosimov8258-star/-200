@@ -2,9 +2,10 @@ import { Injectable, Logger, type OnApplicationBootstrap, type OnApplicationShut
 import { Bot, InlineKeyboard, Keyboard, type Context } from "grammy";
 
 import { config } from "../config/config";
-import { ParticipantsService } from "../participants/participants.service";
+import { ParticipantsService, type Participant } from "../participants/participants.service";
 import type { SupportRelay } from "../support/support-relay";
 import { SupportService } from "../support/support.service";
+import { BOT_LOGIN_ID, BOT_LOGIN_START_PREFIX, BotLoginService } from "../web/bot-login.service";
 import {
   BOT_SUPPORT_MAX_IN_WINDOW,
   BOT_SUPPORT_WINDOW_MS,
@@ -31,6 +32,8 @@ const LINK_START_PAYLOAD = "link";
 const WEB_START_PAYLOAD = "web";
 /** Xabarnoma ostidagi "✅ O'qidim" tugmasi: `read:<jurnal yozuvi ID si>`. */
 const READ_PREFIX = "read:";
+/** Saytga kirishni tasdiqlash tugmalari: `login:ok:<id>` / `login:no:<id>` (`BotLoginService`). */
+const LOGIN_CALLBACK = /^login:(ok|no):([A-Za-z0-9_-]{22})$/;
 /** Bot API orqali yuklab olinadigan fayl chegarasi (`getFile` — 20 MB gacha). */
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const FILE_TIMEOUT_MS = 15_000;
@@ -45,6 +48,7 @@ export interface DownloadedFile {
 /**
  * Telegram bot:
  * - /start — salomlashadi va raqam ulashishni so'raydi (yoki Mini App tugmasini beradi);
+ * - /start login_<id> — saytdagi "Hisobim bor": raqam (kerak bo'lsa) va "Ha, kirish" tasdig'i;
  * - raqam (kontakt) — faqat o'z raqami qabul qilinadi, keyin Mini App tugmasi;
  * - shaxsiy chatdagi boshqa har qanday xabar — support murojaati, operatorlar guruhiga boradi;
  * - operator guruhda ishtirokchi xabariga "Reply" qilsa — javob ishtirokchiga yetkaziladi;
@@ -70,6 +74,7 @@ export class TelegramService
     private readonly participants: ParticipantsService,
     private readonly support: SupportService,
     private readonly log: MessageLogService,
+    private readonly botLogin: BotLoginService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -212,6 +217,21 @@ export class TelegramService
       await ctx.answerCallbackQuery(marked ? { text: texts.readThanks } : undefined);
       await ctx.editMessageReplyMarkup().catch(() => undefined);
     });
+    // Saytga kirish: "Ha, kirish" — faqat so'rovni botda ochgan foydalanuvchi, raqami bor hisob uchun.
+    bot.callbackQuery(LOGIN_CALLBACK, async (ctx) => {
+      const match = typeof ctx.match === "string" ? null : ctx.match;
+      const [action, id] = [match?.[1], match?.[2] ?? ""];
+      if (action === "no") {
+        const closed = this.botLogin.close(id, ctx.from.id, "DENIED");
+        await ctx.answerCallbackQuery();
+        await ctx.editMessageText(closed ? texts.loginDenied : texts.loginExpired).catch(() => undefined);
+        return;
+      }
+      const accountId = this.participants.resolve(ctx.from.id);
+      const confirmed = Boolean(this.participants.get(accountId)?.phone) && this.botLogin.confirm(id, ctx.from.id, accountId);
+      await ctx.answerCallbackQuery(confirmed ? { text: texts.loginConfirmedToast } : undefined);
+      await ctx.editMessageText(confirmed ? texts.loginDone : texts.loginExpired).catch(() => undefined);
+    });
     // Eski yoki noma'lum tugmalar — Telegram'dagi "yuklanmoqda" belgisi osilib qolmasin.
     bot.on("callback_query", (ctx) => ctx.answerCallbackQuery());
 
@@ -219,6 +239,22 @@ export class TelegramService
       if (!isPrivate(ctx) || !ctx.from) return;
       const p = this.participants.getOrCreate(this.participants.resolve(ctx.from.id));
       p.chatId = ctx.chat.id;
+      // Saytdagi "Hisobim bor" (`?start=login_<id>`).
+      if (ctx.match.startsWith(BOT_LOGIN_START_PREFIX)) {
+        const id = ctx.match.slice(BOT_LOGIN_START_PREFIX.length);
+        const claimed = BOT_LOGIN_ID.test(id) ? this.botLogin.claim(id, ctx.from.id) : null;
+        if (!claimed) {
+          await ctx.reply(texts.loginExpired);
+          return;
+        }
+        // Raqam yo'q — avval ulashadi (saytdagi hisob shu yerda Telegram'ga ulanadi), keyin tasdiq.
+        if (!p.phone) {
+          await ctx.reply(texts.loginShareContact(claimed.code), { reply_markup: this.contactKeyboard() });
+          return;
+        }
+        await this.askLoginConfirm(ctx, id, claimed.code, p);
+        return;
+      }
       // Saytdan "Botda raqamni ulashish" (`?start=web`) yoki "Telegram'ga ulash" (`?start=link`).
       const fromWeb = ctx.match === WEB_START_PAYLOAD || ctx.match === LINK_START_PAYLOAD;
       if (fromWeb) this.webStarts.add(ctx.from.id);
@@ -240,6 +276,19 @@ export class TelegramService
         return;
       }
       const result = this.participants.setPhone(ctx.from.id, ctx.chat.id, contact.phone_number);
+      // Saytga kirish uchun kelgan ("Hisobim bor"): raqam qabul qilinsa — darhol tasdiq so'raladi.
+      const login = this.botLogin.claimedBy(ctx.from.id);
+      if (login && (result === "TAKEN" || result === "TAKEN_WEB")) {
+        this.botLogin.close(login.id, ctx.from.id, "FAILED");
+      } else if (login) {
+        this.webStarts.delete(ctx.from.id);
+        await ctx.reply(result === "LINKED" ? texts.loginContactLinked : texts.loginContactSaved, {
+          reply_markup: { remove_keyboard: true },
+        });
+        const account = this.participants.get(this.participants.resolve(ctx.from.id));
+        if (account) await this.askLoginConfirm(ctx, login.id, login.code, account);
+        return;
+      }
       if (result === "LINKED") {
         this.webStarts.delete(ctx.from.id);
         await ctx.reply(texts.contactLinked, { reply_markup: { remove_keyboard: true } });
@@ -337,6 +386,16 @@ export class TelegramService
         : await ctx.api.sendMessage(supportChatId, clip(`${header}\n\n${text}`, TELEGRAM_TEXT_MAX));
       this.support.rememberGroupMessage(sent.message_id, p.telegramId);
       await ctx.reply(texts.supportReceived);
+    });
+  }
+
+  /** Saytga kirish tasdig'i: hisob nomi va saytdagi kod — foydalanuvchi solishtiradi. */
+  private async askLoginConfirm(ctx: Context, id: string, code: string, account: Participant): Promise<void> {
+    const name = account.firstName ? `${account.firstName} ${account.lastName}`.trim() : (ctx.from?.first_name ?? "");
+    await ctx.reply(texts.loginConfirm(name, code), {
+      reply_markup: new InlineKeyboard()
+        .text(texts.loginConfirmButton, `login:ok:${id}`)
+        .text(texts.loginDenyButton, `login:no:${id}`),
     });
   }
 

@@ -8,6 +8,7 @@ import { config } from "../config/config";
 import { ParticipantsService } from "../participants/participants.service";
 import { RulesService } from "../rules/rules.service";
 import { SupportService } from "../support/support.service";
+import { BotLoginService } from "../web/bot-login.service";
 import { MessageLogService } from "./message-log.service";
 import { TelegramService } from "./telegram.service";
 import { texts } from "./texts";
@@ -36,7 +37,8 @@ function setup(memberStatus: Record<number, string> = {}) {
   const participants = new ParticipantsService(new RulesService());
   const support = new SupportService();
   const log = new MessageLogService(participants);
-  const service = new TelegramService(participants, support, log);
+  const botLogin = new BotLoginService();
+  const service = new TelegramService(participants, support, log, botLogin);
   const bot = new Bot("123:TEST", { botInfo: BOT_INFO });
   const calls: ApiCall[] = [];
   let messageId = 1_000;
@@ -87,7 +89,54 @@ function setup(memberStatus: Record<number, string> = {}) {
       },
     },
   });
-  return { bot, calls, participants, support, privateText, groupReply, nextId: () => (updateId += 1) };
+  /** `/start <payload>` — grammy buyruqni `bot_command` belgisi bo'yicha taniydi. */
+  const start = (userId: number, payload: string): Update => {
+    const text = `/start ${payload}`;
+    return {
+      update_id: (updateId += 1),
+      message: {
+        message_id: updateId,
+        date: 0,
+        chat: { id: userId, type: "private", first_name: "U" },
+        from: { id: userId, is_bot: false, first_name: "U" },
+        text,
+        entities: [{ type: "bot_command", offset: 0, length: 6 }],
+      },
+    };
+  };
+  const contact = (userId: number, phone: string, ownerId = userId): Update => ({
+    update_id: (updateId += 1),
+    message: {
+      message_id: updateId,
+      date: 0,
+      chat: { id: userId, type: "private", first_name: "U" },
+      from: { id: userId, is_bot: false, first_name: "U" },
+      contact: { phone_number: phone, first_name: "U", user_id: ownerId },
+    },
+  });
+  const press = (userId: number, data: string): Update => ({
+    update_id: (updateId += 1),
+    callback_query: {
+      id: `cb${updateId}`,
+      from: { id: userId, is_bot: false, first_name: "U" },
+      chat_instance: "ci",
+      data,
+      message: { message_id: 1, date: 0, chat: { id: userId, type: "private", first_name: "U" }, text: "…" },
+    },
+  });
+  return {
+    bot,
+    calls,
+    participants,
+    support,
+    botLogin,
+    privateText,
+    groupReply,
+    start,
+    contact,
+    press,
+    nextId: () => (updateId += 1),
+  };
 }
 
 const sent = (calls: ApiCall[], chatId: number) =>
@@ -158,4 +207,86 @@ test("the bot leaves foreign groups it is added to and ignores other bots", asyn
   if (fromBot.message?.from) fromBot.message.from.is_bot = true;
   await bot.handleUpdate(fromBot);
   assert.equal(sent(calls, 43).length, 0);
+});
+
+// --- Saytdagi "Hisobim bor" — bot orqali kirish ------------------------------
+
+const edited = (calls: ApiCall[]) =>
+  calls.filter((c) => c.method === "editMessageText").map((c) => String(c.payload.text));
+const loginButtons = (calls: ApiCall[], chatId: number) =>
+  calls
+    .filter((c) => c.method === "sendMessage" && c.payload.chat_id === chatId)
+    .flatMap((c) => {
+      const markup = c.payload.reply_markup as { inline_keyboard?: { callback_data?: string }[][] } | undefined;
+      return (markup?.inline_keyboard ?? []).flat().map((b) => b.callback_data ?? "");
+    })
+    .filter((d) => d.startsWith("login:"));
+
+test("site login: a web-only account shares its phone in the bot, confirms, and the site gets that account", async () => {
+  const { bot, calls, participants, botLogin, start, contact, press } = setup();
+  const webId = participants.registerWeb("Dilnoza", "90 123 45 67", 22);
+  const request = botLogin.start();
+  assert.ok(request);
+
+  await bot.handleUpdate(start(42, `login_${request.id}`));
+  assert.ok(sent(calls, 42).some((t) => t === texts.loginShareContact(request.code)), "raqam so'raladi, kod ko'rinadi");
+
+  await bot.handleUpdate(contact(42, "+998 90 123 45 67"));
+  assert.ok(sent(calls, 42).includes(texts.loginContactLinked));
+  assert.equal(participants.resolve(42), webId, "saytdagi hisob Telegram'ga ulandi");
+  assert.ok(sent(calls, 42).includes(texts.loginConfirm("Dilnoza", request.code)));
+  assert.deepEqual(loginButtons(calls, 42), [`login:ok:${request.id}`, `login:no:${request.id}`]);
+  assert.equal(botLogin.poll(request.id, request.secret).status, "PENDING", "tugma bosilmaguncha kirilmaydi");
+
+  await bot.handleUpdate(press(42, `login:ok:${request.id}`));
+  assert.deepEqual(edited(calls), [texts.loginDone]);
+  assert.deepEqual(botLogin.poll(request.id, request.secret), { status: "CONFIRMED", accountId: webId });
+  assert.equal(botLogin.poll(request.id, request.secret).status, "EXPIRED", "bir martalik");
+});
+
+test("site login: a registered Telegram user confirms straight away; another person cannot take over the link", async () => {
+  const { bot, calls, participants, botLogin, start, press } = setup();
+  participants.setPhone(42, 42, "+998901234567");
+  participants.register(42, "Ali", "", 25);
+  const request = botLogin.start();
+  assert.ok(request);
+
+  await bot.handleUpdate(start(42, `login_${request.id}`));
+  assert.ok(sent(calls, 42).includes(texts.loginConfirm("Ali", request.code)));
+  assert.equal(sent(calls, 42).filter((t) => t.startsWith("🔐 Saytga kirish\n")).length, 0, "raqam qayta so'ralmaydi");
+
+  // Havolani ko'rgan boshqa odam: ochsa ham, tugmani bossa ham — hech narsa bo'lmaydi.
+  await bot.handleUpdate(start(77, `login_${request.id}`));
+  assert.ok(sent(calls, 77).includes(texts.loginExpired));
+  await bot.handleUpdate(press(77, `login:ok:${request.id}`));
+  assert.equal(botLogin.poll(request.id, request.secret).status, "PENDING");
+
+  await bot.handleUpdate(press(42, `login:ok:${request.id}`));
+  assert.deepEqual(botLogin.poll(request.id, request.secret), { status: "CONFIRMED", accountId: 42 });
+});
+
+test("site login: 'Men emas' denies; unknown links and a phone owned by someone else fail", async () => {
+  const { bot, calls, participants, botLogin, start, contact, press } = setup();
+  participants.setPhone(42, 42, "+998901234567");
+  participants.register(42, "Ali", "", 25);
+
+  const denied = botLogin.start();
+  assert.ok(denied);
+  await bot.handleUpdate(start(42, `login_${denied.id}`));
+  await bot.handleUpdate(press(42, `login:no:${denied.id}`));
+  assert.ok(edited(calls).includes(texts.loginDenied));
+  assert.equal(botLogin.poll(denied.id, denied.secret).status, "DENIED");
+
+  await bot.handleUpdate(start(42, "login_AAAAAAAAAAAAAAAAAAAAAA"));
+  await bot.handleUpdate(start(42, "login_bad"));
+  assert.equal(sent(calls, 42).filter((t) => t === texts.loginExpired).length, 2);
+
+  // Boshqa Telegram foydalanuvchisi Ali'ning raqamini ulasholmaydi — kirish FAILED.
+  const taken = botLogin.start();
+  assert.ok(taken);
+  await bot.handleUpdate(start(55, `login_${taken.id}`));
+  await bot.handleUpdate(contact(55, "+998901234567"));
+  assert.ok(sent(calls, 55).includes(texts.contactTaken));
+  assert.equal(botLogin.poll(taken.id, taken.secret).status, "FAILED");
+  assert.equal(loginButtons(calls, 55).length, 0);
 });
