@@ -34,7 +34,7 @@ import { haptic, openExternal } from "../lib/telegram";
 import type { MyReelItem, MyReels, ReelStatus } from "../lib/types";
 
 /** Yangi yuborilgan video tekshiruvda bo'lsa, ro'yxat shuncha millisoniyada bir so'raladi. */
-const PENDING_POLL_MS = 5000;
+const PENDING_POLL_MS = 3000;
 /** Shuncha vaqt ichida yuborilgan PENDING video — "yangi" (tez so'raymiz). */
 const FRESH_PENDING_MS = 10 * 60_000;
 /**

@@ -114,6 +114,8 @@ export interface RankedReel {
  * video admin paneldagi "Qo'lda tekshiruv" bo'limiga o'tadi (avtomatik rad etilmaydi).
  */
 export const ATTEMPTS_BEFORE_MANUAL_REVIEW = 3;
+/** Bir vaqtda nechta yangi-video tekshiruvi (Apify ishi) ishlashi mumkin. */
+const MAX_PARALLEL_VERIFY = 3;
 /** Yangi video topilmasa — 2- va 3-urinishdan oldin shuncha kutiladi. */
 const NOT_FOUND_RETRY_MS = [2 * 60_000, 10 * 60_000];
 const VERIFY_RETRY_MS = 2 * 60_000;
@@ -172,7 +174,12 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
   private readonly queue = new Map<string, { telegramId: number; shortcode: string | null }>();
   private queueTimer: NodeJS.Timeout | null = null;
   private readonly retryTimers = new Set<NodeJS.Timeout>();
-  private verifyChain: Promise<void> = Promise.resolve();
+  /** Hozir ishlayotgan tekshiruvlar (bir vaqtda `MAX_PARALLEL_VERIFY` tagacha). */
+  private readonly verifying = new Set<Promise<void>>();
+  /** Navbatini kutayotgan tekshiruvlar (parallel chegara to'lganda). */
+  private readonly verifyWaiting: (() => void)[] = [];
+  /** Hozir tekshirilayotgan videolar — ikki tekshiruvga bir xil video tushmasin. */
+  private readonly inFlight = new Set<string>();
   private verifyFailures = 0;
 
   private syncing: Promise<SyncReport> | null = null;
@@ -258,7 +265,11 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
     this.queueTimer.unref();
   }
 
-  /** Navbatni hoziroq tekshiradi (oldingi tekshiruv tugashini kutib). */
+  /**
+   * Navbatni hoziroq tekshiradi. Oldingi tekshiruv tugashini kutmaydi — bir vaqtda
+   * `MAX_PARALLEL_VERIFY` tagacha Apify ishi (natija boshiga to'lanadi — narx oshmaydi), shunda
+   * ko'p odam birdan link yuborsa ham har biri tez javob oladi. Natija — hamma tekshiruvlar tugashi.
+   */
   flushVerification(): Promise<void> {
     if (this.queueTimer) {
       clearTimeout(this.queueTimer);
@@ -266,8 +277,22 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
     }
     const entries = [...this.queue.values()];
     this.queue.clear();
-    if (entries.length > 0) this.verifyChain = this.verifyChain.then(() => this.verifyBatch(entries));
-    return this.verifyChain;
+    if (entries.length > 0) {
+      const run: Promise<void> = this.verifySlot()
+        .then(() => this.verifyBatch(entries))
+        .finally(() => {
+          this.verifying.delete(run);
+          this.verifyWaiting.shift()?.();
+        });
+      this.verifying.add(run);
+    }
+    return Promise.all([...this.verifying]).then(() => undefined);
+  }
+
+  /** Parallel tekshiruvlar chegarasi: joy bo'lsa — darhol, aks holda biri tugashini kutadi. */
+  private verifySlot(): Promise<void> {
+    if (this.verifying.size < MAX_PARALLEL_VERIFY) return Promise.resolve();
+    return new Promise((resolve) => this.verifyWaiting.push(resolve));
   }
 
   private async verifyBatch(entries: { telegramId: number; shortcode: string | null }[]): Promise<void> {
@@ -279,11 +304,23 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
       if (!p) continue;
       for (const reel of p.reels) {
         if ((shortcode !== null && reel.shortcode !== shortcode) || !needsCheck(reel) || seen.has(reel)) continue;
+        // Shu video boshqa (parallel) tekshiruvda — natijasi o'sha yerda yoziladi.
+        if (this.inFlight.has(reel.shortcode)) continue;
         seen.add(reel);
         targets.push({ p, reel });
       }
     }
     if (targets.length === 0) return;
+    const codes = targets.map((t) => t.reel.shortcode);
+    for (const code of codes) this.inFlight.add(code);
+    try {
+      await this.verifyTargets(targets);
+    } finally {
+      for (const code of codes) this.inFlight.delete(code);
+    }
+  }
+
+  private async verifyTargets(targets: { p: Participant; reel: Reel }[]): Promise<void> {
 
     let stats: Map<string, ReelStats | null>;
     try {

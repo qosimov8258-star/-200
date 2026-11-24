@@ -264,13 +264,13 @@ const DELTAS = [0, 1, -1, 2, 0, -2, 3, 0, 1, -1, 0, 4];
 /** Namunaviy videoning kunlar bo'yicha ko'rishlari (kun oxirida); har bir video o'z koeffitsiyentiga ko'paytiriladi. */
 const SAMPLE_TOTALS = [3120, 5480, 9050, 12890, 15400, 19760, 22310, 26255];
 
-/** Backend jadvali bilan bir xil: tanlov boshidan haftada bir marta (har 7 kunda), soat 06:00 (Toshkent). */
+/** Backend jadvali bilan bir xil: tanlov boshidan har kuni, soat 00:00 (Toshkent). */
 const MOCK_CONTEST_STARTS_ON = "2026-11-25";
-const MOCK_SYNC_EVERY_DAYS = 7;
+const MOCK_SYNC_EVERY_DAYS = 1;
 
 function mockNextSyncAt(now = new Date()): string | null {
   for (let k = 1; k <= 50; k++) {
-    const slot = new Date(`${MOCK_CONTEST_STARTS_ON}T06:00:00+05:00`);
+    const slot = new Date(`${MOCK_CONTEST_STARTS_ON}T00:00:00+05:00`);
     slot.setUTCDate(slot.getUTCDate() + k * MOCK_SYNC_EVERY_DAYS);
     if (slot > now) return slot.toISOString();
   }
