@@ -118,6 +118,11 @@ export const ATTEMPTS_BEFORE_MANUAL_REVIEW = 3;
 const MAX_PARALLEL_VERIFY = 3;
 /** Yangi video topilmasa — 2- va 3-urinishdan oldin shuncha kutiladi. */
 const NOT_FOUND_RETRY_MS = [2 * 60_000, 10 * 60_000];
+/**
+ * Admin qo'lda tasdiqlagan, ko'rishlari hali o'qilmagan video — Apify shu oraliqlarda qayta so'raladi
+ * (keyin — rejadagi yig'ishda). Tasdiqlangan zahoti ham bir marta so'raladi.
+ */
+const APPROVED_VIEWS_RETRY_MS = [2 * 60_000, 10 * 60_000, 30 * 60_000, 60 * 60_000, 3 * 60 * 60_000, 6 * 60 * 60_000];
 const VERIFY_RETRY_MS = 2 * 60_000;
 const VERIFY_RETRY_MAX_MS = 60 * 60_000;
 /** Yig'ish muvaffaqiyatsiz bo'lsa, shuncha vaqt o'tmaguncha qayta urinilmaydi. */
@@ -358,15 +363,29 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
     s: ReelStats | null,
     now: Date,
   ): "updated" | "missing" | "manual" {
-    if (s !== null && s.views !== null) {
-      reel.misses = 0;
-      reel.lastFoundAt = now;
-      this.record(reel, s.views, s, now);
-      return "updated";
+    if (s !== null) {
+      // Video bor: egasi va sanasi (admin qo'lda tasdiqlagan yangi videoda hali yo'q) — birinchi o'qishda.
+      if (reel.owner === null) reel.owner = s.owner;
+      if (reel.postedAt === null) reel.postedAt = s.postedAt;
+      const views = readableViews(reel, s);
+      if (views !== null) {
+        reel.misses = 0;
+        reel.lastFoundAt = now;
+        this.record(reel, views, s, now);
+        return "updated";
+      }
+      // Video topildi, lekin ko'rishlari o'qilmadi (yoki 0 bo'lib keldi) — video yo'qolgani yo'q:
+      // oxirgi ma'lum ko'rishlar qoladi, qo'lda tekshiruvga yuborilmaydi.
+      this.logger.warn(`${reel.shortcode}: ko'rishlar o'qilmadi (${s.views ?? "yo'q"}), oxirgi ma'lumi qoldi.`);
+      if (!awaitingViews(reel)) return "missing";
     }
     reel.misses += 1;
-    // Admin tasdiqlagan, Apify esa o'shandan beri o'qiy olmayotgan video — qayta tekshiruvga yubormaymiz.
-    if (this.vouchedByAdmin(reel)) return "missing";
+    // Admin tasdiqlagan, Apify esa o'shandan beri o'qiy olmayotgan video — qayta tekshiruvga yubormaymiz,
+    // lekin ko'rishlari hali umuman o'qilmagan bo'lsa — tez-tez qayta urinamiz (0 bo'lib turmasin).
+    if (this.vouchedByAdmin(reel)) {
+      if (awaitingViews(reel)) this.retryApprovedLater(p, reel);
+      return "missing";
+    }
     if (reel.misses >= ATTEMPTS_BEFORE_MANUAL_REVIEW) {
       this.toManualReview(p, reel, "LOST_REEL");
       return "manual";
@@ -453,6 +472,12 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
     }
   }
 
+  /** Tasdiqlangan, ko'rishlari hali o'qilmagan video: `misses` — tasdiqdan keyingi urinishlar. */
+  private retryApprovedLater(p: Participant, reel: Reel): void {
+    const delay = APPROVED_VIEWS_RETRY_MS[reel.misses - 1];
+    if (delay !== undefined) this.retryLater(p.telegramId, reel.shortcode, delay);
+  }
+
   /**
    * Admin videoni qo'lda tasdiqlagan va Apify o'shandan beri uni topa olmagan — qayta-qayta
    * qo'lda tekshiruvga yubormaymiz (admin bir marta ko'rgan, natija o'zgarmaydi).
@@ -478,7 +503,8 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
   }
 
   /**
-   * Admin qarori. Tasdiq — video reytingga qo'shiladi (ko'rishlar Apify topganda yangilanadi);
+   * Admin qarori. Tasdiq — video reytingga qo'shiladi; ko'rishlari hali o'qilmagan bo'lsa, Apify'dan
+   * hoziroq so'raladi (topilmasa — `APPROVED_VIEWS_RETRY_MS` oraliqlarida qayta);
    * rad — sababi ishtirokchiga yuboriladi. Shortcode bo'yicha rad etilmagan (band) video olinadi —
    * u barcha ishtirokchilar orasida bitta.
    */
@@ -497,6 +523,9 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
       reel.misses = 0;
       review.decision = { approved: true, reason: null, note: decision.note, by: actor, at: now };
       this.notifyAbout(p, reel, texts.reelManualApproved, "REEL_REVIEW");
+      // Yangi video ko'rishlari hali o'qilmagan — kunlik yig'ishni kutmay, Apify'dan hoziroq so'raymiz
+      // (aks holda reyting va admin panelda 0 bo'lib turadi).
+      if (awaitingViews(reel)) this.queueVerification(p.telegramId, reel.shortcode);
     } else {
       review.decision = { approved: false, reason: decision.reason, note: decision.note, by: actor, at: now };
       this.reject(p, reel, decision.reason);
@@ -693,8 +722,9 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
           continue;
         }
         if (reel.status === "MANUAL_REVIEW") {
-          if (s !== null && s.views !== null) {
-            this.resolveByProvider(p, reel, s, s.views, now);
+          const views = s === null ? null : readableViews(reel, s);
+          if (s !== null && views !== null) {
+            this.resolveByProvider(p, reel, s, views, now);
             report.resolved += 1;
           }
           continue;
@@ -829,11 +859,27 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
   }
 }
 
-/** Qabul qilingan, lekin oxirgi tekshiruvda topilmagan — qisqa vaqtda qayta tekshiriladi. */
-const isRechecking = (reel: Reel): boolean => reel.status === "ACCEPTED" && reel.misses > 0;
+/**
+ * Qabul qilingan, lekin oxirgi tekshiruvda topilmagan yoki ko'rishlari hali bir marta ham
+ * o'qilmagan (admin qo'lda tasdiqlagan yangi video) — qisqa vaqtda qayta tekshiriladi.
+ */
+const isRechecking = (reel: Reel): boolean => reel.status === "ACCEPTED" && (reel.misses > 0 || awaitingViews(reel));
+
+/** Admin qo'lda tasdiqlagan, lekin Apify ko'rishlarini hali bir marta ham o'qimagan video. */
+const awaitingViews = (reel: Reel): boolean => reel.status === "ACCEPTED" && reel.history.length === 0;
 
 /** Navbatdagi tekshiruvga tegishli video: yangi (PENDING) yoki qayta tekshiriladigan qabul qilingan. */
 const needsCheck = (reel: Reel): boolean => reel.status === "PENDING" || isRechecking(reel);
+
+/**
+ * Apify o'qigan ko'rishlar — ishonchli bo'lsa. Ilgari ko'rishlari bo'lgan videoda 0 — Instagram/Apify
+ * nosozligi (ko'rishlar o'qilmadi yoki yashirildi), haqiqiy video ko'rishlari 0 ga tushmaydi:
+ * bunday natija yozilmaydi, oxirgi ma'lum ko'rishlar qoladi.
+ */
+function readableViews(reel: Reel, s: ReelStats): number | null {
+  if (s.views === null) return null;
+  return s.views === 0 && reelViews(reel) > 0 ? null : s.views;
+}
 
 /** Apify so'rovi uchun shortcode'lar — takrorlarsiz (band link bitta bo'ladi, lekin eski holatda ham). */
 const shortcodesOf = (targets: readonly { reel: Reel }[]): string[] => [...new Set(targets.map((t) => t.reel.shortcode))];

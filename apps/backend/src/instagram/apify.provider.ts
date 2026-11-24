@@ -76,13 +76,23 @@ function count(value: number | null | undefined): number | null {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
 }
 
+/**
+ * Reel ko'rishlari: Instagram ko'rsatadigani — `videoPlayCount`; u kelmasa yoki 0 bo'lib kelsa (Apify
+ * ba'zan shunday qaytaradi), `videoViewCount` olinadi — ikkalasidan kattasi (0 ga tushib qolmasin).
+ */
+function bestViews(plays: number | null, views: number | null): number | null {
+  if (plays === null) return views;
+  if (views === null) return plays;
+  return Math.max(plays, views);
+}
+
 function toStats(shortcode: string, item: ApifyItem): ReelStats {
   const postedAt = item.timestamp ? new Date(item.timestamp) : null;
   return {
     shortcode,
     owner: item.ownerUsername?.toLowerCase() ?? null,
     isVideo: item.type === "Video" || item.productType === "clips",
-    views: count(item.videoPlayCount) ?? count(item.videoViewCount),
+    views: bestViews(count(item.videoPlayCount), count(item.videoViewCount)),
     likes: count(item.likesCount),
     comments: count(item.commentsCount),
     postedAt: postedAt && !Number.isNaN(postedAt.getTime()) ? postedAt : null,

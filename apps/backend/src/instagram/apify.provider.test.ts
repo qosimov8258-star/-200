@@ -88,6 +88,21 @@ test("maps Apify items to Reel stats and marks missing Reels as null", async () 
   assert.equal(calls.filter((c) => c.url.includes("/actor-runs/")).length, 2);
 });
 
+test("views: the larger of play and view counts — a 0 play count does not wipe the views", async () => {
+  const { fetchFn } = fakeApify([
+    { shortCode: "ZeroPlay01", type: "Video", videoPlayCount: 0, videoViewCount: 48_300 },
+    { shortCode: "NoPlay0001", type: "Video", videoViewCount: 9_100 },
+    { shortCode: "Both000001", type: "Video", videoPlayCount: 120_000, videoViewCount: 80_000 },
+    { shortCode: "NoCount001", type: "Video" },
+  ]);
+  const provider = new ApifyReelStatsProvider("t", fetchFn);
+  const result = await provider.fetch(["ZeroPlay01", "NoPlay0001", "Both000001", "NoCount001"]);
+  assert.equal(result.get("ZeroPlay01")?.views, 48_300);
+  assert.equal(result.get("NoPlay0001")?.views, 9_100);
+  assert.equal(result.get("Both000001")?.views, 120_000);
+  assert.equal(result.get("NoCount001")?.views, null);
+});
+
 test("a failed Apify run is an error, not an empty result", async () => {
   const { fetchFn } = fakeApify([], "FAILED");
   const provider = new ApifyReelStatsProvider("t", fetchFn);
