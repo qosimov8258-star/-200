@@ -17,6 +17,7 @@ services:
       context: ../apps/backend
       # Context'ga nisbatan; Dockerfile repoda deploy/ ichida.
       dockerfile: ../../deploy/Dockerfile.backend
+      target: backend
     env_file: /srv/konkurs/shared/backend.env
     environment:
       # Backend ma'lumotlarni (ishtirokchilar, reellar, support, audit...) shu papkaga yozadi.
@@ -28,6 +29,27 @@ services:
     restart: unless-stopped
     # To'xtatishda backend ma'lumotlarni diskka yozib ulgurishi uchun.
     stop_grace_period: 30s
+
+  # AI video tekshiruvi (admin panel → AI). Backend bilan bir xil kod, ichida ffmpeg bor.
+  # Kerak: backend.env da ANTHROPIC_API_KEY va AI_WORKER_TOKEN (backend bilan bir xil). Ular
+  # bo'lmasa worker yiqilmaydi — log'ga sababini yozib kutadi. Batafsil — deploy/README.md.
+  ai-worker:
+    build:
+      context: ../apps/backend
+      dockerfile: ../../deploy/Dockerfile.backend
+      target: worker
+    env_file: /srv/konkurs/shared/backend.env
+    environment:
+      # Backend'ning ichki API'si — Docker tarmog'i ichida (nginx orqali emas).
+      AI_BACKEND_URL: http://backend:3000/api/v1
+      AI_WORK_DIR: /app/work
+    volumes:
+      # Kadrlar Claude natijasi kelguncha (24 soatgacha) saqlanadi — worker qayta ishga tushsa ham.
+      - ai-work:/app/work
+    depends_on:
+      - backend
+    restart: unless-stopped
+    stop_grace_period: 60s
 
   web:
     build:
@@ -49,6 +71,9 @@ services:
       mezon:
         aliases:
           - konkurs-web
+
+volumes:
+  ai-work:
 
 networks:
   mezon:

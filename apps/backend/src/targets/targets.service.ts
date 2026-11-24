@@ -84,7 +84,8 @@ export interface TargetsOptions {
   /** Reytingning nechta yetakchisi reklama kutubxonasida tekshiriladi. */
   checkTop: number;
   /**
-   * Tanlov boshidan necha kunda bir tekshiriladi: k × everyDays-kun (30 — oyiga bir marta);
+   * Tanlov boshidan necha kunda bir tekshiriladi: k × everyDays-kun (1 — har kuni, standart;
+   * 30 — oyiga bir marta);
    * 0 — avtomatik tekshiruv o'chiq (faqat admin qo'lda).
    */
   everyDays: number;
@@ -132,8 +133,8 @@ const CASE_STATUS_LABELS: Record<TargetCaseStatus, string> = {
 /**
  * Target (pullik reklama) holatlari:
  *
- * 1. **Meta reklama kutubxonasi** — tanlov boshidan har `everyDays` kunda (standart 30 — oyiga
- *    bir marta; ko'rishlar yig'ishidan qat'i nazar, oxirgi reyting bo'yicha) `checkTop` yetakchi
+ * 1. **Meta reklama kutubxonasi** — tanlov boshidan har `everyDays` kunda (standart 1 — har
+ *    kuni; ko'rishlar yig'ishidan qat'i nazar, oxirgi reyting bo'yicha) `checkTop` yetakchi
  *    Apify orqali tekshiriladi (faqat faol reklamalar ko'rinadi). Admin istalgan vaqtda qo'lda ham
  *    tekshira oladi.
  * 2. **O'sish tahlili** — StatsService qo'ygan belgilar holatga aylanadi: keskin o'sish

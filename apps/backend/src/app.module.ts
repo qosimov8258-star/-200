@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 
+import { AdminAiController } from "./admin/admin-ai.controller";
 import { AdminAuditController } from "./admin/admin-audit.controller";
 import { AdminDashboardController } from "./admin/admin-dashboard.controller";
 import { AdminDrawsController } from "./admin/admin-draws.controller";
@@ -15,6 +16,8 @@ import { AdminTelegramController } from "./admin/admin-telegram.controller";
 import { AdminWinnerController } from "./admin/admin-winner.controller";
 import { AdminAuthController } from "./admin/auth/admin-auth.controller";
 import { AdminAuthService } from "./admin/auth/admin-auth.service";
+import { AI_REVIEW_OPTIONS, AiReviewService, type AiReviewOptions } from "./ai-review/ai-review.service";
+import { AiWorkerController, AiWorkerGuard, aiWorkerTokenProvider } from "./ai-review/ai-worker.controller";
 import { AuditService } from "./audit/audit.service";
 import { config } from "./config/config";
 import { ContestSettingsService } from "./contest/contest-settings.service";
@@ -88,6 +91,21 @@ function targetsOptions(contest: ContestSettingsService): TargetsOptions {
   };
 }
 
+/** AI tekshiruvi sozlamalari (env) — noto'g'ri qiymat bilan server ishga tushmaydi. */
+function aiReviewOptions(): AiReviewOptions {
+  const { model, frameIntervalSec, frameHeight, confidenceMin } = config.ai;
+  if (!Number.isFinite(frameIntervalSec) || frameIntervalSec < 0.5 || frameIntervalSec > 60) {
+    throw new Error("AI_FRAME_INTERVAL_SEC 0.5–60 soniya bo'lishi kerak");
+  }
+  if (!Number.isInteger(frameHeight) || frameHeight < 240 || frameHeight > 1440) {
+    throw new Error("AI_FRAME_HEIGHT 240–1440 px bo'lishi kerak");
+  }
+  if (!Number.isFinite(confidenceMin) || confidenceMin < 0 || confidenceMin > 1) {
+    throw new Error("AI_CONFIDENCE_MIN 0–1 oralig'ida bo'lishi kerak");
+  }
+  return { settings: { model, frameIntervalSec, frameHeight, confidenceMin, trialSize: 20 } };
+}
+
 @Module({
   controllers: [
     AuthController,
@@ -107,6 +125,9 @@ function targetsOptions(contest: ContestSettingsService): TargetsOptions {
     AdminDrawsController,
     AdminTargetsController,
     AdminStoriesController,
+    AdminAiController,
+    // AI worker (alohida jarayon) — ichki API, `X-Worker-Token` bilan.
+    AiWorkerController,
     // Tashkilot egalari — yashirin bo'lim (alohida kirish, audit log'siz).
     OwnerAuthController,
     OwnerParticipantsController,
@@ -139,6 +160,10 @@ function targetsOptions(contest: ContestSettingsService): TargetsOptions {
     { provide: TARGETS_OPTIONS, useFactory: targetsOptions, inject: [ContestSettingsService] },
     TargetsService,
     WinnerService,
+    { provide: AI_REVIEW_OPTIONS, useFactory: aiReviewOptions },
+    AiReviewService,
+    aiWorkerTokenProvider,
+    AiWorkerGuard,
     OwnerAuthService,
     OwnerService,
   ],

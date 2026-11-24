@@ -8,6 +8,11 @@ import { ReelStatsProvider, type ReelStats } from "./reel-stats";
  */
 export class MockReelStatsProvider extends ReelStatsProvider {
   readonly name = "mock";
+  /** AI tekshiruvini lokal sinash uchun hamma videolarga beriladigan fayl manzili (`STATS_MOCK_VIDEO_URL`). */
+  constructor(private readonly videoUrl: string | null = null) {
+    super();
+  }
+
   private readonly fixed = new Map<string, ReelStats | null>();
   private readonly calls = new Map<string, number>();
   /** Testlar uchun: necha marta va qaysi shortcode'lar so'ralgani. */
@@ -43,6 +48,7 @@ export class MockReelStatsProvider extends ReelStatsProvider {
       likes: Math.round(views * 0.045),
       comments: Math.round(views * 0.002),
       postedAt: new Date(Date.now() - 86_400_000),
+      videoUrl: this.videoUrl,
     };
   }
 }

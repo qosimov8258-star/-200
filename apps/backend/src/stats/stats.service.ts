@@ -312,7 +312,7 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
 
   /**
    * Qabul qilingan video natijasi (yig'ishda yoki qayta tekshiruvda). Topilmasa — 2 va 10 daqiqadan
-   * keyin qayta tekshiriladi (yig'ish 10 kunda bir bo'lgani uchun keyingisini kutmaymiz);
+   * keyin qayta tekshiriladi (keyingi rejadagi yig'ishni kutmaymiz);
    * 3 marta topilmasa — qo'lda tekshiruv.
    */
   private applyAcceptedResult(

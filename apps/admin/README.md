@@ -103,6 +103,9 @@ Backendsiz ishlash uchun (`npm run dev` da standart):
   (`drawSettings`, `draws`). Asosiy sovrinlar (`GET /admin/winner/prizes`) mock reytingdan
   hisoblanadi ([`src/lib/mock/rating-prizes.ts`](src/lib/mock/rating-prizes.ts)) — mock'da
   ko'rishlar kam, shuning uchun odatda faqat "Planshet" oralig'ida ishtirokchi bo'ladi.
+- AI tekshiruvi ([`src/lib/mock/ai.ts`](src/lib/mock/ai.ts)) alohida kalitlarda: `reels-admin:mock-ai`
+  (versiyalar, navbat, qo'lda qarorlar) va `reels-admin:mock-ai-images` (namuna rasmlar); uning audit
+  yozuvlari — umumiy `reels-admin:mock-store` da.
 
 **Mock boshqaruvlari:** G'oliblar sahifasida "Tanlovni tugagan deb ko'rish" tugmasi bor — mock'da
 tanlov hali tugamagan, oqimni sinash uchun. U faqat `mockControls` bo'lsa (mock rejimda) ko'rinadi.
@@ -202,6 +205,66 @@ Mock rejimda video faqat sahifa xotirasida (`URL.createObjectURL`) — sahifa ya
 audit yozuvlari esa boshqa mock amallar kabi `localStorage` da qoladi. Mock ham backend kabi fayl
 boshidagi baytlarni tekshiradi (video bo'lmasa — `422`).
 
+## AI tekshiruvi
+
+Menyuda **AI** (`/ai`, faqat `ADMIN`; kompyuterda "Yana" ichida). Admin konkurs videolarida nima
+ko'rinishi (yoki ko'rinmasligi) kerakligini namuna rasmlar va mezonlar bilan beradi; worker har bir
+videoni yuklab, kadrlarga ajratib (har 2 soniyada, 720p) Claude'dan xulosa so'raydi. **AI xulosasi
+videoning tanlovdagi holatini o'zi o'zgartirmaydi** — bu moderatsiyaga yordam, sahifada ham shunday
+yozilgan.
+
+Sahifa ([`src/components/ai/`](src/components/ai/)):
+
+1. **Sarlavha** va worker holati: "Worker ishlayapti" yoki "Worker o'chiq — videolar navbatda kutadi"
+   (oxirgi signal vaqti bilan). Pastida — model, kadr oralig'i va ishonch chegarasi (backend `settings`).
+2. **Sozlamalar (versiya N)**:
+   - qoralama bo'lsa — namuna rasmlar (12 tagacha; kartada rasm, turi: "Ko'rinishi shart" /
+     "Bo'lmasligi kerak" / "Ma'lumot uchun" — darhol saqlanadi, izoh — maydondan chiqqanda saqlanadi,
+     o'chirish — tasdiqlash oynasi bilan), "Umumiy mezonlar" (0–5000 belgi, maydondan chiqqanda yoki
+     "Saqlash" bilan) va tasdiqlash bloki: "Sinov (20 ta video)" (standart — eng ko'p ko'rilgan 20 ta,
+     "Videolarni tanlash" oynasida o'zgartiriladi) yoki "Hammasi", **"Tasdiqlash"** — versiya
+     qulflanishini tushuntiruvchi oyna bilan. Saqlanmagan mezon matni tasdiqlashdan oldin saqlanadi;
+   - qoralama bo'lmasa — tasdiqlangan versiya (faqat ko'rish) va **"Yangi versiya"** (faol versiyadan
+     nusxa); hech narsa bo'lmasa — "Sozlashni boshlash".
+3. **Jarayon** (ishga tushirilgandan keyin): progress, tayyor / navbatda / ishlanmoqda / xato, xulosalar
+   (qo'lda qaror yutadi), tokenlar va "$ sarflandi" (1 video o'rtacha narxi bilan). Navbat bo'lsa holat
+   va natijalar har 3 soniyada yangilanadi. Sinov tugagach — **"Hammasini ishga tushirish"**.
+4. **Natijalar**: yakuniy xulosa va holat bo'yicha filtr (sonlar `progress` dan), qidiruv (URL da:
+   `verdict`, `state`, `q`, `page`), har bir video — ishtirokchi, Reel havolasi, belgi (TASDIQLANDI /
+   RAD ETILDI / SHUBHALI), ishonch %, sabab, dalil kadrlari ("12-soniya", bosilsa kattalashadi) va qo'lda
+   qaror: "Tasdiqlash" / "Rad etish" — izoh majburiy (3–500 belgi), belgi "Qo'lda: …" bo'ladi.
+
+**Namuna rasm brauzerda tayyorlanadi** ([`src/lib/ai-image.ts`](src/lib/ai-image.ts)): rasm bo'lmagan
+fayl va 15 MB dan kattasi rad etiladi, qolgani `canvas` da uzun tomoni ≤ 1600 px qilib JPEG (sifat
+0,85; shaffof joylar oq) `data:` URL ga aylantiriladi. Kamdan-kam holatda 2 MB dan oshsa — bir marta 0,7
+sifat bilan; baribir oshsa — xato. Ochilmaydigan format (masalan, Chrome'da HEIC) — tushunarli xato.
+
+| Funksiya (`src/lib/api.ts`) | Endpoint |
+|---|---|
+| `getAiState()` | `GET /api/v1/admin/ai/state` → `AiState` |
+| `createAiDraft()` | `POST /api/v1/admin/ai/draft` → `AiState` (qoralama bo'lsa — o'zgarmaydi) |
+| `updateAiDraft({ criteria })` | `PUT /api/v1/admin/ai/draft` → `AiState`; audit `ai.draft.update` |
+| `addAiReference({ dataUrl, kind, note })` | `POST /api/v1/admin/ai/draft/references` → `AiState`; audit `ai.reference.add` |
+| `updateAiReference(id, { kind?, note? })` | `PATCH /api/v1/admin/ai/draft/references/:id` → `AiState` |
+| `deleteAiReference(id)` | `DELETE /api/v1/admin/ai/draft/references/:id` → `AiState`; audit `ai.reference.remove` |
+| `aiReferenceImageUrl(id)` | `GET /api/v1/admin/ai/references/:id/image` (`<img src>`, cookie bilan) |
+| `getAiCandidates(search?)` | `GET /api/v1/admin/ai/candidates?search=` → `AiCandidate[]` (50 tagacha) |
+| `approveAiDraft({ mode, trialShortcodes? })` | `POST /api/v1/admin/ai/approve` → `AiState`; audit `ai.approve`. Sinov ro'yxati faqat admin o'zgartirgan bo'lsa yuboriladi |
+| `runAiForAll()` | `POST /api/v1/admin/ai/run-all` → `AiState`; audit `ai.run_all` |
+| `getAiReviews(query)` | `GET /api/v1/admin/ai/reviews?verdict=&state=&search=&page=&pageSize=` → `AiReviewListResponse` |
+| `aiFrameUrl(id, second)` | `GET /api/v1/admin/ai/reviews/:id/frames/:second` (`<img src>`; `hasFrame: false` da so'ralmaydi) |
+| `decideAiReview(id, { decision, note })` | `POST /api/v1/admin/ai/reviews/:id/decision` → `AiReviewItem`; audit `ai.decision` (obyekt `reel`) |
+
+Tiplar va cheklovlar (`AI_LIMITS`) — [`src/lib/types.ts`](src/lib/types.ts). Audit log'da amallar
+o'zbekcha nomlanadi ([`src/lib/labels.ts`](src/lib/labels.ts)), `ai.decision` dagi qiymatlar ham
+("Shubhali" → "Tasdiqlangan").
+
+**Mock rejimda** worker vaqt bo'yicha taqlid qilinadi ([`src/lib/mock/ai.ts`](src/lib/mock/ai.ts)): 5 ta
+parallel "yo'lak", har video 2,5–5,5 soniya; QUEUED → PROCESSING → DONE, ~6% — FAILED. Xulosa, ishonch
+(0,8 dan past — SHUBHALI), sabab, dalillar va sarf (~$0,16 / video) shortcode bo'yicha deterministik;
+kadrlar — chizilgan SVG ("mock kadr"). Worker doim "ishlayapti". "Hammasi" ishga tushgach keyin qabul
+qilingan videolar ham navbatga qo'shiladi. Rasmlar brauzer xotirasida — to'lsa, `413` va tushunarli xato.
+
 ## G'oliblar
 
 Tepadagi menyuda bitta bo'lim — **G'oliblar** (`/winner`), ikki tab. Alohida "Random tanlov" bo'limi
@@ -265,6 +328,7 @@ src/
 │   │   ├── users/
 │   │   ├── ratings/
 │   │   ├── winner/       # G'oliblar: "Asosiy sovrinlar" va "Voucher" tablari
+│   │   ├── ai/           # AI tekshiruvi: namuna rasmlar, mezonlar, jarayon, natijalar
 │   │   └── support/
 │   ├── layout.tsx        # ildiz layout
 │   └── globals.css       # Tailwind va dizayn tokenlari
@@ -280,6 +344,7 @@ src/
 │   ├── prizes/           # asosiy sovrinlar (reyting bo'yicha): ikonkalar, soni
 │   ├── winner/           # g'oliblar: bosh sovrin oqimi, asosiy sovrinlar, "Voucher" tabi (tanlov, tarix, g'oliblar)
 │   ├── settings/         # tanlov muddati, yangilanish vaqti, minimal yosh, qoidalar, qoida videosi
+│   ├── ai/               # AI tekshiruvi: sozlamalar (versiya), rasm kartalari, sinov videolari, jarayon, natijalar
 │   ├── audit/            # audit log (faqat o'qish)
 │   ├── users/            # ishtirokchilar jadvali, filtrlar, amal oynasi, "Videolar" oynasi
 │   └── ui/               # tugma, input, select, dialog, amallar menyusi, sahifalash...
@@ -292,6 +357,7 @@ src/
     ├── dates.ts          # tanlov kunlari (Asia/Tashkent)
     ├── format.ts         # raqam va sana formatlari
     ├── rules-video.ts    # qoida videosi: format aniqlash, yuklashdan oldingi tekshiruv
+    ├── ai-image.ts       # AI namuna rasmi: tekshiruv va kichraytirish (canvas → JPEG data URL)
     ├── labels.ts         # holatlar nomlari va ranglari
     ├── navigation.ts     # menyu, rollar
     ├── period.ts         # dashboard davri (URL bilan)

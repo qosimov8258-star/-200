@@ -48,8 +48,9 @@ test("maps Apify items to Reel stats and marks missing Reels as null", async () 
       likesCount: 17800,
       commentsCount: 100,
       timestamp: "2026-11-14T00:47:39.000Z",
+      videoUrl: "https://scontent.cdninstagram.com/o1/v/t2/f2/m86/video.mp4?oe=6744",
     },
-    { shortCode: "Hidden0001", type: "Video", ownerUsername: "x", videoPlayCount: 10, likesCount: -1 },
+    { shortCode: "Hidden0001", type: "Video", ownerUsername: "x", videoPlayCount: 10, likesCount: -1, videoUrl: "javascript:x" },
     { url: "https://www.instagram.com/reel/Gone000001/", error: "not_found" },
   ]);
   const provider = new ApifyReelStatsProvider("secret-token", fetchFn);
@@ -63,8 +64,10 @@ test("maps Apify items to Reel stats and marks missing Reels as null", async () 
     likes: 17800,
     comments: 100,
     postedAt: new Date("2026-11-14T00:47:39.000Z"),
+    videoUrl: "https://scontent.cdninstagram.com/o1/v/t2/f2/m86/video.mp4?oe=6744",
   });
   assert.equal(result.get("Hidden0001")?.likes, null);
+  assert.equal(result.get("Hidden0001")?.videoUrl, null, "faqat https manzil qabul qilinadi");
   assert.equal(result.get("Gone000001"), null);
 
   const start = calls[0];

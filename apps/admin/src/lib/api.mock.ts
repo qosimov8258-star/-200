@@ -13,6 +13,21 @@
  * Komponentlar bu faylni to'g'ridan-to'g'ri import qilmaydi — faqat `@/lib/api` orqali.
  */
 import { ApiError } from "./api-error";
+import {
+  addAiReference as mockAddAiReference,
+  aiFrameUrl as mockAiFrameUrl,
+  aiReferenceImageUrl as mockAiReferenceImageUrl,
+  approveAiDraft as mockApproveAiDraft,
+  createAiDraft as mockCreateAiDraft,
+  decideAiReview as mockDecideAiReview,
+  deleteAiReference as mockDeleteAiReference,
+  getAiCandidates as mockGetAiCandidates,
+  getAiState as mockGetAiState,
+  listAiReviews,
+  runAiForAll as mockRunAiForAll,
+  updateAiDraft as mockUpdateAiDraft,
+  updateAiReference as mockUpdateAiReference,
+} from "./mock/ai";
 import { listAuditLog, recordAudit } from "./mock/audit";
 import { buildDailyRating } from "./mock/daily-rating";
 import {
@@ -92,6 +107,16 @@ import {
 import type {
   AdminRole,
   AdminUser,
+  AiApproveRequest,
+  AiCandidate,
+  AiDecisionRequest,
+  AiDraftUpdate,
+  AiReferenceInput,
+  AiReferenceUpdate,
+  AiReviewItem,
+  AiReviewListQuery,
+  AiReviewListResponse,
+  AiState,
   AuditLogQuery,
   AuditLogResponse,
   ContestRules,
@@ -950,4 +975,138 @@ export async function updateSupportTicketStatus(
 ): Promise<SupportTicketDetail> {
   await delay(400);
   return setSupportTicketStatus(id, request.status, requireRole("ADMIN", "SUPPORT"));
+}
+
+// ---------------------------------------------------------------------------
+// AI tekshiruvi (faqat ADMIN)
+// ---------------------------------------------------------------------------
+
+/**
+ * AI bo'limi holati: qoralama, faol versiya, joriy ishga tushirish va uning sonlari, worker holati.
+ * Mock'da worker vaqt bo'yicha taqlid qilinadi (`./mock/ai.ts`).
+ * @endpoint GET /api/v1/admin/ai/state
+ */
+export async function getAiState(): Promise<AiState> {
+  await delay(250);
+  requireRole("ADMIN");
+  return mockGetAiState();
+}
+
+/**
+ * Qoralama yaratish (faol versiyadan nusxa yoki bo'sh); qoralama bor bo'lsa — o'zgarmaydi.
+ * @endpoint POST /api/v1/admin/ai/draft
+ */
+export async function createAiDraft(): Promise<AiState> {
+  await delay(350);
+  requireRole("ADMIN");
+  return mockCreateAiDraft();
+}
+
+/**
+ * Qoralamadagi umumiy mezonlarni saqlash (0–5000 belgi). Audit: `ai.draft.update`.
+ * @endpoint PUT /api/v1/admin/ai/draft
+ * @throws ApiError 400 — juda uzun; 409 — qoralama yo'q
+ */
+export async function updateAiDraft(update: AiDraftUpdate): Promise<AiState> {
+  await delay(350);
+  return mockUpdateAiDraft(update, requireRole("ADMIN"));
+}
+
+/**
+ * Qoralamaga namuna rasm qo'shish (`data:` URL, ko'pi bilan 2 MB, 12 tagacha). Audit: `ai.reference.add`.
+ * @endpoint POST /api/v1/admin/ai/draft/references
+ * @throws ApiError 400 — rasm yoki izoh noto'g'ri; 409 — qoralama yo'q yoki 12 ta rasm bor; 413 — 2 MB dan katta
+ */
+export async function addAiReference(input: AiReferenceInput): Promise<AiState> {
+  await delay(600);
+  return mockAddAiReference(input, requireRole("ADMIN"));
+}
+
+/**
+ * Namuna rasm turi yoki izohini o'zgartirish.
+ * @endpoint PATCH /api/v1/admin/ai/draft/references/:id
+ * @throws ApiError 400; 404 — rasm topilmadi; 409 — qoralama yo'q
+ */
+export async function updateAiReference(id: string, update: AiReferenceUpdate): Promise<AiState> {
+  await delay(300);
+  requireRole("ADMIN");
+  return mockUpdateAiReference(id, update);
+}
+
+/**
+ * Namuna rasmni qoralamadan o'chirish. Audit: `ai.reference.remove`.
+ * @endpoint DELETE /api/v1/admin/ai/draft/references/:id
+ * @throws ApiError 404; 409 — qoralama yo'q
+ */
+export async function deleteAiReference(id: string): Promise<AiState> {
+  await delay(350);
+  return mockDeleteAiReference(id, requireRole("ADMIN"));
+}
+
+/**
+ * Namuna rasm — mock'da saqlangan `data:` URL.
+ * @endpoint GET /api/v1/admin/ai/references/:id/image
+ */
+export function aiReferenceImageUrl(id: string): string {
+  return mockAiReferenceImageUrl(id);
+}
+
+/**
+ * Sinov uchun videolar: qabul qilinganlar, eng ko'p ko'rilgani birinchi, ko'pi bilan 50 ta.
+ * @endpoint GET /api/v1/admin/ai/candidates?search=
+ */
+export async function getAiCandidates(search?: string): Promise<AiCandidate[]> {
+  await delay(300);
+  requireRole("ADMIN");
+  return mockGetAiCandidates(search ?? "");
+}
+
+/**
+ * Qoralamani tasdiqlash: yangi versiya sifatida qulflanadi va videolar navbatga qo'yiladi
+ * (`TRIAL` — tanlangan yoki eng ko'p ko'rilgan 20 ta, `FULL` — hammasi). Audit: `ai.approve`.
+ * @endpoint POST /api/v1/admin/ai/approve
+ * @throws ApiError 400 — mezon ham, rasm ham yo'q yoki sinov ro'yxati noto'g'ri; 409 — qoralama yo'q
+ */
+export async function approveAiDraft(request: AiApproveRequest): Promise<AiState> {
+  await delay(700);
+  return mockApproveAiDraft(request, requireRole("ADMIN"));
+}
+
+/**
+ * Sinovdan keyin: barcha qabul qilingan videolarni faol versiya bo'yicha navbatga qo'yish. Audit: `ai.run_all`.
+ * @endpoint POST /api/v1/admin/ai/run-all
+ * @throws ApiError 409 — tasdiqlangan versiya yo'q
+ */
+export async function runAiForAll(): Promise<AiState> {
+  await delay(600);
+  return mockRunAiForAll(requireRole("ADMIN"));
+}
+
+/**
+ * Joriy versiya natijalari, eng yangi o'zgargani yuqorida. `verdict` — yakuniy xulosa bo'yicha.
+ * @endpoint GET /api/v1/admin/ai/reviews?verdict=&state=&search=&page=&pageSize=
+ */
+export async function getAiReviews(query: AiReviewListQuery): Promise<AiReviewListResponse> {
+  await delay(300);
+  requireRole("ADMIN");
+  return listAiReviews(query);
+}
+
+/**
+ * Dalil kadri — mock'da chizilgan SVG.
+ * @endpoint GET /api/v1/admin/ai/reviews/:id/frames/:second
+ */
+export function aiFrameUrl(reviewId: string, second: number): string {
+  return mockAiFrameUrl(reviewId, second);
+}
+
+/**
+ * Qo'lda qaror (izoh 3–500 belgi). Faqat AI natijasida saqlanadi — videoning tanlovdagi holati o'zgarmaydi.
+ * Audit: `ai.decision` (obyekt — `reel`).
+ * @endpoint POST /api/v1/admin/ai/reviews/:id/decision
+ * @throws ApiError 400 — izoh yoki qaror noto'g'ri; 404 — natija topilmadi
+ */
+export async function decideAiReview(id: string, request: AiDecisionRequest): Promise<AiReviewItem> {
+  await delay(450);
+  return mockDecideAiReview(id, request, requireRole("ADMIN"));
 }

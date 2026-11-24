@@ -5,8 +5,8 @@ repo ichida saqlanadi — serverdagi qo'lda yozilgan nusxalar o'rniga.
 
 | Fayl | Vazifasi |
 |---|---|
-| [`compose.yml`](compose.yml) | `konkurs` loyihasi: `backend` (NestJS) va `web` (nginx) |
-| [`Dockerfile.backend`](Dockerfile.backend) | Backend image (context — `apps/backend`) |
+| [`compose.yml`](compose.yml) | `konkurs` loyihasi: `backend` (NestJS), `ai-worker` (AI video tekshiruvi) va `web` (nginx) |
+| [`Dockerfile.backend`](Dockerfile.backend) | Backend image (`target: backend`) va AI worker (`target: worker`, + ffmpeg); context — `apps/backend` |
 | [`../apps/backend/.dockerignore`](../apps/backend/.dockerignore) | Backend context'idan chiqariladigan fayllar (serverdagi eski builder faqat context ildizidagini o'qiydi) |
 | [`Dockerfile.web`](Dockerfile.web) | Mini App (Vite) + admin panel (Next.js statik eksport) → nginx |
 | [`web.conf`](web.conf) | nginx: `/` Mini App, `/admin/` admin panel, `/api/` backend |
@@ -20,6 +20,8 @@ Internet ─► Mezon nginx (80/443, TLS) ─► konkurs-web (nginx, mezon_defau
                                             ├─ /admin/    admin panel       (/usr/share/nginx/html/admin)
                                             └─ /api/      backend:3000      (port tashqariga ochilmaydi)
 backend ─► /app/data  =  host: /srv/konkurs/data   (ishtirokchilar, reellar, support, audit...)
+ai-worker ─► backend:3000/api/v1/internal/ai  (Docker tarmog'i ichida; nginx /api/v1/internal/ ni yopadi)
+          ─► Instagram CDN (video), Claude API (api.anthropic.com)
 ```
 
 - Admin panel: **<https://konkurs-olivia.uz/admin/>**. U statik fayllar (server kodi yo'q) va API'ga
@@ -138,6 +140,87 @@ docker compose -f /srv/konkurs/app/deploy/compose.yml up -d --build
 
 Ma'lumotlar `/srv/konkurs/data` da qoladi — image almashganda o'chmaydi.
 
+## AI worker
+
+Admin panel → **AI** bo'limidagi video tekshiruvini alohida `ai-worker` konteyneri bajaradi
+(batafsil — [`apps/backend/README.md`](../apps/backend/README.md#ai-video-tekshiruvi)). U
+backend bilan bir xil koddan yig'iladi, ichida `ffmpeg` bor, `deploy` skripti uni ham ishga tushiradi.
+
+### Yoqish (bir martalik)
+
+1. Claude API kaliti: <https://platform.claude.com> → **API Keys** → *Create Key*. Kalitni hech
+   kimga yubormang (chat, Telegram, git) — faqat serverdagi faylga yoziladi. Hisobda balans bo'lsin
+   (Billing); xarajat chegarasini (*Limits → Spend limit*) ham qo'yib qo'ying.
+2. `/srv/konkurs/shared/backend.env` ga qo'shing (backend va worker shu faylni o'qiydi):
+
+   ```bash
+   sudo nano /srv/konkurs/shared/backend.env
+   ```
+
+   ```dotenv
+   ANTHROPIC_API_KEY=<kalit>
+   AI_WORKER_TOKEN=<openssl rand -hex 32 natijasi>
+   # ixtiyoriy (standart qiymatlar):
+   # AI_MODEL=claude-opus-5-5
+   # AI_FRAME_INTERVAL_SEC=2
+   # AI_FRAME_HEIGHT=720
+   # AI_CONFIDENCE_MIN=0.8
+   ```
+
+3. Qayta ishga tushiring va tekshiring:
+
+   ```bash
+   docker compose -f /srv/konkurs/app/deploy/compose.yml up -d --build backend ai-worker
+   docker compose -f /srv/konkurs/app/deploy/compose.yml logs --tail=50 ai-worker
+   # "Ishga tushdi: provider=anthropic ..." — tayyor. Admin panel → AI: "Worker ishlayapti".
+   ```
+
+Kalit yoki token bo'lmasa worker yiqilmaydi — log'ga sababini yozib kutadi ("AI tekshiruvi
+o'chiq: ..."). Kalit hech qachon log'ga chiqmaydi. Vaqtinchalik kadrlar `ai-work` volume'ida
+(natija kelguncha, 24 soatgacha) — worker qayta ishga tushsa ham yo'qolmaydi.
+
+Server yuklamasi kichik: worker bir vaqtda 2 ta videoni yuklab, ffmpeg bilan ajratadi (2 daqiqalik
+video — bir necha soniya CPU), qolgan vaqt Claude natijasini kutadi. 1 000 video ≈ 1–2 soat
+tayyorlash + batch natijasi (odatda 1 soat ichida, ko'pi bilan 24 soat).
+
+### Alohida DigitalOcean droplet'da (ixtiyoriy)
+
+Asosiy server band bo'lsa, worker'ni alohida droplet'ga chiqarish mumkin (Ubuntu, 1 vCPU / 2 GB,
+Docker o'rnatilgan). Backend'ning ichki API'si tashqariga yopiq, shuning uchun:
+
+1. Asosiy serverda `deploy/web.conf` dagi `location /api/v1/internal/` ni faqat droplet IP'siga oching
+   (PR orqali):
+
+   ```nginx
+   location /api/v1/internal/ {
+       allow <droplet-ip>;
+       deny all;
+       resolver 127.0.0.11 valid=30s;
+       set $backend http://backend:3000;
+       proxy_pass $backend;
+       proxy_set_header Host $host;
+       proxy_read_timeout 600s;
+   }
+   ```
+
+   Mezon nginx'i mijoz IP'sini `X-Forwarded-For` da uzatsa, `set_real_ip_from` ham kerak bo'ladi.
+2. Droplet'da repo'ni klonlab, image yig'ing va ishga tushiring:
+
+   ```bash
+   git clone <repo> /srv/ai-worker && cd /srv/ai-worker
+   docker build -f deploy/Dockerfile.backend --target worker -t konkurs-ai-worker apps/backend
+   sudo install -m 600 /dev/null /srv/ai-worker.env   # ANTHROPIC_API_KEY, AI_WORKER_TOKEN shu yerga
+   docker run -d --name ai-worker --restart unless-stopped \
+     --env-file /srv/ai-worker.env \
+     -e AI_BACKEND_URL=https://konkurs-olivia.uz/api/v1 \
+     -v ai-work:/app/work konkurs-ai-worker
+   docker logs -f ai-worker
+   ```
+
+3. Asosiy serverdagi `ai-worker` ni o'chiring (ikkalasi bir vaqtda ishlasa ham xato bo'lmaydi —
+   har bir video bitta worker'ga beriladi, lekin keraksiz):
+   `docker compose -f /srv/konkurs/app/deploy/compose.yml stop ai-worker`.
+
 ## Zaxira nusxa
 
 Hamma muhim ma'lumot `/srv/konkurs/data` da. Kuniga bir marta arxivlash (root crontab):
@@ -170,7 +253,8 @@ Repo ildizidan:
 
 ```bash
 docker build -f deploy/Dockerfile.web --build-arg VITE_API_URL=/api/v1 -t konkurs-web .
-docker build -f deploy/Dockerfile.backend apps/backend
+docker build -f deploy/Dockerfile.backend --target backend apps/backend
+docker build -f deploy/Dockerfile.backend --target worker apps/backend
 ```
 
 Admin panelning eksport build'ini Docker'siz ham ko'rish mumkin:

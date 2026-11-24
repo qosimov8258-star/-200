@@ -18,6 +18,16 @@ import { apiUrl, requestJson, requestJsonOrNull, requestVoid, segment, uploadJso
 import { rulesVideoMimeOf } from "./rules-video";
 import type {
   AdminUser,
+  AiApproveRequest,
+  AiCandidate,
+  AiDecisionRequest,
+  AiDraftUpdate,
+  AiReferenceInput,
+  AiReferenceUpdate,
+  AiReviewItem,
+  AiReviewListQuery,
+  AiReviewListResponse,
+  AiState,
   AuditLogQuery,
   AuditLogResponse,
   ContestRules,
@@ -769,5 +779,137 @@ export async function updateSupportTicketStatus(
 ): Promise<SupportTicketDetail> {
   return requestJson<SupportTicketDetail>("PATCH", `/admin/support/tickets/${segment(id)}/status`, {
     body: { status: request.status },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// AI tekshiruvi (faqat ADMIN)
+// ---------------------------------------------------------------------------
+
+/**
+ * AI bo'limi holati: qoralama, faol versiya, joriy ishga tushirish va uning sonlari, worker holati.
+ * @endpoint GET /api/v1/admin/ai/state
+ */
+export async function getAiState(): Promise<AiState> {
+  return requestJson<AiState>("GET", "/admin/ai/state");
+}
+
+/**
+ * Qoralama yaratish (faol versiyadan nusxa yoki bo'sh); qoralama bor bo'lsa — o'zgarmaydi.
+ * @endpoint POST /api/v1/admin/ai/draft
+ */
+export async function createAiDraft(): Promise<AiState> {
+  return requestJson<AiState>("POST", "/admin/ai/draft");
+}
+
+/**
+ * Qoralamadagi umumiy mezonlarni saqlash (0–5000 belgi). Audit: `ai.draft.update`.
+ * @endpoint PUT /api/v1/admin/ai/draft
+ * @throws ApiError 400 — juda uzun; 409 — qoralama yo'q
+ */
+export async function updateAiDraft(update: AiDraftUpdate): Promise<AiState> {
+  return requestJson<AiState>("PUT", "/admin/ai/draft", { body: { criteria: update.criteria } });
+}
+
+/**
+ * Qoralamaga namuna rasm qo'shish: `dataUrl` — `data:image/(jpeg|png|webp);base64,…`, ko'pi bilan 2 MB
+ * (panel yuborishdan oldin uzun tomoni 1600 px gacha kichraytiradi, `src/lib/ai-image.ts`); 12 tagacha.
+ * Audit: `ai.reference.add`.
+ * @endpoint POST /api/v1/admin/ai/draft/references
+ * @throws ApiError 400 — rasm yoki izoh noto'g'ri; 409 — qoralama yo'q yoki 12 ta rasm bor; 413 — juda katta
+ */
+export async function addAiReference(input: AiReferenceInput): Promise<AiState> {
+  return requestJson<AiState>("POST", "/admin/ai/draft/references", {
+    body: { dataUrl: input.dataUrl, kind: input.kind, note: input.note },
+    // nginx ham 413 ni HTML bilan qaytarishi mumkin.
+    fallback: { 413: "Rasm juda katta: ko'pi bilan 2 MB." },
+  });
+}
+
+/**
+ * Namuna rasm turi yoki izohini o'zgartirish (faqat berilgan maydonlar yuboriladi).
+ * @endpoint PATCH /api/v1/admin/ai/draft/references/:id
+ * @throws ApiError 400; 404 — rasm topilmadi; 409 — qoralama yo'q
+ */
+export async function updateAiReference(id: string, update: AiReferenceUpdate): Promise<AiState> {
+  const body: AiReferenceUpdate = {};
+  if (update.kind !== undefined) body.kind = update.kind;
+  if (update.note !== undefined) body.note = update.note;
+  return requestJson<AiState>("PATCH", `/admin/ai/draft/references/${segment(id)}`, { body });
+}
+
+/**
+ * Namuna rasmni qoralamadan o'chirish. Audit: `ai.reference.remove`.
+ * @endpoint DELETE /api/v1/admin/ai/draft/references/:id
+ * @throws ApiError 404; 409 — qoralama yo'q
+ */
+export async function deleteAiReference(id: string): Promise<AiState> {
+  return requestJson<AiState>("DELETE", `/admin/ai/draft/references/${segment(id)}`);
+}
+
+/**
+ * Namuna rasm — `<img src>` uchun manzil (sessiya cookie'si bilan ochiladi).
+ * @endpoint GET /api/v1/admin/ai/references/:id/image
+ */
+export function aiReferenceImageUrl(id: string): string {
+  return apiUrl(`/admin/ai/references/${segment(id)}/image`);
+}
+
+/**
+ * Sinov uchun videolar: qabul qilinganlar, eng ko'p ko'rilgani birinchi, ko'pi bilan 50 ta.
+ * @endpoint GET /api/v1/admin/ai/candidates?search=
+ */
+export async function getAiCandidates(search?: string): Promise<AiCandidate[]> {
+  return requestJson<AiCandidate[]>("GET", "/admin/ai/candidates", { query: { search } });
+}
+
+/**
+ * Qoralamani tasdiqlash: yangi versiya sifatida qulflanadi va videolar navbatga qo'yiladi
+ * (`TRIAL` — tanlangan yoki eng ko'p ko'rilgan 20 ta, `FULL` — hammasi). Audit: `ai.approve`.
+ * @endpoint POST /api/v1/admin/ai/approve
+ * @throws ApiError 400 — mezon ham, rasm ham yo'q yoki sinov ro'yxati noto'g'ri; 409 — qoralama yo'q
+ */
+export async function approveAiDraft(request: AiApproveRequest): Promise<AiState> {
+  const body: AiApproveRequest = { mode: request.mode };
+  if (request.mode === "TRIAL" && request.trialShortcodes && request.trialShortcodes.length > 0) {
+    body.trialShortcodes = request.trialShortcodes;
+  }
+  return requestJson<AiState>("POST", "/admin/ai/approve", { body });
+}
+
+/**
+ * Sinovdan keyin: barcha qabul qilingan videolarni faol versiya bo'yicha navbatga qo'yish. Audit: `ai.run_all`.
+ * @endpoint POST /api/v1/admin/ai/run-all
+ * @throws ApiError 409 — tasdiqlangan versiya yo'q
+ */
+export async function runAiForAll(): Promise<AiState> {
+  return requestJson<AiState>("POST", "/admin/ai/run-all");
+}
+
+/**
+ * Joriy versiya natijalari, eng yangi o'zgargani yuqorida. `verdict` — yakuniy xulosa bo'yicha.
+ * @endpoint GET /api/v1/admin/ai/reviews?verdict=&state=&search=&page=&pageSize=
+ */
+export async function getAiReviews(query: AiReviewListQuery): Promise<AiReviewListResponse> {
+  return requestJson<AiReviewListResponse>("GET", "/admin/ai/reviews", { query });
+}
+
+/**
+ * Dalil kadri (JPEG) — `<img src>` uchun manzil. `hasFrame: false` bo'lsa 404 bo'lishi mumkin.
+ * @endpoint GET /api/v1/admin/ai/reviews/:id/frames/:second
+ */
+export function aiFrameUrl(reviewId: string, second: number): string {
+  return apiUrl(`/admin/ai/reviews/${segment(reviewId)}/frames/${Math.round(second)}`);
+}
+
+/**
+ * Qo'lda qaror (izoh 3–500 belgi). Faqat AI natijasida saqlanadi — videoning tanlovdagi holati o'zgarmaydi.
+ * Audit: `ai.decision` (obyekt — `reel`).
+ * @endpoint POST /api/v1/admin/ai/reviews/:id/decision
+ * @throws ApiError 400 — izoh yoki qaror noto'g'ri; 404 — natija topilmadi
+ */
+export async function decideAiReview(id: string, request: AiDecisionRequest): Promise<AiReviewItem> {
+  return requestJson<AiReviewItem>("POST", `/admin/ai/reviews/${segment(id)}/decision`, {
+    body: { decision: request.decision, note: request.note },
   });
 }

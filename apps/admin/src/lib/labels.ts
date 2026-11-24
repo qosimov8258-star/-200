@@ -1,4 +1,9 @@
 import type {
+  AiManualDecision,
+  AiRefKind,
+  AiReviewState,
+  AiRunMode,
+  AiVerdict,
   AuditEntity,
   DrawDateBasis,
   DrawExclusion,
@@ -282,6 +287,67 @@ export const VIDEO_MIME_LABELS: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
+// AI tekshiruvi
+// ---------------------------------------------------------------------------
+
+/** Namuna rasm turi — kartadagi tanlov va belgi. */
+export const AI_REF_KIND_LABELS: Record<AiRefKind, string> = {
+  MUST: "Ko'rinishi shart",
+  MUST_NOT: "Bo'lmasligi kerak",
+  INFO: "Ma'lumot uchun",
+};
+
+export const AI_REF_KIND_TONES: Record<AiRefKind, BadgeTone> = {
+  MUST: "success",
+  MUST_NOT: "danger",
+  INFO: "neutral",
+};
+
+/** AI xulosasi belgisi (bosh harflar bilan — ro'yxatda yaqqol ko'rinadi). */
+export const AI_VERDICT_LABELS: Record<AiVerdict, string> = {
+  APPROVED: "TASDIQLANDI",
+  REJECTED: "RAD ETILDI",
+  UNCERTAIN: "SHUBHALI",
+};
+
+/** Filtr va sonlar uchun oddiy yozilishi. */
+export const AI_VERDICT_FILTER_LABELS: Record<AiVerdict, string> = {
+  APPROVED: "Tasdiqlandi",
+  REJECTED: "Rad etildi",
+  UNCERTAIN: "Shubhali",
+};
+
+export const AI_VERDICT_TONES: Record<AiVerdict, BadgeTone> = {
+  APPROVED: "success",
+  REJECTED: "danger",
+  UNCERTAIN: "warning",
+};
+
+export const AI_MANUAL_DECISION_LABELS: Record<AiManualDecision, string> = {
+  APPROVED: "Tasdiqlandi",
+  REJECTED: "Rad etildi",
+};
+
+export const AI_REVIEW_STATE_LABELS: Record<AiReviewState, string> = {
+  QUEUED: "Navbatda",
+  PROCESSING: "Ishlanmoqda",
+  DONE: "Tayyor",
+  FAILED: "Xato",
+};
+
+export const AI_REVIEW_STATE_TONES: Record<AiReviewState, BadgeTone> = {
+  QUEUED: "neutral",
+  PROCESSING: "brand",
+  DONE: "success",
+  FAILED: "danger",
+};
+
+export const AI_RUN_MODE_LABELS: Record<AiRunMode, string> = {
+  TRIAL: "Sinov",
+  FULL: "Hamma videolar",
+};
+
+// ---------------------------------------------------------------------------
 // Audit log
 // ---------------------------------------------------------------------------
 
@@ -346,6 +412,15 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "draw.stage.delete": "Random tanlov bosqichini o'chirdi",
   "draw.stage.restore": "Random tanlov bosqichini tikladi",
   "draw.settings.update": "Random tanlov sozlamalarini saqladi",
+  "ai.draft.update": "AI: mezonlarni o'zgartirdi",
+  "ai.reference.add": "AI: namuna rasm qo'shdi",
+  "ai.reference.remove": "AI: namuna rasmni o'chirdi",
+  "ai.approve": "AI: sozlamalarni tasdiqladi va ishga tushirdi",
+  "ai.run_all": "AI: hamma videolarni ishga tushirdi",
+  "ai.decision": "AI natijasi: qo'lda qaror",
+  // Kontraktda yo'q, lekin backend yozsa ham kod ko'rinib qolmasin.
+  "ai.draft.create": "AI: yangi versiya yaratdi",
+  "ai.reference.update": "AI: namuna rasmni o'zgartirdi",
   // Eski yozuvlar uchun (Istoriyalar bo'limi olib tashlangan).
   "story.remove": "Istoriyani o'chirdi",
 };
@@ -360,9 +435,17 @@ const WINNER_VALUE_LABELS: Record<string, string> = {
   FAILED: "O'tmadi",
 };
 
+/** `ai.decision` yozuvidagi qiymatlar (AI xulosasi va qo'lda qaror). */
+const AI_DECISION_VALUE_LABELS: Record<AiVerdict, string> = {
+  APPROVED: "Tasdiqlangan",
+  REJECTED: "Rad etilgan",
+  UNCERTAIN: "Shubhali",
+};
+
 const AUDIT_VALUE_LABELS: Partial<Record<AuditEntity, Record<string, string>>> = {
   participant: PARTICIPANT_STATUS_LABELS,
-  reel: REEL_STATUS_LABELS,
+  // Reel holatlari va `ai.decision` dagi AI xulosalari ("REJECTED" ikkalasida ham "Rad etilgan").
+  reel: { ...AI_DECISION_VALUE_LABELS, ...REEL_STATUS_LABELS },
   support_ticket: SUPPORT_STATUS_LABELS,
   target_case: TARGET_CASE_STATUS_LABELS,
   telegram_message: TELEGRAM_STATUS_LABELS,

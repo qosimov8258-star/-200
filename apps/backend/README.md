@@ -24,6 +24,7 @@ API: <http://localhost:3000/api/v1>
 |---|---|
 | `npm run dev` | Dev server (o'zgarishda qayta yuklanadi) |
 | `npm run build` / `npm start` | Production build va ishga tushirish |
+| `npm run worker` / `npm run worker:dev` | AI video tekshiruvi worker'i (build'dan keyin / `tsx` bilan) — [pastda](#ai-video-tekshiruvi) |
 | `npm run typecheck` | TypeScript tekshiruvi |
 | `npm test` | Testlar (initData imzosi, ishtirokchi qoidalari, bir nechta video, holat migratsiyasi, Apify klienti, worker) |
 | `npx tsx scripts/apify-reels-test.ts reels.txt` | Apify'dan linklar bo'yicha ko'rishlarni qo'lda olish (diagnostika, pullik) |
@@ -42,10 +43,15 @@ TypeScript 6 da qoladi: Nest CLI hozircha TypeScript 7 bilan ishlamaydi.
 | `APIFY_API_TOKEN` | Apify Console → Settings → API & Integrations. **Maxfiy** |
 | `STATS_PROVIDER` | `apify` (haqiqiy) yoki `mock` (lokal sinov — SOXTA ko'rishlar) |
 | `STATS_SYNC_TIME` | Ko'rishlar soat nechada yig'iladi, Toshkent vaqti (standart `06:00`). Faqat birinchi ishga tushishda — keyin admin panel → Sozlamalar |
-| `STATS_SYNC_EVERY_DAYS` | Tanlov boshidan (Sozlamalar → boshlanish sanasi, 25-noyabr) necha kunda bir: `7` (standart, haftada bir marta) — 2, 9, 16-dekabr…; `1` — har kuni; `0` — o'chiq |
+| `STATS_SYNC_EVERY_DAYS` | Tanlov boshidan (Sozlamalar → boshlanish sanasi, 25-noyabr) necha kunda bir: `1` (standart, har kuni); `7` — haftada bir marta; `0` — o'chiq |
 | `STATS_VERIFY_DELAY_MS` | Yangi videolar shuncha yig'ilib, bitta so'rovda tekshiriladi (standart `5000`) |
 | `TARGET_CHECK_TOP` | Reklama kutubxonasida reytingning nechta yetakchisi tekshiriladi (standart `30`) |
-| `TARGET_CHECK_EVERY_DAYS` | Tanlov boshidan necha kunda bir tekshiriladi (standart `30` — oyiga bir marta; `0` — faqat qo'lda) |
+| `TARGET_CHECK_EVERY_DAYS` | Tanlov boshidan necha kunda bir tekshiriladi (standart `1` — har kuni; `30` — oyiga bir marta; `0` — faqat qo'lda) |
+| `STATS_MOCK_VIDEO_URL` | Faqat `STATS_PROVIDER=mock`: AI tekshiruvini lokal sinash uchun hamma videolarga beriladigan mp4 manzili |
+| `AI_WORKER_TOKEN` | AI worker ↔ backend ichki API kaliti (`openssl rand -hex 32`), ikkalasida bir xil. Bo'sh — `/internal/ai/*` yopiq. **Maxfiy** |
+| `ANTHROPIC_API_KEY` | Claude API kaliti — **faqat worker'da** (backend'ga kerak emas). **Maxfiy**, log'ga yozilmaydi |
+| `AI_MODEL`, `AI_FRAME_INTERVAL_SEC`, `AI_FRAME_HEIGHT`, `AI_CONFIDENCE_MIN` | Model (`claude-opus-5-5`), kadr oralig'i (`2` s), kadrning qisqa tomoni (`720` = 720p), SHUBHALI chegarasi (`0.8`). Versiya tasdiqlanganda unga muhrlanadi |
+| `AI_PROVIDER`, `AI_BACKEND_URL`, `AI_EFFORT`, `AI_POLL_SECONDS`, `AI_BATCH_SIZE`, `AI_MAX_IN_FLIGHT`, `AI_MAX_FRAMES`, `AI_MAX_BATCH_MB`, `AI_WORK_DIR` | Worker sozlamalari — `.env.example` da izohi bilan (`AI_PROVIDER=mock` — pul sarflamaydigan sinov) |
 | `DATA_DIR` | Ma'lumotlar papkasi (standart `data`; Docker'da volume — `/app/data`) |
 | `ADMIN_USERS` | Admin panel xodimlari: `login\|ROL\|Ism Familiya\|parol`, bir nechta — `;` bilan (ROL: `ADMIN` yoki `SUPPORT`, parol ≥ 10 belgi). **Maxfiy** |
 | `ADMIN_SESSION_SECRET` | Sessiya imzosi kaliti (`openssl rand -base64 32`). **Maxfiy** |
@@ -121,8 +127,8 @@ narx yuborilgan videolar soniga qarab o'sadi).
 Instagram boshqa akkauntning reklama tarixini bermaydi, shuning uchun to'rt qatlam
 ([`src/targets/targets.service.ts`](src/targets/targets.service.ts)):
 
-1. **Meta reklama kutubxonasi** — oyiga bir marta (tanlov boshidan har `TARGET_CHECK_EVERY_DAYS` = 30
-   kunda: 25-dekabr, 24-yanvar, 23-fevral — har oylik bosqich oxirida; tanlov tugagach to'xtaydi)
+1. **Meta reklama kutubxonasi** — har kuni (tanlov boshidan har `TARGET_CHECK_EVERY_DAYS` = 1 kunda;
+   `30` qilinsa — oyiga bir marta; tanlov tugagach to'xtaydi)
    oxirgi reyting bo'yicha `TARGET_CHECK_TOP` yetakchining barcha akkauntlari (rad etilmagan videolari
    egalari) Apify'ning
    [`apify/facebook-ads-scraper`](https://apify.com/apify/facebook-ads-scraper) aktori bilan
@@ -147,6 +153,52 @@ Instagram boshqa akkauntning reklama tarixini bermaydi, shuning uchun to'rt qatl
 
 Tizim faqat signal beradi: ogohlantirish (bot xabari), diskvalifikatsiya (reytingdan chiqadi,
 bot xabari) yoki ro'yxatdan chiqarishni Admin hal qiladi.
+
+## AI video tekshiruvi
+
+Admin panel → **AI**: admin namuna rasmlar ("ko'rinishi shart" / "bo'lmasligi kerak" / "ma'lumot
+uchun", izohi bilan) va umumiy mezon matnini yozadi, **Tasdiqlash** bosadi — sozlama yangi
+**versiya** sifatida muhrlanadi (keyin o'zgarmaydi; o'zgartirish — "Yangi versiya") va qabul
+qilingan videolar navbatga qo'yiladi. **Sinov** rejimida avval 20 ta video (tanlangan yoki eng ko'p
+ko'rilgan 20 tasi), natijani ko'rib — "Hammasini ishga tushirish". Hammasi rejimida keyin qabul
+qilingan videolar ham o'zi navbatga tushadi. AI qarori video holatini **o'zgartirmaydi** — bu
+moderatsiyaga yordam; SHUBHALI videolarni admin qo'lda tasdiqlaydi yoki rad etadi (izoh bilan, audit log'ga).
+
+```text
+admin panel ─► backend (navbat, versiyalar, natijalar — StateStore)
+                  ▲  │ /internal/ai/* (X-Worker-Token)
+                  │  ▼
+               ai-worker ─► Instagram CDN (mp4) ─► ffmpeg (har 2 s, 720p JPEG)
+                  │
+                  └──► Claude Message Batches API (claude-opus-5-5) ─► natija ─► backend
+```
+
+- **Worker** — alohida jarayon ([`src/worker/`](src/worker/), `npm run worker`): har `AI_POLL_SECONDS`
+  da navbatdan `AI_BATCH_SIZE` ta video oladi (lease 2 soat), videoni yuklab ffmpeg bilan
+  kadrlarga ajratadi (uzun videoda oraliq kattalashadi, ko'pi bilan `AI_MAX_FRAMES` ta), bitta batch
+  qilib yuboradi va tugagan batch natijalarini backend'ga yozadi. Video manzili (Instagram CDN,
+  muddati cheklangan) backend'da Apify'dan olinadi (`videoUrl`, 6 soatdan eskisi yangilanadi;
+  `403/404` — qayta olinadi).
+- **So'rov** ([`src/worker/prompt.ts`](src/worker/prompt.ts)): tizim ko'rsatmasi → mezon matni →
+  namuna rasmlar (oxirgisida `cache_control: 1h` — bitta versiyaning hamma videolari shu qismni
+  keshdan arzon o'qiydi) → `[t=12s]` yorlig'i bilan kadrlar. Javob — qat'iy JSON (structured
+  outputs): `{ status: APPROVED|REJECTED|UNCERTAIN, confidence, reason, evidence: [{ second, description }] }`.
+  `confidence < AI_CONFIDENCE_MIN` (0.8) — **SHUBHALI**; xavfsizlik filtri javob bermasa ham SHUBHALI.
+  Dalil kadrlari (`evidence` soniyalari) backend'ga yuklanadi, qolgan vaqtinchalik kadrlar o'chiriladi.
+- **Limitlar** (platform.claude.com → Vision, Batches): batch — 100 000 so'rov yoki 256 MB; 1M kontekstli
+  modellarda bitta so'rovda 600 tagacha rasm, 20 tadan ko'p bo'lsa har biri ≤ 3000 px, rasm ≤ 10 MB. Worker: so'rov ≤ 24 MB (oshsa JPEG sifati, keyin o'lchami
+  pasayadi), batch ≤ `AI_MAX_BATCH_MB` (oshsa bir nechta batch'ga bo'linadi), namuna rasmlar
+  ≤ 1568 px JPEG ga keltiriladi.
+- **Qayta urinish**: yuklab olish / model xatosi — 3 marta, keyin FAILED. Claude kaliti xato, limit
+  yoki tarmoq — urinish hisoblanmaydi, worker 10 daqiqa kutadi. Worker o'chib qolsa — lease
+  muddati tugagach ish navbatga qaytadi.
+- **Narx** (batch — 50% chegirma; Opus 5.5: kirish $4, chiqish $20, kesh o'qish $0.20 / 1M token):
+  2 daqiqalik video ≈ 60 kadr × ~1 200 token ≈ 72 000 token → **≈ $0.15–0.20 / video**,
+  1 000 video ≈ $150–200. Har bir natijada tokenlar va $ saqlanadi, admin panelda jami ko'rinadi.
+
+Lokal sinov (pulsiz): backend `STATS_PROVIDER=mock STATS_MOCK_VIDEO_URL=<mp4 manzili>
+AI_WORKER_TOKEN=test-token`, worker esa `AI_PROVIDER=mock AI_WORKER_TOKEN=test-token npm run worker:dev`.
+Kerak: `ffmpeg` va `ffprobe` (`brew install ffmpeg`). Serverda — [`deploy/README.md`](../../deploy/README.md#ai-worker).
 
 ## API
 
@@ -219,6 +271,22 @@ bot xabari) yoki ro'yxatdan chiqarishni Admin hal qiladi.
 | `POST /admin/targets/:id/resolve` | `{ action: "warn" \| "disqualify" \| "dismiss", reason }` — Admin qarori |
 | `GET /admin/targets/check`, `POST /admin/targets/check` | Reklama kutubxonasi: oxirgi tekshiruv va keyingi rejadagi kun (`nextCheckOn`) / hoziroq tekshirish (tugashini kutadi) |
 | `GET /admin/targets/:id/attachments/:attachmentId` | Shikoyat skrinshoti (rasm) |
+| `GET /admin/ai/state` | AI tekshiruvi: qoralama, faol versiya, joriy ish (`TRIAL`/`FULL`), jarayon (navbatda / ishlanmoqda / tayyor / xato, verdiktlar, tokenlar, $), worker holati, sozlamalar |
+| `POST /admin/ai/draft`, `PUT /admin/ai/draft` | "Yangi versiya" (faolidan nusxa) / mezon matni `{ criteria }` (≤ 5000 belgi) |
+| `POST /admin/ai/draft/references`, `PATCH\|DELETE /admin/ai/draft/references/:id` | Namuna rasm `{ dataUrl, kind: MUST\|MUST_NOT\|INFO, note }` (JPEG/PNG/WebP ≤ 2 MB, 12 tagacha) / `{ kind?, note? }` / o'chirish |
+| `GET /admin/ai/references/:id/image` | Namuna rasm |
+| `GET /admin/ai/candidates?search=` | Sinov uchun videolar (qabul qilinganlar, eng ko'p ko'rilgani birinchi, 50 tagacha) |
+| `POST /admin/ai/approve` | `{ mode: TRIAL\|FULL, trialShortcodes? }` (≤ 20; bo'sh — eng ko'p ko'rilgan 20 tasi): versiya muhrlanadi, videolar navbatga |
+| `POST /admin/ai/run-all` | Sinovdan keyin — hamma videolar |
+| `GET /admin/ai/reviews?verdict=&state=&search=&page=&pageSize=` | Natijalar (joriy versiya): holat, AI va yakuniy qaror, ishonch, sabab, dalillar (soniya, tavsif, kadr bormi), qo'lda qaror, tokenlar, $ |
+| `GET /admin/ai/reviews/:id/frames/:second` | Dalil kadri (JPEG) |
+| `POST /admin/ai/reviews/:id/decision` | `{ decision: APPROVED\|REJECTED, note }` — qo'lda qaror (audit `ai.decision`) |
+
+- **AI worker (ichki)** — `/api/v1/internal/ai/*`, `X-Worker-Token: <AI_WORKER_TOKEN>`; nginx tashqariga
+  ochmaydi (`404`), worker backend'ga Docker tarmog'i ichida murojaat qiladi
+  ([`src/ai-review/ai-worker.controller.ts`](src/ai-review/ai-worker.controller.ts)): `heartbeat`,
+  `lease { limit }`, `release { reviewIds, error }`, `config/:version` (+ `/references/:id`),
+  `batches { batchId, reviewIds }`, `batches/open`, `batches/:id/close`, `results { results }`.
 
 - **Ega (tashkilot egalari, yashirin bo'lim)** — [`src/owner/`](src/owner/). Admin kirishidan alohida:
   `POST /owner/auth/login` (`OWNER_USERS`), sessiya `reels_owner` cookie'da (HttpOnly, SameSite=Strict,
@@ -246,6 +314,6 @@ Xabar botdagidek murojaat bo'lib `TELEGRAM_SUPPORT_CHAT_ID` guruhiga boradi; ope
 
 ## Keyingi qadamlar
 
-- PostgreSQL + Prisma (holat faylidan bazaga), worker — BullMQ navbatiga
+- PostgreSQL + Prisma (holat faylidan bazaga), worker'lar (ko'rishlar, AI) — BullMQ navbatiga
 - Admin 2FA; botdan xabar yuborish (hammaga/tanlanganlarga), bot matnlarini tahrirlash
 - Prod uchun webhook rejimi

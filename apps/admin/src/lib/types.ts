@@ -1272,3 +1272,212 @@ export interface DashboardStats {
   };
   daily: DailyStat[];
 }
+
+// ---------------------------------------------------------------------------
+// AI tekshiruvi (videolarni Claude bilan tekshirish — moderatsiyaga yordam)
+// ---------------------------------------------------------------------------
+
+/**
+ * Namuna rasm turi: `MUST` — videoda ko'rinishi shart; `MUST_NOT` — videoda bo'lmasligi kerak;
+ * `INFO` — AI uchun qo'shimcha ma'lumot (masalan, mahsulotning boshqa rangdagi ko'rinishi).
+ */
+export type AiRefKind = "MUST" | "MUST_NOT" | "INFO";
+
+/** Namuna rasm (rasmning o'zi — `aiReferenceImageUrl(id)`). */
+export interface AiReferenceImage {
+  id: string;
+  kind: AiRefKind;
+  /** Admin izohi (0–500 belgi). */
+  note: string;
+  /** `image/jpeg` | `image/png` | `image/webp`. */
+  mime: string;
+  sizeBytes: number;
+  createdAt: string;
+}
+
+export type AiConfigStatus = "DRAFT" | "APPROVED";
+
+/**
+ * AI sozlamalari versiyasi: namuna rasmlar va umumiy mezonlar. Tasdiqlangan (`APPROVED`) versiya
+ * qulflanadi — o'zgartirish uchun undan nusxa olib yangi qoralama (`DRAFT`) yaratiladi.
+ */
+export interface AiConfigVersion {
+  /** 1, 2, …; qoralama keyingi raqamni oladi. */
+  version: number;
+  status: AiConfigStatus;
+  criteria: string;
+  references: AiReferenceImage[];
+  createdAt: string;
+  updatedAt: string;
+  approvedAt: string | null;
+  /** Tasdiqlagan xodimning ismi. */
+  approvedBy: string | null;
+}
+
+/** Joriy ishga tushirish (`run.version`) bo'yicha sonlar; ishga tushirilmagan bo'lsa — nollar. */
+export interface AiProgress {
+  total: number;
+  queued: number;
+  processing: number;
+  done: number;
+  failed: number;
+  /** Yakuniy xulosalar (qo'lda qaror bo'lsa — o'sha). */
+  approved: number;
+  rejected: number;
+  uncertain: number;
+  /** Qo'lda qaror qabul qilingan videolar. */
+  manual: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  costUsd: number;
+}
+
+/** `TRIAL` — faqat tanlangan videolar (sinov); `FULL` — barcha qabul qilingan videolar. */
+export type AiRunMode = "TRIAL" | "FULL";
+
+export interface AiRun {
+  version: number;
+  mode: AiRunMode;
+  startedAt: string;
+  /** Ishga tushirgan xodimning ismi. */
+  startedBy: string;
+}
+
+export interface AiWorkerStatus {
+  lastSeenAt: string | null;
+  /** Oxirgi 3 daqiqa ichida signal bergan. */
+  online: boolean;
+}
+
+/** Backend sozlamalari (faqat o'qish). */
+export interface AiSettings {
+  model: string;
+  /** Kadrlar oralig'i, soniya. */
+  frameIntervalSec: number;
+  /** Kadr balandligi, px (720 — 720p). */
+  frameHeight: number;
+  /** Bundan past ishonchli xulosa "Shubhali" bo'ladi (0..1). */
+  confidenceMin: number;
+  /** Sinovda tekshiriladigan videolar soni. */
+  trialSize: number;
+}
+
+export interface AiState {
+  /** Tahrirlanadigan qoralama; yo'q bo'lsa — null. */
+  draft: AiConfigVersion | null;
+  /** Oxirgi tasdiqlangan versiya. */
+  active: AiConfigVersion | null;
+  run: AiRun | null;
+  progress: AiProgress;
+  worker: AiWorkerStatus;
+  settings: AiSettings;
+}
+
+export type AiVerdict = "APPROVED" | "REJECTED" | "UNCERTAIN";
+
+export type AiReviewState = "QUEUED" | "PROCESSING" | "DONE" | "FAILED";
+
+/** Adminning qo'lda qarori. */
+export type AiManualDecision = "APPROVED" | "REJECTED";
+
+/** AI ko'rsatgan dalil: videoning shu soniyasidagi kadr. */
+export interface AiEvidence {
+  second: number;
+  description: string;
+  /** Kadr saqlangan — `aiFrameUrl(reviewId, second)` ochiladi. */
+  hasFrame: boolean;
+}
+
+export interface AiTokens {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+}
+
+export interface AiReviewItem {
+  id: string;
+  version: number;
+  participant: { id: string; fullName: string; phone: string };
+  reel: { shortcode: string; url: string; views: number };
+  state: AiReviewState;
+  /** AI xulosasi (ishonch qoidasi qo'llangan: past ishonch — `UNCERTAIN`). */
+  verdict: AiVerdict | null;
+  /** Qo'lda qaror bo'lsa — o'sha, aks holda `verdict`. */
+  finalVerdict: AiVerdict | null;
+  /** 0..1 */
+  confidence: number | null;
+  reason: string | null;
+  evidence: AiEvidence[];
+  manual: { decision: AiManualDecision; note: string; by: string; at: string } | null;
+  attempts: number;
+  error: string | null;
+  tokens: AiTokens | null;
+  costUsd: number | null;
+  updatedAt: string;
+}
+
+export interface AiReviewListQuery {
+  /** Yakuniy xulosa bo'yicha. */
+  verdict?: AiVerdict;
+  state?: AiReviewState;
+  /** Ism, telefon yoki shortcode. */
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export type AiReviewListResponse = Paginated<AiReviewItem>;
+
+/** Sinov uchun tanlanadigan video (qabul qilingan, eng ko'p ko'rilganlar birinchi). */
+export interface AiCandidate {
+  shortcode: string;
+  url: string;
+  fullName: string;
+  views: number;
+}
+
+export interface AiDraftUpdate {
+  criteria: string;
+}
+
+export interface AiReferenceInput {
+  /** `data:image/(jpeg|png|webp);base64,…` — ko'pi bilan 2 MB (base64 ochilgandagi hajm). */
+  dataUrl: string;
+  kind: AiRefKind;
+  note: string;
+}
+
+export interface AiReferenceUpdate {
+  kind?: AiRefKind;
+  note?: string;
+}
+
+export interface AiApproveRequest {
+  mode: AiRunMode;
+  /** Faqat `TRIAL` da, ko'pi bilan 20 ta; bo'sh yoki yo'q — eng ko'p ko'rilgan 20 ta video. */
+  trialShortcodes?: string[];
+}
+
+export interface AiDecisionRequest {
+  decision: AiManualDecision;
+  /** 3–500 belgi, audit logga yoziladi. */
+  note: string;
+}
+
+/** Backend bilan bir xil cheklovlar (AI tekshiruvi kontrakti). */
+export const AI_LIMITS = {
+  criteriaMax: 5000,
+  /** Tasdiqlash uchun: mezonlar kamida shuncha belgi yoki kamida bitta namuna rasm. */
+  criteriaMinToApprove: 10,
+  noteMax: 500,
+  maxReferences: 12,
+  /** Namuna rasm (base64 ochilgandagi) hajmi, bayt — 2 MB. */
+  maxReferenceBytes: 2 * 1024 * 1024,
+  referenceMimeTypes: ["image/jpeg", "image/png", "image/webp"],
+  trialMax: 20,
+  decisionNoteMin: 3,
+  decisionNoteMax: 500,
+} as const;
