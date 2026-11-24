@@ -51,7 +51,7 @@ export function ReferenceUpload({ count, variant }: ReferenceUploadProps) {
       const accepted = files.slice(0, slots);
       if (files.length > accepted.length) {
         problems.push(
-          `Ko'pi bilan ${AI_LIMITS.maxReferences} ta rasm qo'shish mumkin — ${files.length - accepted.length} tasi qo'shilmadi.`,
+          `Ko'pi bilan ${AI_LIMITS.maxReferences} ta rasm (Claude bitta so'rovda 600 tagacha rasm qabul qiladi, video kadrlari bilan birga) — ${files.length - accepted.length} tasi qo'shilmadi.`,
         );
       }
       let added = 0;
@@ -126,7 +126,7 @@ export function ReferenceUpload({ count, variant }: ReferenceUploadProps) {
           </Button>
           {full && (
             <span className="text-xs text-slate-500">
-              {AI_LIMITS.maxReferences} ta rasm — yangisini qo&apos;shish uchun birortasini o&apos;chiring.
+              {AI_LIMITS.maxReferences} ta rasm — Claude chegarasi. Yangisini qo&apos;shish uchun birortasini o&apos;chiring.
             </span>
           )}
         </div>

@@ -203,7 +203,11 @@ export interface AiReviewOptions {
   clock?: () => Date;
 }
 
-export const MAX_REFERENCES = 12;
+/**
+ * Namuna rasmlar soni amalda cheklanmaydi — faqat Claude chegarasi: bitta so'rovda 600 tagacha
+ * rasm (video kadrlari ham shunga kiradi). Worker kadrlar sonini qolganiga moslaydi.
+ */
+export const MAX_REFERENCES = 400;
 export const CRITERIA_MAX = 5_000;
 export const NOTE_MAX = 500;
 /** Tasdiqlash uchun mezon matni kamida shuncha belgi (yoki kamida bitta namuna rasm). */
@@ -359,7 +363,11 @@ export class AiReviewService implements OnModuleInit, OnModuleDestroy {
   addReference(dataUrl: string, kind: AiRefKind, note: string): AiReferenceImage {
     const draft = this.requireDraft();
     if (draft.references.length >= MAX_REFERENCES) {
-      throw adminError(422, `Ko'pi bilan ${MAX_REFERENCES} ta namuna rasm qo'shish mumkin.`, "TOO_MANY");
+      throw adminError(
+        422,
+        `Ko'pi bilan ${MAX_REFERENCES} ta namuna rasm: Claude bitta so'rovda 600 tagacha rasm qabul qiladi (video kadrlari bilan birga).`,
+        "TOO_MANY",
+      );
     }
     const text = note.trim();
     if (text.length > NOTE_MAX) throw adminError(422, `Izoh ${NOTE_MAX} belgidan oshmasin.`);

@@ -16,7 +16,7 @@ import { ParticipantsService } from "../participants/participants.service";
 import { RulesService } from "../rules/rules.service";
 import { BackendClient } from "./backend-client";
 import { MockBatchProvider, type BatchOutcome, type BatchProvider, type BatchRequest } from "./batch-provider";
-import { AiWorker } from "./worker";
+import { AiWorker, referenceSizeFor } from "./worker";
 import type { WorkerConfig } from "./worker-config";
 
 const hasFfmpeg = spawnSync("ffmpeg", ["-version"]).status === 0 && spawnSync("ffprobe", ["-version"]).status === 0;
@@ -236,4 +236,69 @@ test("worker: refusal — SHUBHALI; uzilgan/buzilgan javob — qayta; so'rov xat
   }
   assert.equal(byCode.get("CODE4")?.state, "FAILED", "so'rovning o'zi xato — qayta yuborilmaydi");
   assert.match(byCode.get("CODE4")?.error ?? "", /invalid_request_error/);
+});
+
+test("worker: ko'p namuna rasm — kichraytiriladi, so'rovga sig'adi, 'kamida bittasi' qoidasi", { skip: !hasFfmpeg && "ffmpeg yo'q" }, async () => {
+  assert.equal(referenceSizeFor(12), 1568);
+  assert.equal(referenceSizeFor(222), 512);
+  assert.equal(referenceSizeFor(400), 384);
+
+  const participants = new ParticipantsService(new RulesService());
+  const stats = new MockReelStatsProvider(`${base}/video.mp4`);
+  participants.setPhone(1, 1, "+998900000001");
+  participants.register(1, "Ism1", "Familiya1", 25);
+  participants.acceptRules(1, 1);
+  const reel = participants.submitReel(1, "https://www.instagram.com/reel/CODE1/", "CODE1");
+  reel.status = "ACCEPTED";
+  reel.history = [{ date: "2026-12-01", at: new Date(), views: 100, likes: 1, comments: 0 }];
+  const ai = new AiReviewService(participants, stats, {
+    settings: { model: "claude-opus-5-5", frameIntervalSec: 2, frameHeight: 720, confidenceMin: 0.8, trialSize: 20 },
+  });
+  ai.createDraft();
+  const png = `data:image/png;base64,${readFileSync(join(dir, "ref.png")).toString("base64")}`;
+  for (let i = 0; i < 120; i += 1) ai.addReference(png, i < 118 ? "MUST" : "MUST_NOT", `Mahsulot ${i + 1}`);
+  ai.approve("FULL", undefined, "Admin");
+
+  const submitted: BatchRequest[][] = [];
+  const provider = new MockBatchProvider(0);
+  const submit = provider.submit.bind(provider);
+  provider.submit = (requests) => {
+    submitted.push(requests);
+    return submit(requests);
+  };
+  const options: WorkerConfig = {
+    provider: "mock",
+    anthropicApiKey: null,
+    backendUrl: "http://backend.test/api/v1",
+    workerToken: "t",
+    workDir: join(dir, "work3"),
+    pollSeconds: 1,
+    batchSize: 20,
+    maxInFlight: 200,
+    maxFrames: 150,
+    maxBatchMb: 150,
+    effort: "medium",
+    mockDelaySeconds: 0,
+  };
+  const worker = new AiWorker(options, new BackendClient(options.backendUrl, "t", backendFetch(ai)), provider, silent);
+  await worker.tick();
+  assert.equal(submitted.length, 1);
+  const params = submitted[0][0].params;
+  const content = params.messages[0].content as (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[];
+  const images = content.filter((b): b is Anthropic.ImageBlockParam => b.type === "image");
+  assert.equal(images.length, 120 + 5, "120 namuna + 5 kadr");
+  assert.ok(Buffer.byteLength(JSON.stringify(params)) < 24 * 1024 * 1024, "so'rov 24 MB dan kichik");
+  // Birinchi namuna rasm 512 px gacha kichraytirilgan (2400×1600 → 512×341).
+  const first = images[0].source;
+  assert.equal(first.type, "base64");
+  const refPath = join(dir, "ref-check.jpg");
+  writeFileSync(refPath, Buffer.from(first.type === "base64" ? first.data : "", "base64"));
+  const size = execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=width,height", "-of", "csv=p=0", refPath])
+    .toString()
+    .trim();
+  assert.equal(size, "512,341");
+  const intro = content[0].type === "text" ? content[0].text : "";
+  assert.match(intro, /120 reference image\(s\) follow: 118 MUST BE VISIBLE \(at least one/);
+  assert.match(intro, /2 MUST NOT APPEAR/);
+  assert.equal(content.findIndex((b) => b.cache_control) < content.findIndex((b) => b.type === "text" && b.text === "[t=0s]"), true);
 });

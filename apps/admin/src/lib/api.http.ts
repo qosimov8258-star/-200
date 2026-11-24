@@ -813,10 +813,10 @@ export async function updateAiDraft(update: AiDraftUpdate): Promise<AiState> {
 
 /**
  * Qoralamaga namuna rasm qo'shish: `dataUrl` — `data:image/(jpeg|png|webp);base64,…`, ko'pi bilan 2 MB
- * (panel yuborishdan oldin uzun tomoni 1600 px gacha kichraytiradi, `src/lib/ai-image.ts`); 12 tagacha.
+ * (panel yuborishdan oldin uzun tomoni 1600 px gacha kichraytiradi, `src/lib/ai-image.ts`); 400 tagacha (Claude chegarasi).
  * Audit: `ai.reference.add`.
  * @endpoint POST /api/v1/admin/ai/draft/references
- * @throws ApiError 400 — rasm yoki izoh noto'g'ri; 409 — qoralama yo'q yoki 12 ta rasm bor; 413 — juda katta
+ * @throws ApiError 400 — rasm yoki izoh noto'g'ri; 409 — qoralama yo'q; 422 — 400 ta rasm bor; 413 — juda katta
  */
 export async function addAiReference(input: AiReferenceInput): Promise<AiState> {
   return requestJson<AiState>("POST", "/admin/ai/draft/references", {

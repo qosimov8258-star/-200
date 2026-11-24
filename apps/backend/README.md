@@ -187,8 +187,14 @@ admin panel ─► backend (navbat, versiyalar, natijalar — StateStore)
   Dalil kadrlari (`evidence` soniyalari) backend'ga yuklanadi, qolgan vaqtinchalik kadrlar o'chiriladi.
 - **Limitlar** (platform.claude.com → Vision, Batches): batch — 100 000 so'rov yoki 256 MB; 1M kontekstli
   modellarda bitta so'rovda 600 tagacha rasm, 20 tadan ko'p bo'lsa har biri ≤ 3000 px, rasm ≤ 10 MB. Worker: so'rov ≤ 24 MB (oshsa JPEG sifati, keyin o'lchami
-  pasayadi), batch ≤ `AI_MAX_BATCH_MB` (oshsa bir nechta batch'ga bo'linadi), namuna rasmlar
-  ≤ 1568 px JPEG ga keltiriladi.
+  pasayadi), batch ≤ `AI_MAX_BATCH_MB` (oshsa bir nechta batch'ga bo'linadi).
+- **Namuna rasmlar** soni amalda cheklanmaydi (butun mahsulot katalogi; texnik chegara — 400, chunki
+  so'rovda kadrlar bilan birga 600 tagacha rasm). Worker ularni JPEG ga keltiradi, ko'p bo'lsa
+  kichikroq (≤ 16 ta — 1568 px, ≤ 40 — 1024, ≤ 100 — 768, ≤ 250 — 512, undan ko'p — 384 px; jami
+  ≤ 9 MB), kadrlar soni esa qolgan joyga moslanadi. "Ko'rinishi shart" rasmlardan **kamida bittasi**
+  videoda ko'rinsa yetarli (hammasi kerak bo'lsa — mezon matnida yoziladi). Rasmlar har videoga
+  qo'shiladi, lekin keshdan o'qiladi: 222 ta rasm (512 px) ≈ 55 000 token ≈ $0.006 / video
+  (kesh topilmasa ≈ $0.11).
 - **Qayta urinish**: yuklab olish / model xatosi — 3 marta, keyin FAILED. Claude kaliti xato, limit
   yoki tarmoq — urinish hisoblanmaydi, worker 10 daqiqa kutadi. Worker o'chib qolsa — lease
   muddati tugagach ish navbatga qaytadi.
@@ -273,7 +279,7 @@ Kerak: `ffmpeg` va `ffprobe` (`brew install ffmpeg`). Serverda — [`deploy/READ
 | `GET /admin/targets/:id/attachments/:attachmentId` | Shikoyat skrinshoti (rasm) |
 | `GET /admin/ai/state` | AI tekshiruvi: qoralama, faol versiya, joriy ish (`TRIAL`/`FULL`), jarayon (navbatda / ishlanmoqda / tayyor / xato, verdiktlar, tokenlar, $), worker holati, sozlamalar |
 | `POST /admin/ai/draft`, `PUT /admin/ai/draft` | "Yangi versiya" (faolidan nusxa) / mezon matni `{ criteria }` (≤ 5000 belgi) |
-| `POST /admin/ai/draft/references`, `PATCH\|DELETE /admin/ai/draft/references/:id` | Namuna rasm `{ dataUrl, kind: MUST\|MUST_NOT\|INFO, note }` (JPEG/PNG/WebP ≤ 2 MB, 12 tagacha) / `{ kind?, note? }` / o'chirish |
+| `POST /admin/ai/draft/references`, `PATCH\|DELETE /admin/ai/draft/references/:id` | Namuna rasm `{ dataUrl, kind: MUST\|MUST_NOT\|INFO, note }` (JPEG/PNG/WebP ≤ 2 MB, 400 tagacha — Claude bitta so'rovda 600 tagacha rasm oladi) / `{ kind?, note? }` / o'chirish |
 | `GET /admin/ai/references/:id/image` | Namuna rasm |
 | `GET /admin/ai/candidates?search=` | Sinov uchun videolar (qabul qilinganlar, eng ko'p ko'rilgani birinchi, 50 tagacha) |
 | `POST /admin/ai/approve` | `{ mode: TRIAL\|FULL, trialShortcodes? }` (≤ 20; bo'sh — eng ko'p ko'rilgan 20 tasi): versiya muhrlanadi, videolar navbatga |
