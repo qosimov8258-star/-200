@@ -22,6 +22,11 @@ export const texts = {
   alreadyRegistered: "Tanlov ilovasini ochish uchun pastdagi tugmani bosing:",
   miniAppNotConfigured:
     "Tanlov ilovasi hali ulanmagan. Tez orada ishga tushadi.",
+  tooManyRequests: "⏳ Juda tez yozyapsiz. Bir daqiqadan keyin qayta urinib ko'ring.",
+  supportTooMany:
+    "⏳ Qisqa vaqtda juda ko'p xabar yubordingiz. Operator avvalgi xabarlaringizni ko'radi — 10 daqiqadan keyin yana yozishingiz mumkin.",
+  operatorNotAllowed:
+    "⛔ Javob yuborilmadi: ishtirokchilarga faqat support guruhi adminlari (yoki TELEGRAM_SUPPORT_OPERATOR_IDS dagilar) javob bera oladi.",
   supportReceived:
     "📨 Xabaringiz supportga yuborildi. Operator javobi shu chatga keladi.",
   supportNeedsContact:
