@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CalendarClock, CheckCircle2, FlaskConical, Flag } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, CalendarClock, CheckCircle2, Flag } from "lucide-react";
 
 import { IosIcon } from "@/components/ui/ios-icon";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,6 @@ import {
   cancelWinnerConfirmation,
   confirmWinner,
   getWinnerOverview,
-  mockControls,
   setWinnerManualCheck,
   skipWinnerCandidate,
 } from "@/lib/api";
@@ -85,13 +84,6 @@ export function WinnerView() {
     return () => clearTimeout(timer);
   }, [notice]);
 
-  const toggleContest = useMutation({
-    mutationFn: async (ended: boolean) => {
-      await mockControls?.setContestEnded(ended);
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: QUERY_KEY }),
-  });
-
   /** Amal natijasini keshga yozish va xabar ko'rsatish. */
   function done(overview: WinnerOverview, message: string) {
     queryClient.setQueryData(QUERY_KEY, overview);
@@ -128,23 +120,6 @@ export function WinnerView() {
   return (
     <div className="space-y-4">
       <ContestStatus overview={data} />
-
-      {mockControls && (
-        <div className="flex flex-wrap items-center gap-3 rounded-md border border-dashed border-amber-300 bg-amber-50/60 px-3 py-2 text-sm text-amber-900">
-          <FlaskConical className="size-4 shrink-0" aria-hidden />
-          <span className="flex-1">
-            Mock rejim: g&apos;olib oqimini sinash uchun tanlovni tugagan deb belgilash mumkin.
-          </span>
-          <Button
-            variant="secondary"
-            size="sm"
-            loading={toggleContest.isPending}
-            onClick={() => toggleContest.mutate(!data.contest.ended)}
-          >
-            {data.contest.ended ? "Tanlovni davom ettirish (qayta boshlash)" : "Tanlovni tugagan deb ko'rish"}
-          </Button>
-        </div>
-      )}
 
       <div role="status" aria-live="polite">
         {notice && (

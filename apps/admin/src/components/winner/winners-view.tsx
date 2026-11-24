@@ -2,22 +2,17 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, Car, Ticket, Trophy, type LucideIcon } from "lucide-react";
+import { Car, Ticket, Trophy, type LucideIcon } from "lucide-react";
 
-import {
-  prizeQuantityLabel,
-  RatingPrizeHeading,
-  RatingPrizeRule,
-  RatingPrizeTable,
-} from "@/components/prizes/rating-prize-table";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { prizeQuantityLabel } from "@/components/prizes/rating-prize-table";
 import { Segmented } from "@/components/ui/segmented";
 import { Spinner } from "@/components/ui/spinner";
 import { getRatingPrizes } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
-import { formatDateTime, formatNumber, formatViewsRange } from "@/lib/format";
+import { formatViewsRange } from "@/lib/format";
 import { RATING_PRIZE_LABELS } from "@/lib/labels";
 
+import { RatingPrizeTile } from "./rating-prize-tile";
 import { VoucherWinners } from "./voucher-winners";
 import { WinnerView } from "./winner-view";
 
@@ -64,26 +59,11 @@ function MainPrizes() {
           title={`Bosh sovrin — ${RATING_PRIZE_LABELS.car}`}
           meta={car ? `${prizeQuantityLabel(car)} · ${formatViewsRange(car.minViews, car.maxViews)} ko'rish` : null}
         />
-        {car && car.eligibleCount === 0 && (
-          <p className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800">
-            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
-            Hozircha hech kimning videosi {formatNumber(car.minViews)} ko&apos;rishga yetmagan. Quyida joriy yetakchi.
-          </p>
-        )}
         <WinnerView />
       </section>
 
       <section className="space-y-4" aria-labelledby="rating-prizes-title">
-        <SectionTitle
-          id="rating-prizes-title"
-          icon={Trophy}
-          title="Boshqa asosiy sovrinlar"
-          meta={
-            prizes.data?.updatedAt
-              ? `Reyting bo'yicha, random emas · ko'rishlar ${formatDateTime(prizes.data.updatedAt)} holatiga`
-              : "Reyting bo'yicha, random emas"
-          }
-        />
+        <SectionTitle id="rating-prizes-title" icon={Trophy} title="Boshqa asosiy sovrinlar" meta={null} />
         {prizes.isPending ? (
           <Spinner />
         ) : prizes.isError ? (
@@ -91,17 +71,11 @@ function MainPrizes() {
             {errorMessage(prizes.error)}
           </p>
         ) : (
-          others.map((tier) => (
-            <Card key={tier.kind}>
-              <CardHeader>
-                <RatingPrizeHeading tier={tier} />
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <RatingPrizeRule tier={tier} />
-                <RatingPrizeTable tier={tier} />
-              </CardContent>
-            </Card>
-          ))
+          <div className="flex flex-wrap gap-4">
+            {others.map((tier) => (
+              <RatingPrizeTile key={tier.kind} tier={tier} />
+            ))}
+          </div>
         )}
       </section>
     </div>

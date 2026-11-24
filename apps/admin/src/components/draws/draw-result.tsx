@@ -6,12 +6,13 @@ import {
   AlertCircle,
   ArrowRightLeft,
   Ban,
+  Check,
   CheckCircle2,
+  ChevronRight,
   Copy,
   Download,
   ExternalLink,
-  Fingerprint,
-  KeyRound,
+  RotateCw,
   Send,
 } from "lucide-react";
 
@@ -24,16 +25,10 @@ import { Pagination } from "@/components/ui/pagination";
 import { ReasonDialog } from "@/components/ui/reason-dialog";
 import { cancelDraw, confirmDraw, replaceDrawWinner, sendDraw } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
-import { periodLabel, renderDrawMessage, stageLabel } from "@/lib/draw-rules";
-import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
-import {
-  DRAW_DATE_BASIS_LABELS,
-  DRAW_NOTIFY_LABELS,
-  DRAW_NOTIFY_TONES,
-  DRAW_STATUS_LABELS,
-  DRAW_STATUS_TONES,
-} from "@/lib/labels";
-import type { DrawCandidate, DrawEntry, DrawStatus, VoucherDraw } from "@/lib/types";
+import { renderDrawMessage, stageLabel } from "@/lib/draw-rules";
+import { formatDate, formatDateTime, formatDayMonth, formatNumber } from "@/lib/format";
+import { DRAW_NOTIFY_LABELS, DRAW_NOTIFY_TONES, DRAW_STATUS_LABELS, DRAW_STATUS_TONES } from "@/lib/labels";
+import type { DrawCandidate, DrawEntry, VoucherDraw } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 50;
@@ -46,22 +41,19 @@ type DialogState =
   | { type: "send"; count: number }
   | null;
 
-const STEPS: Array<{ status: DrawStatus; label: string }> = [
-  { status: "DRAFT", label: "Tanlov o'tkazildi" },
-  { status: "CONFIRMED", label: "Natija tasdiqlandi" },
-  { status: "SENT", label: "G'oliblarga yuborildi" },
-];
-
 const fullName = (c: DrawCandidate) => `${c.firstName} ${c.lastName}`;
 
-/** Tanlov natijasi: g'oliblar, zaxira, almashtirish, tasdiqlash va botga yuborish. */
+/**
+ * Tanlov natijasi oddiy tilda: tepada bir gaplik xulosa va kimlar qatnashgani, keyin uchta qadam
+ * (o'tkazildi → tasdiqlash → xabar yuborish) — joriy qadam ajratilgan va tugmasi shu qadamning
+ * ichida. Texnik ma'lumot (kalit, nomzodlar izi) yopiq bo'limda. Pastda g'oliblar ro'yxati.
+ */
 export function DrawResult({ draw }: { draw: VoucherDraw }) {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("winners");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [dialog, setDialog] = useState<DialogState>(null);
-  const [copied, setCopied] = useState(false);
 
   const activeWinners = draw.winnerEntries.filter((e) => e.state === "ACTIVE");
   const replaced = draw.winnerEntries.filter((e) => e.state === "REPLACED");
@@ -106,165 +98,103 @@ export function DrawResult({ draw }: { draw: VoucherDraw }) {
       })
     : null;
 
-  const copySeed = async () => {
-    try {
-      await navigator.clipboard.writeText(draw.seed);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // Ruxsat yo'q.
-    }
-  };
-
-  const total = Math.max(1, activeWinners.length);
-  const stepIndex = draw.status === "CANCELLED" ? -1 : STEPS.findIndex((s) => s.status === draw.status);
+  const cancelButton = (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="text-red-600 hover:bg-red-50 hover:text-red-700"
+      onClick={() => setDialog({ type: "cancel" })}
+    >
+      <Ban className="size-4" aria-hidden />
+      Tanlovni bekor qilish
+    </Button>
+  );
 
   return (
     <div className="space-y-5">
-      {/* Sarlavha */}
+      {/* Xulosa */}
       <Card className="overflow-hidden">
-        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
-          <div>
-            <p className="text-xs font-medium text-slate-500">
-              Tanlov #{draw.number} · {formatDateTime(draw.createdAt)} · {draw.createdBy}
-            </p>
-            <h2 className="mt-1 text-lg font-semibold">
-              {draw.prizeTitle} — {stageLabel(draw.stage)}
-            </h2>
-            <p className="text-sm text-slate-600">{periodLabel(draw.periodFrom, draw.periodTo)}</p>
+        <div className="space-y-4 px-5 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-slate-500">Tanlov #{draw.number}</p>
+              <h2 className="mt-0.5 text-lg font-semibold">{draw.prizeTitle}</h2>
+            </div>
+            <Badge tone={DRAW_STATUS_TONES[draw.status]} className="text-sm">
+              {DRAW_STATUS_LABELS[draw.status]}
+            </Badge>
           </div>
-          <Badge tone={DRAW_STATUS_TONES[draw.status]} className="text-sm">
-            {DRAW_STATUS_LABELS[draw.status]}
-          </Badge>
+          <DrawSummary draw={draw} />
+          <Participation draw={draw} />
         </div>
 
-        {draw.status === "CANCELLED" && draw.cancelled ? (
-          <p className="flex gap-2 bg-slate-50 px-5 py-3 text-sm text-slate-700">
+        {draw.status === "CANCELLED" && draw.cancelled && (
+          <p className="flex gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3 text-sm text-slate-700">
             <Ban className="mt-0.5 size-4 shrink-0" aria-hidden />
-            {formatDateTime(draw.cancelled.at)} da {draw.cancelled.by} bekor qildi: «{draw.cancelled.reason}»
+            <span>
+              Bu tanlov bekor qilingan — {formatDateTime(draw.cancelled.at)}, {draw.cancelled.by}. Sabab: «
+              {draw.cancelled.reason}». G&apos;oliblar voucher olmaydi.
+            </span>
           </p>
-        ) : (
-          <ol className="grid grid-cols-3 gap-2 px-5 py-4">
-            {STEPS.map((step, i) => (
-              <li key={step.status} className="flex items-center gap-2">
-                <span
-                  className={cn(
-                    "grid size-7 shrink-0 place-items-center rounded-full text-xs font-bold",
-                    i <= stepIndex ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-500",
-                  )}
-                >
-                  {i < stepIndex || (i === stepIndex && step.status === "SENT") ? (
-                    <CheckCircle2 className="size-4" aria-hidden />
-                  ) : (
-                    i + 1
-                  )}
-                </span>
-                <span className={cn("text-sm", i <= stepIndex ? "font-medium text-slate-900" : "text-slate-500")}>
-                  {step.label}
-                </span>
-              </li>
-            ))}
-          </ol>
         )}
 
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 border-t border-slate-200 px-5 py-4 text-sm sm:grid-cols-4">
-          <Meta label="G'oliblar" value={formatNumber(draw.winners)} />
-          <Meta label="Zaxirada qoldi" value={formatNumber(draw.reserves)} />
-          <Meta label="Nomzodlar" value={formatNumber(draw.poolSize)} />
-          <Meta label="Ko'rishlar holati" value={formatDate(draw.viewsAsOf)} />
-          <Meta label="Reel sanasi" value={DRAW_DATE_BASIS_LABELS[draw.settings.dateBasis]} />
-          <Meta
-            label="Ko'rishlar oralig'i"
-            value={`${formatNumber(draw.settings.minViews)} – ${formatNumber(draw.settings.maxViews)}`}
-          />
-          <div className="col-span-2">
-            <dt className="flex items-center gap-1.5 text-xs text-slate-500">
-              <KeyRound className="size-3.5" aria-hidden /> Tasodifiy kalit (seed) va nomzodlar izi
-            </dt>
-            <dd className="mt-0.5 flex flex-wrap items-center gap-2">
-              <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs">{draw.seed}</code>
-              <button
-                type="button"
-                onClick={() => void copySeed()}
-                className="text-slate-400 hover:text-slate-700"
-                aria-label="Kalitni nusxalash"
-              >
-                {copied ? <CheckCircle2 className="size-4 text-green-600" /> : <Copy className="size-4" />}
-              </button>
-              <code className="flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs">
-                <Fingerprint className="size-3.5" aria-hidden />
-                {draw.poolHash}
-              </code>
-            </dd>
-          </div>
-        </dl>
+        <TechnicalDetails draw={draw} />
       </Card>
 
-      {/* Amallar */}
+      {/* Qadamlar */}
       {draw.status !== "CANCELLED" && (
-        <Card>
-          <CardContent className="space-y-4">
-            {(draw.status === "CONFIRMED" || draw.status === "SENT") && (
-              <div>
-                <div className="flex justify-between text-sm">
-                  <span className="font-medium">Bot xabarlari</span>
-                  <span className="text-slate-500 tabular-nums">
-                    {formatNumber(draw.delivery.sent)} yuborildi · {formatNumber(draw.delivery.failed)} xato ·{" "}
-                    {formatNumber(draw.delivery.notSent)} kutmoqda
-                  </span>
-                </div>
-                <div className="mt-2 flex h-2.5 overflow-hidden rounded-full bg-slate-100">
-                  <div className="bg-green-500" style={{ width: `${(draw.delivery.sent / total) * 100}%` }} />
-                  <div className="bg-red-500" style={{ width: `${(draw.delivery.failed / total) * 100}%` }} />
-                </div>
-              </div>
+        <ol className="grid gap-3 lg:grid-cols-3" aria-label="Tanlov qadamlari">
+          <Step number={1} title="Tanlov o'tkazildi" state="done">
+            G&apos;oliblar tasodifiy tanlandi — {formatDateTime(draw.createdAt)}, {draw.createdBy}.
+          </Step>
+
+          <Step
+            number={2}
+            title="Natijani tasdiqlash"
+            state={draw.status === "DRAFT" ? "current" : "done"}
+            actions={
+              draw.status === "DRAFT" && (
+                <>
+                  <Button size="sm" onClick={() => setDialog({ type: "confirm" })}>
+                    <CheckCircle2 className="size-4" aria-hidden />
+                    Natijani tasdiqlash
+                  </Button>
+                  {cancelButton}
+                </>
+              )
+            }
+          >
+            {draw.status === "DRAFT" ? (
+              <>
+                Pastdagi ro&apos;yxatni ko&apos;rib chiqing.{" "}
+                {canReplace &&
+                  "Kimdir mos kelmasa, «Almashtirish»ni bosing — o'rniga zaxiradagi navbatdagi kishi o'tadi. "}
+                Tasdiqlanmaguncha hech kimga xabar bormaydi.
+              </>
+            ) : draw.confirmed ? (
+              <>
+                Tasdiqlandi — {formatDateTime(draw.confirmed.at)}, {draw.confirmed.by}.
+              </>
+            ) : (
+              "Tasdiqlandi."
             )}
-            {sendMutation.isError && (
-              <p role="alert" className="flex gap-2 text-sm text-red-700">
-                <AlertCircle className="mt-0.5 size-4" aria-hidden />
-                {errorMessage(sendMutation.error)}
-              </p>
-            )}
-            <div className="flex flex-wrap gap-2">
-              {draw.status === "DRAFT" && (
-                <Button onClick={() => setDialog({ type: "confirm" })}>
-                  <CheckCircle2 className="size-4" aria-hidden />
-                  Natijani tasdiqlash
-                </Button>
-              )}
-              {(draw.status === "CONFIRMED" || draw.status === "SENT") && pendingCount > 0 && (
-                <Button loading={sendMutation.isPending} onClick={() => setDialog({ type: "send", count: pendingCount })}>
-                  <Send className="size-4" aria-hidden />
-                  {draw.status === "SENT"
-                    ? `Qolganlarga yuborish (${formatNumber(pendingCount)})`
-                    : `G'oliblarga botda yuborish (${formatNumber(pendingCount)})`}
-                </Button>
-              )}
-              <Button variant="secondary" onClick={() => downloadCsv(draw)}>
-                <Download className="size-4" aria-hidden />
-                CSV yuklab olish
-              </Button>
-              {(draw.status === "DRAFT" || draw.status === "CONFIRMED") && (
-                <Button variant="ghost" className="text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => setDialog({ type: "cancel" })}>
-                  <Ban className="size-4" aria-hidden />
-                  Bekor qilish
-                </Button>
-              )}
-            </div>
-            {draw.status === "DRAFT" && (
-              <p className="text-xs text-slate-500">
-                Tasdiqlashdan oldin g&apos;oliblarni tekshiring: kerak bo&apos;lsa, «Almashtirish» bilan navbatdagi zaxirani qo&apos;ying.
-                Xabarlar faqat tasdiqlangandan keyin yuboriladi.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+          </Step>
+
+          <SendStep
+            draw={draw}
+            pendingCount={pendingCount}
+            sending={sendMutation.isPending}
+            error={sendMutation.isError ? errorMessage(sendMutation.error) : null}
+            onSend={() => setDialog({ type: "send", count: pendingCount })}
+            cancelButton={draw.status === "CONFIRMED" ? cancelButton : null}
+          />
+        </ol>
       )}
 
-      {/* Jadval */}
+      {/* Ro'yxat */}
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-3">
-          <div className="flex gap-1" role="tablist">
+          <div className="flex flex-wrap gap-1" role="tablist">
             <TabButton active={tab === "winners"} onClick={() => { setTab("winners"); setPage(1); }}>
               G&apos;oliblar ({formatNumber(activeWinners.length)})
             </TabButton>
@@ -277,18 +207,25 @@ export function DrawResult({ draw }: { draw: VoucherDraw }) {
               </TabButton>
             )}
           </div>
-          <Input
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            placeholder="Ism, telefon yoki Instagram"
-            className="w-64"
-            aria-label="G'oliblar ichida qidirish"
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Ism, telefon yoki Instagram"
+              className="w-64"
+              aria-label="G'oliblar ichida qidirish"
+            />
+            <Button variant="secondary" onClick={() => downloadCsv(draw)}>
+              <Download className="size-4" aria-hidden />
+              CSV yuklab olish
+            </Button>
+          </div>
         </div>
-        <div className="overflow-x-auto">
+        {/* `relative` — ichidagi `sr-only` (absolute) ham shu aylanadigan blok ichida qoladi, sahifa kengaymaydi. */}
+        <div className="relative overflow-x-auto">
           <table className="w-full min-w-[860px] text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500">
               <tr>
@@ -299,7 +236,9 @@ export function DrawResult({ draw }: { draw: VoucherDraw }) {
                 <th className="px-4 py-2.5 text-left font-medium">
                   {tab === "replaced" ? "Sabab" : tab === "reserves" ? "Holat" : "Bot xabari"}
                 </th>
-                <th className="w-36 px-4 py-2.5 text-right font-medium" />
+                <th className="w-36 px-4 py-2.5 text-right font-medium">
+                  <span className="sr-only">Amal</span>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -408,7 +347,7 @@ export function DrawResult({ draw }: { draw: VoucherDraw }) {
       {dialog?.type === "confirm" && (
         <ConfirmDialog
           title="Natijani tasdiqlash"
-          description={`${formatNumber(activeWinners.length)} ta g'olib tasdiqlanadi. Shundan keyin ularga bot orqali xabar yuborish mumkin bo'ladi.`}
+          description={`${formatNumber(activeWinners.length)} kishi g'olib sifatida tasdiqlanadi. Shundan keyin ularga bot orqali xabar yuborish mumkin bo'ladi.`}
           confirmLabel="Tasdiqlash"
           onConfirm={() => confirmDraw(draw.id).then(done)}
           onClose={() => setDialog(null)}
@@ -430,7 +369,7 @@ export function DrawResult({ draw }: { draw: VoucherDraw }) {
       {dialog?.type === "send" && (
         <ConfirmDialog
           title="G'oliblarga xabar yuborish"
-          description={`${formatNumber(dialog.count)} ta g'olibga Telegram bot orqali tabrik xabari yuboriladi. Bu amalni ortga qaytarib bo'lmaydi.`}
+          description={`${formatNumber(dialog.count)} kishiga Telegram bot orqali tabrik xabari yuboriladi. Yuborilgan xabarni qaytarib bo'lmaydi.`}
           confirmLabel="Yuborish"
           onConfirm={() => sendMutation.mutateAsync()}
           onClose={() => setDialog(null)}
@@ -441,14 +380,286 @@ export function DrawResult({ draw }: { draw: VoucherDraw }) {
   );
 }
 
-function Meta({ label, value }: { label: string; value: string }) {
+// ---------------------------------------------------------------------------
+// Xulosa
+// ---------------------------------------------------------------------------
+
+const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+/** "1-bosqich (31.10–29.11): 91 kishi qatnashdi, 91 kishi g'olib bo'ldi." + zaxira haqida bir gap. */
+function DrawSummary({ draw }: { draw: VoucherDraw }) {
+  const period = `${capitalize(stageLabel(draw.stage))} (${formatDayMonth(draw.periodFrom)}–${formatDayMonth(draw.periodTo)})`;
+  const pool = formatNumber(draw.poolSize);
+  const winners = formatNumber(draw.winners);
+  const cancelled = draw.status === "CANCELLED";
+  const wanted = draw.settings.winnersCount;
+
+  let note: string | null = null;
+  if (!cancelled) {
+    if (draw.poolSize < wanted) {
+      note = `G'oliblar soni ${formatNumber(wanted)} edi, lekin talabga javob bergan ${pool} kishi — hammasi g'olib bo'ldi, zaxira yo'q.`;
+    } else if (draw.reserves > 0) {
+      note = `Yana ${formatNumber(draw.reserves)} kishi zaxirada: g'olib chetlatilsa, o'rniga navbatdagi zaxira o'tadi.`;
+    } else if (draw.reserveEntries.length > 0) {
+      note = "Zaxiradagilar hammasi g'oliblar o'rniga o'tdi — zaxira qolmadi.";
+    } else if (draw.settings.reservesCount > 0) {
+      note = "Zaxira yo'q: g'oliblardan ortiqcha nomzod qolmadi.";
+    }
+  }
+
   return (
-    <div>
-      <dt className="text-xs text-slate-500">{label}</dt>
-      <dd className="mt-0.5 font-medium tabular-nums">{value}</dd>
+    <div className="space-y-1">
+      <p className="text-base font-medium text-ink">
+        {period}:{" "}
+        {cancelled
+          ? `${pool} kishi qatnashgan, ${winners} kishi tanlangan edi.`
+          : `${pool} kishi qatnashdi, ${winners} kishi g'olib bo'ldi.`}
+      </p>
+      {note && <p className="text-sm text-slate-600">{note}</p>}
     </div>
   );
 }
+
+/** "Kimlar qatnashdi:" — tanlov sozlamalaridan oddiy so'z bilan. */
+function Participation({ draw }: { draw: VoucherDraw }) {
+  const { settings } = draw;
+  const dates = `${formatDate(draw.periodFrom)} – ${formatDate(draw.periodTo)}`;
+  const rules = [
+    settings.dateBasis === "POSTED"
+      ? `Reelni ${dates} kunlari Instagram'ga joylaganlar`
+      : `Reelni ${dates} kunlari ilovaga yuborganlar`,
+    `Videosi ${formatNumber(settings.minViews)} – ${formatNumber(settings.maxViews)} ko'rish yig'ganlar`,
+    ...(settings.excludePreviousWinners ? ["Oldin voucher olmaganlar"] : []),
+    ...(settings.excludeTargets ? ["Target (pullik reklama) aniqlanmaganlar"] : []),
+    ...(settings.excludeWarned ? ["Ogohlantirish olmaganlar"] : []),
+  ];
+
+  return (
+    <div className="rounded-xl bg-[#f7f6fb] px-4 py-3">
+      <p className="text-sm font-medium text-ink">Kimlar qatnashdi:</p>
+      <ul className="mt-1.5 grid gap-x-6 gap-y-1 text-sm text-slate-700 sm:grid-cols-2">
+        {rules.map((rule) => (
+          <li key={rule} className="flex gap-2">
+            <Check className="mt-0.5 size-4 shrink-0 text-green-600" aria-hidden />
+            <span className="tabular-nums">{rule}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Kalit, nomzodlar izi va ko'rishlar sanasi — yopiq bo'limda, faqat tekshirish uchun. */
+function TechnicalDetails({ draw }: { draw: VoucherDraw }) {
+  const [copied, setCopied] = useState(false);
+
+  const copySeed = async () => {
+    try {
+      await navigator.clipboard.writeText(draw.seed);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Ruxsat yo'q.
+    }
+  };
+
+  return (
+    <details className="group border-t border-slate-200">
+      <summary className="flex cursor-pointer list-none items-center gap-1.5 px-5 py-3 text-sm text-slate-500 hover:text-slate-800 [&::-webkit-details-marker]:hidden">
+        <ChevronRight className="size-4 transition-transform group-open:rotate-90" aria-hidden />
+        Texnik ma&apos;lumot (tekshirish uchun)
+      </summary>
+      <div className="space-y-3 px-5 pb-4">
+        <p className="text-xs text-slate-500">
+          Shu kalit va nomzodlar ro&apos;yxati bilan natijani istalgan payt qayta hisoblab, o&apos;zgarmaganini
+          tekshirish mumkin.
+        </p>
+        <dl className="grid grid-cols-[max-content_minmax(0,1fr)] items-center gap-x-4 gap-y-2 text-sm">
+          <dt className="text-xs text-slate-500">Tasodifiy kalit</dt>
+          <dd className="flex min-w-0 items-center gap-2">
+            <code className="min-w-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs break-all">{draw.seed}</code>
+            <button
+              type="button"
+              onClick={() => void copySeed()}
+              className="shrink-0 text-slate-400 hover:text-slate-700"
+              aria-label="Kalitni nusxalash"
+            >
+              {copied ? <CheckCircle2 className="size-4 text-green-600" /> : <Copy className="size-4" />}
+            </button>
+          </dd>
+          <dt className="text-xs text-slate-500">Nomzodlar izi</dt>
+          <dd className="min-w-0">
+            <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs break-all">{draw.poolHash}</code>
+          </dd>
+          <dt className="text-xs text-slate-500">Ko&apos;rishlar holati</dt>
+          <dd className="tabular-nums">{formatDate(draw.viewsAsOf)}</dd>
+        </dl>
+      </div>
+    </details>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Qadamlar
+// ---------------------------------------------------------------------------
+
+type StepState = "done" | "current" | "todo";
+
+function Step({
+  number,
+  title,
+  state,
+  actions,
+  children,
+}: {
+  number: number;
+  title: string;
+  state: StepState;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <li
+      aria-current={state === "current" ? "step" : undefined}
+      className={cn(
+        "flex flex-col gap-2 rounded-panel border p-4",
+        state === "current" && "border-brand-300 bg-brand-50/70 ring-1 ring-brand-200",
+        state === "done" && "border-green-200 bg-green-50/50",
+        state === "todo" && "border-line bg-white",
+      )}
+    >
+      <div className="flex items-center gap-2.5">
+        <span
+          className={cn(
+            "grid size-7 shrink-0 place-items-center rounded-full text-xs font-bold tabular-nums",
+            state === "done" && "bg-green-600 text-white",
+            state === "current" && "bg-brand-500 text-white",
+            state === "todo" && "bg-slate-100 text-slate-500",
+          )}
+        >
+          {state === "done" ? <Check className="size-4" aria-hidden /> : number}
+        </span>
+        <h3 className={cn("text-sm font-semibold", state === "todo" ? "text-slate-500" : "text-ink")}>
+          <span className="sr-only">{number}-qadam: </span>
+          {title}
+        </h3>
+        {state === "done" && <span className="sr-only">(bajarildi)</span>}
+        {state === "current" && (
+          <Badge tone="brand" className="ml-auto">
+            Hozir
+          </Badge>
+        )}
+      </div>
+      <div className={cn("text-sm", state === "todo" ? "text-slate-400" : "text-slate-600")}>{children}</div>
+      {actions && <div className="mt-auto flex flex-wrap items-center gap-2 pt-1">{actions}</div>}
+    </li>
+  );
+}
+
+/** 3-qadam: botda yuborish va yetkazish natijasi oddiy so'z bilan. */
+function SendStep({
+  draw,
+  pendingCount,
+  sending,
+  error,
+  onSend,
+  cancelButton,
+}: {
+  draw: VoucherDraw;
+  pendingCount: number;
+  sending: boolean;
+  error: string | null;
+  onSend: () => void;
+  cancelButton: React.ReactNode;
+}) {
+  const { sent, failed, notSent } = draw.delivery;
+  const title = "G'oliblarga xabar yuborish";
+
+  if (draw.status === "DRAFT") {
+    return (
+      <Step number={3} title={title} state="todo">
+        Natija tasdiqlangandan keyin ochiladi. G&apos;oliblarga Telegram bot orqali tabrik xabari boradi.
+      </Step>
+    );
+  }
+
+  const errorLine = error && (
+    <p role="alert" className="mt-2 flex gap-2 text-red-700">
+      <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+      {error}
+    </p>
+  );
+
+  if (draw.status === "CONFIRMED") {
+    return (
+      <Step
+        number={3}
+        title={title}
+        state="current"
+        actions={
+          <>
+            <Button size="sm" loading={sending} onClick={onSend} disabled={pendingCount === 0}>
+              <Send className="size-4" aria-hidden />
+              Xabar yuborish ({formatNumber(pendingCount)})
+            </Button>
+            {cancelButton}
+          </>
+        }
+      >
+        {formatNumber(pendingCount)} kishiga Telegram bot orqali tabrik xabari boradi. Yuborilgan xabarni qaytarib
+        bo&apos;lmaydi.
+        {errorLine}
+      </Step>
+    );
+  }
+
+  // SENT: hammasi yetib borgan bo'lsa — tugagan, aks holda qayta yuborish shu yerda.
+  return (
+    <Step
+      number={3}
+      title={title}
+      state={pendingCount > 0 ? "current" : "done"}
+      actions={
+        pendingCount > 0 && (
+          <Button size="sm" loading={sending} onClick={onSend}>
+            {failed > 0 ? <RotateCw className="size-4" aria-hidden /> : <Send className="size-4" aria-hidden />}
+            {failed > 0 ? "Qayta yuborish" : `Yuborish (${formatNumber(pendingCount)})`}
+          </Button>
+        )
+      }
+    >
+      <ul className="space-y-1">
+        <li className="flex gap-2">
+          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-green-600" aria-hidden />
+          <span>
+            <b className="font-semibold text-ink">{formatNumber(sent)} kishiga yuborildi</b>
+            {draw.sent && <span className="text-slate-500"> — {formatDateTime(draw.sent.at)}</span>}
+          </span>
+        </li>
+        {failed > 0 && (
+          <li className="flex gap-2 text-red-700">
+            <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span>
+              {formatNumber(failed)} kishiga yetib bormadi — {failed === 1 ? "u" : "ular"} botni bloklagan
+              bo&apos;lishi mumkin.
+            </span>
+          </li>
+        )}
+        {notSent > 0 && (
+          <li className="flex gap-2 text-amber-800">
+            <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span>
+              {formatNumber(notSent)} kishiga hali yuborilmagan (zaxiradan o&apos;tganlar).
+            </span>
+          </li>
+        )}
+      </ul>
+      {errorLine}
+    </Step>
+  );
+}
+
+// ---------------------------------------------------------------------------
 
 function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (

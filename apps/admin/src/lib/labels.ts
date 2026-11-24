@@ -264,7 +264,7 @@ export const DRAW_EXCLUSION_LABELS: Record<DrawExclusion, string> = {
 export const DRAW_NOTIFY_LABELS: Record<DrawNotifyStatus, string> = {
   NOT_SENT: "Yuborilmagan",
   SENT: "Yuborildi",
-  FAILED: "Xato",
+  FAILED: "Yetib bormadi",
 };
 
 export const DRAW_NOTIFY_TONES: Record<DrawNotifyStatus, BadgeTone> = {
