@@ -15,6 +15,7 @@
 import { ApiError } from "./api-error";
 import {
   addAiReference as mockAddAiReference,
+  shrinkMockImage,
   aiFrameUrl as mockAiFrameUrl,
   aiReferenceImageUrl as mockAiReferenceImageUrl,
   approveAiDraft as mockApproveAiDraft,
@@ -1019,7 +1020,8 @@ export async function updateAiDraft(update: AiDraftUpdate): Promise<AiState> {
  */
 export async function addAiReference(input: AiReferenceInput): Promise<AiState> {
   await delay(600);
-  return mockAddAiReference(input, requireRole("ADMIN"));
+  const actor = requireRole("ADMIN");
+  return mockAddAiReference(input, actor, await shrinkMockImage(input.dataUrl));
 }
 
 /**

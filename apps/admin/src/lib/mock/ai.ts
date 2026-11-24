@@ -111,6 +111,13 @@ let memoryStore: MockAiStore | null = null;
 /** Rasmlar katta — har renderda qayta `JSON.parse` qilmaslik uchun oxirgi o'qilgan nusxa. */
 let imageCache: Record<string, string> = {};
 let imageCacheRaw: string | null = null;
+/**
+ * Rasmlar brauzer xotirasiga (≈ 5 MB) sig'may qoldi — keyingilari faqat shu sahifa xotirasida
+ * (yangilansa ko'rinmay qoladi, lekin qo'shish ishlayveradi). Haqiqiy backendda bunday chegara yo'q.
+ */
+let imagesMemoryOnly = false;
+/** Mock faqat ko'rsatadi — rasmning kichik nusxasi saqlanadi (uzun tomoni shuncha px). */
+const MOCK_IMAGE_EDGE = 320;
 
 function emptyStore(): MockAiStore {
   return { version: AI_STORE_VERSION, draft: null, active: null, run: null, reviews: [] };
@@ -147,12 +154,22 @@ function persist(key: string, raw: string): void {
 }
 
 function writeAiStore(store: MockAiStore): void {
-  persist(AI_STORE_KEY, JSON.stringify(store));
+  const raw = JSON.stringify(store);
+  try {
+    persist(AI_STORE_KEY, raw);
+  } catch (error) {
+    if (!(error instanceof ApiError) || imagesMemoryOnly) throw error;
+    // Xotirani rasmlar egallagan — ular sahifa xotirasiga o'tadi, asosiy holat saqlanadi.
+    readImages();
+    imagesMemoryOnly = true;
+    window.localStorage.removeItem(AI_IMAGES_KEY);
+    persist(AI_STORE_KEY, raw);
+  }
   memoryStore = clone(store);
 }
 
 function readImages(): Record<string, string> {
-  if (memoryOnly) return imageCache;
+  if (memoryOnly || imagesMemoryOnly) return imageCache;
   try {
     const raw = window.localStorage.getItem(AI_IMAGES_KEY);
     if (raw !== imageCacheRaw) {
@@ -167,9 +184,62 @@ function readImages(): Record<string, string> {
 
 function writeImages(images: Record<string, string>): void {
   const raw = JSON.stringify(images);
-  persist(AI_IMAGES_KEY, raw);
   imageCache = images;
   imageCacheRaw = raw;
+  if (imagesMemoryOnly) return;
+  try {
+    persist(AI_IMAGES_KEY, raw);
+  } catch (error) {
+    // Xotira to'ldi — rasm baribir qo'shiladi, faqat sahifa yangilanguncha ko'rinadi.
+    if (!(error instanceof ApiError)) throw error;
+    imagesMemoryOnly = true;
+  }
+}
+
+/**
+ * Avvalgi versiyalar rasmni to'liq (1600 px) saqlagan va brauzer xotirasi to'lib qolgan bo'lishi
+ * mumkin — bir marta kichik nusxalarga o'tkaziladi (sahifa ochilganda, fonda).
+ */
+async function compactStoredImages(): Promise<void> {
+  const images = readImages();
+  const large = Object.entries(images).filter(([, url]) => url.length > 80_000);
+  if (large.length === 0) return;
+  const next = { ...images };
+  for (const [id, url] of large) next[id] = await shrinkMockImage(url);
+  imagesMemoryOnly = false;
+  writeImages(next);
+}
+
+if (typeof window !== "undefined") void compactStoredImages();
+
+/**
+ * Mock uchun rasmning kichik nusxasi (JPEG, uzun tomoni ≤ 320 px): ko'rsatishga yetadi, brauzer
+ * xotirasida yuzlab rasm sig'adi. Ochib bo'lmasa — asl rasm.
+ */
+export async function shrinkMockImage(dataUrl: string): Promise<string> {
+  // Ochilmasa yoki juda uzoq ketsa (masalan, yashirin tabda) — asl rasm.
+  const timeout = new Promise<string>((resolve) => window.setTimeout(() => resolve(dataUrl), 15_000));
+  return Promise.race([timeout, shrink(dataUrl)]).catch(() => dataUrl);
+}
+
+async function shrink(dataUrl: string): Promise<string> {
+  // `createImageBitmap` — fonda (yashirin tabda) ham ishlaydi; `<img>.decode()` esa kutib qoladi.
+  const blob = await (await fetch(dataUrl)).blob();
+  const bitmap = await createImageBitmap(blob);
+  try {
+    const scale = Math.min(1, MOCK_IMAGE_EDGE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext("2d");
+    if (!context) return dataUrl;
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.72);
+  } finally {
+    bitmap.close();
+  }
 }
 
 /** Qoralamada ham, faol versiyada ham ishlatilmaydigan rasmlarni o'chiradi. */
@@ -575,7 +645,8 @@ function describeRef(ref: { kind: AiRefKind; note: string }): string {
   return ref.note.trim() ? `${AI_REF_KIND_LABELS[ref.kind]}: ${excerpt(ref.note, 80)}` : AI_REF_KIND_LABELS[ref.kind];
 }
 
-export function addAiReference(input: AiReferenceInput, actor: AdminUser): AiState {
+/** `displayUrl` — ko'rsatish uchun kichik nusxa (`shrinkMockImage`); bo'lmasa — yuborilgan rasm. */
+export function addAiReference(input: AiReferenceInput, actor: AdminUser, displayUrl?: string): AiState {
   const now = Date.now();
   const store = readAiStore();
   const draft = requireDraft(store);
@@ -600,7 +671,7 @@ export function addAiReference(input: AiReferenceInput, actor: AdminUser): AiSta
   const at = new Date(now).toISOString();
   const reference = { id: randomId("ref"), kind: input.kind, note: input.note.trim(), mime, sizeBytes, createdAt: at };
   // Avval rasm: xotira to'lsa — hech narsa o'zgarmaydi.
-  writeImages({ ...readImages(), [reference.id]: input.dataUrl });
+  writeImages({ ...readImages(), [reference.id]: displayUrl ?? input.dataUrl });
   const updated = {
     ...store,
     draft: { ...draft, references: [...draft.references, reference], updatedAt: at },

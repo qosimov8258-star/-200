@@ -8,8 +8,12 @@
 import { formatFileSize } from "./format";
 import { AI_LIMITS } from "./types";
 
-/** Tanlanadigan fayl hajmi chegarasi (kichraytirishdan oldin) — 15 MB. */
-export const AI_SOURCE_MAX_BYTES = 15 * 1024 * 1024;
+/**
+ * Tanlanadigan fayl hajmi chegarasi (kichraytirishdan oldin) — 100 MB. Fayl baribir brauzerda
+ * 1600 px va ≤ 2 MB JPEG ga keltiriladi, serverga katta fayl bormaydi; chegara faqat brauzer
+ * xotirasi uchun (juda katta rasmni ochish qiyin).
+ */
+export const AI_SOURCE_MAX_BYTES = 100 * 1024 * 1024;
 /** Kichraytirilgan rasmning uzun tomoni, px. */
 export const AI_IMAGE_MAX_EDGE = 1600;
 /** JPEG sifati. */
