@@ -156,7 +156,8 @@ haqda izoh bor, har bir qatorda video belgisi.
 
 Xuddi shu ilova — bot bilan bir xil vazifa va bir xil akkaunt:
 
-- **Kirish** — "Telegram orqali kirish" (rasmiy Telegram Login Widget). Backend imzoni tekshirib,
+- **Kirish** — mehmonning "Profil" kartasi: "Saytdan ro'yxatdan o'tish", ostida "Telegram bot orqali"
+  va bitta tugma — rasmiy Telegram Login Widget (boshqa havola yo'q). Backend imzoni tekshirib,
   `HttpOnly` sessiya cookie'sini qo'yadi (30 kun). Mock rejimda widget o'rniga sinov tugmasi.
 - **Raqam** — "Botda raqamni ulashish": bot chati `t.me/<bot>?start=web` bilan ochiladi, raqam
   o'sha yerda ulashiladi, sayt o'zi yangilanadi.

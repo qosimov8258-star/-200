@@ -1,6 +1,6 @@
 "use client";
 
-import { Info, Ticket, type LucideIcon } from "lucide-react";
+import { Ticket, type LucideIcon } from "lucide-react";
 
 import { prizeQuantityLabel, RATING_PRIZE_ICONS } from "@/components/prizes/rating-prize-table";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +22,7 @@ interface DrawPrizePickerProps {
   onChange: (next: DrawPrizeChoice) => void;
 }
 
-/** Sahifa tepasidagi sovg'a tanlash kartalari va "faqat voucher random" eslatmasi. */
+/** Sahifa tepasidagi sovg'a tanlash kartalari ("Random" / "Reyting bo'yicha" belgilari bilan). */
 export function DrawPrizePicker({ voucher, tiers, tiersError, value, onChange }: DrawPrizePickerProps) {
   return (
     <div className="space-y-3">
@@ -60,14 +60,6 @@ export function DrawPrizePicker({ voucher, tiers, tiersError, value, onChange }:
           Asosiy sovrinlarni yuklab bo&apos;lmadi: {tiersError}
         </p>
       )}
-      <p className="flex gap-2.5 rounded-2xl border border-brand-200 bg-brand-50/70 px-4 py-3 text-sm text-slate-700">
-        <Info className="mt-0.5 size-4 shrink-0 text-brand-600" aria-hidden />
-        <span>
-          <b className="font-semibold text-ink">Faqat 500 000 so&apos;mlik voucher random tanlanadi.</b> Avtomobil,
-          sayohat, iPhone va planshet — random emas: ko&apos;rishlar oralig&apos;ida eng ko&apos;p ko&apos;rilgan videosi bor
-          ishtirokchilar reyting bo&apos;yicha oladi.
-        </span>
-      </p>
     </div>
   );
 }
