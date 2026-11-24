@@ -26,6 +26,11 @@ export const config = {
     miniAppUrl: str("TELEGRAM_MINIAPP_URL"),
     /** Support operatorlari guruhi (bot shu guruhga admin sifatida qo'shiladi). */
     supportChatId: str("TELEGRAM_SUPPORT_CHAT_ID"),
+    /**
+     * Ishtirokchilarga bot nomidan javob bera oladigan operatorlar (Telegram ID, vergul bilan).
+     * Bo'sh bo'lsa — support guruhining egasi va adminlari. Oddiy a'zo javob bera olmaydi.
+     */
+    supportOperatorIds: str("TELEGRAM_SUPPORT_OPERATOR_IDS"),
     /** initData necha soniyagacha amal qiladi. */
     initDataMaxAgeSeconds: Number(str("TELEGRAM_INITDATA_MAX_AGE") ?? 86_400),
     /**

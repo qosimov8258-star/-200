@@ -5,6 +5,22 @@ import { config } from "../config/config";
 import { ParticipantsService } from "../participants/participants.service";
 import type { SupportRelay } from "../support/support-relay";
 import { SupportService } from "../support/support.service";
+import {
+  BOT_SUPPORT_MAX_IN_WINDOW,
+  BOT_SUPPORT_WINDOW_MS,
+  clip,
+  FloodGuard,
+  isOperator,
+  maskToken,
+  NoticeOnce,
+  OPERATOR_REPLY_MAX,
+  OperatorCache,
+  parseOperatorIds,
+  SUPPORT_TEXT_MAX,
+  TELEGRAM_CAPTION_MAX,
+  TELEGRAM_TEXT_MAX,
+  type ChatMemberStatus,
+} from "./bot-guard";
 import { failureReasonOf, MessageLogService } from "./message-log.service";
 import type { ParticipantNotifier, TelegramMessageKind } from "./notifier";
 import { texts } from "./texts";
@@ -44,6 +60,11 @@ export class TelegramService
   private bot: Bot | null = null;
   /** Saytdan raqam ulashish uchun kelganlar — raqamdan keyin "saytga qayting" deyiladi. */
   private readonly webStarts = new Set<number>();
+  /** Himoya: flood, support spami, operator ruxsati (`bot-guard.ts`). */
+  private readonly flood = new FloodGuard();
+  private readonly supportLimitNotice = new NoticeOnce(BOT_SUPPORT_WINDOW_MS);
+  private readonly operators = new OperatorCache();
+  private readonly operatorAllowlist = parseOperatorIds(config.telegram.supportOperatorIds);
 
   constructor(
     private readonly participants: ParticipantsService,
@@ -63,7 +84,8 @@ export class TelegramService
     }
     const bot = new Bot(token);
     this.register(bot);
-    bot.catch((err) => this.logger.error(`Bot xatosi: ${err.message}`, err.stack));
+    // Xato matnida token bo'lsa ham log'ga chiqmasin.
+    bot.catch((err) => this.logger.error(`Bot xatosi: ${maskToken(err.message, token)}`));
     this.bot = bot;
     this.log.setMessenger({
       send: async (chatId, text, logId) => {
@@ -78,7 +100,8 @@ export class TelegramService
     void bot
       .start({
         onStart: (me) => this.logger.log(`Bot ishga tushdi: @${me.username}`),
-        allowed_updates: ["message", "callback_query"],
+        // `my_chat_member` — botni begona guruhga qo'shishsa, chiqib ketish uchun.
+        allowed_updates: ["message", "callback_query", "my_chat_member"],
       })
       .catch((err: Error) => this.logger.error(`Polling to'xtadi: ${err.message}`));
   }
@@ -107,7 +130,7 @@ export class TelegramService
       this.logger.warn("Support guruhi ulanmagan — xabar faqat saqlandi.");
       return;
     }
-    const sent = await this.bot.api.sendMessage(supportChatId, `${header}\n\n${text}`);
+    const sent = await this.bot.api.sendMessage(supportChatId, clip(`${header}\n\n${text}`, TELEGRAM_TEXT_MAX));
     this.support.rememberGroupMessage(sent.message_id, telegramId);
   }
 
@@ -147,6 +170,32 @@ export class TelegramService
       : null;
     const isSupportChat = (ctx: Context) => supportChatId !== null && ctx.chat?.id === supportChatId;
     const isPrivate = (ctx: Context) => ctx.chat?.type === "private";
+
+    // Himoya (birinchi): boshqa botlar e'tiborsiz; shaxsiy chatda flood — daqiqasiga 20 tadan
+    // ortig'i tashlanadi (bir marta ogohlantiriladi). Support guruhi (operatorlar) cheklanmaydi.
+    bot.use(async (ctx, next) => {
+      // Guruhda "anonim admin" bo'lib yozgan operator Telegram'da bot ko'rinishida keladi.
+      const anonymousAdmin = isSupportChat(ctx) && ctx.message?.sender_chat?.id === supportChatId;
+      if (ctx.from?.is_bot && !anonymousAdmin) return;
+      if (ctx.from && !isSupportChat(ctx)) {
+        const verdict = this.flood.check(ctx.from.id);
+        if (verdict === "warn" && isPrivate(ctx)) await ctx.reply(texts.tooManyRequests).catch(() => undefined);
+        if (verdict !== "ok") {
+          if (ctx.callbackQuery) await ctx.answerCallbackQuery().catch(() => undefined);
+          return;
+        }
+      }
+      await next();
+    });
+
+    // Botni begona guruh yoki kanalga qo'shishsa — darhol chiqib ketadi (faqat support guruhida qoladi).
+    bot.on("my_chat_member", async (ctx) => {
+      const chat = ctx.myChatMember.chat;
+      const joined = ["member", "administrator"].includes(ctx.myChatMember.new_chat_member.status);
+      if (chat.type === "private" || !joined || chat.id === supportChatId) return;
+      this.logger.warn(`Bot begona chatga qo'shildi (${chat.type} ${chat.id}) — chiqib ketildi.`);
+      await ctx.api.leaveChat(chat.id).catch(() => undefined);
+    });
 
     // Ishtirokchining @username i — Telegram jurnalida ko'rsatish uchun.
     bot.use(async (ctx, next) => {
@@ -215,11 +264,31 @@ export class TelegramService
     bot.on("message", async (ctx, next) => {
       if (!isSupportChat(ctx)) return next();
       const replyTo = ctx.message.reply_to_message?.message_id;
-      const text = ctx.message.text ?? ctx.message.caption;
-      if (!replyTo || !text) return;
+      const rawText = ctx.message.text ?? ctx.message.caption;
+      if (!replyTo || !rawText) return;
       const quote = { reply_parameters: { message_id: ctx.message.message_id } };
       const telegramId = this.support.ownerOfGroupMessage(replyTo);
-      const participant = telegramId === null ? null : this.participants.get(telegramId);
+      if (telegramId === null) return;
+      // Faqat operatorlar (guruh adminlari yoki ruxsat ro'yxati) bot nomidan ishtirokchiga yoza oladi.
+      // Guruh nomidan (anonim) faqat adminlar yoza oladi — ruxsat ro'yxati bo'lmasa, qabul qilinadi
+      // (ro'yxat bo'lsa, anonim operatorni aniqlab bo'lmaydi — rad etiladi).
+      const anonymousAdmin = ctx.message.sender_chat?.id === ctx.chat.id;
+      const allowed = anonymousAdmin
+        ? this.operatorAllowlist.size === 0
+        : isOperator(
+            ctx.from.id,
+            await this.operators.status(ctx.from.id, async (userId) => {
+              const member = await ctx.api.getChatMember(ctx.chat.id, userId);
+              return member.status as ChatMemberStatus;
+            }),
+            this.operatorAllowlist,
+          );
+      if (!allowed) {
+        await ctx.reply(texts.operatorNotAllowed, quote);
+        return;
+      }
+      const text = clip(rawText, OPERATOR_REPLY_MAX);
+      const participant = this.participants.get(telegramId);
       if (!participant?.chatId) {
         await ctx.reply(texts.operatorUnknownTarget, quote);
         return;
@@ -243,9 +312,14 @@ export class TelegramService
         await ctx.reply(texts.supportNeedsContact, { reply_markup: this.contactKeyboard() });
         return;
       }
-      const text = ctx.message.text ?? ctx.message.caption ?? "";
+      const text = clip((ctx.message.text ?? ctx.message.caption ?? "").trim(), SUPPORT_TEXT_MAX);
       const photo = ctx.message.photo?.at(-1) ?? null;
       if (!text && !photo) return;
+      // Support spami: 10 daqiqada 10 tadan ortiq xabar operatorlarga bormaydi va saqlanmaydi.
+      if (this.support.recentParticipantMessages(p.telegramId, BOT_SUPPORT_WINDOW_MS) >= BOT_SUPPORT_MAX_IN_WINDOW) {
+        if (this.supportLimitNotice.shouldNotify(p.telegramId)) await ctx.reply(texts.supportTooMany);
+        return;
+      }
       const ticket = this.support.addParticipantMessage(p.telegramId, text, photo?.file_id ?? null, photo?.file_size);
 
       if (supportChatId === null) {
@@ -255,9 +329,12 @@ export class TelegramService
       const name = p.firstName ? `${p.firstName} ${p.lastName}` : ctx.from.first_name;
       const header = `🆘 Murojaat #${ticket.id} — ${name}`;
       // Operator aynan shu xabarga "Reply" qiladi.
+      // Telegram chegaralari: izoh — 1024, xabar — 4096 belgi (oshsa xabar umuman bormaydi).
       const sent = photo
-        ? await ctx.api.sendPhoto(supportChatId, photo.file_id, { caption: `${header}\n\n${text}`.trim() })
-        : await ctx.api.sendMessage(supportChatId, `${header}\n\n${text}`);
+        ? await ctx.api.sendPhoto(supportChatId, photo.file_id, {
+            caption: clip(`${header}\n\n${text}`.trim(), TELEGRAM_CAPTION_MAX),
+          })
+        : await ctx.api.sendMessage(supportChatId, clip(`${header}\n\n${text}`, TELEGRAM_TEXT_MAX));
       this.support.rememberGroupMessage(sent.message_id, p.telegramId);
       await ctx.reply(texts.supportReceived);
     });

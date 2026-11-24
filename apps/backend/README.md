@@ -40,6 +40,7 @@ TypeScript 6 da qoladi: Nest CLI hozircha TypeScript 7 bilan ishlamaydi.
 | `TELEGRAM_MINIAPP_URL` | Mini App'ning https manzili |
 | `TELEGRAM_SUPPORT_CHAT_ID` | Operatorlar guruhi ID si: botni guruhga qo'shing, guruhda xabar yozing va ID ni oling (odatda `-100…`) |
 | `TELEGRAM_MODE` | `polling` (lokal) yoki `off` (faqat API) |
+| `TELEGRAM_SUPPORT_OPERATOR_IDS` | Ishtirokchilarga bot nomidan javob bera oladigan operatorlar (Telegram ID, vergul bilan). Bo'sh — support guruhi egasi va adminlari |
 | `APIFY_API_TOKEN` | Apify Console → Settings → API & Integrations. **Maxfiy** |
 | `STATS_PROVIDER` | `apify` (haqiqiy) yoki `mock` (lokal sinov — SOXTA ko'rishlar) |
 | `STATS_SYNC_TIME` | Ko'rishlar soat nechada yig'iladi, Toshkent vaqti (standart `00:00` — reyting har kuni yarim tunda yangilanadi; eski saqlangan `06:00` bir marta avtomatik `00:00` ga o'tadi). Faqat birinchi ishga tushishda — keyin admin panel → Sozlamalar |
@@ -74,6 +75,16 @@ Apify tokeni bo'lmasa, videolar PENDING holida qoladi (soxta ma'lumotga jim o'ti
 - Operator guruhda shu xabarga **Reply** qilib yozsa → javob ishtirokchiga bot orqali boradi.
 - Video tekshiruvi natijasi (qabul / rad sababi / qo'lda tekshiruvga o'tdi / admin qarori) — bot xabari;
   ishtirokchida bir nechta video bo'lishi mumkin, shuning uchun xabar oxirida qaysi video ekani (link).
+
+### Bot himoyasi
+
+[`src/telegram/bot-guard.ts`](src/telegram/bot-guard.ts):
+
+- **Flood**: bitta foydalanuvchidan daqiqasiga 20 tadan ortiq xabar/tugma — bir marta ogohlantiriladi, qolgani daqiqa tugaguncha javobsiz tashlanadi. Boshqa botlarning xabarlari e'tiborsiz.
+- **Support spami**: botdagi murojaat — 10 daqiqada 10 ta (Mini App'da — 5); ortig'i operatorlarga bormaydi va saqlanmaydi (holat fayli shishmaydi). Matn 1000 belgigacha; guruhga yuborishda Telegram chegaralari (xabar 4096, rasm izohi 1024) hisobga olinadi.
+- **Operatorlar**: support guruhida ishtirokchi xabariga javob (bot nomidan ishtirokchiga boradi) faqat guruh egasi/adminlari yoki `TELEGRAM_SUPPORT_OPERATOR_IDS` dagilar beradi — guruh havolasi begona qo'liga tushsa ham, u ishtirokchilarga "rasmiy" xabar yubora olmaydi. Guruhdagi oddiy suhbatga bot javob bermaydi.
+- **Begona guruhlar**: botni boshqa guruh yoki kanalga qo'shishsa — darhol chiqib ketadi.
+- Raqam faqat o'ziniki (`contact.user_id`) qabul qilinadi; bot tokeni log'ga chiqmaydi; bot polling rejimida (tashqaridan ochiq webhook yo'q — webhook'ga o'tilsa, `secret_token` shart).
 
 ## Ko'rishlar qanday yig'iladi
 
