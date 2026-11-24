@@ -52,6 +52,13 @@ import {
   updateContestRules as mockUpdateContestRules,
 } from "./mock/rules";
 import {
+  checkRulesVideoSize,
+  deleteRulesVideo as mockDeleteRulesVideo,
+  getRulesVideo as mockGetRulesVideo,
+  rulesVideoUrl as mockRulesVideoUrl,
+  uploadRulesVideo as mockUploadRulesVideo,
+} from "./mock/rules-video";
+import {
   getContestSettings as mockGetContestSettings,
   updateContestSettings as mockUpdateContestSettings,
 } from "./mock/settings";
@@ -121,6 +128,7 @@ import type {
   ParticipantListQuery,
   ParticipantListResponse,
   ParticipantReels,
+  RulesVideo,
   SupportReplyRequest,
   SupportStatusRequest,
   SupportTicketDetail,
@@ -581,6 +589,56 @@ export async function getContestRules(): Promise<ContestRules> {
 export async function updateContestRules(update: ContestRulesUpdate): Promise<ContestRules> {
   await delay(500);
   return mockUpdateContestRules(update, requireRole("ADMIN"));
+}
+
+/**
+ * Qoida videosi — Mini App'dagi "Qoidalar" bo'limida eng tepada ko'rsatiladi; yuklanmagan bo'lsa — null.
+ * Mock'da faqat sahifa xotirasida (yangilansa yo'qoladi).
+ * @endpoint GET /api/v1/admin/rules/video
+ */
+export async function getRulesVideo(): Promise<RulesVideo | null> {
+  await delay(250);
+  requireRole("ADMIN");
+  return mockGetRulesVideo();
+}
+
+/**
+ * Qoida videosini yuklash yoki almashtirish (eskisi o'chiriladi, `id` yangilanadi). Mock'da yuborish
+ * jarayoni taqlid qilinadi (~8 MB/s, 0,8–3 soniya). Audit: `settings.rules_video`.
+ * @endpoint PUT /api/v1/admin/rules/video
+ * @throws ApiError 413 `RULES_VIDEO_TOO_LARGE` — 100 MB dan katta; 422 `RULES_VIDEO_INVALID` — MP4 / MOV /
+ *   WebM emas, bo'sh yoki buzilgan
+ */
+export async function uploadRulesVideo(file: File, onProgress?: (ratio: number) => void): Promise<RulesVideo> {
+  const actor = requireRole("ADMIN");
+  await delay(150);
+  // nginx katta so'rovni fayl yuborilmasdan rad etadi.
+  checkRulesVideoSize(file);
+  const duration = Math.min(3000, Math.max(800, file.size / 8000));
+  const steps = Math.max(1, Math.round(duration / 100));
+  for (let step = 1; step <= steps; step += 1) {
+    await delay(duration / steps);
+    onProgress?.(step / steps);
+  }
+  await delay(300);
+  return mockUploadRulesVideo(file, actor);
+}
+
+/**
+ * Qoida videosini o'chirish (video bo'lmasa ham muvaffaqiyatli). Audit: `settings.rules_video_delete`.
+ * @endpoint DELETE /api/v1/admin/rules/video
+ */
+export async function deleteRulesVideo(): Promise<void> {
+  await delay(400);
+  mockDeleteRulesVideo(requireRole("ADMIN"));
+}
+
+/**
+ * Qoida videosi — mock'da yuklangan faylning `blob:` manzili.
+ * @endpoint GET /api/v1/miniapp/rules/video/:id
+ */
+export function rulesVideoUrl(id: string): string {
+  return mockRulesVideoUrl(id);
 }
 
 // ---------------------------------------------------------------------------

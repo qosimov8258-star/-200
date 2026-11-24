@@ -68,6 +68,11 @@ export interface ContestRules {
   /** Rozilik qaysi versiyaga berilgani serverda saqlanadi. */
   version: number;
   sections: RulesSection[];
+  /**
+   * Qoidalarni tushuntiruvchi video (admin panelda yuklanadi) — qoidalar ustida eng tepada
+   * ko'rsatiladi; yo'q bo'lsa — null. Fayl: `rulesVideoUrl(id)`.
+   */
+  video: { id: string; mime: string } | null;
 }
 
 /**

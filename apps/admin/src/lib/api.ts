@@ -79,6 +79,10 @@ export const getContestSettings = impl.getContestSettings;
 export const updateContestSettings = impl.updateContestSettings;
 export const getContestRules = impl.getContestRules;
 export const updateContestRules = impl.updateContestRules;
+export const getRulesVideo = impl.getRulesVideo;
+export const uploadRulesVideo = impl.uploadRulesVideo;
+export const deleteRulesVideo = impl.deleteRulesVideo;
+export const rulesVideoUrl = impl.rulesVideoUrl;
 
 // Random tanlov
 export const getDrawSetup = impl.getDrawSetup;

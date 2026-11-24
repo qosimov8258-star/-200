@@ -14,7 +14,8 @@
  */
 import { ApiError } from "./api-error";
 import { drawSettingsInputOf } from "./draw-rules";
-import { apiUrl, requestJson, requestVoid, segment } from "./http-client";
+import { apiUrl, requestJson, requestJsonOrNull, requestVoid, segment, uploadJson } from "./http-client";
+import { rulesVideoMimeOf } from "./rules-video";
 import type {
   AdminStoryListQuery,
   AdminStoryListResponse,
@@ -48,6 +49,7 @@ import type {
   ParticipantListQuery,
   ParticipantListResponse,
   ParticipantReels,
+  RulesVideo,
   SupportReplyRequest,
   SupportStatusRequest,
   SupportTicketDetail,
@@ -402,6 +404,47 @@ export async function updateContestRules(update: ContestRulesUpdate): Promise<Co
       requireReconsent: update.requireReconsent,
     },
   });
+}
+
+/**
+ * Qoida videosi — Mini App'dagi "Qoidalar" bo'limida eng tepada ko'rsatiladi; yuklanmagan bo'lsa — null.
+ * @endpoint GET /api/v1/admin/rules/video
+ */
+export async function getRulesVideo(): Promise<RulesVideo | null> {
+  return requestJsonOrNull<RulesVideo>("GET", "/admin/rules/video");
+}
+
+/**
+ * Qoida videosini yuklash yoki almashtirish (eskisi o'chiriladi, `id` yangilanadi). So'rov tanasi —
+ * faylning o'zi (multipart emas), `Content-Type` — video turi. `onProgress` — yuborilgan qism (0–1).
+ * Audit: `settings.rules_video`.
+ * @endpoint PUT /api/v1/admin/rules/video
+ * @throws ApiError 413 `RULES_VIDEO_TOO_LARGE` — 100 MB dan katta (nginx ham HTML bilan 413 qaytarishi
+ *   mumkin); 422 `RULES_VIDEO_INVALID` — MP4 / MOV / WebM emas, bo'sh yoki buzilgan
+ */
+export async function uploadRulesVideo(file: File, onProgress?: (ratio: number) => void): Promise<RulesVideo> {
+  return uploadJson<RulesVideo>("PUT", "/admin/rules/video", file, {
+    // Brauzer turini bermasa — kengaytma bo'yicha; umuman tanilmasa — `video/mp4` (backend tekshiradi).
+    contentType: rulesVideoMimeOf(file) ?? (file.type || "video/mp4"),
+    onProgress,
+  });
+}
+
+/**
+ * Qoida videosini o'chirish (video bo'lmasa ham 204). Audit: `settings.rules_video_delete`.
+ * @endpoint DELETE /api/v1/admin/rules/video
+ */
+export async function deleteRulesVideo(): Promise<void> {
+  await requestVoid("DELETE", "/admin/rules/video");
+}
+
+/**
+ * Qoida videosi — `<video src>` uchun manzil (ochiq endpoint, HTTP Range bilan). `id` joriy video
+ * bo'lmasa (almashtirilgan yoki o'chirilgan) — 404.
+ * @endpoint GET /api/v1/miniapp/rules/video/:id
+ */
+export function rulesVideoUrl(id: string): string {
+  return apiUrl(`/miniapp/rules/video/${segment(id)}`);
 }
 
 // ---------------------------------------------------------------------------

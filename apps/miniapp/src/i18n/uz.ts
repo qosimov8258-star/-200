@@ -77,6 +77,7 @@ export const t = {
 
   // Qoidalar
   rulesTitle: "Tanlov qoidalari",
+  rulesVideoLabel: "Qoidalar haqida qisqa video",
   rulesHeroBadge: "Rasmiy shartlar",
   rulesHeroBody: "Qishki Olivia tanlovida qatnashish va sovg'a yutish shartlari. Video yuborishdan oldin o'qib chiqing 🎄",
   rulesSectionsCount: (n: number) => `${n} ta bo'lim`,
@@ -89,8 +90,8 @@ export const t = {
   // Navigatsiya
   navHome: "Asosiy",
   navRating: "Reyting",
-  // Videolar soni cheklanmagan — bo'lim nomi ko'plikda.
-  navReel: "Videolarim",
+  // Pastki menyu: qisqa "Video" (ekran sarlavhasi — "Mening videolarim").
+  navReel: "Video",
   navProfile: "Profil",
   navMore: "Ko'proq",
   navPrizes: "Sovg'alar",

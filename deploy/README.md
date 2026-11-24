@@ -47,6 +47,9 @@ backend ─► /app/data  =  host: /srv/konkurs/data   (ishtirokchilar, reellar,
   `location = /api/v1/miniapp/stories` uchun `client_max_body_size 55m` bor, lekin oldidagi Mezon
   nginx'ining `konkurs-olivia.uz` blokida ham chegara kamida `55m` bo'lishi kerak (hozir `10m`),
   aks holda 10 MB dan katta video `413` bilan qaytadi.
+- **Qoida videosi** (admin panel → Sozlamalar → Tanlov qoidalari) 100 MB gacha: `web.conf` da
+  `location = /api/v1/admin/rules/video` uchun `105m`. Mezon nginx'ida chegara shundan kam bo'lmasin —
+  ikkalasi uchun ham eng oddiysi `client_max_body_size 105m`.
 
 ## Serverdagi papkalar
 
@@ -92,7 +95,7 @@ Ular endi shu papkadagi fayllar bilan almashadi.
 
 4. Eski `shared/compose.yml` va `shared/web.conf` ni o'chirmasdan `*.old` qilib qoldiring (qaytish uchun).
 
-5. Mezon nginx'ida `client_max_body_size 10m` bor — istoriya videolari uchun uni `55m` ga oshiring
+5. Mezon nginx'ida `client_max_body_size 10m` bor — istoriya va qoida videolari uchun uni `105m` ga oshiring
    (yuqoridagi "Domen" bo'limiga qarang). Standart 60 soniyalik
    `proxy_read_timeout` ham yetadi — "Reklama kutubxonasini hoziroq tekshirish" 45 soniyadan
    cho'zilsa, backend "davom etmoqda" deb javob beradi, tekshiruv esa fonda tugaydi.

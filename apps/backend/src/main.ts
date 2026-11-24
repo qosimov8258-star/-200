@@ -6,6 +6,7 @@ import type { NestExpressApplication } from "@nestjs/platform-express";
 
 import { AppModule } from "./app.module";
 import { config } from "./config/config";
+import { MAX_RULES_VIDEO_BYTES } from "./rules/rules-video.service";
 import { MAX_STORY_BYTES, STORY_MIMES } from "./stories/story-file";
 
 async function bootstrap(): Promise<void> {
@@ -13,9 +14,12 @@ async function bootstrap(): Promise<void> {
   app.disable("x-powered-by");
   // Shikoyat skrinshoti JSON ichida (`data:` URL, ≤ 2 MB rasm) keladi — standart 100 KB yetmaydi.
   app.useBodyParser("json", { limit: "3mb" });
-  // Istoriya videosi so'rov tanasining o'zida (raw) keladi. Chegara 50 MB dan biroz katta —
-  // aniq hajmni servis tekshirib, `STORY_TOO_LARGE` kodi bilan javob beradi.
-  app.useBodyParser("raw", { type: [...STORY_MIMES], limit: MAX_STORY_BYTES + 1024 * 1024 });
+  // Istoriya (50 MB) va qoida videosi (100 MB) so'rov tanasining o'zida (raw) keladi. Chegara
+  // kattasidan biroz ko'p — aniq hajmni har bir servis o'zi tekshirib, o'z xato kodi bilan javob beradi.
+  app.useBodyParser("raw", {
+    type: [...STORY_MIMES],
+    limit: Math.max(MAX_STORY_BYTES, MAX_RULES_VIDEO_BYTES) + 1024 * 1024,
+  });
   // Admin panel va Mini App ikkalasi shu prefiks bilan murojaat qiladi.
   app.setGlobalPrefix("api/v1");
   app.enableCors({

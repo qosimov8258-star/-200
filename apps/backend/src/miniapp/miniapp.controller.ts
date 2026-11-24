@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, HttpCode, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Inject, Optional, Param, Post, Res, UseGuards } from "@nestjs/common";
+import type { Response } from "express";
 
 import { ContestSettingsService } from "../contest/contest-settings.service";
 import { DrawsService } from "../draws/draws.service";
@@ -13,6 +14,7 @@ import {
   type ReelRejectReason,
   type ReelStatus,
 } from "../participants/participants.service";
+import { RulesVideoService } from "../rules/rules-video.service";
 import { RulesService } from "../rules/rules.service";
 import { StatsService } from "../stats/stats.service";
 import { SupportRelay } from "../support/support-relay";
@@ -89,6 +91,9 @@ export class MiniappController {
     private readonly contestSettings: ContestSettingsService,
     private readonly draws: DrawsService,
     private readonly winnerService: WinnerService,
+    // Testlarda ulanmasligi mumkin — shunda video yo'q deb hisoblanadi. `@Inject` shart: `| null`
+    // turida Nest token'ni metadata'dan ololmaydi va jim `null` berib qo'yadi.
+    @Optional() @Inject(RulesVideoService) private readonly rulesVideo: RulesVideoService | null = null,
   ) {}
 
   @Get("me")
@@ -129,10 +134,30 @@ export class MiniappController {
   }
 
   @Public()
+  /** Qoidalar; `video` — admin yuklagan tushuntirish videosi (eng tepada ko'rsatiladi) yoki null. */
   @Get("rules")
   rules() {
     const { version, sections } = this.rulesService.get();
-    return { version, sections };
+    const video = this.rulesVideo?.get() ?? null;
+    return { version, sections, video: video ? { id: video.id, mime: video.mime } : null };
+  }
+
+  /**
+   * `GET /miniapp/rules/video/:id` — qoida videosi (ochiq, Range so'rovlari bilan — iOS/Android
+   * `<video>` shusiz o'ynamaydi). `id` joriysi bo'lmasa — 404 (almashtirilgan yoki o'chirilgan).
+   */
+  @Public()
+  @Get("rules/video/:id")
+  rulesVideoFile(@Param("id") id: string, @Res() res: Response): void {
+    const file = /^[a-f0-9]{24}$/.test(id) ? (this.rulesVideo?.file(id) ?? null) : null;
+    if (!file) throw new ApiException(404, "NOT_FOUND");
+    // Har yuklashda id yangi — fayl o'zgarmaydi, uzoq keshlash mumkin.
+    res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+    if ("path" in file) {
+      res.sendFile(file.path, { headers: { "Content-Type": file.mime } });
+      return;
+    }
+    res.type(file.mime).send(file.data);
   }
 
   @Post("rules/accept")

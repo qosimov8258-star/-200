@@ -31,6 +31,7 @@ import { OwnerTargetsController } from "./owner/owner-targets.controller";
 import { OwnerService } from "./owner/owner.service";
 import { ParticipantsService } from "./participants/participants.service";
 import { STATE_STORE_OPTIONS, StateStore } from "./persistence/state-store";
+import { RulesVideoService } from "./rules/rules-video.service";
 import { RulesService } from "./rules/rules.service";
 import { STATS_OPTIONS, StatsService, type StatsOptions } from "./stats/stats.service";
 import { MiniappStoriesController } from "./stories/miniapp-stories.controller";
@@ -124,6 +125,7 @@ function targetsOptions(contest: ContestSettingsService): TargetsOptions {
     RulesService,
     ParticipantsService,
     StoriesService,
+    RulesVideoService,
     SupportService,
     MessageLogService,
     TelegramService,
