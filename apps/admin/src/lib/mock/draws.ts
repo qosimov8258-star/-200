@@ -57,10 +57,15 @@ import { activeTargetParticipants } from "./targets";
 
 const SAMPLE_SIZE = 20;
 const MIN_REASON_LENGTH = 5;
-/** Mock: birinchi yuborishda botni bloklagan ishtirokchilar ulushi (%). */
-const MOCK_FAIL_PERCENT = 4;
-/** Mock: qayta yuborganda ham yetkazilmaydiganlar (botni butunlay o'chirgan). */
-const MOCK_PERMANENT_FAIL_PERCENT = 1;
+/**
+ * Mock: birinchi yuborishda botni bloklagan ishtirokchilar ulushi (%).
+ * 0 — mock o'zidan xato o'ylab topmaydi (soxta "1 xato" adminni chalg'itardi). Xato yo'li
+ * (FAILED, "Qayta yuborish") saqlangan: sinash uchun qiymatni vaqtincha oshiring.
+ * Haqiqiy backend'da xatolar Telegram javobidan keladi va UI ularni oddiy so'z bilan ko'rsatadi.
+ */
+const MOCK_FAIL_PERCENT = 0;
+/** Mock: qayta yuborganda ham yetkazilmaydiganlar (botni butunlay o'chirgan). 0 — yuqoridagi sabab bilan. */
+const MOCK_PERMANENT_FAIL_PERCENT = 0;
 
 const EXCLUSIONS: DrawExclusion[] = [
   "NOT_ACCEPTED",

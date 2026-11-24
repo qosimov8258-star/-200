@@ -265,18 +265,19 @@ function SelectedDraw({ id, fresh, onBack }: { id: string; fresh: boolean; onBac
       </div>
     );
   }
+  // "Tanlandi!" faqat natija hali tasdiqlanmagan paytda: tasdiqlangach yoki yuborilgach u eskiradi.
+  const showFresh = fresh && draw.data.status === "DRAFT";
   return (
     <div className="space-y-4">
-      {fresh && (
+      {showFresh && (
         <p
           role="status"
           className="flex items-start gap-2.5 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900"
         >
           <PartyPopper className="mt-0.5 size-4 shrink-0 text-green-700" aria-hidden />
           <span>
-            <b className="font-semibold">Tanlandi!</b> {formatNumber(draw.data.poolSize)} nomzod orasidan{" "}
-            {formatNumber(draw.data.winners)} g&apos;olib va {formatNumber(draw.data.reserves)} zaxira tasodifiy
-            aniqlandi. Natija qoralama — tekshirib, «Natijani tasdiqlash»ni bosing.
+            <b className="font-semibold">Tanlandi!</b> Endi 2-qadam: g&apos;oliblar ro&apos;yxatini ko&apos;rib chiqing
+            va «Natijani tasdiqlash»ni bosing.
           </span>
         </p>
       )}
