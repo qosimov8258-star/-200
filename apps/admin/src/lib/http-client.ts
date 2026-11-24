@@ -108,6 +108,11 @@ function parseErrorBody(body: unknown): { message: string | null; code: string |
 /** Funksiyaga xos umumiy matnlar (masalan, login'dagi 401 "sessiya tugadi" emas). */
 export type FallbackMessages = Partial<Record<number, string>>;
 
+function apiErrorOf(status: number, body: unknown, fallback: FallbackMessages): ApiError {
+  const { message, code } = parseErrorBody(body);
+  return new ApiError(status, message ?? fallback[status] ?? defaultMessage(status), code);
+}
+
 async function toApiError(response: Response, fallback: FallbackMessages): Promise<ApiError> {
   let body: unknown = null;
   try {
@@ -115,12 +120,17 @@ async function toApiError(response: Response, fallback: FallbackMessages): Promi
   } catch {
     // Tana bo'sh yoki JSON emas (masalan, nginx'ning HTML xato sahifasi).
   }
-  const { message, code } = parseErrorBody(body);
-  return new ApiError(
-    response.status,
-    message ?? fallback[response.status] ?? defaultMessage(response.status),
-    code,
-  );
+  return apiErrorOf(response.status, body, fallback);
+}
+
+/** JSON matnni o'qish; bo'sh yoki JSON bo'lmasa — `undefined`. */
+function parseJsonText(text: string): unknown {
+  if (text.trim() === "") return undefined;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Query satri: `undefined`, `null` va bo'sh qiymatlar yuborilmaydi. */
@@ -198,6 +208,82 @@ export async function requestJson<T>(method: HttpMethod, path: string, options: 
   }
   // Tanani backend kontrakti (`./types.ts`) bo'yicha qaytaradi.
   return data as T;
+}
+
+/**
+ * JSON javob yoki `null`. NestJS kontrolleri `null` qaytarsa, tana bo'sh keladi (`200`, JSON emas) —
+ * buni ham `null` deb olamiz. 204 ham — `null`.
+ */
+export async function requestJsonOrNull<T>(
+  method: HttpMethod,
+  path: string,
+  options: RequestOptions = {},
+): Promise<T | null> {
+  const response = await send(method, path, options);
+  let text: string;
+  try {
+    text = await response.text();
+  } catch {
+    throw new ApiError(response.status, INVALID_RESPONSE_MESSAGE);
+  }
+  if (text.trim() === "") return null;
+  const data = parseJsonText(text);
+  if (data === undefined) {
+    throw new ApiError(response.status, INVALID_RESPONSE_MESSAGE);
+  }
+  // Tanani backend kontrakti (`./types.ts`) bo'yicha qaytaradi.
+  return data as T | null;
+}
+
+export interface UploadOptions {
+  /** Fayl turi — `Content-Type` sarlavhasi. */
+  contentType: string;
+  /** Yuborilgan qism, 0–1. */
+  onProgress?: (ratio: number) => void;
+  fallback?: FallbackMessages;
+}
+
+/**
+ * Faylni so'rov tanasining o'zida (multipart emas) yuborib, JSON javobni olish. `fetch` yuborish
+ * jarayonini bermaydi, shuning uchun `XMLHttpRequest`; sessiya cookie'si boshqa so'rovlardagi kabi
+ * brauzer o'zi qo'shadi (`withCredentials`). Xatolar — `ApiError` (401 ham), `requestJson` dagi kabi.
+ */
+export function uploadJson<T>(method: HttpMethod, path: string, file: Blob, options: UploadOptions): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, buildUrl(path));
+    xhr.withCredentials = true;
+    xhr.responseType = "text";
+    xhr.setRequestHeader("Accept", "application/json");
+    xhr.setRequestHeader("Content-Type", options.contentType);
+
+    const { onProgress } = options;
+    if (onProgress) {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable && event.total > 0) onProgress(Math.min(1, event.loaded / event.total));
+      };
+    }
+
+    xhr.onload = () => {
+      const body = parseJsonText(xhr.responseText);
+      if (xhr.status >= 200 && xhr.status < 300) {
+        if (body === undefined) {
+          reject(new ApiError(xhr.status, INVALID_RESPONSE_MESSAGE));
+        } else {
+          // Tanani backend kontrakti (`./types.ts`) bo'yicha qaytaradi.
+          resolve(body as T);
+        }
+        return;
+      }
+      // Tana JSON bo'lmasa (masalan, nginx'ning HTML sahifasi) — `body` undefined, status bo'yicha matn.
+      reject(apiErrorOf(xhr.status, body ?? null, options.fallback ?? {}));
+    };
+    xhr.onerror = () => reject(new ApiError(0, NETWORK_ERROR_MESSAGE));
+    xhr.ontimeout = () => reject(new ApiError(0, NETWORK_ERROR_MESSAGE));
+    xhr.onabort = () => reject(new ApiError(0, "Yuklash to'xtatildi."));
+
+    xhr.send(file);
+  });
 }
 
 /** Javob tanasi kerak bo'lmagan so'rov (odatda 204). */

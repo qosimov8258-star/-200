@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, AlertTriangle, ArrowDown, ArrowUp, CheckCircle2, Info, Plus, Smartphone, Trash2 } from "lucide-react";
+import { AlertCircle, AlertTriangle, ArrowDown, ArrowUp, CheckCircle2, Info, Play, Plus, Smartphone, Trash2 } from "lucide-react";
 
 import { IosIcon } from "@/components/ui/ios-icon";
 import { Badge } from "@/components/ui/badge";
@@ -13,10 +13,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { getContestRules, updateContestRules } from "@/lib/api";
+import { getContestRules, getRulesVideo, updateContestRules } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
 import { formatDateTime } from "@/lib/format";
 import { RULES_LIMITS, type ContestRules, type RulesSection } from "@/lib/types";
+
+import { RULES_VIDEO_QUERY_KEY, RulesVideoCard } from "./rules-video-card";
 
 const L = RULES_LIMITS;
 
@@ -40,10 +42,22 @@ function sectionErrors(s: RulesSection): { title?: string; body?: string } {
   };
 }
 
-/** Sozlamalar → Tanlov qoidalari: bo'limlarni tahrirlash, qo'shish, o'chirish va tartiblash. */
 const NOTICE_TIMEOUT_MS = 5000;
 
+/**
+ * Sozlamalar → Tanlov qoidalari: tepada qoida videosi (Mini App'da ham bo'limlardan oldin turadi),
+ * ostida bo'limlarni tahrirlash, qo'shish, o'chirish va tartiblash.
+ */
 export function RulesEditor() {
+  return (
+    <div className="space-y-4">
+      <RulesVideoCard />
+      <RulesSectionsEditor />
+    </div>
+  );
+}
+
+function RulesSectionsEditor() {
   const { data, error, isPending, isError, refetch } = useQuery({
     queryKey: ["rules"],
     queryFn: getContestRules,
@@ -318,8 +332,9 @@ function RulesForm({
   );
 }
 
-/** Ishtirokchi Mini App'da qanday ko'rishini taxminan ko'rsatadi. */
+/** Ishtirokchi Mini App'da qanday ko'rishini taxminan ko'rsatadi (video bo'lsa — eng tepada). */
 function Preview({ sections }: { sections: RulesSection[] }) {
+  const { data: video } = useQuery({ queryKey: RULES_VIDEO_QUERY_KEY, queryFn: getRulesVideo });
   return (
     <aside className="lg:sticky lg:top-24">
       <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-slate-500 uppercase">
@@ -328,6 +343,14 @@ function Preview({ sections }: { sections: RulesSection[] }) {
       </p>
       <div className="max-h-[640px] overflow-y-auto rounded-[28px] border-[6px] border-slate-800 bg-[#f1f2f4] p-4">
         <h3 className="mb-3 text-xl font-bold tracking-tight text-[#1e1f22]">Tanlov qoidalari</h3>
+        {video && (
+          <div className="mb-3 flex aspect-video flex-col items-center justify-center gap-1.5 rounded-[22px] bg-slate-900 text-xs text-white/70">
+            <span className="flex size-10 items-center justify-center rounded-full bg-white/15">
+              <Play className="size-5 fill-white text-white" aria-hidden />
+            </span>
+            Qoida videosi
+          </div>
+        )}
         <div className="space-y-4 rounded-[22px] bg-white p-4">
           {sections.map((s, i) => (
             <section key={i}>

@@ -227,6 +227,10 @@ export const deleteStory = (id: string): Promise<void> =>
  * @endpoint GET /miniapp/stories/:id/video — ochiq, HTTP Range bilan (`<video src>` iOS/Android'da
  * ishlaydi). Muddati tugagan yoki o'chirilgan bo'lsa — 404 (`<video>` da `error` hodisasi).
  */
+/** @endpoint GET /miniapp/rules/video/:id — qoida videosi (ochiq, Range bilan). */
+export const rulesVideoUrl = (id: string): string =>
+  IS_MOCK_API ? mock.rulesVideoUrl() : `${API_URL}/miniapp/rules/video/${encodeURIComponent(id)}`;
+
 export const storyVideoUrl = (id: string): string =>
   IS_MOCK_API ? mock.storyVideoUrl(id) : `${API_URL}/miniapp/stories/${encodeURIComponent(id)}/video`;
 

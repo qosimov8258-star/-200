@@ -236,8 +236,13 @@ export async function getRules(): Promise<ContestRules> {
         body: "Ism va familiyangiz ommaviy reytingda ko'rsatiladi. Telefon raqamingiz boshqa ishtirokchilarga ko'rsatilmaydi.",
       },
     ],
+    // Haqiqiyda admin panelda yuklanadi; mock'da — namunaviy klip (ko'rinishini sinash uchun).
+    video: { id: "mock-rules-video", mime: "video/mp4" },
   };
 }
+
+/** Mock: qoida videosi o'rniga namunaviy klip. */
+export const rulesVideoUrl = (): string => `${import.meta.env.BASE_URL}stories/sample-3.mp4`;
 
 export async function acceptRules(version: number): Promise<void> {
   await wait();

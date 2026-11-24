@@ -329,6 +329,10 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "winner.announce": "G'olib e'lon qilindi",
   "settings.update": "Sozlamalarni o'zgartirdi",
   "rules.update": "Tanlov qoidalarini o'zgartirdi",
+  // Backend qoidalar tahririni shu nom bilan yozadi (mock — `rules.update`).
+  "settings.rules": "Tanlov qoidalarini o'zgartirdi",
+  "settings.rules_video": "Qoida videosini yukladi",
+  "settings.rules_video_delete": "Qoida videosini o'chirdi",
   "prize.create": "Sovg'a qo'shdi",
   "prize.update": "Sovg'ani o'zgartirdi",
   "prize.delete": "Sovg'ani o'chirdi",

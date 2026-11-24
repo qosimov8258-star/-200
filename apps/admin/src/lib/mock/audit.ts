@@ -128,7 +128,7 @@ function entityLabelResolver(): (entry: MockAuditEntry) => string {
       case "telegram_message":
         return entry.entityId === "*" ? "O'qilmagan xabarlar" : entry.entityId;
       case "settings":
-        return "Tanlov sozlamalari";
+        return entry.entityId === "rules-video" ? "Qoida videosi" : "Tanlov sozlamalari";
       case "prize":
         // O'chirilgan sovg'aning nomi audit yozuvining "oldin" qismida qoladi.
         return prizes.get(entry.entityId) ?? entry.before.split("; ")[0] ?? entry.entityId;

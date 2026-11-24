@@ -49,7 +49,7 @@ const WAITING: ReadonlySet<ReelStatus> = new Set(["PENDING", "MANUAL_REVIEW"]);
 const rise = (i: number): CSSProperties => ({ animationDelay: `${i * 80}ms` });
 
 /**
- * "Videolarim": ishtirokchining barcha videolari (soni cheklanmagan). Yuqorida — natija (eng ko'p
+ * "Video" bo'limi: ishtirokchining barcha videolari (soni cheklanmagan). Yuqorida — natija (eng ko'p
  * ko'rilgan bitta qabul qilingan video va uning reytingdagi o'rni; videolar ko'rishlari
  * qo'shilmaydi), keyin yangi link qo'shish va videolar ro'yxati (eng ko'p ko'rilgani tepada;
  * reyting har bir video bo'yicha, shuning uchun har bir qabul qilingan videoda o'z o'rni bor).

@@ -500,6 +500,32 @@ export const RULES_LIMITS = {
   bodyMax: 3000,
 } as const;
 
+/** Qoida videosi formati: `video/quicktime` — iPhone'dagi .mov. */
+export type RulesVideoMime = "video/mp4" | "video/quicktime" | "video/webm";
+
+/**
+ * Qoida videosi — Mini App'dagi "Qoidalar" bo'limida eng tepada (bo'limlardan oldin) ko'rsatiladi.
+ * Bitta bo'ladi: yangisi yuklansa eskisi o'chiriladi. Yuklanmagan bo'lsa API `null` qaytaradi.
+ */
+export interface RulesVideo {
+  /** Har yuklashda yangi — video manzili (`rulesVideoUrl(id)`) shu bo'yicha. */
+  id: string;
+  mime: RulesVideoMime;
+  /** Video hajmi, bayt. */
+  sizeBytes: number;
+  /** Yuklangan vaqt (UTC ISO). */
+  updatedAt: string;
+  /** Yuklagan xodimning to'liq ismi. */
+  updatedBy: string;
+}
+
+/** Backend bilan bir xil cheklovlar (`apps/backend/src/rules/rules-video.service.ts`). */
+export const RULES_VIDEO_LIMITS = {
+  /** 100 MB. */
+  maxBytes: 100 * 1024 * 1024,
+  mimeTypes: ["video/mp4", "video/quicktime", "video/webm"],
+} as const satisfies { maxBytes: number; mimeTypes: readonly RulesVideoMime[] };
+
 // ---------------------------------------------------------------------------
 // Sovg'alar (Aksiya qoidalari, 6-bo'lim: sovrinlar jamg'armasi)
 // ---------------------------------------------------------------------------

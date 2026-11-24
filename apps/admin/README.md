@@ -198,6 +198,39 @@ qilinganlarning istoriyalari ko'rinmaydi.
 `AdminStoryItem` — [`src/lib/types.ts`](src/lib/types.ts): `id`, `participant { id, fullName, phone }`
 (`id` — telegramId), `createdAt`, `expiresAt`, `sizeBytes`, `mime`.
 
+## Qoida videosi
+
+Mini App'dagi "Qoidalar" bo'limida eng tepada (qoidalar matnidan oldin) bitta tushuntirish videosi
+turadi. U **Sozlamalar → Tanlov qoidalari** dagi "Qoida videosi" kartasida (bo'limlar muharriri
+ustida, faqat `ADMIN`) boshqariladi. Video yuklanmagan bo'lsa Mini App'da faqat matn ko'rinadi.
+
+- **Video yuklash** / **Almashtirish** — fayl tanlanadi (`video/mp4`, `video/quicktime` — iPhone .mov,
+  `video/webm`; ko'pi bilan 100 MB). Tur va hajm yuborishdan oldin brauzerda tekshiriladi
+  ([`src/lib/rules-video.ts`](src/lib/rules-video.ts)): brauzer turini bermasa — kengaytma bo'yicha
+  (.mp4/.m4v, .mov, .webm). Yuklash jarayoni foizda ko'rsatiladi (`XMLHttpRequest`, sessiya cookie'si
+  bilan). Almashtirilganda yangi `id` beriladi, eskisi serverda o'chiriladi.
+- Video bor bo'lsa — ko'rish oynasi (`<video controls preload="metadata" playsInline>`), hajmi va
+  formati, kim va qachon yuklagani; **O'chirish** — tasdiqlash oynasi bilan.
+- Xatolar: har qanday `413` (backend yoki nginx'ning HTML sahifasi) — "Video juda katta", `422`
+  (`RULES_VIDEO_INVALID`: video emas, bo'sh yoki buzilgan) — "Faylni video sifatida o'qib bo'lmadi".
+- Audit: obyekt turi `settings` ("Qoida videosi"), amallar `settings.rules_video` (yuklash /
+  almashtirish, oldin–keyin: tur va hajm) va `settings.rules_video_delete`.
+- Telefon ko'rinishida ("Ilovada ko'rinishi") video bo'lsa, qoidalar ustida uning o'rni ko'rsatiladi.
+
+| Funksiya (`src/lib/api.ts`) | Endpoint |
+|---|---|
+| `getRulesVideo()` | `GET /api/v1/admin/rules/video` → `RulesVideo \| null` (bo'sh tana ham `null`) |
+| `uploadRulesVideo(file, onProgress)` | `PUT /api/v1/admin/rules/video` — tana faylning o'zi (multipart emas), `Content-Type` — video turi → `RulesVideo`; `onProgress(0–1)` |
+| `deleteRulesVideo()` | `DELETE /api/v1/admin/rules/video` → `204` (video bo'lmasa ham) |
+| `rulesVideoUrl(id)` | `GET /api/v1/miniapp/rules/video/:id` — ochiq endpoint, HTTP Range bilan (`<video src>`); eski `id` — 404 |
+
+`RulesVideo` — [`src/lib/types.ts`](src/lib/types.ts): `id`, `mime`, `sizeBytes`, `updatedAt`, `updatedBy`
+(xodimning to'liq ismi). Cheklovlar — `RULES_VIDEO_LIMITS` (backend bilan bir xil).
+
+Mock rejimda video faqat sahifa xotirasida (`URL.createObjectURL`) — sahifa yangilansa yo'qoladi;
+audit yozuvlari esa boshqa mock amallar kabi `localStorage` da qoladi. Mock ham backend kabi fayl
+boshidagi baytlarni tekshiradi (video bo'lmasa — `422`).
+
 ## G'oliblar va Random tanlov
 
 Tepadagi menyuda ikkita alohida bo'lim (kompyuterda ikkalasi ham doim ko'rinadi):
@@ -267,7 +300,7 @@ src/
 │   ├── draws/            # random tanlov: sovg'a tanlash, sozlamalar, bosqich, natija, tarix
 │   ├── prizes/           # asosiy sovrinlar (reyting bo'yicha) jadvali — draws va winner uchun umumiy
 │   ├── winner/           # g'oliblar: bosh sovrin oqimi, asosiy sovrinlar, voucher g'oliblari
-│   ├── settings/         # tanlov muddati, yangilanish vaqti, minimal yosh, qoidalar
+│   ├── settings/         # tanlov muddati, yangilanish vaqti, minimal yosh, qoidalar, qoida videosi
 │   ├── stories/          # istoriyalar: video kartalar, o'chirish oynasi
 │   ├── audit/            # audit log (faqat o'qish)
 │   ├── users/            # ishtirokchilar jadvali, filtrlar, amal oynasi, "Videolar" oynasi
@@ -280,6 +313,7 @@ src/
     ├── auth-context.tsx  # joriy xodim, chiqish, 401 da login sahifasiga
     ├── dates.ts          # tanlov kunlari (Asia/Tashkent)
     ├── format.ts         # raqam va sana formatlari
+    ├── rules-video.ts    # qoida videosi: format aniqlash, yuklashdan oldingi tekshiruv
     ├── labels.ts         # holatlar nomlari va ranglari
     ├── navigation.ts     # menyu, rollar
     ├── period.ts         # dashboard davri (URL bilan)

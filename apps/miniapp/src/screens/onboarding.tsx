@@ -222,6 +222,28 @@ function Bauble({ label }: { label: string }) {
   );
 }
 
+/**
+ * Qoidalarni tushuntiruvchi video (admin panelda yuklanadi) — qoidalar ustida, eng tepada.
+ * Brauzer o'zi o'ynatmaydi: foydalanuvchi bosadi (ovozli avtoijro baribir bloklanadi).
+ */
+function RulesVideo({ id }: { id: string }) {
+  return (
+    <figure className="mb-4 animate-rise overflow-hidden rounded-card bg-ink shadow-[0_18px_40px_-24px_rgba(30,31,34,0.8)]">
+      <video
+        key={id}
+        // `#t=0.1` — o'ynatilmaguncha qora to'rtburchak emas, birinchi kadr ko'rinsin (iOS ham).
+        src={`${api.rulesVideoUrl(id)}#t=0.1`}
+        controls
+        playsInline
+        preload="metadata"
+        className="block max-h-[70vh] w-full bg-black object-contain"
+        aria-label={t.rulesVideoLabel}
+      />
+      <figcaption className="px-4 py-2.5 text-[13px] font-semibold text-white/80">{t.rulesVideoLabel}</figcaption>
+    </figure>
+  );
+}
+
 /** Tanlov qoidalari. `requireConsent` — ro'yxatdan o'tishdagi majburiy rozilik qadami. */
 export function RulesContent({ requireConsent = false }: { requireConsent?: boolean }) {
   const queryClient = useQueryClient();
@@ -259,34 +281,37 @@ export function RulesContent({ requireConsent = false }: { requireConsent?: bool
       ) : rules.isError ? (
         <ErrorBlock onRetry={() => void rules.refetch()} />
       ) : (
-        <ol className="space-y-3">
-          {rules.data.sections.map((s, i) => {
-            // Sarlavha "1. Ishtirok etish" ko'rinishida keladi — raqam archa o'yinchog'iga chiqadi.
-            const match = /^(\d+)[.)]\s*(.+)$/.exec(s.title);
-            const number = match ? match[1] : String(i + 1);
-            const title = match ? match[2] : s.title;
-            return (
-              <li
-                key={s.title}
-                className="relative isolate animate-rise overflow-hidden rounded-card bg-surface p-5"
-                style={{ animationDelay: `${i * 70}ms` }}
-              >
-                <Snowflake
-                  aria-hidden
-                  className="absolute -top-5 -right-5 -z-10 size-28 text-[#df3425]/[0.07]"
-                  strokeWidth={1.3}
-                />
-                <div className="flex items-start gap-3.5">
-                  <Bauble label={number} />
-                  <div className="min-w-0 pt-1">
-                    <h2 className="text-[17px] leading-snug font-bold tracking-tight">{title}</h2>
-                    <p className="mt-1.5 text-[15px] leading-relaxed whitespace-pre-line text-ink/85">{s.body}</p>
+        <>
+          {rules.data.video && <RulesVideo id={rules.data.video.id} />}
+          <ol className="space-y-3">
+            {rules.data.sections.map((s, i) => {
+              // Sarlavha "1. Ishtirok etish" ko'rinishida keladi — raqam archa o'yinchog'iga chiqadi.
+              const match = /^(\d+)[.)]\s*(.+)$/.exec(s.title);
+              const number = match ? match[1] : String(i + 1);
+              const title = match ? match[2] : s.title;
+              return (
+                <li
+                  key={s.title}
+                  className="relative isolate animate-rise overflow-hidden rounded-card bg-surface p-5"
+                  style={{ animationDelay: `${i * 70}ms` }}
+                >
+                  <Snowflake
+                    aria-hidden
+                    className="absolute -top-5 -right-5 -z-10 size-28 text-[#df3425]/[0.07]"
+                    strokeWidth={1.3}
+                  />
+                  <div className="flex items-start gap-3.5">
+                    <Bauble label={number} />
+                    <div className="min-w-0 pt-1">
+                      <h2 className="text-[17px] leading-snug font-bold tracking-tight">{title}</h2>
+                      <p className="mt-1.5 text-[15px] leading-relaxed whitespace-pre-line text-ink/85">{s.body}</p>
+                    </div>
                   </div>
-                </div>
-              </li>
-            );
-          })}
-        </ol>
+                </li>
+              );
+            })}
+          </ol>
+        </>
       )}
 
       {requireConsent && (
