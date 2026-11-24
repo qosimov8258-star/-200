@@ -222,14 +222,14 @@ function Bauble({ label }: { label: string }) {
   );
 }
 
-/** Qoida videosining eng katta balandligi, px (kompyuterda ham juda katta bo'lib ketmasin). */
-const RULES_VIDEO_MAX_HEIGHT = 460;
+/** Qoida videosining eng katta balandligi, px — telefon ekranining taxminan uchdan biri. */
+const RULES_VIDEO_MAX_HEIGHT = 320;
 /** Ramka videoning o'zidan shuncha keng (har ikki chetida 25 px). */
 const RULES_VIDEO_EXTRA_WIDTH = 50;
 
 /**
  * Qoidalarni tushuntiruvchi video (admin panelda yuklanadi) — qoidalar ustida, eng tepada.
- * Balandligi 460 px gacha; ramka eni videoning o'z enidan 50 px katta (vertikal videoda yon
+ * Balandligi 320 px gacha (telefonga mos); ramka eni videoning o'z enidan 50 px katta (vertikal videoda yon
  * tomonlarda katta qora joy qolmaydi), o'rtada. Brauzer o'zi o'ynatmaydi: foydalanuvchi bosadi.
  */
 function RulesVideo({ id }: { id: string }) {
