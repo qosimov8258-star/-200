@@ -222,13 +222,25 @@ function Bauble({ label }: { label: string }) {
   );
 }
 
+/** Qoida videosining eng katta balandligi, px (kompyuterda ham juda katta bo'lib ketmasin). */
+const RULES_VIDEO_MAX_HEIGHT = 460;
+/** Ramka videoning o'zidan shuncha keng (har ikki chetida 25 px). */
+const RULES_VIDEO_EXTRA_WIDTH = 50;
+
 /**
  * Qoidalarni tushuntiruvchi video (admin panelda yuklanadi) — qoidalar ustida, eng tepada.
- * Brauzer o'zi o'ynatmaydi: foydalanuvchi bosadi (ovozli avtoijro baribir bloklanadi).
+ * Balandligi 460 px gacha; ramka eni videoning o'z enidan 50 px katta (vertikal videoda yon
+ * tomonlarda katta qora joy qolmaydi), o'rtada. Brauzer o'zi o'ynatmaydi: foydalanuvchi bosadi.
  */
 function RulesVideo({ id }: { id: string }) {
+  // Video eni / bo'yi — metadata kelgach ma'lum bo'ladi.
+  const [ratio, setRatio] = useState<number | null>(null);
+  const maxWidth = ratio === null ? undefined : Math.round(RULES_VIDEO_MAX_HEIGHT * ratio) + RULES_VIDEO_EXTRA_WIDTH;
   return (
-    <figure className="mb-4 animate-rise overflow-hidden rounded-card bg-ink shadow-[0_18px_40px_-24px_rgba(30,31,34,0.8)]">
+    <figure
+      className="mx-auto mb-4 animate-rise overflow-hidden rounded-card bg-ink shadow-[0_18px_40px_-24px_rgba(30,31,34,0.8)]"
+      style={{ maxWidth }}
+    >
       <video
         key={id}
         // `#t=0.1` — o'ynatilmaguncha qora to'rtburchak emas, birinchi kadr ko'rinsin (iOS ham).
@@ -236,7 +248,12 @@ function RulesVideo({ id }: { id: string }) {
         controls
         playsInline
         preload="metadata"
-        className="block max-h-[70vh] w-full bg-black object-contain"
+        onLoadedMetadata={(event) => {
+          const { videoWidth, videoHeight } = event.currentTarget;
+          if (videoWidth > 0 && videoHeight > 0) setRatio(videoWidth / videoHeight);
+        }}
+        className="block w-full bg-black object-contain"
+        style={{ maxHeight: RULES_VIDEO_MAX_HEIGHT }}
         aria-label={t.rulesVideoLabel}
       />
       <figcaption className="px-4 py-2.5 text-[13px] font-semibold text-white/80">{t.rulesVideoLabel}</figcaption>
