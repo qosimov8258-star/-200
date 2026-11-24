@@ -184,7 +184,7 @@ function DraftEditor({ state, draft, onNotice }: { state: AiState; draft: AiConf
             Namuna rasmlar{" "}
             <span className="font-normal text-slate-500 tabular-nums">({draft.references.length})</span>
           </h3>
-          <p className="text-xs text-slate-500">JPG, PNG yoki WebP, 15 MB gacha — yuborishdan oldin kichraytiriladi.</p>
+          <p className="text-xs text-slate-500">JPG, PNG yoki WebP, 100 MB gacha — yuborishdan oldin kichraytiriladi.</p>
         </div>
         <p className="text-sm text-slate-600">
           Videoda nima <strong className="font-medium text-up">ko&apos;rinishi shart</strong>, nima{" "}

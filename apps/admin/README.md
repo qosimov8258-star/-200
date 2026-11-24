@@ -235,7 +235,7 @@ Sahifa ([`src/components/ai/`](src/components/ai/)):
    qaror: "Tasdiqlash" / "Rad etish" — izoh majburiy (3–500 belgi), belgi "Qo'lda: …" bo'ladi.
 
 **Namuna rasm brauzerda tayyorlanadi** ([`src/lib/ai-image.ts`](src/lib/ai-image.ts)): rasm bo'lmagan
-fayl va 15 MB dan kattasi rad etiladi, qolgani `canvas` da uzun tomoni ≤ 1600 px qilib JPEG (sifat
+fayl va 100 MB dan kattasi rad etiladi, qolgani `canvas` da uzun tomoni ≤ 1600 px qilib JPEG (sifat
 0,85; shaffof joylar oq) `data:` URL ga aylantiriladi. Kamdan-kam holatda 2 MB dan oshsa — bir marta 0,7
 sifat bilan; baribir oshsa — xato. Ochilmaydigan format (masalan, Chrome'da HEIC) — tushunarli xato.
 
