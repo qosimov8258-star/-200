@@ -13,7 +13,7 @@ import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { canAccess, findNavItem, homePathForRole } from "@/lib/navigation";
 
 /** O'z sarlavhasini (izoh, tugmalar bilan) o'zi chiqaradigan sahifalar. */
-const OWN_TITLE_PATHS = ["/dashboard"];
+const OWN_TITLE_PATHS = ["/dashboard", "/ai"];
 
 /**
  * Panelning umumiy layout'i: sessiya tekshiruvi, rolga qarab kirish huquqi,

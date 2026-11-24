@@ -114,6 +114,21 @@ export const getTelegramMessages = impl.getTelegramMessages;
 export const resendTelegramMessage = impl.resendTelegramMessage;
 export const resendUnreadTelegram = impl.resendUnreadTelegram;
 
+// AI tekshiruvi
+export const getAiState = impl.getAiState;
+export const createAiDraft = impl.createAiDraft;
+export const updateAiDraft = impl.updateAiDraft;
+export const addAiReference = impl.addAiReference;
+export const updateAiReference = impl.updateAiReference;
+export const deleteAiReference = impl.deleteAiReference;
+export const aiReferenceImageUrl = impl.aiReferenceImageUrl;
+export const getAiCandidates = impl.getAiCandidates;
+export const approveAiDraft = impl.approveAiDraft;
+export const runAiForAll = impl.runAiForAll;
+export const getAiReviews = impl.getAiReviews;
+export const aiFrameUrl = impl.aiFrameUrl;
+export const decideAiReview = impl.decideAiReview;
+
 // Support
 export const getSupportTickets = impl.getSupportTickets;
 export const getSupportTicket = impl.getSupportTicket;

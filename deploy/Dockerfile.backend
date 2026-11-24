@@ -3,6 +3,9 @@
 # Backend (NestJS): Mini App API, admin API, Telegram bot va ko'rishlar worker'i.
 # Build context — apps/backend (deploy/compose.yml), keraksiz fayllar (node_modules, .env, data)
 # apps/backend/.dockerignore orqali chiqarib tashlanadi.
+#
+# Ikki image (target): `backend` — API va bot; `worker` — AI video tekshiruvi (+ ffmpeg).
+# Kod bir xil, `worker` faqat ffmpeg va boshqa buyruq bilan farq qiladi.
 
 FROM node:24-alpine AS build
 WORKDIR /app
@@ -11,7 +14,7 @@ RUN npm ci
 COPY . .
 RUN npm run build && npm prune --omit=dev
 
-FROM node:24-alpine
+FROM node:24-alpine AS backend
 ENV NODE_ENV=production \
     TZ=Asia/Tashkent
 WORKDIR /app
@@ -20,3 +23,12 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 USER node
 CMD ["node", "dist/main.js"]
+
+# AI worker: video yuklaydi, ffmpeg bilan kadrlarga ajratadi, Claude Batches API'ga yuboradi.
+# /app/work — vaqtinchalik kadrlar (natija kelguncha; compose'da nomli volume).
+FROM backend AS worker
+USER root
+RUN apk add --no-cache ffmpeg && mkdir -p /app/work && chown node:node /app/work
+USER node
+ENV AI_WORK_DIR=/app/work
+CMD ["node", "dist/worker/main.js"]

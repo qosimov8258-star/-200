@@ -22,6 +22,8 @@ interface ReasonDialogProps {
   placeholder?: string;
   /** Maydon nomi (standart — "Sabab"). */
   fieldLabel?: string;
+  /** Eng kam belgilar soni (standart — 5). */
+  minLength?: number;
   /** Tasdiqlanganda chaqiriladi; xato tashlasa — xabar oynada ko'rsatiladi. */
   onConfirm: (reason: string) => Promise<unknown>;
   onClose: () => void;
@@ -40,6 +42,7 @@ export function ReasonDialog({
   variant,
   placeholder,
   fieldLabel = "Sabab",
+  minLength = MIN_REASON_LENGTH,
   onConfirm,
   onClose,
   onDone,
@@ -52,7 +55,7 @@ export function ReasonDialog({
     onSuccess: () => onDone(),
   });
 
-  const reasonTooShort = reason.trim().length < MIN_REASON_LENGTH;
+  const reasonTooShort = reason.trim().length < minLength;
   const reasonError = showValidation && reasonTooShort;
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -94,7 +97,7 @@ export function ReasonDialog({
             className={reasonError ? "text-xs text-red-600" : "text-xs text-slate-500"}
           >
             {reasonError
-              ? `${fieldLabel}ni yozing (kamida ${MIN_REASON_LENGTH} ta belgi).`
+              ? `${fieldLabel}ni yozing (kamida ${minLength} ta belgi).`
               : `${fieldLabel} audit logga yoziladi: kim, nima, qachon.`}
           </p>
         </div>

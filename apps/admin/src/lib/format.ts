@@ -127,3 +127,21 @@ export function formatTimeLeft(value: string, now: number): string | null {
 export function formatViewsRange(min: number, max: number | null): string {
   return max === null ? `${formatNumber(min)}+` : `${formatNumber(min)} – ${formatNumber(max)}`;
 }
+
+/** Dollar: 3.2 -> "$3,20", 0.1634 -> "$0,16", 1234.5 -> "$1 234,50"; sentdan kam (0 emas) -> "<$0,01". */
+export function formatUsd(value: number): string {
+  if (value > 0 && value < 0.005) return "<$0,01";
+  const cents = Math.round(Math.abs(value) * 100);
+  const whole = groupDigits(Math.floor(cents / 100));
+  const fraction = String(cents % 100).padStart(2, "0");
+  return `${value < 0 ? MINUS : ""}$${whole},${fraction}`;
+}
+
+/** Videodagi vaqt: 12 -> "12-soniya", 75 -> "1:15 (75-soniya)". */
+export function formatVideoSecond(second: number): string {
+  const total = Math.max(0, Math.round(second));
+  if (total < 60) return `${total}-soniya`;
+  const minutes = Math.floor(total / 60);
+  const rest = String(total % 60).padStart(2, "0");
+  return `${minutes}:${rest} (${total}-soniya)`;
+}

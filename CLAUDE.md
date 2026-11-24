@@ -25,7 +25,8 @@ eng ko'p ko'rish yig'gan ishtirokchi avtomobil yutadi (g'olibni Admin tasdiqlayd
 
 ```text
 apps/backend   NestJS: Mini App API + admin API + Telegram bot + ko'rishlar worker'i (Apify;
-               ma'lumotlar xotirada, `DATA_DIR/state.json` ga saqlanadi)
+               ma'lumotlar xotirada, `DATA_DIR/state.json` ga saqlanadi); `src/worker/` — AI video
+               tekshiruvi worker'i (alohida jarayon: ffmpeg + Claude Message Batches API)
 apps/miniapp   Telegram Mini App (React + Vite)
 apps/admin     Next.js admin panel (statik eksport, serverda /admin)
 apps/mobile    Flutter ilova — to'xtatilgan
@@ -67,6 +68,7 @@ admin uchun batafsil — `apps/admin/README.md`):
 | Mini App: tekshiruv | `npm run typecheck`, `npm run lint`, `npm run build` | Ishlaydi |
 | Backend + bot (3000-port) | `cd apps/backend && npm install && npm run dev` | Ishlaydi (`.env` da bot tokeni va `APIFY_API_TOKEN`; Apify'siz sinov: `STATS_PROVIDER=mock`) |
 | Backend: tekshiruv | `npm run typecheck`, `npm test` | Ishlaydi |
+| AI video tekshiruvi worker'i | `cd apps/backend && npm run worker:dev` (yoki build'dan keyin `npm run worker`) | Ishlaydi (`ffmpeg` kerak; `.env` da `AI_WORKER_TOKEN` va `ANTHROPIC_API_KEY`; pulsiz sinov: `AI_PROVIDER=mock`) |
 | Mobil ilovani ishga tushirish | `cd apps/mobile && flutter run` | Ishlaydi (mock ma'lumotlar bilan; API ulanganda `--dart-define-from-file=.env` qo'shiladi) |
 | Mobil test va tahlil | `cd apps/mobile && flutter analyze && flutter test` | Ishlaydi |
 | Mobil matnlarni qayta generatsiya | `cd apps/mobile && flutter gen-l10n` | Ishlaydi (`lib/l10n/app_uz.arb` o'zgarganda) |

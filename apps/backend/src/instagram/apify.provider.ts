@@ -20,6 +20,8 @@ interface ApifyItem {
   likesCount?: number | null;
   commentsCount?: number | null;
   timestamp?: string;
+  /** Video faylining manzili (Instagram CDN). */
+  videoUrl?: string | null;
   /** Topilmagan / yopiq sahifa uchun aktor xato yozuvini qaytaradi. */
   error?: string;
 }
@@ -84,5 +86,6 @@ function toStats(shortcode: string, item: ApifyItem): ReelStats {
     likes: count(item.likesCount),
     comments: count(item.commentsCount),
     postedAt: postedAt && !Number.isNaN(postedAt.getTime()) ? postedAt : null,
+    videoUrl: typeof item.videoUrl === "string" && /^https:\/\//.test(item.videoUrl) ? item.videoUrl : null,
   };
 }

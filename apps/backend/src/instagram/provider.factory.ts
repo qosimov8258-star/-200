@@ -11,8 +11,8 @@ import { ReelStatsProvider, UnavailableReelStatsProvider } from "./reel-stats";
 
 /** `STATS_PROVIDER` bo'yicha ko'rishlar manbai. Token yo'q bo'lsa — jim soxtaga o'tmaydi. */
 export function createReelStatsProvider(): ReelStatsProvider {
-  const { provider, apifyToken } = config.stats;
-  if (provider === "mock") return new MockReelStatsProvider();
+  const { provider, apifyToken, mockVideoUrl } = config.stats;
+  if (provider === "mock") return new MockReelStatsProvider(mockVideoUrl);
   if (!apifyToken) {
     return new UnavailableReelStatsProvider("APIFY_API_TOKEN berilmagan (apps/backend/.env)");
   }

@@ -45,12 +45,31 @@ export const config = {
     syncTime: str("STATS_SYNC_TIME") ?? "06:00",
     /**
      * Tanlov boshlangan kundan (`contest.ts` → `startsOn`) boshlab necha kunda bir marta:
-     * 7 — haftada bir marta (standart; Mini App "haftada bir marta tekshiriladi" deb yozadi),
-     * 1 — har kuni; 0 — avtomatik yig'ish o'chiq.
+     * 1 — har kuni (standart; Mini App "har kuni tekshiriladi" deb yozadi), 7 — haftada bir marta;
+     * 0 — avtomatik yig'ish o'chiq.
      */
-    syncEveryDays: Number(str("STATS_SYNC_EVERY_DAYS") ?? 7),
+    syncEveryDays: Number(str("STATS_SYNC_EVERY_DAYS") ?? 1),
     /** Yangi videolar shuncha kutib, bitta so'rovda tekshiriladi (pulni tejash uchun). */
     verifyDelayMs: Number(str("STATS_VERIFY_DELAY_MS") ?? 5_000),
+    /** Faqat `mock` rejimida: AI tekshiruvini lokal sinash uchun hamma videolarga shu fayl manzili. */
+    mockVideoUrl: str("STATS_MOCK_VIDEO_URL"),
+  },
+
+  /**
+   * AI video tekshiruvi (admin panel → AI). Videolarni alohida worker jarayoni (`npm run worker`)
+   * tekshiradi: backend navbat va natijalarni saqlaydi, worker esa `/internal/ai/*` ga shu token
+   * bilan murojaat qiladi. Claude kaliti (`ANTHROPIC_API_KEY`) faqat worker'da — backend'ga kerak emas.
+   */
+  ai: {
+    /** Worker ↔ backend maxfiy kaliti (`openssl rand -hex 32`). Bo'sh bo'lsa — worker API yopiq. */
+    workerToken: str("AI_WORKER_TOKEN"),
+    model: str("AI_MODEL") ?? "claude-opus-5-5",
+    /** Necha soniyada bir kadr (2 → 2 daqiqalik videodan ~60 kadr). */
+    frameIntervalSec: Number(str("AI_FRAME_INTERVAL_SEC") ?? 2),
+    /** Kadrning qisqa tomoni, px (720 = 720p). */
+    frameHeight: Number(str("AI_FRAME_HEIGHT") ?? 720),
+    /** Shundan past ishonch — SHUBHALI (qo'lda ko'riladi). */
+    confidenceMin: Number(str("AI_CONFIDENCE_MIN") ?? 0.8),
   },
 
   /** Target (pullik reklama) tekshiruvi — Meta reklama kutubxonasi orqali (Apify). */
@@ -58,10 +77,10 @@ export const config = {
     /** Reytingning nechta yetakchisi tekshiriladi. */
     checkTop: Number(str("TARGET_CHECK_TOP") ?? 30),
     /**
-     * Tanlov boshidan necha kunda bir (30 — oyiga bir marta: 30, 60, 90-kunlar);
+     * Tanlov boshidan necha kunda bir (1 — har kuni, standart; 30 — oyiga bir marta);
      * 0 — avtomatik tekshiruv o'chiq (faqat admin "Hozir tekshirish" bosganda).
      */
-    everyDays: Number(str("TARGET_CHECK_EVERY_DAYS") ?? 30),
+    everyDays: Number(str("TARGET_CHECK_EVERY_DAYS") ?? 1),
   },
 
   /**

@@ -8,6 +8,7 @@ import {
   ScrollText,
   Send,
   Settings,
+  Sparkles,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -39,6 +40,8 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/support", title: "Support", icon: LifeBuoy, roles: ["ADMIN", "SUPPORT"], ready: true },
   { href: "/telegram", title: "Telegram", icon: Send, roles: ["ADMIN"], ready: true },
   { href: "/targets", title: "Target yoqqanlar", icon: Crosshair, roles: ["ADMIN"], ready: true },
+  // Videolarni AI bilan tekshirish (moderatsiyaga yordam) — "Yana" ichida.
+  { href: "/ai", title: "AI", icon: Sparkles, roles: ["ADMIN"], ready: true },
   { href: "/settings", title: "Sozlamalar", icon: Settings, roles: ["ADMIN"], ready: true },
   { href: "/audit-log", title: "Audit log", icon: ScrollText, roles: ["ADMIN"], ready: true },
 ];

@@ -11,6 +11,11 @@ export interface ReelStats {
   likes: number | null;
   comments: number | null;
   postedAt: Date | null;
+  /**
+   * Video faylining manzili (Instagram CDN, muddati bir necha kun) — AI tekshiruvi videoni shu
+   * yerdan yuklab oladi. Manba bermasa — null yoki yo'q.
+   */
+  videoUrl?: string | null;
 }
 
 /**
