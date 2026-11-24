@@ -585,3 +585,44 @@ test("a lost best Reel leaves the rating and goes to manual review on its own; t
   assert.equal(stats.status().reels.rejected, 1);
   assert.equal(stats.status().reels.accepted, 1);
 });
+
+test("new links do not wait for a running check: up to 3 checks run in parallel, a video is never checked twice", async () => {
+  const { provider, stats, join, reel } = setup();
+  // Apify ishi sekin: har bir so'rov qo'lda yakunlanadi.
+  const pending: (() => void)[] = [];
+  const calls: string[][] = [];
+  const fetch = provider.fetch.bind(provider);
+  provider.fetch = (codes) =>
+    new Promise((resolve) => {
+      calls.push([...codes]);
+      pending.push(() => resolve(fetch(codes)));
+    });
+
+  join(1, "PARA01");
+  const first = stats.flushVerification();
+  join(2, "PARA02");
+  void stats.flushVerification();
+  stats.queueVerification(1, "PARA01"); // hali tekshirilayotgan video yana navbatga tushdi
+  join(3, "PARA03");
+  void stats.flushVerification();
+  join(4, "PARA04");
+  void stats.flushVerification();
+  await new Promise((r) => setTimeout(r, 0));
+
+  assert.deepEqual(
+    calls.map((r) => r.join(",")),
+    ["PARA01", "PARA02", "PARA03"],
+    "uchtasi birdan (birinchisi tugashini kutmay), takroriy PARA01 alohida so'ralmaydi",
+  );
+  pending.shift()?.();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(calls.at(-1)?.join(","), "PARA04", "joy bo'shagach — navbatdagisi");
+  while (pending.length > 0) {
+    pending.shift()?.();
+    await new Promise((r) => setTimeout(r, 0));
+  }
+  await first;
+  await stats.flushVerification();
+  for (const id of [1, 2, 3, 4]) assert.equal(reel(id)?.status, "ACCEPTED");
+  assert.equal(calls.flat().filter((c) => c === "PARA01").length, 1);
+});

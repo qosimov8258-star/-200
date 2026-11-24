@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 
 import { HttpException } from "@nestjs/common";
 
+import { encodeState } from "../persistence/state-codec";
+import { StateStore } from "../persistence/state-store";
 import { ContestSettingsService } from "./contest-settings.service";
 
 const rejects = (fn: () => unknown, message: RegExp) =>
@@ -41,4 +46,29 @@ test("start date is locked once the contest has started", () => {
   );
   const extended = svc.update({ startsOn: "2026-11-25", endsOn: "2027-03-10", syncTime: "06:00", minAge: 18 }, "U", during);
   assert.equal(extended.endsOn, "2027-03-10");
+});
+
+test("saved 06:00 sync time moves to 00:00 once; a later admin choice is kept", () => {
+  const dir = mkdtempSync(join(tmpdir(), "contest-settings-"));
+  try {
+    const old = { ...new ContestSettingsService().get(), syncTime: "06:00" };
+    writeFileSync(
+      join(dir, "state.json"),
+      encodeState({ version: 1, savedAt: new Date(), parts: { contestSettings: old } }),
+    );
+    const open = () => {
+      const store = new StateStore({ dir, saveEveryMs: 60_000, keepBackups: 1 });
+      return { store, settings: new ContestSettingsService(store) };
+    };
+
+    const first = open();
+    assert.equal(first.settings.get().syncTime, "00:00", "eski standart — yarim tunga");
+    first.settings.update({ ...first.settings.get(), syncTime: "06:00" }, "Admin", new Date("2026-11-20T10:00:00Z"));
+    first.store.flush();
+
+    const second = open();
+    assert.equal(second.settings.get().syncTime, "06:00", "admin tanlovi qayta o'zgartirilmaydi");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -43,15 +43,35 @@ export class ContestSettingsService {
     updatedBy: null,
   };
 
+  /** Bir martalik o'zgarishlar (qayta bajarilmasin) — holat faylida saqlanadi. */
+  private migrations: string[] = [];
+
   constructor(@Optional() @Inject(StateStore) store: StateStore | null = null) {
     const saved = store?.attach("contestSettings", () => this.settings);
     if (saved) this.settings = saved;
+    const done = store?.attach("contestSettingsMigrations", () => this.migrations);
+    if (done) this.migrations = done;
+    this.migrate();
     const error = validate(this.settings);
     if (error) throw new Error(`Tanlov sozlamalari noto'g'ri: ${error}`);
   }
 
   get(): ContestSettings {
     return this.settings;
+  }
+
+  /**
+   * 2026-11-24: reyting har kuni yarim tunda (00:00) yangilanadi (tashkilotchi qarori). Avvalgi
+   * standart 06:00 bo'lib saqlangan bo'lsa — bir marta 00:00 ga o'tkaziladi; admin boshqa vaqt
+   * qo'ygan bo'lsa yoki keyin 06:00 ni o'zi tanlasa — tegilmaydi.
+   */
+  private migrate(): void {
+    const id = "sync-time-midnight-2026-11-24";
+    if (this.migrations.includes(id)) return;
+    if (this.settings.syncTime === "06:00") {
+      this.settings = { ...this.settings, syncTime: "00:00", updatedAt: new Date().toISOString(), updatedBy: "Tizim" };
+    }
+    this.migrations.push(id);
   }
 
   get prizeName(): string {

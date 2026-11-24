@@ -41,16 +41,16 @@ export const config = {
     /** `apify` — haqiqiy ma'lumot; `mock` — faqat lokal sinov uchun soxta ko'rishlar. */
     provider: (str("STATS_PROVIDER") ?? "apify") as "apify" | "mock",
     apifyToken: str("APIFY_API_TOKEN"),
-    /** Kunning qaysi vaqtida yig'iladi (Asia/Tashkent, "HH:MM"). */
-    syncTime: str("STATS_SYNC_TIME") ?? "06:00",
+    /** Kunning qaysi vaqtida yig'iladi (Asia/Tashkent, "HH:MM"; standart — yarim tun, reyting har kuni 00:00 da). */
+    syncTime: str("STATS_SYNC_TIME") ?? "00:00",
     /**
      * Tanlov boshlangan kundan (`contest.ts` → `startsOn`) boshlab necha kunda bir marta:
      * 1 — har kuni (standart; Mini App "har kuni tekshiriladi" deb yozadi), 7 — haftada bir marta;
      * 0 — avtomatik yig'ish o'chiq.
      */
     syncEveryDays: Number(str("STATS_SYNC_EVERY_DAYS") ?? 1),
-    /** Yangi videolar shuncha kutib, bitta so'rovda tekshiriladi (pulni tejash uchun). */
-    verifyDelayMs: Number(str("STATS_VERIFY_DELAY_MS") ?? 5_000),
+    /** Yangi videolar shuncha kutib, bitta so'rovda tekshiriladi (bir vaqtda kelganlar birga). */
+    verifyDelayMs: Number(str("STATS_VERIFY_DELAY_MS") ?? 1_500),
     /** Faqat `mock` rejimida: AI tekshiruvini lokal sinash uchun hamma videolarga shu fayl manzili. */
     mockVideoUrl: str("STATS_MOCK_VIDEO_URL"),
   },

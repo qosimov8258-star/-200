@@ -42,9 +42,9 @@ TypeScript 6 da qoladi: Nest CLI hozircha TypeScript 7 bilan ishlamaydi.
 | `TELEGRAM_MODE` | `polling` (lokal) yoki `off` (faqat API) |
 | `APIFY_API_TOKEN` | Apify Console → Settings → API & Integrations. **Maxfiy** |
 | `STATS_PROVIDER` | `apify` (haqiqiy) yoki `mock` (lokal sinov — SOXTA ko'rishlar) |
-| `STATS_SYNC_TIME` | Ko'rishlar soat nechada yig'iladi, Toshkent vaqti (standart `06:00`). Faqat birinchi ishga tushishda — keyin admin panel → Sozlamalar |
+| `STATS_SYNC_TIME` | Ko'rishlar soat nechada yig'iladi, Toshkent vaqti (standart `00:00` — reyting har kuni yarim tunda yangilanadi; eski saqlangan `06:00` bir marta avtomatik `00:00` ga o'tadi). Faqat birinchi ishga tushishda — keyin admin panel → Sozlamalar |
 | `STATS_SYNC_EVERY_DAYS` | Tanlov boshidan (Sozlamalar → boshlanish sanasi, 25-noyabr) necha kunda bir: `1` (standart, har kuni); `7` — haftada bir marta; `0` — o'chiq |
-| `STATS_VERIFY_DELAY_MS` | Yangi videolar shuncha yig'ilib, bitta so'rovda tekshiriladi (standart `5000`) |
+| `STATS_VERIFY_DELAY_MS` | Yangi videolar shuncha yig'ilib, bitta so'rovda tekshiriladi (standart `1500`; bir vaqtda 3 tagacha tekshiruv parallel) |
 | `TARGET_CHECK_TOP` | Reklama kutubxonasida reytingning nechta yetakchisi tekshiriladi (standart `30`) |
 | `TARGET_CHECK_EVERY_DAYS` | Tanlov boshidan necha kunda bir tekshiriladi (standart `1` — har kuni; `30` — oyiga bir marta; `0` — faqat qo'lda) |
 | `STATS_MOCK_VIDEO_URL` | Faqat `STATS_PROVIDER=mock`: AI tekshiruvini lokal sinash uchun hamma videolarga beriladigan mp4 manzili |

@@ -24,38 +24,32 @@ import { Card, ErrorBlock, PageHeader, Spinner } from "../components/ui";
 import { t } from "../i18n/uz";
 import * as api from "../lib/api";
 import { daysBetween, formatCount, formatDayMonth, tashkentToday } from "../lib/format";
+import voucherCard from "../assets/prizes/voucher-card.webp";
 import { PRIZE_PHOTO_HAS_BACKGROUND, prizePhoto, type PrizePhotoKey } from "../lib/prize-photos";
 import type { ContestPrizes, PrizeStage, PrizeTier, PrizeTierKind } from "../lib/types";
 
 /**
- * Har bir toifaning rangi va belgisi. Karta foni — sovg'a rasmining o'z rangi: planshet — ekrandagi
- * ko'k/pushti/sariq, iPhone — to'q olcha (vishnya), sayohat — dengiz zangorisi, avtomobil — qora.
+ * Har bir toifaning belgisi va urg'u rangi (sovg'a rasmining rangi: planshet — ekrandagi ko'k,
+ * iPhone — to'q olcha, sayohat — dengiz zangorisi, avtomobil — oltin). Kartalarning o'zi oq.
  */
-const TIER_STYLE: Record<
-  PrizeTierKind,
-  { icon: LucideIcon; card: string; node: string; chip: string }
-> = {
+const TIER_STYLE: Record<PrizeTierKind, { icon: LucideIcon; node: string; chip: string }> = {
   tablet: {
     icon: Tablet,
-    card: "bg-[linear-gradient(150deg,#1f8bff,#7a4ff0_42%,#e8318f_72%,#ffae1a)]",
     node: "bg-[#5b6cff]",
     chip: "bg-[#5b6cff]/15 text-[#3d4bd6]",
   },
   phone: {
     icon: Smartphone,
-    card: "bg-[linear-gradient(140deg,#93323d,#5a1a22_55%,#2e0d11)]",
     node: "bg-[#7a2630]",
     chip: "bg-[#7a2630]/15 text-[#6a1f28]",
   },
   travel: {
     icon: Plane,
-    card: "bg-[linear-gradient(140deg,#2bc6db,#0a93c4_55%,#0b5f8e)]",
     node: "bg-[#0a9cc8]",
     chip: "bg-[#0a9cc8]/15 text-[#087aa0]",
   },
   car: {
     icon: CarFront,
-    card: "bg-[linear-gradient(150deg,#2a2b30,#14151a_55%,#3a3020)]",
     node: "bg-gold",
     chip: "bg-gold/20 text-[#9a6c12]",
   },
@@ -181,54 +175,33 @@ function FundHero({ prizes, style }: { prizes: ContestPrizes; style: CSSProperti
 
 function MonthlySection({ prizes, style }: { prizes: ContestPrizes; style: CSSProperties }) {
   const { monthly, stages } = prizes;
-  const photo = prizePhoto("voucher");
   return (
     <section className="animate-rise space-y-3" style={style}>
-      {/* Kupon: tepa qism, teshikli chiziq, pastki qism. Tepa qism — voucher rasmining o'zi (to'liq),
-          nomi va summasi rasmning pastida Korzinka qizilida. */}
-      <div className="relative isolate overflow-hidden rounded-card bg-[#c40f22] text-white shadow-[0_14px_30px_rgba(196,15,34,0.3)]">
-        {photo ? (
-          <div className="relative aspect-[16/11] overflow-hidden">
-            <img
-              src={photo}
-              alt={monthly.title}
-              draggable={false}
-              className="pointer-events-none absolute inset-0 size-full object-cover object-top"
-            />
-            <div
-              aria-hidden
-              className="absolute inset-x-0 bottom-0 h-[52%] bg-[linear-gradient(180deg,rgba(196,15,34,0),rgba(196,15,34,0.82)_42%,#c40f22_78%)]"
-            />
-            <span className="absolute top-4 left-4 inline-flex items-center gap-1.5 rounded-full bg-[#c40f22] px-3 py-1 text-[12px] font-bold tracking-wide uppercase shadow-[0_4px_12px_rgba(120,0,10,0.3)]">
+      {/* Kupon: tepa qism, teshikli chiziq, pastki qism. O'ngda — fondan qirqilgan voucher (karta,
+          bant va lentalar), orqasida to'q qizil fon va yorug' nur — karta ajralib tursin. */}
+      <div className="relative isolate overflow-hidden rounded-card bg-[radial-gradient(130%_100%_at_88%_12%,#e3343c_0%,#b20d20_48%,#7a0715_100%)] text-white shadow-[0_14px_30px_rgba(150,10,25,0.35)]">
+        <div className="relative px-[22px] pt-5 pb-4">
+          <div aria-hidden className="absolute top-4 -right-4 -z-10 h-36 w-60 rounded-full bg-[#ff8a8a]/25 blur-3xl" />
+          <img
+            src={voucherCard}
+            alt={monthly.title}
+            draggable={false}
+            className="pointer-events-none absolute top-1.5 right-1 w-[56%] max-w-[270px] rotate-[-6deg] drop-shadow-[0_16px_16px_rgba(60,0,8,0.55)]"
+          />
+          <div className="min-h-[150px]">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-[12px] font-bold tracking-wide uppercase backdrop-blur">
               <CalendarDays className="size-3.5" />
               {t.monthlyTag}
             </span>
-            <div className="absolute inset-x-0 bottom-0 px-[22px] pb-3">
-              <p className="text-[15px] font-semibold text-white/90">{monthly.title}</p>
-              <p className="mt-0.5 flex items-baseline gap-2">
-                <span className="text-[46px] leading-none font-black tracking-tight tabular-nums">
-                  {formatCount(monthly.amount)}
-                </span>
-                <span className="text-lg font-bold text-white/85">{t.sum}</span>
-              </p>
-            </div>
+            <p className="mt-3 max-w-[46%] text-[15px] leading-snug font-semibold text-white/90">{monthly.title}</p>
           </div>
-        ) : (
-          <div className="relative px-[22px] pt-5 pb-4">
-            <ShoppingCart aria-hidden className="absolute top-6 right-5 -z-10 size-20 -rotate-12 text-white/15" strokeWidth={1.6} />
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-[12px] font-bold tracking-wide uppercase">
-              <CalendarDays className="size-3.5" />
-              {t.monthlyTag}
+          <p className="flex items-baseline gap-2">
+            <span className="text-[46px] leading-none font-black tracking-tight tabular-nums">
+              {formatCount(monthly.amount)}
             </span>
-            <p className="mt-3 text-[15px] font-semibold text-white/85">{monthly.title}</p>
-            <p className="mt-0.5 flex items-baseline gap-2">
-              <span className="text-[46px] leading-none font-black tracking-tight tabular-nums">
-                {formatCount(monthly.amount)}
-              </span>
-              <span className="text-lg font-bold text-white/85">{t.sum}</span>
-            </p>
-          </div>
-        )}
+            <span className="text-lg font-bold text-white/85">{t.sum}</span>
+          </p>
+        </div>
 
         <div aria-hidden className="relative h-6">
           <span className="absolute top-0 -left-3 size-6 rounded-full bg-bg" />
@@ -443,9 +416,8 @@ function TierRow({
   const card = (
     <div
       className={clsx(
-        "relative isolate overflow-hidden p-4 text-white",
-        isCar ? "rounded-[23px]" : "rounded-[24px]",
-        style.card,
+        "relative isolate overflow-hidden bg-surface p-4 text-ink",
+        isCar ? "rounded-[23px]" : "rounded-[24px] shadow-[0_12px_28px_-18px_rgba(30,31,34,0.45)]",
       )}
     >
       {hasPhoto ? (
@@ -457,29 +429,29 @@ function TierRow({
       ) : (
         <Icon
           aria-hidden
-          className="absolute -right-5 -bottom-6 -z-10 size-32 -rotate-12 text-white/15"
+          className="absolute -right-5 -bottom-6 -z-10 size-32 -rotate-12 text-ink/[0.06]"
           strokeWidth={1.4}
         />
       )}
       {isCar && (
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-y-0 left-0 -z-10 w-1/3 animate-sheen bg-[linear-gradient(90deg,transparent,rgba(255,226,170,0.22),transparent)]"
+          className="pointer-events-none absolute inset-y-0 left-0 -z-10 w-1/3 animate-sheen bg-[linear-gradient(90deg,transparent,rgba(232,190,110,0.18),transparent)]"
         />
       )}
 
       <div className="flex items-center justify-between gap-2">
         <span
           className={clsx(
-            "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-bold backdrop-blur",
-            isCar ? "bg-gold text-ink" : "bg-white/20",
+            "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-bold",
+            isCar ? "bg-gold text-ink" : style.chip,
           )}
         >
           {isCar && <Crown className="size-3.5" strokeWidth={2.4} />}
           {isCar ? t.mainPrize : t.pieces(tier.quantity, tier.unit)}
         </span>
         {current ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[12px] font-bold text-ink">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-ink px-2.5 py-1 text-[12px] font-bold text-white">
             <span className="relative flex size-2">
               <span className="absolute inline-flex size-full animate-ping rounded-full bg-positive opacity-75" />
               <span className="relative inline-flex size-2 rounded-full bg-positive" />
@@ -487,12 +459,12 @@ function TierRow({
             {t.youAreHere}
           </span>
         ) : reached ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1 text-[12px] font-bold">
+          <span className="inline-flex items-center gap-1 rounded-full bg-positive/12 px-2.5 py-1 text-[12px] font-bold text-positive">
             <Check className="size-3.5" strokeWidth={3} />
             {t.tierReached}
           </span>
         ) : isNext ? (
-          <span className="rounded-full bg-black/25 px-2.5 py-1 text-[12px] font-bold whitespace-nowrap tabular-nums">
+          <span className="rounded-full bg-ink px-2.5 py-1 text-[12px] font-bold whitespace-nowrap text-white tabular-nums">
             {t.viewsLeft(formatCount(left))}
           </span>
         ) : null}
@@ -503,14 +475,14 @@ function TierRow({
         <h3 className={clsx("mt-3 leading-tight font-bold tracking-tight", isCar ? "text-[24px]" : "text-[20px]")}>
           {tier.title}
         </h3>
-        <p className="mt-1 text-[13px] font-medium text-white/80 tabular-nums">{rangeLabel(tier)}</p>
+        <p className="mt-1 text-[13px] font-medium text-muted tabular-nums">{rangeLabel(tier)}</p>
 
         {inTier !== null && (
-          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/25">
-            <div className="h-full rounded-full bg-white" style={{ width: `${Math.max(4, Math.round(inTier * 100))}%` }} />
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-chip">
+            <div className={clsx("h-full rounded-full", style.node)} style={{ width: `${Math.max(4, Math.round(inTier * 100))}%` }} />
           </div>
         )}
-        <p className="mt-2.5 text-[12px] text-white/75">{t.tierWinners(tier.quantity)}</p>
+        <p className="mt-2.5 text-[12px] text-muted">{t.tierWinners(tier.quantity)}</p>
       </div>
     </div>
   );
@@ -608,7 +580,7 @@ function CornerPhoto({ kind, alt, className }: { kind: PrizePhotoKey; alt: strin
   return (
     <div
       className={clsx(
-        "pointer-events-none absolute overflow-hidden rounded-[18px] bg-white shadow-[0_10px_22px_-10px_rgba(0,0,0,0.55)] ring-2 ring-white/60",
+        "pointer-events-none absolute overflow-hidden rounded-[18px] bg-white shadow-[0_10px_22px_-12px_rgba(0,0,0,0.4)] ring-1 ring-black/[0.06]",
         className,
       )}
     >
