@@ -175,10 +175,16 @@ async function collect(dir: string, intervalSec: number): Promise<Frame[]> {
 }
 
 /**
- * Namuna rasmni JPEG ga o'tkazadi, uzun tomoni ≤ 1568 px (ko'p rasmli so'rovda har bir rasm
- * o'lchami cheklangan; admin yuklagan PNG/WebP ham shu yerda bir xil ko'rinishga keladi).
+ * Namuna rasmni JPEG ga o'tkazadi, uzun tomoni ≤ `longEdge` px (kattalashtirmaydi). Admin yuklagan
+ * PNG/WebP ham shu yerda bir xil ko'rinishga keladi. Rasm ko'p bo'lsa worker kichikroq o'lcham
+ * tanlaydi — hammasi bitta so'rovga sig'sin.
  */
-export async function normalizeReference(input: Buffer, workDir: string, name: string): Promise<Buffer> {
+export async function normalizeReference(
+  input: Buffer,
+  workDir: string,
+  name: string,
+  longEdge = 1568,
+): Promise<Buffer> {
   await mkdir(workDir, { recursive: true });
   const src = join(workDir, `${name}.src`);
   const out = join(workDir, `${name}.jpg`);
@@ -192,7 +198,7 @@ export async function normalizeReference(input: Buffer, workDir: string, name: s
       "-i",
       src,
       "-vf",
-      "scale=w='min(1568,iw)':h='min(1568,ih)':force_original_aspect_ratio=decrease",
+      `scale=w='min(${longEdge},iw)':h='min(${longEdge},ih)':force_original_aspect_ratio=decrease`,
       "-frames:v",
       "1",
       "-q:v",

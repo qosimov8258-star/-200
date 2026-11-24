@@ -23,6 +23,21 @@ const PAUSE_ON_PROVIDER_ERROR_MS = 10 * 60_000;
 const KEEP_FRAMES_MS = 48 * 60 * 60 * 1000;
 /** Bir vaqtda nechta video yuklanadi va kadrlarga ajratiladi. */
 const PREPARE_CONCURRENCY = 2;
+/** Claude: bitta so'rovda 600 tagacha rasm (namuna rasmlar + kadrlar); ozgina zaxira bilan. */
+const MAX_IMAGES_PER_REQUEST = 590;
+/** Namuna rasmlarning so'rovdagi umumiy hajmi (base64 dan oldin) — qolgani kadrlarga. */
+const REFERENCES_BUDGET_BYTES = 9 * 1024 * 1024;
+/** Namuna rasm uzun tomoni: rasm qancha ko'p bo'lsa, shuncha kichik (token va hajm tejaladi). */
+const REFERENCE_SIZES = [1568, 1024, 768, 512, 384, 256] as const;
+
+/** Rasm soniga qarab boshlang'ich o'lcham (ko'pincha shu bilan sig'adi — qayta kodlash kerak bo'lmaydi). */
+export function referenceSizeFor(count: number): number {
+  if (count <= 16) return 1568;
+  if (count <= 40) return 1024;
+  if (count <= 100) return 768;
+  if (count <= 250) return 512;
+  return 384;
+}
 
 export interface Logger {
   log(message: string): void;
@@ -239,7 +254,8 @@ export class AiWorker {
       const extracted = await extractFrames(video, join(dir, "frames"), {
         intervalSec: config.settings.frameIntervalSec,
         shortSide: config.settings.frameHeight,
-        maxFrames: this.options.maxFrames,
+        // Namuna rasmlar ko'p bo'lsa — kadrlar soni qolgan joyga moslanadi (oraliq kattalashadi).
+        maxFrames: Math.max(20, Math.min(this.options.maxFrames, MAX_IMAGES_PER_REQUEST - config.references.length)),
         // base64 ≈ 4/3 hajm; umumiy qism (namuna rasmlar) ham shu so'rovda.
         maxTotalBytes: Math.floor(((MAX_REQUEST_BYTES - sharedBytes) * 3) / 4) - 200_000,
       });
@@ -326,16 +342,36 @@ export class AiWorker {
     }
   }
 
-  /** Versiya sozlamasi va namuna rasmlar (JPEG, ≤ 1568 px) — versiya muhrlangan, keshlanadi. */
+  /**
+   * Versiya sozlamasi va namuna rasmlar (JPEG) — versiya muhrlangan, keshlanadi. Rasmlar soni
+   * cheklanmagan: ko'p bo'lsa kichikroq o'lchamda yuboriladi, umumiy hajm `REFERENCES_BUDGET_BYTES`
+   * dan oshmasin (so'rovda kadrlarga ham joy qolsin).
+   */
   private async versionConfig(version: number): Promise<{ config: AiWorkerConfig; references: PreparedReference[] }> {
     const cached = this.configs.get(version);
     if (cached) return cached;
     const config = await this.backend.config(version);
-    const references: PreparedReference[] = [];
-    for (const ref of config.references) {
-      const raw = await this.backend.reference(version, ref.id);
-      const jpeg = await normalizeReference(raw, join(this.options.workDir, "refs"), `v${version}-${ref.id}`);
-      references.push({ id: ref.id, kind: ref.kind, note: ref.note, base64: jpeg.toString("base64") });
+    const raws: Buffer[] = [];
+    for (const ref of config.references) raws.push(await this.backend.reference(version, ref.id));
+
+    const dir = join(this.options.workDir, "refs");
+    const first = REFERENCE_SIZES.indexOf(referenceSizeFor(raws.length) as (typeof REFERENCE_SIZES)[number]);
+    let jpegs: Buffer[] = [];
+    let size: number = REFERENCE_SIZES[first];
+    for (const candidate of REFERENCE_SIZES.slice(first)) {
+      size = candidate;
+      jpegs = await mapLimit(raws, 4, (raw, i) => normalizeReference(raw, dir, `v${version}-${i}`, candidate));
+      if (jpegs.reduce((sum, j) => sum + j.length, 0) <= REFERENCES_BUDGET_BYTES) break;
+    }
+    const references = config.references.map((ref, i) => ({
+      id: ref.id,
+      kind: ref.kind,
+      note: ref.note,
+      base64: jpegs[i].toString("base64"),
+    }));
+    if (references.length > 0) {
+      const mb = (jpegs.reduce((sum, j) => sum + j.length, 0) / 1024 / 1024).toFixed(1);
+      this.logger.log(`Versiya ${version}: ${references.length} ta namuna rasm, ${size} px, ${mb} MB.`);
     }
     const entry = { config, references };
     this.configs.set(version, entry);
@@ -374,4 +410,15 @@ export class AiWorker {
       if (!keep.has(name) || age > KEEP_FRAMES_MS) await rm(path, { recursive: true, force: true });
     }
   }
+}
+
+/** `items` ustida bir vaqtda ko'pi bilan `limit` ta ish; natija tartibi saqlanadi. */
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    for (let i = next++; i < items.length; i = next++) results[i] = await fn(items[i], i);
+  });
+  await Promise.all(workers);
+  return results;
 }

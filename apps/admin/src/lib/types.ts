@@ -1473,7 +1473,8 @@ export const AI_LIMITS = {
   /** Tasdiqlash uchun: mezonlar kamida shuncha belgi yoki kamida bitta namuna rasm. */
   criteriaMinToApprove: 10,
   noteMax: 500,
-  maxReferences: 12,
+  /** Amalda cheklanmaydi — Claude chegarasi: bitta so'rovda 600 tagacha rasm (video kadrlari bilan). */
+  maxReferences: 400,
   /** Namuna rasm (base64 ochilgandagi) hajmi, bayt — 2 MB. */
   maxReferenceBytes: 2 * 1024 * 1024,
   referenceMimeTypes: ["image/jpeg", "image/png", "image/webp"],

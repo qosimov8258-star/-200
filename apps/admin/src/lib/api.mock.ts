@@ -1013,9 +1013,9 @@ export async function updateAiDraft(update: AiDraftUpdate): Promise<AiState> {
 }
 
 /**
- * Qoralamaga namuna rasm qo'shish (`data:` URL, ko'pi bilan 2 MB, 12 tagacha). Audit: `ai.reference.add`.
+ * Qoralamaga namuna rasm qo'shish (`data:` URL, ko'pi bilan 2 MB, 400 tagacha). Audit: `ai.reference.add`.
  * @endpoint POST /api/v1/admin/ai/draft/references
- * @throws ApiError 400 — rasm yoki izoh noto'g'ri; 409 — qoralama yo'q yoki 12 ta rasm bor; 413 — 2 MB dan katta
+ * @throws ApiError 400 — rasm yoki izoh noto'g'ri; 409 — qoralama yo'q yoki 400 ta rasm bor; 413 — 2 MB dan katta
  */
 export async function addAiReference(input: AiReferenceInput): Promise<AiState> {
   await delay(600);

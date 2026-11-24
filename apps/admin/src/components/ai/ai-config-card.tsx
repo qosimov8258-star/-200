@@ -182,16 +182,18 @@ function DraftEditor({ state, draft, onNotice }: { state: AiState; draft: AiConf
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h3 id="ai-refs-title" className="text-sm font-semibold text-ink">
             Namuna rasmlar{" "}
-            <span className="font-normal text-slate-500 tabular-nums">
-              ({draft.references.length} / {AI_LIMITS.maxReferences})
-            </span>
+            <span className="font-normal text-slate-500 tabular-nums">({draft.references.length})</span>
           </h3>
           <p className="text-xs text-slate-500">JPG, PNG yoki WebP, 15 MB gacha — yuborishdan oldin kichraytiriladi.</p>
         </div>
         <p className="text-sm text-slate-600">
           Videoda nima <strong className="font-medium text-up">ko&apos;rinishi shart</strong>, nima{" "}
           <strong className="font-medium text-down">bo&apos;lmasligi kerak</strong> — rasm bilan ko&apos;rsating va izohda
-          AI nimaga qarashini yozing.
+          AI nimaga qarashini yozing. Rasmlar soni cheklanmaydi — butun mahsulot katalogini qo&apos;shishingiz mumkin.
+        </p>
+        <p className="text-xs text-slate-500">
+          «Ko&apos;rinishi shart» rasmlardan <strong className="font-medium">kamida bittasi</strong> videoda ko&apos;rinsa
+          yetarli (masalan, istalgan mahsulotingiz). Hammasi birga kerak bo&apos;lsa — buni umumiy mezonlarda yozing.
         </p>
 
         {draft.references.length > 0 && (

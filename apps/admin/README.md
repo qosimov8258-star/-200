@@ -218,7 +218,7 @@ Sahifa ([`src/components/ai/`](src/components/ai/)):
 1. **Sarlavha** va worker holati: "Worker ishlayapti" yoki "Worker o'chiq — videolar navbatda kutadi"
    (oxirgi signal vaqti bilan). Pastida — model, kadr oralig'i va ishonch chegarasi (backend `settings`).
 2. **Sozlamalar (versiya N)**:
-   - qoralama bo'lsa — namuna rasmlar (12 tagacha; kartada rasm, turi: "Ko'rinishi shart" /
+   - qoralama bo'lsa — namuna rasmlar (soni cheklanmaydi, texnik chegara — 400; kartada rasm, turi: "Ko'rinishi shart" /
      "Bo'lmasligi kerak" / "Ma'lumot uchun" — darhol saqlanadi, izoh — maydondan chiqqanda saqlanadi,
      o'chirish — tasdiqlash oynasi bilan), "Umumiy mezonlar" (0–5000 belgi, maydondan chiqqanda yoki
      "Saqlash" bilan) va tasdiqlash bloki: "Sinov (20 ta video)" (standart — eng ko'p ko'rilgan 20 ta,
