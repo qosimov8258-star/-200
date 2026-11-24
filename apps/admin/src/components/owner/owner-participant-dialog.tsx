@@ -68,6 +68,11 @@ function buildUpdate(
     const value = cleanName(values[key]);
     const original = participant[key] ?? "";
     if (value === original) return;
+    // Familiya ixtiyoriy — o'chirib qo'yish mumkin.
+    if (key === "lastName" && value === "") {
+      update.lastName = "";
+      return;
+    }
     if (!NAME_PATTERN.test(value) || !/\p{L}/u.test(value)) {
       errors[key] = `${label}: 2–40 ta harf (apostrof, chiziqcha va bo'sh joy mumkin, raqam yo'q).`;
       return;
@@ -102,9 +107,9 @@ function buildUpdate(
     update.status = values.status;
   }
 
-  // Ro'yxatdan o'tmagan (ismi yo'q) ishtirokchiga ism yozilsa — familiya va yosh ham birga (backend talabi).
+  // Ro'yxatdan o'tmagan (ismi yo'q) ishtirokchiga ism yozilsa — yosh ham birga (backend talabi).
+  // Familiya ixtiyoriy (ro'yxatdan o'tishda endi so'ralmaydi).
   if (participant.firstName === null && update.firstName !== undefined) {
-    if (update.lastName === undefined && !errors.lastName) errors.lastName = "Ism bilan birga familiyani ham kiriting.";
     if (update.age === undefined && !errors.age) errors.age = "Ism bilan birga yoshni ham kiriting.";
   }
 

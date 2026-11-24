@@ -5,6 +5,7 @@ import { ContestSettingsService } from "../contest/contest-settings.service";
 import { DrawsService } from "../draws/draws.service";
 import { ApiException } from "../common/api-exception";
 import {
+  isWebAccount,
   maskPhone,
   ParticipantsService,
   reelsForDisplay,
@@ -103,11 +104,13 @@ export class MiniappController {
       stage: this.participants.stage(p),
       phoneMasked: p.phone ? maskPhone(p.phone) : null,
       profile:
-        p.firstName && p.lastName && p.age
-          ? { firstName: p.firstName, lastName: p.lastName, age: p.age }
+        p.firstName && p.age
+          ? { firstName: p.firstName, lastName: p.lastName ?? "", age: p.age }
           : null,
       /** Avval rozilik bergan, lekin qoidalar shundan keyin muhim tarzda o'zgargan. */
       rulesUpdated: p.consentVersion !== null && p.consentVersion !== this.rulesService.version,
+      /** `web` — saytda (Telegram'siz) ro'yxatdan o'tgan: faqat shu brauzer orqali kiriladi. */
+      account: isWebAccount(p.telegramId) ? "web" : "telegram",
     };
   }
 

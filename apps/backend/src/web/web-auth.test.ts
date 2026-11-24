@@ -2,6 +2,13 @@ import assert from "node:assert/strict";
 import { createHash, createHmac } from "node:crypto";
 import { test } from "node:test";
 
+import type { Request, Response } from "express";
+
+import type { ApiException } from "../common/api-exception";
+import { config } from "../config/config";
+import { ParticipantsService } from "../participants/participants.service";
+import { RulesService } from "../rules/rules.service";
+import { AuthController } from "./auth.controller";
 import { parseLoginWidget, verifyLoginWidget, type LoginWidgetData } from "./login-widget";
 import { createSessionToken, readCookie, sessionCookie, verifySessionToken } from "./web-session";
 
@@ -66,4 +73,45 @@ test("session cookie is HttpOnly, SameSite=Lax and Secure only over https", () =
   assert.doesNotMatch(sessionCookie("abc", 60, false), /Secure/);
   assert.equal(readCookie("a=1; reels_session=xyz; b=2", "reels_session"), "xyz");
   assert.equal(readCookie(undefined, "reels_session"), null);
+});
+
+test("web-register creates an account with a session cookie and is rate limited per IP", () => {
+  const settings = config.telegram as { botToken: string | null };
+  const previous = settings.botToken;
+  settings.botToken = BOT_TOKEN;
+  try {
+    const participants = new ParticipantsService(new RulesService());
+    const controller = new AuthController(participants);
+    const cookies: string[] = [];
+    const res = { setHeader: (_name: string, value: string) => cookies.push(value) } as unknown as Response;
+    const req = (ip: string) =>
+      ({ secure: false, header: (h: string) => (h === "x-forwarded-for" ? `${ip}, 10.0.0.1` : undefined), socket: {} }) as unknown as Request;
+
+    controller.webRegister({ firstName: "Dilnoza", phone: "90 123 45 67", age: 22 }, req("1.1.1.1"), res);
+    const token = readCookie(cookies[0].split(";")[0], "reels_session");
+    const id = verifySessionToken(token ?? "", BOT_TOKEN);
+    assert.ok(id !== null && participants.get(id)?.phone === "+998901234567", "sessiya yangi akkauntga tegishli");
+    assert.match(cookies[0], /HttpOnly/);
+
+    const status = (fn: () => unknown) => {
+      try {
+        fn();
+      } catch (e) {
+        return (e as ApiException).getStatus();
+      }
+      return 204;
+    };
+    assert.equal(status(() => controller.webRegister({ firstName: "Ali", phone: "+998901234567", age: 22 }, req("2.2.2.2"), res)), 409);
+    for (let i = 0; i < 4; i += 1) {
+      controller.webRegister({ firstName: "Ali", phone: `91 000 00 0${i}`, age: 22 }, req("1.1.1.1"), res);
+    }
+    assert.equal(
+      status(() => controller.webRegister({ firstName: "Ali", phone: "91 000 00 09", age: 22 }, req("1.1.1.1"), res)),
+      429,
+      "bitta IP dan soatiga 5 tadan ko'p emas",
+    );
+    assert.equal(status(() => controller.webRegister({ firstName: "Ali", phone: "91 000 00 09", age: 22 }, req("3.3.3.3"), res)), 204);
+  } finally {
+    settings.botToken = previous;
+  }
 });

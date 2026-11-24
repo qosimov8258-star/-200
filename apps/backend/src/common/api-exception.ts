@@ -34,6 +34,12 @@ export type ApiErrorCode =
   | "STORY_LIMIT"
   /** So'ralgan narsa (masalan, istoriya) topilmadi yoki muddati o'tgan. */
   | "NOT_FOUND"
+  /** Saytdan ro'yxatdan o'tish: telefon raqam noto'g'ri (+998 va 9 raqam). */
+  | "INVALID_PHONE"
+  /** Saytdan ro'yxatdan o'tish: bu raqam bilan allaqachon ro'yxatdan o'tilgan. */
+  | "PHONE_TAKEN"
+  /** Qisqa vaqtda juda ko'p urinish. */
+  | "TOO_MANY"
   | "UNAUTHORIZED"
   | "SERVER";
 

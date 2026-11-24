@@ -12,6 +12,7 @@ import {
   LogOut,
   Medal,
   MessageCircle,
+  Phone,
   Snowflake,
   Trash2,
   Trophy,
@@ -56,7 +57,9 @@ export function ProfileScreen({
   const profile = me.profile!;
   /** Bosilgan qulflangan maydon (oyna ochiq); null — yopiq. */
   const [lockedField, setLockedField] = useState<string | null>(null);
-  const fullName = `${profile.firstName} ${profile.lastName}`;
+  const fullName = `${profile.firstName} ${profile.lastName}`.trim();
+  // Saytda (Telegram'siz) ro'yxatdan o'tgan hisob faqat shu brauzer orqali ochiladi — chiqish yo'q.
+  const webAccount = me.account === "web";
 
   const reels = useQuery({ queryKey: ["reels"], queryFn: api.getMyReels });
   const contest = useQuery({ queryKey: ["contest"], queryFn: api.getContest });
@@ -144,7 +147,9 @@ export function ProfileScreen({
         <SnowCap className="absolute -top-[11px] left-4 h-[18px] w-[calc(100%-2rem)] drop-shadow-[0_1px_1.5px_rgba(60,70,110,0.28)]" />
         {[
           { icon: <User />, label: t.firstName, value: profile.firstName },
-          { icon: <IdCard />, label: t.lastName, value: profile.lastName },
+          // Eski ishtirokchilarda familiya bor — ko'rsatiladi; yangilarida uning o'rnida telefon raqam.
+          ...(profile.lastName ? [{ icon: <IdCard />, label: t.lastName, value: profile.lastName }] : []),
+          ...(me.phoneMasked ? [{ icon: <Phone />, label: t.phone, value: me.phoneMasked }] : []),
           { icon: <Cake />, label: t.age, value: String(profile.age) },
         ].map((row, i) => (
           // Bosilsa — o'zgartirib bo'lmasligi va support'ga yozish taklifi.
@@ -183,7 +188,7 @@ export function ProfileScreen({
         brand
         items={[
           // Saytda — chiqish (Telegram ichida kerak emas: u yerda akkaunt Telegram'ning o'zi).
-          ...(isInTelegram
+          ...(isInTelegram || webAccount
             ? []
             : [{ icon: <LogOut />, label: t.webLogout, onClick: () => setAskLogout(true) }]),
           {

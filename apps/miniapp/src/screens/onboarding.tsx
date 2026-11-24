@@ -8,6 +8,7 @@ import { Card, ErrorBlock, PillButton, Spinner, TextField } from "../components/
 import { t } from "../i18n/uz";
 import * as api from "../lib/api";
 import { errorCode } from "../lib/api-error";
+import { ageInput, profileErrors } from "../lib/profile-form";
 import {
   botLink,
   confirmDialog,
@@ -17,8 +18,6 @@ import {
   requestContact,
 } from "../lib/telegram";
 
-const NAME = /^[\p{L}'ʻʼ‘’\- ]{2,40}$/u;
-const MAX_AGE = 100;
 
 /**
  * 1-qadam: telefon raqamini ulashish. Telegram raqamni Mini App'ga emas, botga
@@ -107,10 +106,13 @@ export function ContactScreen({ prizeName }: { prizeName: string }) {
   );
 }
 
-/** 2-qadam: ism, familiya, yosh — bir marta, keyin qulflanadi. */
-export function RegisterScreen({ minAge }: { minAge: number }) {
+/**
+ * 2-qadam (Telegram): ism va yosh — bir marta, keyin qulflanadi. Familiya so'ralmaydi — uning
+ * o'rnida bot orqali ulashilgan (tasdiqlangan) telefon raqam ko'rsatiladi.
+ */
+export function RegisterScreen({ minAge, phoneMasked }: { minAge: number; phoneMasked: string | null }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ firstName: "", lastName: "", age: "" });
+  const [form, setForm] = useState({ firstName: "", age: "" });
   const [errors, setErrors] = useState<Partial<Record<keyof typeof form, string>>>({});
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -123,30 +125,20 @@ export function RegisterScreen({ minAge }: { minAge: number }) {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const firstName = form.firstName.trim();
-    const lastName = form.lastName.trim();
-    const age = Number.parseInt(form.age, 10);
-    const next: typeof errors = {
-      firstName: NAME.test(firstName) ? undefined : t.nameInvalid,
-      lastName: NAME.test(lastName) ? undefined : t.nameInvalid,
-      age:
-        !Number.isFinite(age) || age < 1 || age > MAX_AGE
-          ? t.ageInvalid
-          : age < minAge
-            ? t.ageTooYoung(minAge)
-            : undefined,
-    };
+    const next = profileErrors(firstName, form.age, minAge);
     setErrors(next);
     setServerError(null);
-    if (next.firstName || next.lastName || next.age) {
+    if (next.firstName || next.age) {
       haptic.error();
       return;
     }
+    const age = Number.parseInt(form.age, 10);
     (document.activeElement as HTMLElement | null)?.blur();
-    if (!(await confirmDialog(t.confirmProfile(firstName, lastName, age)))) return;
+    if (!(await confirmDialog(t.confirmProfile(firstName, phoneMasked ?? "", age)))) return;
 
     setLoading(true);
     try {
-      await api.register({ firstName, lastName, age });
+      await api.register({ firstName, age });
       haptic.success();
       await queryClient.invalidateQueries({ queryKey: ["me"] });
     } catch (error) {
@@ -177,20 +169,24 @@ export function RegisterScreen({ minAge }: { minAge: number }) {
           autoCapitalize="words"
           enterKeyHint="next"
         />
-        <TextField
-          label={t.lastName}
-          value={form.lastName}
-          onChange={set("lastName")}
-          error={errors.lastName}
-          autoComplete="family-name"
-          autoCapitalize="words"
-          enterKeyHint="next"
-        />
+        {phoneMasked && (
+          <div>
+            <span className="mb-1.5 ml-1.5 block text-[13px] text-muted">{t.phone}</span>
+            <div className="flex h-14 items-center gap-2 rounded-full bg-surface px-5 text-base">
+              <Phone className="size-4 text-muted" aria-hidden />
+              <span className="min-w-0 flex-1 truncate font-semibold whitespace-nowrap tabular-nums">{phoneMasked}</span>
+              <span className="inline-flex shrink-0 items-center gap-1 text-[12px] font-semibold text-positive">
+                <Check className="size-3.5" strokeWidth={3} />
+                {t.phoneVerified}
+              </span>
+            </div>
+          </div>
+        )}
         <TextField
           label={t.age}
           value={form.age}
           onChange={(e) => {
-            e.target.value = e.target.value.replace(/\D/g, "").slice(0, 3);
+            e.target.value = ageInput(e.target.value);
             set("age")(e);
           }}
           error={errors.age}

@@ -52,7 +52,8 @@ export function parseParticipantUpdate(body: unknown): OwnerParticipantPatch {
   if (Object.keys(b).length === 0) throw adminError(400, "O'zgartirish uchun kamida bitta maydon yuboring.");
   const patch: OwnerParticipantPatch = {};
   if ("firstName" in b) patch.firstName = name(b.firstName, "Ism");
-  if ("lastName" in b) patch.lastName = name(b.lastName, "Familiya");
+  // Familiya ixtiyoriy: bo'sh satr — familiyasiz.
+  if ("lastName" in b) patch.lastName = b.lastName === "" ? "" : name(b.lastName, "Familiya");
   if ("age" in b) {
     const age = b.age;
     if (typeof age !== "number" || !Number.isInteger(age) || age < AGE_MIN || age > AGE_MAX) {

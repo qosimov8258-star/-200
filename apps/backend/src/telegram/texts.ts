@@ -6,6 +6,8 @@ export const texts = {
   contactNotOwn: "Iltimos, o'zingizning raqamingizni pastdagi tugma orqali ulashing.",
   contactTaken:
     "Bu raqam boshqa Telegram akkauntiga bog'langan. Bitta raqam — bitta ishtirokchi. Savol bo'lsa, shu yerga yozing.",
+  contactTakenWeb:
+    "Bu raqam bilan saytda ro'yxatdan o'tilgan. Tanlovda saytdan davom eting. Savol bo'lsa, shu yerga yozing.",
   contactSaved: "✅ Raqam qabul qilindi!\n\nEndi tanlov ilovasini ochib, ro'yxatdan o'ting:",
   welcomeFromWeb:
     "Assalomu alaykum! 👋\n\nSaytda ro'yxatdan o'tish uchun pastdagi tugma orqali telefon raqamingizni ulashing — keyin saytga qayting.",

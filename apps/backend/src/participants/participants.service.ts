@@ -284,19 +284,23 @@ export class ParticipantsService {
   }
 
   /**
-   * Bot orqali ulashilgan raqamni saqlaydi. Raqam boshqa Telegram akkauntiga
-   * bog'langan bo'lsa — rad etadi (bitta raqam — bitta ishtirokchi).
+   * Bot orqali ulashilgan raqamni saqlaydi. Raqam boshqa akkauntga bog'langan bo'lsa — rad etadi
+   * (bitta raqam — bitta ishtirokchi): `TAKEN_WEB` — shu raqam bilan saytda ro'yxatdan o'tilgan.
    */
-  setPhone(telegramId: number, chatId: number, rawPhone: string): "OK" | "TAKEN" {
+  setPhone(telegramId: number, chatId: number, rawPhone: string): "OK" | "TAKEN" | "TAKEN_WEB" {
     const phone = normalizePhone(rawPhone);
     const owner = this.all().find((p) => p.phone === phone && p.telegramId !== telegramId);
-    if (owner) return "TAKEN";
+    if (owner) return isWebAccount(owner.telegramId) ? "TAKEN_WEB" : "TAKEN";
     const p = this.getOrCreate(telegramId);
     p.phone = phone;
     p.chatId = chatId;
     return "OK";
   }
 
+  /**
+   * Profil (bir marta, keyin qulflanadi). Familiya endi so'ralmaydi — bo'sh satr saqlanadi (eski
+   * ishtirokchilarniki saqlanib qoladi); uning o'rnida telefon raqam turadi.
+   */
   register(telegramId: number, firstName: string, lastName: string, age: number): void {
     const p = this.get(telegramId);
     if (!p?.phone) throw new ApiException(401, "UNAUTHORIZED");
@@ -305,6 +309,26 @@ export class ParticipantsService {
     p.firstName = firstName;
     p.lastName = lastName;
     p.age = age;
+  }
+
+  /**
+   * Saytdan (Telegram'siz) ro'yxatdan o'tish: ism, telefon raqam, yosh. Akkaunt Telegram ID'lari
+   * bilan to'qnashmaydigan alohida oraliqda (`WEB_ID_BASE` dan) yaratiladi; ishtirokchi shu
+   * brauzerdagi sessiya cookie'si bilan tanilgan. Raqam tasdiqlanmagan (SMS yo'q) — sovrin
+   * topshirishda shaxsan tekshiriladi. Natija — yangi akkaunt ID si.
+   */
+  registerWeb(firstName: string, rawPhone: string, age: number): number {
+    const phone = parseUzPhone(rawPhone);
+    if (!phone) throw new ApiException(422, "INVALID_PHONE");
+    if (age < (this.contest?.get().minAge ?? MIN_AGE)) throw new ApiException(422, "UNDER_AGE");
+    if (this.all().some((p) => p.phone === phone)) throw new ApiException(409, "PHONE_TAKEN");
+    const id = Math.max(WEB_ID_BASE, ...this.all().map((p) => p.telegramId).filter(isWebAccount)) + 1;
+    const p = this.getOrCreate(id);
+    p.phone = phone;
+    p.firstName = firstName;
+    p.lastName = "";
+    p.age = age;
+    return id;
   }
 
   acceptRules(telegramId: number, version: number): void {
@@ -420,10 +444,11 @@ export class ParticipantsService {
       return "PHONE_TAKEN";
     }
     const firstName = patch.firstName ?? p.firstName;
-    const lastName = patch.lastName ?? p.lastName;
+    // Familiya endi ixtiyoriy (ro'yxatdan o'tishda so'ralmaydi) — yo'q bo'lsa bo'sh satr.
+    const lastName = patch.lastName ?? p.lastName ?? (firstName !== null ? "" : null);
     const age = patch.age ?? p.age;
     // Ro'yxatdan o'tmagan ishtirokchiga faqat ism yozilsa — u o'zi ro'yxatdan o'ta olmay qoladi.
-    if (firstName !== null && (lastName === null || age === null)) return "PROFILE_INCOMPLETE";
+    if (firstName !== null && age === null) return "PROFILE_INCOMPLETE";
 
     p.firstName = firstName;
     p.lastName = lastName;
@@ -443,6 +468,24 @@ export class ParticipantsService {
     if (!p || this.stage(p) !== "ACTIVE") throw new ApiException(403, "UNAUTHORIZED");
     return p;
   }
+}
+
+/**
+ * Saytdan ro'yxatdan o'tganlar ID si shundan katta (Telegram ID'lari bundan ancha kichik;
+ * barchasi `Number.MAX_SAFE_INTEGER` dan past).
+ */
+export const WEB_ID_BASE = 9_000_000_000_000_000;
+
+export const isWebAccount = (id: number): boolean => id > WEB_ID_BASE;
+
+/**
+ * Saytdagi formadan kelgan O'zbekiston raqami: "90 123 45 67", "+998 90 123-45-67",
+ * "998901234567" → "+998901234567"; boshqa ko'rinish — null.
+ */
+export function parseUzPhone(raw: string): string | null {
+  const digits = raw.replace(/\D/g, "");
+  const local = digits.length === 12 && digits.startsWith("998") ? digits.slice(3) : digits;
+  return /^\d{9}$/.test(local) ? `+998${local}` : null;
 }
 
 /** "998 90 123-45-67" / "+998901234567" → "+998901234567". */

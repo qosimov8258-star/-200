@@ -18,18 +18,31 @@ function object(body: unknown, allowed: string[]): Record<string, unknown> {
   return body as Record<string, unknown>;
 }
 
+/** Profil: ism va yosh. Familiya endi so'ralmaydi (eski ilova yuborsa — tekshirib qabul qilinadi). */
 export function parseRegister(body: unknown): { firstName: string; lastName: string; age: number } {
   const b = object(body, ["firstName", "lastName", "age"]);
   const firstName = typeof b.firstName === "string" ? b.firstName.trim() : "";
   const lastName = typeof b.lastName === "string" ? b.lastName.trim() : "";
-  const age = b.age;
-  if (!NAME.test(firstName) || !NAME.test(lastName)) {
+  if (!NAME.test(firstName) || (lastName !== "" && !NAME.test(lastName))) {
     throw new ApiException(422, "INVALID_PROFILE");
   }
+  return { firstName, lastName, age: parseAge(b.age) };
+}
+
+/** Saytdan ro'yxatdan o'tish: ism, telefon raqam (matn — tekshiruvi `parseUzPhone` da), yosh. */
+export function parseWebRegister(body: unknown): { firstName: string; phone: string; age: number } {
+  const b = object(body, ["firstName", "phone", "age"]);
+  const firstName = typeof b.firstName === "string" ? b.firstName.trim() : "";
+  if (!NAME.test(firstName)) throw new ApiException(422, "INVALID_PROFILE");
+  if (typeof b.phone !== "string" || b.phone.length > 30) throw new ApiException(422, "INVALID_PHONE");
+  return { firstName, phone: b.phone, age: parseAge(b.age) };
+}
+
+function parseAge(age: unknown): number {
   if (typeof age !== "number" || !Number.isInteger(age) || age < 1 || age > 100) {
     throw new ApiException(422, "INVALID_PROFILE");
   }
-  return { firstName, lastName, age };
+  return age;
 }
 
 export function parseVersion(body: unknown): number {

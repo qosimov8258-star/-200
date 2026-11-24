@@ -187,8 +187,10 @@ export class TelegramService
         return;
       }
       const result = this.participants.setPhone(ctx.from.id, ctx.chat.id, contact.phone_number);
-      if (result === "TAKEN") {
-        await ctx.reply(texts.contactTaken, { reply_markup: { remove_keyboard: true } });
+      if (result !== "OK") {
+        await ctx.reply(result === "TAKEN_WEB" ? texts.contactTakenWeb : texts.contactTaken, {
+          reply_markup: { remove_keyboard: true },
+        });
         return;
       }
       // Pastdagi "Raqamni ulashish" klaviaturasini yopamiz, keyin Mini App tugmasi.
