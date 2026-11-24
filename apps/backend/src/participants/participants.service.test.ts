@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 
 import { ApiException } from "../common/api-exception";
 import { parseRegister, parseWebRegister } from "../miniapp/validation";
+import { StateStore } from "../persistence/state-store";
 import { RulesService } from "../rules/rules.service";
 import {
   bestReel,
@@ -279,8 +283,8 @@ test("web sign-up: name, phone and age create a separate account; phone stays un
   assert.deepEqual(code(() => participants.registerWeb("Ali", "+7 999 111 22 33", 20)), { code: "INVALID_PHONE" });
   assert.deepEqual(code(() => participants.registerWeb("Ali", "93 111 22 33", 15)), { code: "UNDER_AGE" });
 
-  // Shu raqamni Telegram bot orqali ulashsa — saytdagi akkaunt haqida aytiladi.
-  assert.equal(participants.setPhone(555, 555, "+998901234567"), "TAKEN_WEB");
+  // Shu raqamni Telegram bot orqali ulashsa — saytdagi hisob unga ulanadi (raqam egasi tasdiqlandi).
+  assert.equal(participants.setPhone(555, 555, "+998901234567"), "LINKED");
   assert.equal(participants.setPhone(556, 556, "+998901234568"), "OK");
   participants.setPhone(557, 557, "+998901234569");
   assert.equal(participants.setPhone(558, 558, "+998901234569"), "TAKEN");
@@ -304,4 +308,61 @@ test("profile without a surname is accepted; an old app may still send one", () 
     phone: "901234567",
     age: 20,
   });
+});
+
+test("sharing the web account's phone in the bot links that account to Telegram", () => {
+  const participants = new ParticipantsService(new RulesService());
+  const webId = participants.registerWeb("Dilnoza", "90 123 45 67", 25);
+  participants.getOrCreate(777); // /start — hali ro'yxatdan o'tmagan yozuv
+
+  const now = new Date("2026-12-01T10:00:00Z");
+  assert.equal(participants.setPhone(777, 7770, "+998901234567", now), "LINKED");
+  const account = participants.get(webId)!;
+  assert.equal(account.linkedTelegramId, 777);
+  assert.equal(account.chatId, 7770, "bot xabarlari endi Telegram'ga boradi");
+  assert.deepEqual(account.sessionsFrom, now);
+  assert.equal(participants.get(777), null, "bo'sh Telegram yozuvi o'rnini saytdagi hisob oldi");
+  assert.equal(participants.resolve(777), webId);
+
+  // Qayta ulashish — o'zgarishsiz (boshqa raqam bo'lsa ham alohida yozuv ochilmaydi).
+  assert.equal(participants.setPhone(777, 7771, "+998901234567"), "OK");
+  assert.equal(participants.setPhone(777, 7771, "+998935550000"), "OK");
+  assert.equal(participants.get(777), null);
+  assert.equal(account.phone, "+998901234567");
+  assert.equal(account.chatId, 7771);
+
+  // Boshqa Telegram foydalanuvchisi shu raqamni ulasha olmaydi.
+  assert.equal(participants.setPhone(888, 888, "+998901234567"), "TAKEN");
+
+  // O'z profili bor Telegram foydalanuvchisi — ikki hisob qo'shilmaydi.
+  const other = participants.registerWeb("Jasur", "91 000 00 01", 30);
+  participants.setPhone(999, 999, "+998911111111");
+  participants.register(999, "Jasur", "", 30);
+  participants.get(999)!.phone = null; // raqamsiz profil (eski holat)
+  assert.equal(participants.setPhone(999, 999, "+998910000001"), "TAKEN_WEB");
+  assert.equal(participants.get(other)?.linkedTelegramId ?? null, null);
+
+  // Hisob o'chirilsa — ulanish ham yo'qoladi.
+  participants.delete(webId);
+  assert.equal(participants.resolve(777), 777);
+});
+
+test("a linked account survives a restart", () => {
+  const dir = mkdtempSync(join(tmpdir(), "participants-link-"));
+  try {
+    const open = () => {
+      const store = new StateStore({ dir, saveEveryMs: 60_000, keepBackups: 1 });
+      return { store, participants: new ParticipantsService(new RulesService(), store) };
+    };
+    const first = open();
+    const webId = first.participants.registerWeb("Dilnoza", "90 123 45 67", 25);
+    first.participants.setPhone(777, 777, "+998901234567");
+    first.store.flush();
+
+    const second = open();
+    assert.equal(second.participants.resolve(777), webId);
+    assert.ok(second.participants.get(webId)?.sessionsFrom instanceof Date);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

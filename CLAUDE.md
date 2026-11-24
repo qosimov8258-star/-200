@@ -46,7 +46,9 @@ Mini App va veb-sayt esa faqat `apps/miniapp/src/lib/api.ts` orqali. Ishtirokchi
 tanilgan: Telegram ichida — `X-Telegram-Init-Data` imzosi, saytda — Telegram Login Widget'dan
 keyingi `HttpOnly` sessiya cookie'si (ikkalasi ham bitta `telegramId`) yoki saytning o'zida
 ro'yxatdan o'tgan hisob (ism, telefon raqam, yosh; `POST /auth/web-register`, ID — `WEB_ID_BASE`
-oralig'ida, faqat shu brauzer sessiyasi bilan). Familiya endi so'ralmaydi (o'rnida — telefon raqam).
+oralig'ida, shu brauzer sessiyasi bilan; bot orqali shu raqamni ulashib Telegram'ga ulanadi —
+`ParticipantsService.resolve` Telegram ID ni o'sha hisobga olib boradi). Familiya endi so'ralmaydi
+(o'rnida — telefon raqam).
 
 Mobil ilovada Material vidjetlari `package:material_ui/material_ui.dart` dan import qilinadi
 (Flutter 3.50 da `flutter/material.dart` alohida paketga ko'chgan). Backend bilan aloqa faqat
