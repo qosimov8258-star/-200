@@ -27,28 +27,31 @@ import { daysBetween, formatCount, formatDayMonth, tashkentToday } from "../lib/
 import { PRIZE_PHOTO_HAS_BACKGROUND, prizePhoto, type PrizePhotoKey } from "../lib/prize-photos";
 import type { ContestPrizes, PrizeStage, PrizeTier, PrizeTierKind } from "../lib/types";
 
-/** Har bir toifaning rangi va belgisi. */
+/**
+ * Har bir toifaning rangi va belgisi. Karta foni — sovg'a rasmining o'z rangi: planshet — ekrandagi
+ * ko'k/pushti/sariq, iPhone — to'q olcha (vishnya), sayohat — dengiz zangorisi, avtomobil — qora.
+ */
 const TIER_STYLE: Record<
   PrizeTierKind,
   { icon: LucideIcon; card: string; node: string; chip: string }
 > = {
   tablet: {
     icon: Tablet,
-    card: "bg-[linear-gradient(135deg,#22c1ad,#0f7a8a)]",
-    node: "bg-[#14a097]",
-    chip: "bg-[#14a097]/15 text-[#0f7a8a]",
+    card: "bg-[linear-gradient(150deg,#1f8bff,#7a4ff0_42%,#e8318f_72%,#ffae1a)]",
+    node: "bg-[#5b6cff]",
+    chip: "bg-[#5b6cff]/15 text-[#3d4bd6]",
   },
   phone: {
     icon: Smartphone,
-    card: "bg-[linear-gradient(135deg,#8173ff,#4330c9)]",
-    node: "bg-[#5b49e6]",
-    chip: "bg-[#5b49e6]/15 text-[#4330c9]",
+    card: "bg-[linear-gradient(140deg,#93323d,#5a1a22_55%,#2e0d11)]",
+    node: "bg-[#7a2630]",
+    chip: "bg-[#7a2630]/15 text-[#6a1f28]",
   },
   travel: {
     icon: Plane,
-    card: "bg-[linear-gradient(135deg,#ffa25c,#e2457a)]",
-    node: "bg-[#f06a6a]",
-    chip: "bg-[#f06a6a]/15 text-[#d2445f]",
+    card: "bg-[linear-gradient(140deg,#2bc6db,#0a93c4_55%,#0b5f8e)]",
+    node: "bg-[#0a9cc8]",
+    chip: "bg-[#0a9cc8]/15 text-[#087aa0]",
   },
   car: {
     icon: CarFront,
@@ -121,7 +124,7 @@ function FundHero({ prizes, style }: { prizes: ContestPrizes; style: CSSProperti
   const total = prizes.monthly.total + prizes.tiers.reduce((sum, tier) => sum + tier.quantity, 0);
   const count = useCountUp(total);
   const chips: { key: string; icon: LucideIcon; count: number; node: string }[] = [
-    { key: "voucher", icon: ShoppingCart, count: prizes.monthly.total, node: "bg-[#18a058]" },
+    { key: "voucher", icon: ShoppingCart, count: prizes.monthly.total, node: "bg-[#d81f26]" },
     ...prizes.tiers.map((tier) => ({
       key: tier.kind,
       icon: TIER_STYLE[tier.kind].icon,
@@ -178,31 +181,54 @@ function FundHero({ prizes, style }: { prizes: ContestPrizes; style: CSSProperti
 
 function MonthlySection({ prizes, style }: { prizes: ContestPrizes; style: CSSProperties }) {
   const { monthly, stages } = prizes;
+  const photo = prizePhoto("voucher");
   return (
     <section className="animate-rise space-y-3" style={style}>
-      {/* Kupon: tepa qism, teshikli chiziq, pastki qism */}
-      <div className="relative isolate overflow-hidden rounded-card bg-[linear-gradient(140deg,#1fb36a,#0c6b3b)] text-white shadow-[0_14px_30px_rgba(16,120,70,0.28)]">
-        <div aria-hidden className="absolute -top-14 -right-10 -z-10 size-44 rounded-full bg-white/10" />
-        <div aria-hidden className="absolute top-16 -right-16 -z-10 size-44 rounded-full bg-white/[0.07]" />
-        {prizePhoto("voucher") ? (
-          <CornerPhoto kind="voucher" alt={monthly.title} className="top-4 right-4 h-[66px] w-[86px] rotate-[-5deg]" />
-        ) : (
-          <ShoppingCart aria-hidden className="absolute top-6 right-5 -z-10 size-20 -rotate-12 text-white/15" strokeWidth={1.6} />
-        )}
-
-        <div className="px-[22px] pt-5 pb-4">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-[12px] font-bold tracking-wide uppercase">
-            <CalendarDays className="size-3.5" />
-            {t.monthlyTag}
-          </span>
-          <p className="mt-3 text-[15px] font-semibold text-white/85">{monthly.title}</p>
-          <p className="mt-0.5 flex items-baseline gap-2">
-            <span className="text-[46px] leading-none font-black tracking-tight tabular-nums">
-              {formatCount(monthly.amount)}
+      {/* Kupon: tepa qism, teshikli chiziq, pastki qism. Tepa qism — voucher rasmining o'zi (to'liq),
+          nomi va summasi rasmning pastida Korzinka qizilida. */}
+      <div className="relative isolate overflow-hidden rounded-card bg-[#c40f22] text-white shadow-[0_14px_30px_rgba(196,15,34,0.3)]">
+        {photo ? (
+          <div className="relative aspect-[16/11] overflow-hidden">
+            <img
+              src={photo}
+              alt={monthly.title}
+              draggable={false}
+              className="pointer-events-none absolute inset-0 size-full object-cover object-top"
+            />
+            <div
+              aria-hidden
+              className="absolute inset-x-0 bottom-0 h-[52%] bg-[linear-gradient(180deg,rgba(196,15,34,0),rgba(196,15,34,0.82)_42%,#c40f22_78%)]"
+            />
+            <span className="absolute top-4 left-4 inline-flex items-center gap-1.5 rounded-full bg-[#c40f22] px-3 py-1 text-[12px] font-bold tracking-wide uppercase shadow-[0_4px_12px_rgba(120,0,10,0.3)]">
+              <CalendarDays className="size-3.5" />
+              {t.monthlyTag}
             </span>
-            <span className="text-lg font-bold text-white/85">{t.sum}</span>
-          </p>
-        </div>
+            <div className="absolute inset-x-0 bottom-0 px-[22px] pb-3">
+              <p className="text-[15px] font-semibold text-white/90">{monthly.title}</p>
+              <p className="mt-0.5 flex items-baseline gap-2">
+                <span className="text-[46px] leading-none font-black tracking-tight tabular-nums">
+                  {formatCount(monthly.amount)}
+                </span>
+                <span className="text-lg font-bold text-white/85">{t.sum}</span>
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="relative px-[22px] pt-5 pb-4">
+            <ShoppingCart aria-hidden className="absolute top-6 right-5 -z-10 size-20 -rotate-12 text-white/15" strokeWidth={1.6} />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-[12px] font-bold tracking-wide uppercase">
+              <CalendarDays className="size-3.5" />
+              {t.monthlyTag}
+            </span>
+            <p className="mt-3 text-[15px] font-semibold text-white/85">{monthly.title}</p>
+            <p className="mt-0.5 flex items-baseline gap-2">
+              <span className="text-[46px] leading-none font-black tracking-tight tabular-nums">
+                {formatCount(monthly.amount)}
+              </span>
+              <span className="text-lg font-bold text-white/85">{t.sum}</span>
+            </p>
+          </div>
+        )}
 
         <div aria-hidden className="relative h-6">
           <span className="absolute top-0 -left-3 size-6 rounded-full bg-bg" />
