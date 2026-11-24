@@ -18,22 +18,10 @@ import { firstUnseenIndex, hasUnseen } from "../lib/stories";
 import type { ContestPrizes, PrizeTier, StoryGroup } from "../lib/types";
 import { useCountdown } from "../lib/use-countdown";
 import { useStoryFeed } from "../lib/use-story-feed";
+import { PRIZE_PHOTO_HAS_BACKGROUND, prizePhoto, type PrizePhotoKey } from "../lib/prize-photos";
 
-/**
- * Sovg'alarning haqiqiy rasmlari: `src/assets/prizes/<nom>.<webp|png|jpg>`
- * (car, phone, tablet, voucher). Fayl bo'lmasa — rasm o'rni bo'sh qoladi (mashina uchun eski rasm).
- */
-const PHOTOS = import.meta.glob<string>("../assets/prizes/*.{webp,png,jpg,jpeg}", {
-  eager: true,
-  import: "default",
-});
-
-type PhotoKey = "car" | "phone" | "tablet" | "voucher";
-
-function photo(key: PhotoKey): string | null {
-  const entry = Object.entries(PHOTOS).find(([path]) => path.split("/").pop()?.split(".")[0] === key);
-  return entry ? entry[1] : key === "car" ? carFallback : null;
-}
+/** Sovg'a rasmi (`src/lib/prize-photos.ts`). */
+const photo = (key: PrizePhotoKey): string | null => prizePhoto(key);
 
 const rise = (i: number): CSSProperties => ({ animationDelay: `${i * 90}ms` });
 
@@ -275,6 +263,7 @@ function PrizeShowcase({ prizes, onOpenPrizes }: { prizes: ContestPrizes; onOpen
               <article className="p-3">
                 <PrizePhoto
                   src={photo(item.kind === "phone" ? "phone" : "tablet")}
+                  cover={PRIZE_PHOTO_HAS_BACKGROUND[item.kind === "phone" ? "phone" : "tablet"]}
                   alt={item.title}
                   className="h-32 w-full rounded-tile bg-[radial-gradient(circle_at_50%_40%,#ffffff,#eef0f3)]"
                 />
@@ -291,6 +280,7 @@ function PrizeShowcase({ prizes, onOpenPrizes }: { prizes: ContestPrizes; onOpen
         <article className="flex items-center gap-4 p-3">
           <PrizePhoto
             src={photo("voucher")}
+            cover={PRIZE_PHOTO_HAS_BACKGROUND.voucher}
             alt={prizes.monthly.title}
             className="h-24 w-32 shrink-0 rounded-tile bg-[radial-gradient(circle_at_50%_40%,#fff7ef,#fdeee6)]"
           />
@@ -310,14 +300,28 @@ function PrizeShowcase({ prizes, onOpenPrizes }: { prizes: ContestPrizes; onOpen
 }
 
 /** Sovg'aning haqiqiy rasmi; rasm hali qo'yilmagan bo'lsa — faqat bo'sh fon. */
-function PrizePhoto({ src, alt, className }: { src: string | null; alt: string; className?: string }) {
+function PrizePhoto({
+  src,
+  alt,
+  className,
+  cover = false,
+}: {
+  src: string | null;
+  alt: string;
+  className?: string;
+  /** Rasmning o'z foni bor — plitkani to'liq to'ldiradi (soyasiz, ichki chetsiz). */
+  cover?: boolean;
+}) {
   return (
-    <div className={clsx("overflow-hidden p-2.5", className)}>
+    <div className={clsx("overflow-hidden", cover ? "p-0" : "p-2.5", className)}>
       {src && (
         <img
           src={src}
           alt={alt}
-          className="size-full object-contain drop-shadow-[0_10px_14px_rgba(30,31,34,0.22)]"
+          className={clsx(
+            "size-full",
+            cover ? "object-cover" : "object-contain drop-shadow-[0_10px_14px_rgba(30,31,34,0.22)]",
+          )}
           draggable={false}
         />
       )}

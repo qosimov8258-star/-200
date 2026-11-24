@@ -16,12 +16,14 @@ import { periodLabel, stageLabel } from "@/lib/draw-rules";
 import { formatNumber } from "@/lib/format";
 import { DRAW_STATUS_LABELS, DRAW_STATUS_TONES } from "@/lib/labels";
 import type { DrawEntry, VoucherDraw } from "@/lib/types";
+import { voucherTabHref } from "@/lib/winner-links";
 
 const PAGE_SIZE = 25;
 
 /**
- * "Voucher g'oliblari": bekor qilinmagan barcha random tanlovlarning faol g'oliblari, tanlov bo'yicha
- * guruhlangan. Har bir tanlov `GET /admin/draws/:id` dan (keshi Random tanlov bilan umumiy).
+ * "Voucher g'oliblari" (G'oliblar → "Voucher" tabining pastki qismi): bekor qilinmagan barcha random
+ * tanlovlarning faol g'oliblari, tanlov bo'yicha guruhlangan. Har bir tanlov `GET /admin/draws/:id`
+ * dan (keshi tepadagi tanlov natijasi bilan umumiy).
  */
 export function VoucherWinners() {
   const draws = useQuery({ queryKey: ["draws"], queryFn: getDraws });
@@ -63,10 +65,9 @@ export function VoucherWinners() {
         <Card className="flex flex-col items-center gap-3 px-4 py-12 text-center">
           <Ticket className="size-8 text-slate-300" aria-hidden />
           <p className="text-sm text-slate-600">Hali voucher g&apos;oliblari yo&apos;q.</p>
-          <Link href="/draws" className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700">
-            Random tanlovga o&apos;tish
-            <ArrowUpRight className="size-3.5" aria-hidden />
-          </Link>
+          <p className="text-xs text-muted">
+            Yuqorida bosqichni tanlab, «Tanlash»ni bosing — g&apos;oliblar shu yerda ko&apos;rinadi.
+          </p>
         </Card>
       ) : (
         <>
@@ -150,10 +151,10 @@ function DrawWinnersCard({
           )}
         </div>
         <Link
-          href={`/draws?id=${encodeURIComponent(id)}`}
+          href={voucherTabHref(id)}
           className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700"
         >
-          Random tanlovda ochish
+          Natijani ochish
           <ArrowUpRight className="size-3.5" aria-hidden />
         </Link>
       </div>

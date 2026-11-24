@@ -177,3 +177,9 @@ Telegram Mini App faqat **https** manzilni ochadi. Lokal sinov uchun:
 Ranglar va o'lchamlar [`src/index.css`](src/index.css) dagi `@theme` tokenlarida — Flutter
 ilovadagi `app_theme.dart` bilan bir xil. Sovrin kartasidagi avtomobil rasmi
 `src/assets/hero_car.png` — foydalanish huquqi hali tasdiqlanmagan.
+
+Sovg'alar rasmlari — `src/assets/prizes/<nom>.webp` (`car`, `phone`, `tablet`, `travel`, `voucher`;
+yo'li `src/lib/prize-photos.ts`). Bosh sahifadagi ko'rgazmada va "Sovg'alar" ekranida kartalar
+burchagidagi oq plitkada chiqadi. Shaffof rasm (`car`, `phone`) plitka ichida to'liq ko'rinadi, o'z
+foni bor rasm (`tablet`, `travel`, `voucher`) plitkani to'ldiradi — `PRIZE_PHOTO_HAS_BACKGROUND`.
+Rasm almashtirilsa, shu jadvalni ham tekshiring.

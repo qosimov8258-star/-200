@@ -1,6 +1,6 @@
 import { ExternalLink } from "lucide-react";
 
-import { RATING_PRIZE_ICONS } from "@/components/prizes/rating-prize-table";
+import { RATING_PRIZE_ICONS } from "@/components/prizes/rating-prize";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { formatNumber, formatViewsRange } from "@/lib/format";
@@ -9,16 +9,17 @@ import type { RatingPrizeEntry, RatingPrizeTier } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /**
- * "Boshqa asosiy sovrinlar" kartochkasi (G'oliblar sahifasi): eni 250, bo'yi 400 px — yonma-yon
- * turadi. Tepada sovrin nomi va bir qator qoida, pastda g'oliblar va navbatdagilar; ro'yxat uzun
- * bo'lsa, kartochka ichida aylanadi (sahifa cho'zilmaydi).
+ * "Boshqa asosiy sovrinlar" kartochkasi (G'oliblar sahifasi): eni 350, bo'yi 400 px — yonma-yon
+ * turadi (tor telefonda eni ekranga sig'adigan qilib qisqaradi). Tepada sovrin nomi va bir qator
+ * qoida, pastda g'oliblar va navbatdagilar; ro'yxat uzun bo'lsa, kartochka ichida aylanadi
+ * (sahifa cho'zilmaydi).
  */
 export function RatingPrizeTile({ tier }: { tier: RatingPrizeTier }) {
   const Icon = RATING_PRIZE_ICONS[tier.kind];
   const label = RATING_PRIZE_LABELS[tier.kind];
 
   return (
-    <Card className="flex h-[400px] w-[250px] shrink-0 flex-col overflow-hidden">
+    <Card className="flex h-[400px] w-[350px] max-w-full shrink-0 flex-col overflow-hidden">
       <div className="border-b border-line px-4 pt-4 pb-3">
         <div className="flex items-start gap-2.5">
           <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">

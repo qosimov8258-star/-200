@@ -412,34 +412,6 @@ export type ManualReviewDecisionRequest =
   | { decision: "reject"; reason: ManualReviewRejectReason; note?: string };
 
 // ---------------------------------------------------------------------------
-// Istoriyalar — ishtirokchilar Mini App'dan yuklagan qisqa videolar (24 soat turadi).
-// Tekshiruvdan o'tmaydi, reyting va sovg'alarga ta'sir qilmaydi; Admin sabab bilan o'chira oladi.
-// ---------------------------------------------------------------------------
-
-/** Faol (muddati tugamagan va o'chirilmagan) istoriya. */
-export interface AdminStoryItem {
-  id: string;
-  /** `id` — ishtirokchining telegramId si (satr ko'rinishida). */
-  participant: { id: string; fullName: string; phone: string };
-  /** Yuklangan vaqt (UTC ISO). */
-  createdAt: string;
-  /** Yo'qoladigan vaqt (UTC ISO): `createdAt` + 24 soat. */
-  expiresAt: string;
-  /** Video hajmi, bayt. */
-  sizeBytes: number;
-  /** `video/mp4` | `video/quicktime` | `video/webm`. */
-  mime: string;
-}
-
-export interface AdminStoryListQuery {
-  page?: number;
-  pageSize?: number;
-}
-
-/** Eng yangilari yuqorida, faqat faollari. */
-export type AdminStoryListResponse = Paginated<AdminStoryItem>;
-
-// ---------------------------------------------------------------------------
 // Sozlamalar (TZ 6-bo'lim: tanlov muddati, qoidalar matni, yangilanish vaqti, minimal yosh)
 // ---------------------------------------------------------------------------
 
@@ -813,6 +785,7 @@ export type AuditEntity =
   | "settings"
   | "prize"
   | "voucher_draw"
+  /** Istoriyalar bo'limi olib tashlangan — eski yozuvlar (`story.remove`) uchun qoldi. */
   | "story"
   | "auth";
 

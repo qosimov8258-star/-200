@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 export default function WinnerPage() {
-  // `useSearchParams` (tab: `?tab=vouchers`) Suspense ichida bo'lishi kerak.
+  // `useSearchParams` (`?tab=voucher&draw=<id>`) Suspense ichida bo'lishi kerak.
   return (
     <Suspense fallback={<Spinner />}>
       <WinnersView />

@@ -13,7 +13,7 @@ import type { DrawStock, DrawStockStage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /**
- * "Random tanlov" tepasidagi karta: oylik voucherlardan hozir nechtasi qolgani
+ * G'oliblar → "Voucher" tabi tepasidagi karta: oylik voucherlardan hozir nechtasi qolgani
  * (jami / yuborilgan / tasdiqlangan / qoralamada) va bosqichlar bo'yicha taqsimot.
  * So'rov kaliti `["draws", …]` — tanlov o'tkazilsa, tasdiqlansa yoki yuborilsa o'zi yangilanadi.
  */

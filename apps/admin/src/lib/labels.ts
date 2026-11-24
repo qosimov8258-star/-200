@@ -216,9 +216,6 @@ export const SUPPORT_STATUS_TONES: Record<SupportTicketStatus, BadgeTone> = {
 // Sovg'alar
 // ---------------------------------------------------------------------------
 
-/** Yagona random sovg'a — oylik voucher. */
-export const VOUCHER_PRIZE_LABEL = "Korzinka voucheri · 500 000 so'm";
-
 /** Asosiy sovrinlarning qisqa nomlari (reyting bo'yicha beriladi, random emas). */
 export const RATING_PRIZE_LABELS: Record<RatingPrizeKind, string> = {
   car: "BYD Chazor",
@@ -274,11 +271,11 @@ export const DRAW_NOTIFY_TONES: Record<DrawNotifyStatus, BadgeTone> = {
 };
 
 // ---------------------------------------------------------------------------
-// Istoriyalar
+// Video
 // ---------------------------------------------------------------------------
 
-/** Istoriya video formati: `video/quicktime` — iPhone'dagi .mov. Noma'lumi o'zicha ko'rsatiladi. */
-export const STORY_MIME_LABELS: Record<string, string> = {
+/** Video formati (qoida videosi): `video/quicktime` — iPhone'dagi .mov. Noma'lumi o'zicha ko'rsatiladi. */
+export const VIDEO_MIME_LABELS: Record<string, string> = {
   "video/mp4": "MP4",
   "video/quicktime": "MOV",
   "video/webm": "WebM",
@@ -298,6 +295,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntity, string> = {
   settings: "Sozlamalar",
   prize: "Sovg'alar",
   voucher_draw: "Random tanlov",
+  // Istoriyalar bo'limi olib tashlangan — eski audit yozuvlari o'qilishi uchun qoldi.
   story: "Istoriya",
   auth: "Kirish",
 };
@@ -348,6 +346,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "draw.stage.delete": "Random tanlov bosqichini o'chirdi",
   "draw.stage.restore": "Random tanlov bosqichini tikladi",
   "draw.settings.update": "Random tanlov sozlamalarini saqladi",
+  // Eski yozuvlar uchun (Istoriyalar bo'limi olib tashlangan).
   "story.remove": "Istoriyani o'chirdi",
 };
 

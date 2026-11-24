@@ -1,6 +1,6 @@
 /**
  * MOCK backend "bazasi"ning o'zgaradigan qismi: admin amallari natijasi
- * (ishtirokchi holati, murojaat holati va javoblar, o'chirilgan istoriyalar) va audit log. Sahifa
+ * (ishtirokchi holati, murojaat holati va javoblar, random tanlovlar) va audit log. Sahifa
  * yangilanganda yo'qolmasligi uchun brauzer `localStorage` ida saqlanadi.
  *
  * Haqiqiy backendda bular `users.status`, `support_tickets`,
@@ -71,7 +71,10 @@ export interface MockStore {
   removedStages: number[];
   /** Random tanlovning tasdiqlangan doimiy sozlamalari; null — hali tasdiqlanmagan. */
   drawSettings: SavedDrawSettings | null;
-  /** Istoriya id -> Admin o'chirgani (`stories.ts`). */
+  /**
+   * Istoriya id -> Admin o'chirgani. Istoriyalar bo'limi olib tashlangan — endi yozilmaydi, faqat
+   * eski audit yozuvlarida (`story.remove`) ishtirokchi ismini ko'rsatish uchun o'qiladi.
+   */
   removedStories: Record<string, MockRemovedStory>;
   audit: MockAuditEntry[];
 }

@@ -2,147 +2,106 @@
 
 import { useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, ArrowLeft, Dices, History, PartyPopper, Plus, Scale } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { AlertCircle, ArrowLeft, Dices, History, PartyPopper, Plus, Scale, Ticket } from "lucide-react";
 
+import { DrawPeriodPicker } from "@/components/draws/draw-period-picker";
+import { DrawPoolCard } from "@/components/draws/draw-pool-card";
+import { DrawResult } from "@/components/draws/draw-result";
+import { DrawSettingsCard } from "@/components/draws/draw-settings-card";
+import { DrawStockSummary } from "@/components/draws/draw-stock-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
-import { getDraw, getDraws, getDrawSetup, getRatingPrizes, previewDraw, runDraw } from "@/lib/api";
+import { getDraw, getDraws, getDrawSetup, previewDraw, runDraw } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
 import { drawRunSettings, stageLabel, type DrawPeriodChoice } from "@/lib/draw-rules";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { DRAW_STATUS_LABELS, DRAW_STATUS_TONES } from "@/lib/labels";
-import type { DrawSettings, DrawSetup, RatingPrizeKind, VoucherDraw, VoucherDrawSummary } from "@/lib/types";
+import type { DrawSettings, DrawSetup, VoucherDraw, VoucherDrawSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { voucherTabHref } from "@/lib/winner-links";
 
-import { DrawPeriodPicker } from "./draw-period-picker";
-import { DrawPoolCard } from "./draw-pool-card";
-import { DrawPrizePicker, type DrawPrizeChoice } from "./draw-prize-picker";
-import { DrawRatingPrize } from "./draw-rating-prize";
-import { DrawResult } from "./draw-result";
-import { DrawSettingsCard } from "./draw-settings-card";
-import { DrawStockSummary } from "./draw-stock-card";
-
-const RATING_KINDS: RatingPrizeKind[] = ["car", "travel", "phone", "tablet"];
-
-const isRatingKind = (value: string | null): value is RatingPrizeKind =>
-  value !== null && (RATING_KINDS as string[]).includes(value);
+import { SectionTitle } from "./section-title";
+import { VoucherWinners } from "./voucher-winners";
 
 /**
- * Random tanlov bo'limi. Tepada sovg'a tanlanadi: voucher — random tanlov (sozlamalar, bosqich,
- * "Tanlash", natija va tarix); avtomobil, sayohat, iPhone, planshet — reyting bo'yicha g'oliblar.
- * URL: `?id=` — tanlangan tanlov natijasi, `?prize=car|travel|phone|tablet` — asosiy sovrin.
+ * G'oliblar → "Voucher" tabi: oylik voucherlar uchun random tanlov va uning g'oliblari.
+ * Chapda — voucherlar qoldig'i va "Yangi tanlov" (doimiy sozlamalar, bosqich, bitta "Tanlash");
+ * tanlov ochilsa (`?draw=<id>`) shu joyda uning natijasi. O'ngda (kompyuterda) — tanlovlar tarixi.
+ * Pastda — barcha voucher g'oliblari.
  */
-export function DrawsView() {
+export function VoucherTab() {
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const selectedId = searchParams.get("id");
-  const prizeParam = searchParams.get("prize");
-  const choice: DrawPrizeChoice = !selectedId && isRatingKind(prizeParam) ? prizeParam : "voucher";
-
-  const go = (params: { id?: string; prize?: RatingPrizeKind }) => {
-    const query = params.id
-      ? `?id=${encodeURIComponent(params.id)}`
-      : params.prize
-        ? `?prize=${params.prize}`
-        : "";
-    router.push(`${pathname}${query}`, { scroll: !params.prize });
-  };
+  const selectedId = searchParams.get("draw");
+  /** Tanlovni ochish (`null` — "Yangi tanlov"); brauzer tarixiga yoziladi. */
+  const open = (id: string | null) => router.push(voucherTabHref(id));
 
   const setup = useQuery({ queryKey: ["draw-setup"], queryFn: getDrawSetup });
-  const ratingPrizes = useQuery({ queryKey: ["rating-prizes"], queryFn: getRatingPrizes });
   const draws = useQuery({ queryKey: ["draws"], queryFn: getDraws });
 
   /** "Tanlash" bilan hozirgina o'tkazilgan tanlov — natija ustida qisqa xabar ko'rsatiladi. */
   const [freshId, setFreshId] = useState<string | null>(null);
-  /** "G'oliblarni ko'rsatish" bosilgan sovrin. */
-  const [shownKind, setShownKind] = useState<RatingPrizeKind | null>(null);
-
-  const tier = choice === "voucher" ? null : ratingPrizes.data?.tiers.find((item) => item.kind === choice);
 
   return (
-    <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-            <Dices className="size-6 text-brand-600" aria-hidden />
-            Random tanlov
-          </h1>
-          <p className="mt-1 text-sm text-slate-600">
-            Oylik voucher g&apos;oliblari tasodifiy tanlanadi. Asosiy sovrinlar — faqat reyting bo&apos;yicha.
-          </p>
-        </div>
-        {selectedId && (
-          <Button variant="secondary" onClick={() => go({})}>
-            <Plus className="size-4" aria-hidden />
-            Yangi tanlov
-          </Button>
-        )}
-      </header>
-
-      <DrawPrizePicker
-        voucher={setup.data?.prizes.find((prize) => prize.id === setup.data?.defaults.prizeId)}
-        tiers={ratingPrizes.data?.tiers}
-        tiersError={ratingPrizes.isError ? errorMessage(ratingPrizes.error) : null}
-        value={choice}
-        onChange={(next) => go(next === "voucher" ? {} : { prize: next })}
-      />
-
-      {choice !== "voucher" ? (
-        tier ? (
-          <DrawRatingPrize
-            tier={tier}
-            updatedAt={ratingPrizes.data?.updatedAt ?? null}
-            shown={shownKind === choice}
-            loading={shownKind === choice && ratingPrizes.isFetching}
-            onShow={() => {
-              setShownKind(choice);
-              void ratingPrizes.refetch();
-            }}
-          />
-        ) : ratingPrizes.isPending ? (
-          <Spinner />
-        ) : null
-      ) : (
-        <>
+    <div className="space-y-8">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0 space-y-6">
           <DrawStockSummary />
 
-          <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="min-w-0">
-              {selectedId ? (
-                <SelectedDraw id={selectedId} fresh={freshId === selectedId} onBack={() => go({})} />
-              ) : setup.isPending ? (
-                <Spinner />
-              ) : setup.isError || !setup.data ? (
-                <p role="alert" className="text-sm text-red-700">
-                  {setup.isError ? errorMessage(setup.error) : "Sozlamalarni yuklab bo'lmadi."}
-                </p>
-              ) : (
-                <NewDraw
-                  setup={setup.data}
-                  onCreated={(draw) => {
-                    setFreshId(draw.id);
-                    go({ id: draw.id });
-                  }}
-                />
-              )}
-            </div>
-            <aside className="grid gap-4 md:grid-cols-2 2xl:block 2xl:space-y-4">
-              <DrawHistory
-                items={draws.data}
-                loading={draws.isPending}
-                error={draws.isError ? errorMessage(draws.error) : null}
-                selectedId={selectedId}
-                onSelect={(id) => go({ id })}
+          <section className="space-y-4" aria-labelledby="voucher-draw-title">
+            <SectionTitle
+              id="voucher-draw-title"
+              icon={Dices}
+              title={selectedId ? "Tanlov natijasi" : "Yangi tanlov"}
+              meta={selectedId ? null : "Oylik voucher g'oliblari tasodifiy tanlanadi"}
+              action={
+                selectedId ? (
+                  <Button variant="secondary" onClick={() => open(null)}>
+                    <Plus className="size-4" aria-hidden />
+                    Yangi tanlov
+                  </Button>
+                ) : null
+              }
+            />
+            {selectedId ? (
+              <SelectedDraw id={selectedId} fresh={freshId === selectedId} onBack={() => open(null)} />
+            ) : setup.isPending ? (
+              <Spinner />
+            ) : setup.isError || !setup.data ? (
+              <p role="alert" className="text-sm text-red-700">
+                {setup.isError ? errorMessage(setup.error) : "Sozlamalarni yuklab bo'lmadi."}
+              </p>
+            ) : (
+              <NewDraw
+                setup={setup.data}
+                onCreated={(draw) => {
+                  setFreshId(draw.id);
+                  open(draw.id);
+                }}
               />
-              <FairnessNote />
-            </aside>
-          </div>
-        </>
-      )}
+            )}
+          </section>
+        </div>
+
+        <aside className="grid min-w-0 content-start items-start gap-4 md:grid-cols-2 xl:grid-cols-1">
+          <DrawHistory
+            items={draws.data}
+            loading={draws.isPending}
+            error={draws.isError ? errorMessage(draws.error) : null}
+            selectedId={selectedId}
+            onSelect={open}
+          />
+          <FairnessNote />
+        </aside>
+      </div>
+
+      <section className="space-y-4" aria-labelledby="voucher-winners-title">
+        <SectionTitle id="voucher-winners-title" icon={Ticket} title="Voucher g'oliblari" />
+        <VoucherWinners />
+      </section>
     </div>
   );
 }
@@ -198,7 +157,7 @@ function NewDraw({ setup, onCreated }: { setup: DrawSetup; onCreated: (draw: Vou
           : null;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div className="min-w-0 space-y-4">
         <DrawSettingsCard setup={setup} editing={editing} onEditingChange={setEditing} />
         <DrawPeriodPicker
@@ -212,7 +171,7 @@ function NewDraw({ setup, onCreated }: { setup: DrawSetup; onCreated: (draw: Vou
         />
       </div>
 
-      <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+      <div className="min-w-0 space-y-4 lg:sticky lg:top-24 lg:self-start">
         <DrawPoolCard
           preview={settings ? preview.data : undefined}
           loading={preview.isFetching}
@@ -306,7 +265,7 @@ function DrawHistory({
         <CardTitle>Tanlovlar tarixi</CardTitle>
       </CardHeader>
       {loading ? (
-        <Spinner />
+        <Spinner className="px-5 py-4" />
       ) : error ? (
         <p className="px-5 py-4 text-sm text-red-700">{error}</p>
       ) : !items || items.length === 0 ? (
@@ -318,6 +277,7 @@ function DrawHistory({
               <button
                 type="button"
                 onClick={() => onSelect(item.id)}
+                aria-current={selectedId === item.id ? "true" : undefined}
                 className={cn(
                   "w-full px-5 py-3 text-left transition-colors hover:bg-slate-50",
                   selectedId === item.id && "bg-brand-50/60",

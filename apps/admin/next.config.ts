@@ -44,8 +44,8 @@ export default function config(phase: string): NextConfig {
     reactStrictMode: true,
     poweredByHeader: false,
     basePath,
-    // `NEXT_PUBLIC_BASE_PATH` — `public/` dagi fayllar manzili uchun (masalan, mock istoriya
-    // kliplari): `next/link` dan tashqaridagi `src` larga `basePath` o'zi qo'shilmaydi.
+    // `NEXT_PUBLIC_BASE_PATH` — `public/` dagi fayllar manzili uchun (`<img src>`, `<video src>`):
+    // `next/link` dan tashqaridagi `src` larga `basePath` o'zi qo'shilmaydi.
     env: { NEXT_PUBLIC_API_MODE: apiMode, NEXT_PUBLIC_BASE_PATH: basePath },
   };
 

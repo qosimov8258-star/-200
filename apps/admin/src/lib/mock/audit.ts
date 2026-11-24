@@ -13,7 +13,6 @@ import type { AdminRole, AuditLogEntry, AuditLogQuery, AuditLogResponse } from "
 import { eventTime, getContestData } from "./contest";
 import { mockAdmins } from "./db";
 import { effectivePrizes } from "./prizes";
-import { storyParticipantId } from "./stories";
 import { auditId, readStore, writeStore, type MockAuditEntry } from "./store";
 import { normalizeSearch } from "./text";
 
@@ -136,11 +135,9 @@ function entityLabelResolver(): (entry: MockAuditEntry) => string {
         const draw = readStore().draws.find((item) => item.id === entry.entityId);
         return draw ? `#${draw.number} — ${draw.prizeTitle}` : entry.entityId;
       }
-      case "story": {
-        // Istoriya o'chirilgan yoki muddati tugagan bo'lsa ham egasi ma'lum.
-        const owner = removedStories[entry.entityId]?.participantId ?? storyParticipantId(entry.entityId);
-        return participants.get(owner ?? "") ?? entry.entityId;
-      }
+      case "story":
+        // Istoriyalar bo'limi olib tashlangan; eski yozuvda egasi `removedStories` da qolgan.
+        return participants.get(removedStories[entry.entityId]?.participantId ?? "") ?? entry.entityId;
       case "auth":
         return entry.actorName;
     }
