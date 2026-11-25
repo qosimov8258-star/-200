@@ -167,7 +167,18 @@ test("GET /admin/participants/:id/reels lists every video, the most viewed on to
   third.history.push({ date: "2026-12-01", at: new Date("2026-12-01T01:00:00Z"), views: 800, likes: 10, comments: 0 });
 
   const result = controller.reels("1");
-  assert.deepEqual(result.participant, { id: "1", fullName: "Ism1 Familiya1", instagramUsernames: ["ism1"] });
+  const { registeredOn, ...profile } = result.participant;
+  assert.deepEqual(profile, {
+    id: "1",
+    fullName: "Ism1 Familiya1",
+    instagramUsernames: ["ism1"],
+    phone: "+998900000001",
+    age: 25,
+    status: "ACTIVE",
+  });
+  assert.match(registeredOn, /^\d{4}-\d{2}-\d{2}$/);
+  // 2-ishtirokchida ochiq target ogohlantirishi bor — oynada ham WARNED.
+  assert.equal(controller.reels("2").participant.status, "WARNED");
   // Ko'rishlar qo'shilmaydi: 1 200 + 800 emas, eng ko'p ko'rilgani — 1 200.
   assert.equal(result.bestViews, 1_200);
   assert.deepEqual(

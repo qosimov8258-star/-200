@@ -120,8 +120,10 @@ function toItem(p: Participant, reel: Reel, review: ManualReview) {
     attempts: review.attempts,
     requestedAt: review.requestedAt.toISOString(),
     submittedAt: reel.submittedAt.toISOString(),
-    /** Avval qabul qilingan video uchun oxirgi ma'lum ko'rishlar; yangi videoda — null. */
+    /** Oxirgi o'qilgan ko'rishlar (tasdiqlangandan keyin — joriy ko'rishlar); hali o'qilmagan — null. */
     lastViews: reel.history.at(-1)?.views ?? null,
+    /** Ko'rishlar oxirgi marta o'qilgan vaqt; hali o'qilmagan — null. */
+    lastSyncedAt: reel.history.at(-1)?.at.toISOString() ?? null,
     owner: reel.owner,
     status: (decision === null ? "OPEN" : decision.approved ? "APPROVED" : "REJECTED") as ReviewStatus,
     decision:

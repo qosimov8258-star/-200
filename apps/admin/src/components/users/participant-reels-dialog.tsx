@@ -11,10 +11,12 @@ import { IosIcon } from "@/components/ui/ios-icon";
 import { Spinner } from "@/components/ui/spinner";
 import { getParticipantReels } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
-import { formatDateTime, formatNumber } from "@/lib/format";
+import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
 import {
   BEST_REEL_LABEL,
   MANUAL_REVIEW_REEL_LABEL,
+  PARTICIPANT_STATUS_LABELS,
+  PARTICIPANT_STATUS_TONES,
   REEL_REJECT_REASON_LABELS,
   REEL_STATUS_LABELS,
   REEL_STATUS_TONES,
@@ -26,21 +28,25 @@ import type {
   ParticipantReelCounts,
   ParticipantReels,
 } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 import { ReelCountBadges } from "./reel-count-badges";
 import { fullName } from "./users-table";
 
 interface ParticipantReelsDialogProps {
-  participant: ParticipantListItem;
+  participant: Pick<ParticipantListItem, "id" | "firstName" | "lastName">;
+  /** Shu video ro'yxatda ajratib ko'rsatiladi (masalan, Qo'lda tekshiruvdan ochilganda). */
+  highlight?: string;
   onClose: () => void;
 }
 
 /**
- * Ishtirokchining barcha yuborgan videolari: holati, reytingdagi o'rni, ko'rishlari va shubha
- * belgilari. Reytingda har bir qabul qilingan video alohida qator; ishtirokchining natijasi va
- * o'rni — eng ko'p ko'rilgan bitta videosi bo'yicha (ko'rishlar qo'shilmaydi).
+ * Ishtirokchi ma'lumotlari (telefon, yosh, holat, Instagram) va barcha yuborgan videolari:
+ * holati, reytingdagi o'rni, ko'rishlari va shubha belgilari. Reytingda har bir qabul qilingan
+ * video alohida qator; ishtirokchining natijasi va o'rni — eng ko'p ko'rilgan bitta videosi
+ * bo'yicha (ko'rishlar qo'shilmaydi).
  */
-export function ParticipantReelsDialog({ participant, onClose }: ParticipantReelsDialogProps) {
+export function ParticipantReelsDialog({ participant, highlight, onClose }: ParticipantReelsDialogProps) {
   const name = fullName(participant);
   const { data, error, isPending, isError, isFetching, refetch } = useQuery({
     queryKey: ["participant-reels", participant.id],
@@ -48,7 +54,7 @@ export function ParticipantReelsDialog({ participant, onClose }: ParticipantReel
   });
 
   return (
-    <Dialog open onClose={onClose} title={`Videolar — ${name}`} className="max-w-2xl">
+    <Dialog open onClose={onClose} title={name} className="max-w-2xl">
       {isPending ? (
         <div className="flex justify-center py-10">
           <Spinner />
@@ -62,7 +68,7 @@ export function ParticipantReelsDialog({ participant, onClose }: ParticipantReel
           </Button>
         </div>
       ) : (
-        <ReelsBody data={data} />
+        <ReelsBody data={data} highlight={highlight} />
       )}
 
       <div className="mt-5 flex justify-end border-t border-slate-100 pt-4">
@@ -84,16 +90,46 @@ function countReels(reels: AdminReelItem[]): ParticipantReelCounts {
   return counts;
 }
 
-function ReelsBody({ data }: { data: ParticipantReels }) {
+function ReelsBody({ data, highlight }: { data: ParticipantReels; highlight?: string }) {
   // Tartib backenddan: qabul qilinganlar ko'rishlar bo'yicha (birinchisi — eng ko'p ko'rilgani),
   // keyin tekshiruvdagilar, keyin rad etilganlar.
   const reels = data.reels;
   const best = reels.find((reel) => reel.best);
-  const usernames = data.participant.instagramUsernames;
+  const profile = data.participant;
+  const usernames = profile.instagramUsernames;
   const listTitleId = useId();
 
   return (
     <div className="space-y-4 text-sm">
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 px-1 sm:grid-cols-4">
+        <div className="min-w-0">
+          <dt className="text-xs text-slate-500">Telefon</dt>
+          <dd className="mt-0.5 text-slate-900 tabular-nums">
+            {profile.phone ? (
+              <a href={`tel:${profile.phone}`} className="hover:underline">
+                {profile.phone}
+              </a>
+            ) : (
+              <span className="text-slate-400">—</span>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-slate-500">Yosh</dt>
+          <dd className="mt-0.5 text-slate-900 tabular-nums">{profile.age > 0 ? profile.age : "—"}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-slate-500">Ro&apos;yxatdan o&apos;tgan</dt>
+          <dd className="mt-0.5 text-slate-900 tabular-nums">{formatDate(profile.registeredOn)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-slate-500">Holat</dt>
+          <dd className="mt-0.5">
+            <Badge tone={PARTICIPANT_STATUS_TONES[profile.status]}>{PARTICIPANT_STATUS_LABELS[profile.status]}</Badge>
+          </dd>
+        </div>
+      </dl>
+
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl bg-canvas px-3 py-3 sm:grid-cols-3">
         <div className="col-span-2 min-w-0 sm:col-span-1">
           <dt className="text-xs text-slate-500">
@@ -149,7 +185,7 @@ function ReelsBody({ data }: { data: ParticipantReels }) {
           </h3>
           <ul className="max-h-[55vh] divide-y divide-slate-100 overflow-y-auto rounded-md border border-slate-200">
             {reels.map((reel) => (
-              <ReelRow key={reel.shortcode} reel={reel} />
+              <ReelRow key={reel.shortcode} reel={reel} highlighted={reel.shortcode === highlight} />
             ))}
           </ul>
         </section>
@@ -158,11 +194,11 @@ function ReelsBody({ data }: { data: ParticipantReels }) {
   );
 }
 
-function ReelRow({ reel }: { reel: AdminReelItem }) {
+function ReelRow({ reel, highlighted }: { reel: AdminReelItem; highlighted: boolean }) {
   const synced = reel.lastSyncedAt !== null;
 
   return (
-    <li className="space-y-2 px-3 py-3">
+    <li className={cn("space-y-2 px-3 py-3", highlighted && "bg-brand-50/60")} aria-current={highlighted || undefined}>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
         <a
           href={reel.url}
@@ -174,6 +210,7 @@ function ReelRow({ reel }: { reel: AdminReelItem }) {
           <ExternalLink className="size-3.5 shrink-0" aria-hidden />
           <span className="sr-only">(Instagramda, yangi oynada)</span>
         </a>
+        {highlighted && <span className="sr-only">— qo&apos;lda tekshiruvdagi video</span>}
         <span className="inline-flex flex-wrap items-center gap-1.5">
           {reel.rank !== null && (
             <Badge tone="neutral" className="tabular-nums" title="Reytingdagi o'rni (har bir video alohida qator)">
@@ -209,7 +246,11 @@ function ReelRow({ reel }: { reel: AdminReelItem }) {
           )}
         </Meta>
         <Meta label="Ko'rishlar">
-          <span className="tabular-nums">{synced ? formatNumber(reel.views) : "—"}</span>
+          {synced ? (
+            <span className="font-semibold tabular-nums">{formatNumber(reel.views)}</span>
+          ) : (
+            <span className="text-slate-400">Hali o&apos;qilmagan</span>
+          )}
         </Meta>
         <Meta label="Layklar">
           <span className="tabular-nums">{reel.likes === null ? "—" : formatNumber(reel.likes)}</span>

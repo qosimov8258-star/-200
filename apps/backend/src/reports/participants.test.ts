@@ -132,7 +132,17 @@ test("participant Reels: the most viewed on top, admin statuses, latest numbers 
     ],
   });
   const result = toParticipantReels(p);
-  assert.deepEqual(result.participant, { id: "7", fullName: "Ali Valiyev", instagramUsernames: ["ali.v", "ali.second"] });
+  assert.deepEqual(result.participant, {
+    id: "7",
+    fullName: "Ali Valiyev",
+    instagramUsernames: ["ali.v", "ali.second"],
+    phone: "+998900000007",
+    age: 25,
+    status: "ACTIVE",
+    registeredOn: "2026-11-26",
+  });
+  // Ochiq ogohlantirish bo'lsa — holat WARNED (ro'yxatdagidek).
+  assert.equal(toParticipantReels(p, new Map(), new Set([7])).participant.status, "WARNED");
   assert.equal(result.bestViews, 30_000);
   assert.deepEqual(
     result.reels.map((r) => [r.shortcode, r.status, r.manualReview, r.rejectReason, r.owner, r.views, r.best]),

@@ -72,7 +72,15 @@ export interface ReelCounts {
 
 /** Foydalanuvchilar → ishtirokchi videolari (`GET /admin/participants/:id/reels`). */
 export interface ParticipantReels {
-  participant: { id: string; fullName: string; instagramUsernames: string[] };
+  participant: {
+    id: string;
+    fullName: string;
+    instagramUsernames: string[];
+    phone: string;
+    age: number;
+    status: AdminParticipantStatus;
+    registeredOn: string;
+  };
   /** Ro'yxatdagi `views` bilan bir xil — eng ko'p ko'rilgan qabul qilingan video. */
   bestViews: number;
   /** `reelsForDisplay` tartibida: birinchisi — reytingdagi video (qabul qilingan bo'lsa). */
@@ -181,16 +189,25 @@ export function toParticipantItem(p: Participant, ctx: ParticipantContext): Part
 }
 
 /**
- * Ishtirokchining barcha videolari (admin panel → Foydalanuvchilar → ishtirokchi): eng ko'p
- * ko'rilgani tepada (`reelsForDisplay`).
+ * Ishtirokchi ma'lumotlari va barcha videolari (admin panel → Foydalanuvchilar yoki Qo'lda
+ * tekshiruv → ishtirokchi): eng ko'p ko'rilgani tepada (`reelsForDisplay`).
+ * `warned` — ochiq "ogohlantirilgan" target holati borlar (holat `WARNED` bo'lib ko'rinadi).
  */
-export function toParticipantReels(p: Participant, reelRanks: ReadonlyMap<string, number> = new Map()): ParticipantReels {
+export function toParticipantReels(
+  p: Participant,
+  reelRanks: ReadonlyMap<string, number> = new Map(),
+  warned: ReadonlySet<number> = new Set(),
+): ParticipantReels {
   const best = bestReel(p);
   return {
     participant: {
       id: String(p.telegramId),
       fullName: `${p.firstName ?? ""} ${p.lastName ?? ""}`.trim(),
       instagramUsernames: instagramUsernames(p),
+      phone: p.phone ?? "",
+      age: p.age ?? 0,
+      status: adminStatus(p, warned),
+      registeredOn: contestDay(p.createdAt),
     },
     bestViews: participantViews(p),
     reels: reelsForDisplay(p.reels).map((reel): AdminReelItem => {

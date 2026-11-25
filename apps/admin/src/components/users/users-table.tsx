@@ -153,7 +153,8 @@ function SortableHeader({
 // ---------------------------------------------------------------------------
 
 /** Bosilgan joy qatordagi tugma, havola yoki menyu bo'lsa — qator bosilishi hisoblanmaydi. */
-function isInteractiveTarget(target: EventTarget): boolean {
+/** Bosilgan joy qatordagi tugma, havola yoki maydonmi (qator bosilishi bilan aralashmasin). */
+export function isInteractiveTarget(target: EventTarget): boolean {
   return (
     target instanceof Element &&
     target.closest("a, button, input, select, textarea, label, [role='menu']") !== null

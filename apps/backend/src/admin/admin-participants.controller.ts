@@ -102,7 +102,10 @@ export class AdminParticipantsController {
     };
   }
 
-  /** `GET /admin/participants/:id/reels` — ishtirokchi yuborgan barcha videolar (eng yangisi birinchi). */
+  /**
+   * `GET /admin/participants/:id/reels` — ishtirokchi ma'lumotlari (telefon, yosh, holat) va
+   * yuborgan barcha videolari (eng ko'p ko'rilgani birinchi).
+   */
   @Get(":id/reels")
   reels(@Param("id") id: string): ParticipantReels {
     const p = this.find(id);
@@ -110,7 +113,7 @@ export class AdminParticipantsController {
       .reelRanking()
       .filter((e) => e.participant === p)
       .map((e): [string, number] => [e.reel.shortcode, e.rank]);
-    return toParticipantReels(p, new Map(reelRanks));
+    return toParticipantReels(p, new Map(reelRanks), this.context().warned);
   }
 
   /** Bloklash: ilovaga kira olmaydi, reytingdan chiqadi. Body: `{ reason }`. */

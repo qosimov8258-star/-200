@@ -21,7 +21,7 @@ import type {
   ManualReviewListResponse,
   ManualReviewStatus,
 } from "../types";
-import { getContestData, type MockParticipant, type MockReel } from "./contest";
+import { getContestData, lastSnapshotDay, type MockParticipant, type MockReel } from "./contest";
 import { mockAdmins } from "./db";
 import { effectiveStatus } from "./ranking";
 import { auditId, readStore, writeStore, type MockManualDecision, type MockStore } from "./store";
@@ -108,6 +108,13 @@ function seedCases(): SeedCase[] {
   return cases;
 }
 
+/** Ko'rishlar oxirgi marta o'qilgan vaqt — oxirgi kunlik yig'ish (06:00, Toshkent). */
+function lastSyncedAt(seed: SeedCase): string | null {
+  if (seed.lastViews === null) return null;
+  const day = lastSnapshotDay(seed.reel);
+  return day ? tashkentIso(day, "06:00") : null;
+}
+
 function decisionOf(seed: SeedCase, store: MockStore): MockManualDecision | null {
   return store.manualReviews[seed.reel.shortcode] ?? seed.initial;
 }
@@ -135,6 +142,7 @@ function toItem(seed: SeedCase, store: MockStore): ManualReviewItem {
     requestedAt: seed.requestedAt,
     submittedAt: tashkentIso(seed.reel.submittedOn, "09:00"),
     lastViews: seed.lastViews,
+    lastSyncedAt: lastSyncedAt(seed),
     owner: seed.kind === "LOST_REEL" ? (seed.reel.owner ?? seed.participant.instagramUsername) : null,
     status: statusOf(decision),
     decision: decision
