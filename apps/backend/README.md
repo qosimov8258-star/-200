@@ -43,14 +43,15 @@ TypeScript 6 da qoladi: Nest CLI hozircha TypeScript 7 bilan ishlamaydi.
 | `TELEGRAM_SUPPORT_OPERATOR_IDS` | Ishtirokchilarga bot nomidan javob bera oladigan operatorlar (Telegram ID, vergul bilan). Bo'sh — support guruhi egasi va adminlari |
 | `APIFY_API_TOKEN` | Apify Console → Settings → API & Integrations. **Maxfiy** |
 | `STATS_PROVIDER` | `apify` (haqiqiy) yoki `mock` (lokal sinov — SOXTA ko'rishlar) |
-| `STATS_SYNC_TIME` | Ko'rishlar soat nechada yig'iladi, Toshkent vaqti (standart `00:00` — reyting har kuni yarim tunda yangilanadi; eski saqlangan `06:00` bir marta avtomatik `00:00` ga o'tadi). Faqat birinchi ishga tushishda — keyin admin panel → Sozlamalar |
-| `STATS_SYNC_EVERY_DAYS` | Tanlov boshidan (Sozlamalar → boshlanish sanasi, 25-noyabr) necha kunda bir: `1` (standart, har kuni); `7` — haftada bir marta; `0` — o'chiq |
+| `STATS_SYNC_TIME` | Ko'rishlar soat nechada yig'iladi, Toshkent vaqti (standart `00:00` — reyting yarim tunda yangilanadi; eski saqlangan `06:00` bir marta avtomatik `00:00` ga o'tadi). Faqat birinchi ishga tushishda — keyin admin panel → Sozlamalar |
+| `STATS_SYNC_EVERY_DAYS` | Faqat `0` — avtomatik yig'ish o'chiq (lokal sinov). Davrning o'zi endi admin panel → Sozlamalar → «Yangilanish davri» (standart — haftada bir marta; ilgari env'da `1` bo'lgan serverlar ham bir marta haftalikka o'tadi). Boshqa qiymat e'tiborga olinmaydi |
 | `STATS_VERIFY_DELAY_MS` | Yangi videolar shuncha yig'ilib, bitta so'rovda tekshiriladi (standart `1500`; bir vaqtda 3 tagacha tekshiruv parallel) |
 | `TARGET_CHECK_TOP` | Reklama kutubxonasida reytingning nechta yetakchisi tekshiriladi (standart `30`) |
 | `TARGET_CHECK_EVERY_DAYS` | Tanlov boshidan necha kunda bir tekshiriladi (standart `1` — har kuni; `30` — oyiga bir marta; `0` — faqat qo'lda) |
 | `STATS_MOCK_VIDEO_URL` | Faqat `STATS_PROVIDER=mock`: AI tekshiruvini lokal sinash uchun hamma videolarga beriladigan mp4 manzili |
 | `AI_WORKER_TOKEN` | AI worker ↔ backend ichki API kaliti (`openssl rand -hex 32`), ikkalasida bir xil. Bo'sh — `/internal/ai/*` yopiq. **Maxfiy** |
 | `ANTHROPIC_API_KEY` | Claude API kaliti — **faqat worker'da** (backend'ga kerak emas). **Maxfiy**, log'ga yozilmaydi |
+| `AI_ACCEPTANCE_GATE` | `true` — yangi videolar qabul qilinishidan oldin AI'dan o'tadi (pastda). Standart — **o'chiq**: AI hech narsaga ulanmagan, video faqat Apify bo'yicha qabul qilinadi |
 | `AI_MODEL`, `AI_FRAME_INTERVAL_SEC`, `AI_FRAME_HEIGHT`, `AI_CONFIDENCE_MIN` | Model (`claude-opus-5-5`), kadr oralig'i (`2` s), kadrning qisqa tomoni (`720` = 720p), SHUBHALI chegarasi (`0.8`). Versiya tasdiqlanganda unga muhrlanadi |
 | `AI_PROVIDER`, `AI_BACKEND_URL`, `AI_EFFORT`, `AI_POLL_SECONDS`, `AI_BATCH_SIZE`, `AI_MAX_IN_FLIGHT`, `AI_MAX_FRAMES`, `AI_MAX_BATCH_MB`, `AI_WORK_DIR` | Worker sozlamalari — `.env.example` da izohi bilan (`AI_PROVIDER=mock` — pul sarflamaydigan sinov) |
 | `DATA_DIR` | Ma'lumotlar papkasi (standart `data`; Docker'da volume — `/app/data`) |
@@ -103,17 +104,19 @@ avtomatik `reels` ga o'tkaziladi.
    - rasm yoki karusel → `REJECTED: NOT_A_VIDEO`;
    - shu Instagram akkauntdan boshqa ishtirokchi qatnashyapti → `REJECTED: OWNER_TAKEN` (o'zining
      bir nechta akkauntidan yuborish mumkin);
-   - aks holda birinchi ko'rishlar yoziladi va — admin AI mezonlarini tasdiqlagan bo'lsa — video
+   - aks holda birinchi ko'rishlar yoziladi va video **darhol `ACCEPTED`** (standart — AI ulanmagan).
+     `AI_ACCEPTANCE_GATE=true` va admin AI mezonlarini tasdiqlagan bo'lsa esa video avval
      **AI tekshiruviga** o'tadi (holat `PENDING`, `Reel.aiCheck`; Apify bergan video fayli worker'ga
      beriladi). **Ikkalasi ham o'tsa** — `ACCEPTED`: AI «Tasdiqlandi» (ishonch ≥ `AI_CONFIDENCE_MIN`)
      → video qabul qilinadi va ishtirokchiga xabar boradi; «Rad etildi», «Shubhali» yoki AI videoni ko'ra
      olmasa → **qo'lda tekshiruv** (`AI_CHECK`). AI worker 10 daqiqa ko'rinmasa yoki natija 2 soatda
-     kelmasa — video ham adminga o'tadi (cheksiz kutib qolmaydi). AI mezonlari tasdiqlanmagan bo'lsa —
-     darhol `ACCEPTED` (faqat Apify);
+     kelmasa — video ham adminga o'tadi (cheksiz kutib qolmaydi). AI keyin o'chirilsa — kutib qolganlar
+     qabul qilinadi;
    - topilmadi, ko'rishlari kelmadi yoki Apify xato berdi → 2 va 10 daqiqadan keyin qayta urinadi (xatoda —
      2, 4… daqiqa); **3 marta bo'lmasa — qo'lda tekshiruv** (`NEW_REEL`, pastda). Video
      "tekshirilmoqda"da cheksiz qolmaydi.
-2. **Muntazam yig'ish** — tanlov boshlangan kundan (25-noyabr) har `STATS_SYNC_EVERY_DAYS` kunda soat `STATS_SYNC_TIME` da
+2. **Muntazam yig'ish** — tanlov boshlangan kundan (25-noyabr) Sozlamalardagi davr bo'yicha (standart — **haftada bir
+   marta**, `syncEveryDays`) soat `STATS_SYNC_TIME` da
    rad etilmagan barcha videolar; har kunga bitta yozuv (tarix → Mini App grafigi). Qabul qilingan video topilmasa, 2 va 10
    daqiqadan keyin qayta tekshiriladi; 3 marta topilmasa — uning ko'rishlari reytingda vaqtincha hisobga olinmaydi va
    video **qo'lda tekshiruvga** o'tadi (ishtirokchining boshqa videolari reytingda qoladi). Video topilib,
@@ -191,7 +194,8 @@ qilingan videolar ham o'zi navbatga tushadi. Allaqachon qabul qilingan videolar 
 holatini **o'zgartirmaydi** — bu moderatsiyaga yordam; SHUBHALI videolarni admin qo'lda tasdiqlaydi yoki
 rad etadi (izoh bilan, audit log'ga).
 
-**Yangi videolar — avval AI, keyin qabul.** Mezonlar tasdiqlangach (faol versiya bor), har bir yangi
+**Yangi videolar — avval AI, keyin qabul** (faqat `AI_ACCEPTANCE_GATE=true` bo'lsa; standart — o'chiq,
+AI hech narsaga ulanmagan). Mezonlar tasdiqlangach (faol versiya bor), har bir yangi
 yuborilgan video Apify topgach shu navbatga tushadi (`AiReviewService.submitForAcceptance`) va natijasi
 qabulni hal qiladi: TASDIQLANDI → `ACCEPTED`; RAD ETILDI / SHUBHALI / FAILED → "Qo'lda tekshiruv"
 (`AI_CHECK`). Admin u yerda qaror qilsa, AI bo'limidagi natijaga ham yoziladi. Yangi versiya

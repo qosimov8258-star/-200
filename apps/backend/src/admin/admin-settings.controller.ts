@@ -8,13 +8,15 @@ import type { AdminUser } from "./auth/admin-accounts";
 import { AdminAuthGuard, CurrentAdmin } from "./auth/admin-auth.guard";
 import { actorOf } from "./auth/admin-auth.service";
 
-const FIELDS = ["startsOn", "endsOn", "syncTime", "minAge"] as const;
+const FIELDS = ["startsOn", "endsOn", "syncTime", "syncEveryDays", "minAge"] as const;
 
+const period = (days: number) => (days === 1 ? "har kuni" : days === 7 ? "haftada bir" : `har ${days} kunda`);
 const describe = (s: ContestSettings) =>
-  `${s.startsOn} – ${s.endsOn}, yig'ish ${s.syncTime}, ${s.minAge}+ yosh`;
+  `${s.startsOn} – ${s.endsOn}, yig'ish ${period(s.syncEveryDays)} ${s.syncTime}, ${s.minAge}+ yosh`;
 
 /**
- * Tanlov sozlamalari (admin panel → Sozlamalar): muddat, ko'rishlar yig'iladigan vaqt, minimal yosh.
+ * Tanlov sozlamalari (admin panel → Sozlamalar): muddat, ko'rishlar yig'iladigan vaqt va davri,
+ * minimal yosh.
  * Kontrakt — `apps/admin/src/lib/api.ts` (`getContestSettings`, `updateContestSettings`).
  */
 @Controller("admin/settings")
@@ -30,16 +32,22 @@ export class AdminSettingsController {
     return this.response();
   }
 
-  /** Body: `{ startsOn, endsOn, syncTime, minAge }` — hammasi majburiy. */
+  /** Body: `{ startsOn, endsOn, syncTime, syncEveryDays, minAge }` — hammasi majburiy. */
   @Put()
   update(@Body() body: unknown, @CurrentAdmin() admin: AdminUser) {
     const b = objectBody(body, FIELDS);
-    const { startsOn, endsOn, syncTime, minAge } = b;
-    if (typeof startsOn !== "string" || typeof endsOn !== "string" || typeof syncTime !== "string" || typeof minAge !== "number") {
+    const { startsOn, endsOn, syncTime, syncEveryDays, minAge } = b;
+    if (
+      typeof startsOn !== "string" ||
+      typeof endsOn !== "string" ||
+      typeof syncTime !== "string" ||
+      typeof syncEveryDays !== "number" ||
+      typeof minAge !== "number"
+    ) {
       throw adminError(400, "Barcha maydonlarni to'ldiring.");
     }
     const before = this.contest.get();
-    const after = this.contest.update({ startsOn, endsOn, syncTime, minAge }, admin.fullName);
+    const after = this.contest.update({ startsOn, endsOn, syncTime, syncEveryDays, minAge }, admin.fullName);
     if (describe(before) !== describe(after)) {
       this.audit.record({
         actor: actorOf(admin),

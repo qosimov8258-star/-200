@@ -37,7 +37,11 @@ const ATTEMPTS = 3;
 const OPEN_NEW = 4;
 const OPEN_LOST = 2;
 const DECIDED = 2;
-/** AI mahsulotni topmagan (yoki ko'ra olmagan) yangi videolar — ro'yxatning asosiy qismi. */
+/**
+ * AI mahsulotni topmagan (yoki ko'ra olmagan) yangi videolar. Backend standarti — AI video qabuliga
+ * ulanmagan (`AI_ACCEPTANCE_GATE`), shuning uchun mock'da ham yo'q; yoqilgan holatni ko'rish uchun — true.
+ */
+const MOCK_AI_ACCEPTANCE_GATE = false;
 const AI_CASES: ManualReviewAi[] = [
   {
     verdict: "REJECTED",
@@ -123,7 +127,8 @@ function seedCases(): SeedCase[] {
     });
   });
 
-  pending.slice(OPEN_NEW + DECIDED, OPEN_NEW + DECIDED + AI_CASES.length).forEach((reel, index) => {
+  const aiCases = MOCK_AI_ACCEPTANCE_GATE ? AI_CASES.length : 0;
+  pending.slice(OPEN_NEW + DECIDED, OPEN_NEW + DECIDED + aiCases).forEach((reel, index) => {
     const participant = participants.get(reel.participantId);
     if (!participant) return;
     const ai = AI_CASES[index];

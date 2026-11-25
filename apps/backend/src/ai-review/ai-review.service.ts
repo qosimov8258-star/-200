@@ -157,6 +157,8 @@ export interface AiProgress {
 }
 
 export interface AiState {
+  /** Yangi videolar qabul qilinishidan oldin AI'dan o'tadimi (`AI_ACCEPTANCE_GATE`, standart — yo'q). */
+  acceptanceGate: boolean;
   draft: AiConfigVersion | null;
   active: AiConfigVersion | null;
   run: { version: number; mode: AiRunMode; startedAt: string; startedBy: string } | null;
@@ -215,6 +217,8 @@ export const AI_REVIEW_OPTIONS = Symbol("AI_REVIEW_OPTIONS");
 
 export interface AiReviewOptions {
   settings: AiSettings;
+  /** Yangi videolarni AI tekshiruviga ulash (`AI_ACCEPTANCE_GATE=true`). Standart — o'chiq. */
+  acceptanceGate?: boolean;
   /** Bitta video necha marta urinib ko'riladi (yuklab olish, model xatosi). */
   maxAttempts?: number;
   clock?: () => Date;
@@ -265,8 +269,8 @@ export const VERDICT_LABEL: Record<AiVerdict, string> = {
  * `/internal/ai/*` orqali ishlarni oladi, videoni yuklab kadrlarga ajratadi, Claude Message Batches
  * API'ga yuboradi va natijani qaytaradi.
  *
- * Mezonlar tasdiqlangach, har bir yangi yuborilgan video ham shu yerdan o'tadi
- * (`submitForAcceptance`): Apify videoni topadi → AI mazmunini tekshiradi → TASDIQLANDI bo'lsa video
+ * `AI_ACCEPTANCE_GATE=true` bo'lsa (standart — o'chiq), mezonlar tasdiqlangach har bir yangi
+ * yuborilgan video ham shu yerdan o'tadi (`submitForAcceptance`): Apify videoni topadi → AI mazmunini tekshiradi → TASDIQLANDI bo'lsa video
  * qabul qilinadi; RAD ETILDI, SHUBHALI yoki AI ko'ra olmasa — admin "Qo'lda tekshiruv"da hal qiladi.
  * Sinov/FULL ishlari (allaqachon qabul qilingan videolar) esa video holatini o'zgartirmaydi.
  *
@@ -279,6 +283,7 @@ export class AiReviewService implements OnModuleInit, OnModuleDestroy {
   private readonly now: () => Date;
   private readonly settings: AiSettings;
   private readonly maxAttempts: number;
+  private readonly acceptanceGate: boolean;
   private configs: AiConfigRecord[] = [];
   private run: AiRunRecord | null = null;
   private reviews: VideoReviewRecord[] = [];
@@ -299,6 +304,7 @@ export class AiReviewService implements OnModuleInit, OnModuleDestroy {
     this.now = options.clock ?? (() => new Date());
     this.settings = options.settings;
     this.maxAttempts = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
+    this.acceptanceGate = options.acceptanceGate ?? false;
     const saved = store?.attach<SavedAiReview>("aiReview", () => ({
       configs: this.configs,
       run: this.run,
@@ -334,6 +340,7 @@ export class AiReviewService implements OnModuleInit, OnModuleDestroy {
     const active = this.active();
     const seen = this.workerSeenAt;
     return {
+      acceptanceGate: this.acceptanceGate,
       draft: draft ? this.toVersion(draft) : null,
       active: active ? this.toVersion(active) : null,
       run: this.run
@@ -582,10 +589,11 @@ export class AiReviewService implements OnModuleInit, OnModuleDestroy {
   // --- Yangi videolar: avval AI, keyin qabul ----------------------------------------------------
 
   /**
-   * Yangi videolar AI tekshiruvidan o'tadimi: admin mezonlarni tasdiqlagan (faol versiya bor).
-   * Mezon yo'q bo'lsa — videolar faqat Apify bo'yicha qabul qilinadi (avvalgidek).
+   * Yangi videolar AI tekshiruvidan o'tadimi: `AI_ACCEPTANCE_GATE=true` va admin mezonlarni tasdiqlagan
+   * (faol versiya bor). Aks holda (standart) — videolar faqat Apify bo'yicha qabul qilinadi.
    */
   gateEnabled(): boolean {
+    if (!this.acceptanceGate) return false;
     const active = this.active();
     return active !== null && this.run !== null && this.run.version === active.version;
   }

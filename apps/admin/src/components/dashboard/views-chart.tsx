@@ -30,7 +30,7 @@ export function ViewsChart({ daily }: { daily: DailyStat[] }) {
   return (
     <DashboardSection
       title="Kunlik ko'rishlar o'sishi"
-      subtitle="Har kuni yig'ilgan yangi ko'rishlar"
+      subtitle="Har bir yig'ishda qo'shilgan yangi ko'rishlar"
       actions={
         <>
           <IconButton label="Grafik" active={view === "chart"} onClick={() => setView("chart")}>

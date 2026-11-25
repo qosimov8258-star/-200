@@ -92,11 +92,10 @@ export function ManualReviewView() {
       <p className="flex items-start gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
         <IosIcon icon={Info} tint="blue" size={22} />
         <span>
-          Yangi video avval Apify&apos;da (ko&apos;rishlar, akkaunt), keyin AI&apos;da (videoda
-          mahsulot bormi) tekshiriladi — ikkalasi ham o&apos;tsa, video o&apos;zi qabul qilinadi. Bu
-          yerga faqat AI mahsulotni topmagan yoki videoni ko&apos;ra olmagan, yoki Apify videoni 3
-          marta topa olmagan videolar tushadi. Linkni ochib tekshiring: mahsulot ko&apos;rinsa —
-          tasdiqlang, aks holda sababini tanlab rad eting.
+          Apify videoni ketma-ket 3 marta topa olmasa (yoki tekshira olmasa), ishtirokchiga xabar
+          boriladi va video shu yerga tushadi. Linkni ochib tekshiring: video ochiq va mahsulot
+          haqida bo&apos;lsa — tasdiqlang, aks holda sababini tanlab rad eting. Apify videoni keyinroq
+          o&apos;zi topsa, holat avtomatik yopiladi.
         </span>
       </p>
 

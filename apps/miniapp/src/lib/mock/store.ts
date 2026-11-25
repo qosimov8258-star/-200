@@ -298,7 +298,7 @@ export async function getRules(): Promise<ContestRules> {
       },
       {
         title: "4. G'olibni aniqlash",
-        body: "Ko'rishlar har kuni avtomatik yig'iladi. Tanlov yakunida videosi eng ko'p ko'rilgan ishtirokchi tekshiruvdan so'ng g'olib deb e'lon qilinadi.",
+        body: "Ko'rishlar muntazam ravishda avtomatik yig'iladi. Tanlov yakunida videosi eng ko'p ko'rilgan ishtirokchi tekshiruvdan so'ng g'olib deb e'lon qilinadi.",
       },
       {
         title: "5. Shaxsiy ma'lumotlar",
@@ -335,7 +335,7 @@ const SAMPLE_TOTALS = [3120, 5480, 9050, 12890, 15400, 19760, 22310, 26255];
 
 /** Backend jadvali bilan bir xil: tanlov boshidan har kuni, soat 00:00 (Toshkent). */
 const MOCK_CONTEST_STARTS_ON = "2026-11-25";
-const MOCK_SYNC_EVERY_DAYS = 1;
+const MOCK_SYNC_EVERY_DAYS = 7;
 
 function mockNextSyncAt(now = new Date()): string | null {
   for (let k = 1; k <= 50; k++) {

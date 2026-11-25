@@ -566,6 +566,8 @@ function syncFullRun(store: MockAiStore, now: number): MockAiStore {
 
 function stateOf(store: MockAiStore, now: number): AiState {
   return {
+    // Backend standarti: AI video qabuliga ulanmagan.
+    acceptanceGate: false,
     draft: store.draft ? clone(store.draft) : null,
     active: store.active ? clone(store.active) : null,
     run: store.run ? { ...store.run } : null,

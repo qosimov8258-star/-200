@@ -238,11 +238,11 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
     for (const p of this.participants.all()) {
       for (const reel of p.reels) if (needsCheck(reel)) this.queueVerification(p.telegramId, reel.shortcode);
     }
-    // AI natijasini kutayotgan videolar cheksiz kutib qolmasin (worker o'chiq yoki javob bermasa — adminga).
-    if (this.ai) {
-      this.aiWatchdog = setInterval(() => this.checkAiWaits(), AI_WATCHDOG_MS);
-      this.aiWatchdog.unref();
-    }
+    // AI natijasini kutayotgan videolar cheksiz kutib qolmasin (worker o'chiq yoki javob bermasa — adminga;
+    // AI o'chirilgan bo'lsa — qabul).
+    this.checkAiWaits();
+    this.aiWatchdog = setInterval(() => this.checkAiWaits(), AI_WATCHDOG_MS);
+    this.aiWatchdog.unref();
     const { everyDays, syncTime } = this.options;
     if (this.provider.name === "mock") {
       this.logger.warn("STATS_PROVIDER=mock — ko'rishlar SOXTA, faqat lokal sinov uchun.");
@@ -504,14 +504,21 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
     this.toManualReview(p, reel, "AI_CHECK", { verdict: o.verdict, reason: o.reason, confidence: o.confidence });
   }
 
-  /** AI natijasini juda uzoq kutayotgan videolar — adminga (worker o'chiq yoki javob bermadi). */
+  /**
+   * AI natijasini juda uzoq kutayotgan videolar — adminga (worker o'chiq yoki javob bermadi).
+   * AI tekshiruvi o'chirilgan bo'lsa — kutayotganlar qabul qilinadi (Apify ularni allaqachon topgan).
+   */
   checkAiWaits(): void {
-    if (!this.ai) return;
     const now = this.now().getTime();
-    const alive = this.ai.workerAlive();
+    const gate = this.ai?.gateEnabled() ?? false;
+    const alive = this.ai?.workerAlive() ?? false;
     for (const p of this.participants.all()) {
       for (const reel of p.reels) {
         if (reel.status !== "PENDING" || !reel.aiCheck) continue;
+        if (!gate) {
+          this.accept(p, reel, texts.reelAccepted(formatCount(reelViews(reel))));
+          continue;
+        }
         const waited = now - new Date(reel.aiCheck.requestedAt).getTime();
         if (waited >= AI_CHECK_MAX_MS) {
           this.toManualReview(p, reel, "AI_CHECK", {

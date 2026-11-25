@@ -10,14 +10,15 @@ import type { ParticipantNotifier } from "../telegram/notifier";
 import { AI_CHECK_MAX_MS, AI_WORKER_GRACE_MS, StatsService } from "./stats.service";
 
 /**
- * Yangi video oqimi: Apify videoni topadi (ko'rishlar, egasi, video fayli) → AI mazmunini
- * tekshiradi → ikkalasi ham o'tsa — qabul. AI mahsulotni topmasa yoki ko'ra olmasa — admin
- * ("Qo'lda tekshiruv"). Mezonlar tasdiqlanmagan bo'lsa — faqat Apify (avvalgidek).
+ * Yangi video oqimi (`AI_ACCEPTANCE_GATE=true` bo'lsa; standart — o'chiq): Apify videoni topadi
+ * (ko'rishlar, egasi, video fayli) → AI mazmunini tekshiradi → ikkalasi ham o'tsa — qabul. AI
+ * mahsulotni topmasa yoki ko'ra olmasa — admin ("Qo'lda tekshiruv"). O'chiq bo'lsa yoki mezonlar
+ * tasdiqlanmagan bo'lsa — faqat Apify.
  */
 
 const SETTINGS = { model: "claude-opus-5-5", frameIntervalSec: 2, frameHeight: 720, confidenceMin: 0.8, trialSize: 20 };
 
-function setup(opts: { criteria?: boolean } = {}) {
+function setup(opts: { criteria?: boolean; gate?: boolean } = {}) {
   let now = new Date("2026-12-01T05:00:00Z");
   const clock = () => now;
   const participants = new ParticipantsService(new RulesService());
@@ -29,7 +30,11 @@ function setup(opts: { criteria?: boolean } = {}) {
       return Promise.resolve();
     },
   };
-  const ai = new AiReviewService(participants, provider, { settings: SETTINGS, clock });
+  const ai = new AiReviewService(participants, provider, {
+    settings: SETTINGS,
+    clock,
+    acceptanceGate: opts.gate ?? true,
+  });
   if (opts.criteria !== false) {
     ai.createDraft();
     ai.updateCriteria("Videoda Olivia mahsuloti (qadoq yoki logotip) aniq ko'rinishi kerak.");
@@ -269,4 +274,36 @@ test("yangi mezon versiyasi tasdiqlansa — navbatdagi yangi videolar yo'qolmayd
   assert.equal(jobs.length, 1);
   assert.equal(jobs[0].version, 2);
   assert.equal(reel(1)?.status, "ACCEPTED");
+});
+
+test("standart (AI_ACCEPTANCE_GATE yo'q): mezonlar tasdiqlangan bo'lsa ham AI ulanmaydi — darhol qabul", async () => {
+  const { provider, ai, stats, sent, join, reel, answer } = setup({ gate: false });
+  provider.set("AAAAA1", { views: 5_000 });
+  join(1, "AAAAA1");
+  await stats.flushVerification();
+  assert.equal(ai.gateEnabled(), false);
+  assert.equal(ai.state().acceptanceGate, false);
+  assert.equal(reel(1)?.status, "ACCEPTED");
+  assert.equal(reel(1)?.aiCheck ?? null, null);
+  assert.match(sent.at(-1) ?? "", /qabul qilindi/);
+  // Admin AI bo'limida "Hammasi"ni ishga tushirgan bo'lsa — AI xulosasi faqat yordam, holatni o'zgartirmaydi.
+  await answer("REJECTED");
+  assert.equal(reel(1)?.status, "ACCEPTED");
+  assert.equal(reel(1)?.review, null);
+});
+
+test("AI o'chirilgach, AI natijasini kutib qolgan videolar qabul qilinadi", async () => {
+  const { provider, stats, join, reel, participants } = setup({ gate: false });
+  provider.set("AAAAA1", { views: 5_000 });
+  join(1, "AAAAA1");
+  await stats.flushVerification();
+  // AI yoqilgan paytda navbatga tushgan video (holat faylidan).
+  const r = reel(1);
+  assert.ok(r);
+  r.status = "PENDING";
+  r.aiCheck = { requestedAt: new Date("2026-12-01T05:00:00Z") };
+  stats.checkAiWaits();
+  assert.equal(reel(1)?.status, "ACCEPTED");
+  assert.equal(reel(1)?.aiCheck, null);
+  assert.ok(participants.get(1));
 });

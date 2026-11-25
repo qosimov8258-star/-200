@@ -347,6 +347,7 @@ export async function updateContestSettings(
       startsOn: update.startsOn,
       endsOn: update.endsOn,
       syncTime: update.syncTime,
+      syncEveryDays: update.syncEveryDays,
       minAge: update.minAge,
     },
   });
