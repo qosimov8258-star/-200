@@ -175,6 +175,11 @@ export interface ParticipantReels {
     fullName: string;
     /** Rad etilmagan videolardagi Instagram akkauntlar (takrorlanmaydi). */
     instagramUsernames: string[];
+    phone: string;
+    age: number;
+    /** Ro'yxatdagi `status` bilan bir xil (ochiq target ogohlantirishi bo'lsa — WARNED). */
+    status: ParticipantStatus;
+    registeredOn: IsoDate;
   };
   /**
    * Ro'yxatdagi `views` bilan bir xil: eng ko'p ko'rilgan qabul qilingan videoning ko'rishlari
@@ -389,8 +394,13 @@ export interface ManualReviewItem {
   requestedAt: string;
   /** Video yuborilgan vaqt (UTC ISO). */
   submittedAt: string;
-  /** Avval qabul qilingan videoning oxirgi ma'lum ko'rishlari; yangi videoda — null. */
+  /**
+   * Oxirgi o'qilgan ko'rishlar: avval qabul qilingan videoda — oxirgi ma'lumi, tasdiqlangandan
+   * keyin — Apify o'qigan joriy ko'rishlar. Hali bir marta ham o'qilmagan — null.
+   */
   lastViews: number | null;
+  /** Ko'rishlar oxirgi marta o'qilgan vaqt (UTC ISO); hali o'qilmagan — null. */
+  lastSyncedAt: string | null;
   /** Instagram akkaunt (Apify avval topgan bo'lsa); noma'lum — null. */
   owner: string | null;
   status: ManualReviewStatus;

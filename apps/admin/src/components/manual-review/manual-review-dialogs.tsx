@@ -18,12 +18,12 @@ import { cn } from "@/lib/utils";
 const MAX_NOTE_LENGTH = 500;
 const REJECT_REASONS = Object.keys(MANUAL_REVIEW_REJECT_LABELS) as ManualReviewRejectReason[];
 
-/** Qaror videolar ro'yxati, ishtirokchilar, reyting va audit logga ta'sir qiladi. */
+/** Qaror videolar ro'yxati, ishtirokchilar (va ularning videolari), reyting va audit logga ta'sir qiladi. */
 function useInvalidateAfterDecision() {
   const queryClient = useQueryClient();
   return () =>
     Promise.all(
-      ["manual-reviews", "participants", "daily-rating", "dashboard", "audit-log"].map((key) =>
+      ["manual-reviews", "participants", "participant-reels", "daily-rating", "dashboard", "audit-log"].map((key) =>
         queryClient.invalidateQueries({ queryKey: [key] }),
       ),
     );

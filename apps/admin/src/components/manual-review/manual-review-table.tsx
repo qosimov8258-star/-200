@@ -15,6 +15,8 @@ import {
 } from "@/lib/labels";
 import type { ManualReviewItem } from "@/lib/types";
 
+import { isInteractiveTarget } from "../users/users-table";
+
 interface ManualReviewTableProps {
   items: ManualReviewItem[];
   /** Admin shu sessiyada ochgan linklar — tasdiqlash faqat linkni ochgandan keyin. */
@@ -22,12 +24,21 @@ interface ManualReviewTableProps {
   onOpenLink: (item: ManualReviewItem) => void;
   onApprove: (item: ManualReviewItem) => void;
   onReject: (item: ManualReviewItem) => void;
+  /** Ishtirokchi oynasini ochish: ma'lumotlari va barcha videolari ko'rishlari bilan. */
+  onShowParticipant: (item: ManualReviewItem) => void;
 }
 
-export function ManualReviewTable({ items, opened, onOpenLink, onApprove, onReject }: ManualReviewTableProps) {
+export function ManualReviewTable({
+  items,
+  opened,
+  onOpenLink,
+  onApprove,
+  onReject,
+  onShowParticipant,
+}: ManualReviewTableProps) {
   return (
     <div className="relative overflow-x-auto">
-      <table className="w-full min-w-[900px] text-sm">
+      <table className="w-full min-w-[1000px] text-sm">
         <thead className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500">
           <tr>
             <th scope="col" className="px-4 py-2.5 text-left font-medium">
@@ -35,6 +46,13 @@ export function ManualReviewTable({ items, opened, onOpenLink, onApprove, onReje
             </th>
             <th scope="col" className="px-4 py-2.5 text-left font-medium">
               Video
+            </th>
+            <th
+              scope="col"
+              className="px-4 py-2.5 text-right font-medium"
+              title="Apify o'qigan oxirgi ko'rishlar (tasdiqlangandan keyin — joriy ko'rishlar)"
+            >
+              Ko&apos;rishlar
             </th>
             <th scope="col" className="px-4 py-2.5 text-left font-medium">
               Nega qo&apos;lda
@@ -56,6 +74,7 @@ export function ManualReviewTable({ items, opened, onOpenLink, onApprove, onReje
               onOpenLink={onOpenLink}
               onApprove={onApprove}
               onReject={onReject}
+              onShowParticipant={onShowParticipant}
             />
           ))}
         </tbody>
@@ -70,20 +89,37 @@ function ManualReviewRow({
   onOpenLink,
   onApprove,
   onReject,
+  onShowParticipant,
 }: {
   item: ManualReviewItem;
   opened: boolean;
   onOpenLink: ManualReviewTableProps["onOpenLink"];
   onApprove: ManualReviewTableProps["onApprove"];
   onReject: ManualReviewTableProps["onReject"];
+  onShowParticipant: ManualReviewTableProps["onShowParticipant"];
 }) {
-  const name = `${item.participant.firstName} ${item.participant.lastName}`;
+  const name = `${item.participant.firstName} ${item.participant.lastName}`.trim();
   const decision = item.decision;
 
   return (
-    <tr className="align-top hover:bg-slate-50/70">
+    // Sichqoncha uchun butun qator bosiladi; klaviaturada — ism tugmasi (Tab + Enter).
+    <tr
+      className="cursor-pointer align-top hover:bg-slate-50/70"
+      onClick={(event) => {
+        if (isInteractiveTarget(event.target)) return;
+        if (window.getSelection()?.toString()) return;
+        onShowParticipant(item);
+      }}
+    >
       <td className="px-4 py-3">
-        <p className="font-medium whitespace-nowrap text-slate-900">{name}</p>
+        <button
+          type="button"
+          onClick={() => onShowParticipant(item)}
+          className="rounded text-left font-medium whitespace-nowrap text-slate-900 hover:text-brand-700 hover:underline"
+        >
+          {name || "Ismsiz"}
+          <span className="sr-only"> — ma&apos;lumotlari va videolarini ko&apos;rish</span>
+        </button>
         <p className="text-xs whitespace-nowrap text-slate-500 tabular-nums">{item.participant.phone}</p>
         {item.participant.status !== "ACTIVE" && (
           <Badge tone={PARTICIPANT_STATUS_TONES[item.participant.status]} className="mt-1">
@@ -106,11 +142,10 @@ function ManualReviewRow({
         </a>
         <p className="font-mono text-xs text-slate-500">{item.shortcode}</p>
         {item.owner && <p className="text-xs text-slate-500">@{item.owner}</p>}
-        {item.lastViews !== null && (
-          <p className="text-xs whitespace-nowrap text-slate-500 tabular-nums">
-            Oxirgi ma&apos;lum: {formatNumber(item.lastViews)} ko&apos;rish
-          </p>
-        )}
+      </td>
+
+      <td className="px-4 py-3 text-right">
+        <ViewsCell item={item} />
       </td>
 
       <td className="px-4 py-3">
@@ -173,5 +208,32 @@ function ManualReviewRow({
         )}
       </td>
     </tr>
+  );
+}
+
+/**
+ * Ko'rishlar: Apify oxirgi o'qigan son va qachon o'qilgani. Tasdiqlangan, lekin hali o'qilmagan
+ * video — Apify uni qisqa vaqt ichida qayta so'raydi (2, 10, 30 daqiqa, 1, 3, 6 soat).
+ */
+function ViewsCell({ item }: { item: ManualReviewItem }) {
+  if (item.lastViews === null) {
+    return item.status === "APPROVED" ? (
+      <>
+        <p className="whitespace-nowrap text-slate-500">Hali o&apos;qilmagan</p>
+        <p className="text-xs whitespace-nowrap text-slate-400">Apify qayta o&apos;qiydi</p>
+      </>
+    ) : (
+      <span className="text-slate-300">
+        —<span className="sr-only">ko&apos;rishlar hali o&apos;qilmagan</span>
+      </span>
+    );
+  }
+  return (
+    <>
+      <p className="font-semibold whitespace-nowrap text-slate-900 tabular-nums">{formatNumber(item.lastViews)}</p>
+      <p className="text-xs whitespace-nowrap text-slate-500 tabular-nums">
+        {item.status === "OPEN" ? "oxirgi ma'lumi" : item.lastSyncedAt ? formatDateTime(item.lastSyncedAt) : ""}
+      </p>
+    </>
   );
 }

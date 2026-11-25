@@ -18,6 +18,7 @@ import { MANUAL_REVIEW_STATUS_LABELS } from "@/lib/labels";
 import type { ManualReviewItem, ManualReviewStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+import { ParticipantReelsDialog } from "../users/participant-reels-dialog";
 import { ApproveDialog, RejectDialog } from "./manual-review-dialogs";
 import { ManualReviewTable } from "./manual-review-table";
 
@@ -25,6 +26,8 @@ type ListFilter = ManualReviewStatus | "ALL";
 
 const PAGE_SIZE = 25;
 const NOTICE_TIMEOUT_MS = 5000;
+/** Tasdiqlangan, lekin ko'rishlari hali o'qilmagan video bor — ro'yxat shu oraliqda yangilanadi. */
+const AWAITING_VIEWS_REFETCH_MS = 30_000;
 const DEFAULT_FILTER: ListFilter = "OPEN";
 
 const FILTER_TABS: Array<{ value: ListFilter; label: string }> = [
@@ -34,7 +37,7 @@ const FILTER_TABS: Array<{ value: ListFilter; label: string }> = [
   { value: "ALL", label: "Hammasi" },
 ];
 
-type Overlay = { kind: "approve" | "reject"; item: ManualReviewItem };
+type Overlay = { kind: "approve" | "reject" | "participant"; item: ManualReviewItem };
 
 export function ManualReviewView() {
   const router = useRouter();
@@ -57,6 +60,11 @@ export function ManualReviewView() {
     queryKey: ["manual-reviews", query],
     queryFn: () => getManualReviews(query),
     placeholderData: keepPreviousData,
+    // Tasdiqdan keyin Apify ko'rishlarni bir necha soniya–daqiqada o'qiydi — sahifani yangilamasdan ko'rinsin.
+    refetchInterval: (q) =>
+      q.state.data?.items.some((item) => item.status === "APPROVED" && item.lastViews === null)
+        ? AWAITING_VIEWS_REFETCH_MS
+        : false,
   });
 
   const [overlay, setOverlay] = useState<Overlay | null>(null);
@@ -148,6 +156,7 @@ export function ManualReviewView() {
                 onOpenLink={(item) => setOpened((prev) => new Set(prev).add(item.id))}
                 onApprove={(item) => setOverlay({ kind: "approve", item })}
                 onReject={(item) => setOverlay({ kind: "reject", item })}
+                onShowParticipant={(item) => setOverlay({ kind: "participant", item })}
               />
             </div>
             {data.total > data.pageSize && (
@@ -173,6 +182,14 @@ export function ManualReviewView() {
             setOverlay(null);
             setNotice(message);
           }}
+        />
+      )}
+      {overlay?.kind === "participant" && (
+        <ParticipantReelsDialog
+          key={`participant:${overlay.item.id}`}
+          participant={overlay.item.participant}
+          highlight={overlay.item.shortcode}
+          onClose={() => setOverlay(null)}
         />
       )}
       {overlay?.kind === "reject" && (
