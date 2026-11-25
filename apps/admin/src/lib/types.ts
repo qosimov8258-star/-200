@@ -40,9 +40,10 @@ export type ReelStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "REMOVED";
 /**
  * Nega video qabul qilinmadi: NOT_FOUND — Instagramda topilmadi (o'chirilgan, yopiq akkaunt
  * yoki noto'g'ri link); NOT_A_VIDEO — rasm yoki karusel; OWNER_TAKEN — shu Instagram akkaunt
- * boshqa ishtirokchining videosida ishlatilgan.
+ * boshqa ishtirokchining videosida ishlatilgan; NO_PRODUCT — videoda tanlov mahsuloti ko'rinmaydi
+ * (AI topmadi, admin tekshirib rad etdi).
  */
-export type ReelRejectReason = "NOT_FOUND" | "NOT_A_VIDEO" | "OWNER_TAKEN";
+export type ReelRejectReason = "NOT_FOUND" | "NOT_A_VIDEO" | "OWNER_TAKEN" | "NO_PRODUCT";
 
 /**
  * Nakrutka shubhasi belgisi (backend `ReelFlagType`) — admin ko'rib chiqishi uchun,
@@ -351,15 +352,25 @@ export interface TargetActionRequest {
 }
 
 // ---------------------------------------------------------------------------
-// Qo'lda tekshiruv — Apify videoni ketma-ket 3 marta topa olmaganda
+// Qo'lda tekshiruv — AI videoda mahsulotni topmaganda yoki Apify videoni 3 marta topa olmaganda
 // (backend: `apps/backend/src/admin/admin-manual-review.controller.ts`)
 // ---------------------------------------------------------------------------
 
 /**
- * NEW_REEL — yangi yuborilgan video hali qabul qilinmagan;
+ * AI_CHECK — AI yangi videoda tanlov mahsulotini topmadi (yoki videoni ko'ra olmadi);
+ * NEW_REEL — Apify yangi videoni 3 marta topa olmadi (hali qabul qilinmagan);
  * LOST_REEL — avval qabul qilingan video endi topilmayapti (reytingdan vaqtincha chiqqan).
  */
-export type ManualReviewKind = "NEW_REEL" | "LOST_REEL";
+export type ManualReviewKind = "NEW_REEL" | "LOST_REEL" | "AI_CHECK";
+
+/** AI qarori (AI_CHECK): RAD ETDI, SHUBHALI (ishonchi past) yoki FAILED — videoni ko'ra olmadi. */
+export interface ManualReviewAi {
+  verdict: "REJECTED" | "UNCERTAIN" | "FAILED";
+  /** AI izohi yoki xato sababi. */
+  reason: string | null;
+  /** 0–1; FAILED da — null. */
+  confidence: number | null;
+}
 
 /** OPEN — admin qarorini kutmoqda. */
 export type ManualReviewStatus = "OPEN" | "APPROVED" | "REJECTED";
@@ -388,8 +399,10 @@ export interface ManualReviewItem {
   reelUrl: string;
   shortcode: string;
   kind: ManualReviewKind;
-  /** Qo'lda tekshiruvga o'tgunga qadar avtomatik urinishlar soni. */
+  /** Qo'lda tekshiruvga o'tgunga qadar avtomatik urinishlar soni (Apify). */
   attempts: number;
+  /** AI_CHECK da — AI nega o'tkazmagani; boshqalarida — null. */
+  ai: ManualReviewAi | null;
   /** Qo'lda tekshiruvga o'tgan vaqt (UTC ISO). */
   requestedAt: string;
   /** Video yuborilgan vaqt (UTC ISO). */

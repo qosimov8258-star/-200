@@ -9,6 +9,7 @@ import {
   type OnApplicationShutdown,
 } from "@nestjs/common";
 
+import { AiReviewService, type AiGateOutcome } from "../ai-review/ai-review.service";
 import { addDays, contestDay, daysBetween, tashkentAt } from "../common/time";
 import { ReelStatsProvider, type ReelStats } from "../instagram/reel-stats";
 import {
@@ -16,6 +17,7 @@ import {
   ParticipantsService,
   reelViews,
   type ManualReview,
+  type ManualReviewAi,
   type Participant,
   type Reel,
   type ReelFlagType,
@@ -110,10 +112,15 @@ export interface RankedReel {
 }
 
 /**
- * Apify videoni ketma-ket shuncha marta topa olmasa — ishtirokchiga xabar beriladi va
- * video admin paneldagi "Qo'lda tekshiruv" bo'limiga o'tadi (avtomatik rad etilmaydi).
+ * Apify videoni ketma-ket shuncha marta topa olmasa (yoki tekshira olmasa) — ishtirokchiga xabar
+ * beriladi va video admin paneldagi "Qo'lda tekshiruv" bo'limiga o'tadi (avtomatik rad etilmaydi).
  */
 export const ATTEMPTS_BEFORE_MANUAL_REVIEW = 3;
+/** AI shuncha vaqtda natija bermasa — video "Qo'lda tekshiruv"ga o'tadi (cheksiz kutib qolmasin). */
+export const AI_CHECK_MAX_MS = 2 * 60 * 60_000;
+/** AI worker ishlamayotgan bo'lsa — shuncha kutgan video adminga o'tadi. */
+export const AI_WORKER_GRACE_MS = 10 * 60_000;
+const AI_WATCHDOG_MS = 60_000;
 /** Bir vaqtda nechta yangi-video tekshiruvi (Apify ishi) ishlashi mumkin. */
 const MAX_PARALLEL_VERIFY = 3;
 /** Yangi video topilmasa — 2- va 3-urinishdan oldin shuncha kutiladi. */
@@ -198,6 +205,7 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
   /** Oxirgi yig'ishdan oldingi videolar o'rni: shortcode → o'rin. */
   private previousReelRanks = new Map<string, number>();
   private scheduler: NodeJS.Timeout | null = null;
+  private aiWatchdog: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly participants: ParticipantsService,
@@ -205,8 +213,11 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
     private readonly notifier: ParticipantNotifier,
     @Inject(STATS_OPTIONS) private readonly options: StatsOptions,
     @Optional() @Inject(StateStore) store: StateStore | null = null,
+    /** Yangi videolar mazmuni (mahsulot bormi) — avval AI, keyin qabul. Yo'q bo'lsa — faqat Apify. */
+    @Optional() private readonly ai: AiReviewService | null = null,
   ) {
     this.now = options.clock ?? (() => new Date());
+    this.ai?.setGateListener((outcome) => this.applyAiOutcome(outcome));
     const saved = store?.attach("stats", () => ({
       lastSync: this.lastSync,
       lastSuccessAt: this.lastSuccessAt,
@@ -226,6 +237,11 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
     // Qayta ishga tushganda: tekshiruvi chala qolgan videolar navbatga qaytadi (taymerlar saqlanmaydi).
     for (const p of this.participants.all()) {
       for (const reel of p.reels) if (needsCheck(reel)) this.queueVerification(p.telegramId, reel.shortcode);
+    }
+    // AI natijasini kutayotgan videolar cheksiz kutib qolmasin (worker o'chiq yoki javob bermasa — adminga).
+    if (this.ai) {
+      this.aiWatchdog = setInterval(() => this.checkAiWaits(), AI_WATCHDOG_MS);
+      this.aiWatchdog.unref();
     }
     const { everyDays, syncTime } = this.options;
     if (this.provider.name === "mock") {
@@ -250,6 +266,7 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
 
   onApplicationShutdown(): void {
     if (this.scheduler) clearInterval(this.scheduler);
+    if (this.aiWatchdog) clearInterval(this.aiWatchdog);
     if (this.queueTimer) clearTimeout(this.queueTimer);
     for (const timer of this.retryTimers) clearTimeout(timer);
   }
@@ -338,7 +355,18 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
         `${targets.length} ta videoni tekshirib bo'lmadi: ${(err as Error).message}. ` +
           `${Math.round(delay / 60_000)} daqiqadan keyin qayta urinamiz.`,
       );
-      for (const t of targets) this.retryLater(t.p.telegramId, t.reel.shortcode, delay);
+      for (const { p, reel } of targets) {
+        if (!this.isCurrent(p, reel)) continue;
+        // Yangi video "tekshirilmoqda"da cheksiz qolib ketmasin: Apify 3 marta tekshira olmasa — adminga.
+        if (reel.status === "PENDING") {
+          reel.misses += 1;
+          if (reel.misses >= ATTEMPTS_BEFORE_MANUAL_REVIEW) {
+            this.toManualReview(p, reel, "NEW_REEL");
+            continue;
+          }
+        }
+        this.retryLater(p.telegramId, reel.shortcode, delay);
+      }
       return;
     }
 
@@ -395,20 +423,34 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
   }
 
   private applyVerification(p: Participant, reel: Reel, s: ReelStats | null, now: Date): void {
+    // AI natijasini kutayotgan video: Apify o'z ishini qilgan — faqat ko'rishlari yangilanadi.
+    if (reel.aiCheck) {
+      const views = s === null ? null : readableViews(reel, s);
+      if (s !== null && views !== null) this.record(reel, views, s, now);
+      return;
+    }
     if (s === null) {
-      reel.misses += 1;
-      if (reel.misses < ATTEMPTS_BEFORE_MANUAL_REVIEW) {
-        const delay = NOT_FOUND_RETRY_MS[reel.misses - 1] ?? VERIFY_RETRY_MS;
-        this.retryLater(p.telegramId, reel.shortcode, delay);
-        return;
-      }
-      this.toManualReview(p, reel, "NEW_REEL");
+      this.missNewReel(p, reel);
       return;
     }
     this.applyFound(p, reel, s, now);
   }
 
-  /** Video topildi: Reel'mi, egasi bandmi — keyin qabul yoki rad. */
+  /** Yangi video topilmadi (yoki ma'lumoti chala keldi): 2 va 10 daqiqadan keyin qayta; 3-marta — adminga. */
+  private missNewReel(p: Participant, reel: Reel): void {
+    reel.misses += 1;
+    if (reel.misses < ATTEMPTS_BEFORE_MANUAL_REVIEW) {
+      const delay = NOT_FOUND_RETRY_MS[reel.misses - 1] ?? VERIFY_RETRY_MS;
+      this.retryLater(p.telegramId, reel.shortcode, delay);
+      return;
+    }
+    this.toManualReview(p, reel, "NEW_REEL");
+  }
+
+  /**
+   * Video topildi: Reel'mi, egasi bandmi — keyin AI tekshiruvi (mezonlar tasdiqlangan bo'lsa) yoki
+   * darhol qabul. AI tasdiqlasa — `applyAiOutcome` qabul qiladi.
+   */
   private applyFound(p: Participant, reel: Reel, s: ReelStats, now: Date): void {
     reel.owner = s.owner;
     reel.postedAt = s.postedAt;
@@ -422,15 +464,70 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
       return;
     }
     if (s.views === null) {
-      // Manba ko'rishlar sonini bermadi — video PENDING qoladi, navbatdagi yig'ishda qayta tekshiriladi.
-      this.logger.warn(`${reel.shortcode}: ko'rishlar soni kelmadi, keyingi yig'ishda qayta tekshiriladi.`);
+      // Manba ko'rishlar sonini bermadi — qisqa vaqtda qayta so'raymiz (3-marta ham bo'lmasa — adminga),
+      // video "tekshirilmoqda"da kunlik yig'ishgacha kutib qolmasin.
+      this.logger.warn(`${reel.shortcode}: ko'rishlar soni kelmadi, qayta tekshiriladi.`);
+      this.missNewReel(p, reel);
       return;
     }
+    reel.status = "PENDING";
+    reel.misses = 0;
+    this.record(reel, s.views, s, now);
+    if (this.ai?.submitForAcceptance(p.telegramId, reel.shortcode, s.videoUrl ?? null)) {
+      reel.aiCheck = { requestedAt: now };
+      this.logger.log(`${reel.shortcode}: Apify topdi (${formatCount(s.views)} ko'rish) — AI tekshiruviga yuborildi.`);
+      return;
+    }
+    this.accept(p, reel, texts.reelAccepted(formatCount(s.views)));
+  }
+
+  private accept(p: Participant, reel: Reel, text: string): void {
     reel.status = "ACCEPTED";
     reel.rejectReason = null;
     reel.misses = 0;
-    this.record(reel, s.views, s, now);
-    this.notifyAbout(p, reel, texts.reelAccepted(formatCount(s.views)), "REEL_ACCEPTED");
+    reel.aiCheck = null;
+    this.notifyAbout(p, reel, text, "REEL_ACCEPTED");
+    // Ko'rishlari hali o'qilmagan bo'lsa — Apify'dan hoziroq (reytingda 0 bo'lib turmasin).
+    if (awaitingViews(reel)) this.queueVerification(p.telegramId, reel.shortcode);
+  }
+
+  /** AI natijasi: tasdiqlandi — qabul; topmadi, shubhali yoki ko'ra olmadi — adminga (qo'lda tekshiruv). */
+  private applyAiOutcome(o: AiGateOutcome): void {
+    const p = this.participants.get(o.telegramId);
+    const reel = p?.reels.find((r) => r.shortcode === o.shortcode && r.status === "PENDING" && r.aiCheck);
+    if (!p || !reel) return;
+    if (o.verdict === "APPROVED") {
+      this.logger.log(`${reel.shortcode}: AI tasdiqladi — video qabul qilindi.`);
+      this.accept(p, reel, texts.reelAccepted(formatCount(reelViews(reel))));
+      return;
+    }
+    this.toManualReview(p, reel, "AI_CHECK", { verdict: o.verdict, reason: o.reason, confidence: o.confidence });
+  }
+
+  /** AI natijasini juda uzoq kutayotgan videolar — adminga (worker o'chiq yoki javob bermadi). */
+  checkAiWaits(): void {
+    if (!this.ai) return;
+    const now = this.now().getTime();
+    const alive = this.ai.workerAlive();
+    for (const p of this.participants.all()) {
+      for (const reel of p.reels) {
+        if (reel.status !== "PENDING" || !reel.aiCheck) continue;
+        const waited = now - new Date(reel.aiCheck.requestedAt).getTime();
+        if (waited >= AI_CHECK_MAX_MS) {
+          this.toManualReview(p, reel, "AI_CHECK", {
+            verdict: "FAILED",
+            reason: `AI ${Math.round(AI_CHECK_MAX_MS / 3_600_000)} soat ichida natija bermadi.`,
+            confidence: null,
+          });
+        } else if (!alive && waited >= AI_WORKER_GRACE_MS) {
+          this.toManualReview(p, reel, "AI_CHECK", {
+            verdict: "FAILED",
+            reason: "AI tekshiruvi ishlamayapti (worker o'chiq) — video avtomatik tekshirilmadi.",
+            confidence: null,
+          });
+        }
+      }
+    }
   }
 
   private reject(p: Participant, reel: Reel, reason: ReelRejectReason): void {
@@ -440,12 +537,15 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
   }
 
   /** Avval ishtirokchiga xabar, so'ng video admin paneldagi qo'lda tekshiruv ro'yxatiga tushadi. */
-  private toManualReview(p: Participant, reel: Reel, kind: ManualReview["kind"]): void {
+  private toManualReview(p: Participant, reel: Reel, kind: ManualReview["kind"], ai: ManualReviewAi | null = null): void {
     this.notifyAbout(p, reel, texts.reelManualReview[kind], "REEL_REVIEW");
     reel.status = "MANUAL_REVIEW";
-    reel.review = { kind, requestedAt: this.now(), attempts: reel.misses, decision: null };
+    reel.aiCheck = null;
+    reel.review = { kind, requestedAt: this.now(), attempts: reel.misses, ai, decision: null };
     this.logger.warn(
-      `${reel.shortcode}: Apify ${reel.misses} marta topa olmadi — qo'lda tekshiruvga o'tdi (${kind}).`,
+      kind === "AI_CHECK"
+        ? `${reel.shortcode}: AI mahsulotni tasdiqlamadi (${ai?.verdict ?? "—"}) — qo'lda tekshiruvga o'tdi.`
+        : `${reel.shortcode}: Apify ${reel.misses} marta topa olmadi — qo'lda tekshiruvga o'tdi (${kind}).`,
     );
   }
 
@@ -462,10 +562,13 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
       this.applyFound(p, reel, s, now);
     }
     if (review && reel.status !== "MANUAL_REVIEW") {
+      // PENDING — Apify topdi, endi AI tekshiradi (topmasa, yangi qo'lda tekshiruv ochiladi).
       review.decision = {
-        approved: reel.status === "ACCEPTED",
+        approved: reel.status !== "REJECTED",
         reason: reel.rejectReason,
-        note: "Apify keyingi yig'ishda videoni topdi",
+        note: reel.aiCheck
+          ? "Apify keyingi yig'ishda videoni topdi — AI tekshiruviga yuborildi"
+          : "Apify keyingi yig'ishda videoni topdi",
         by: AUTO_REVIEWER,
         at: now,
       };
@@ -480,11 +583,13 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
 
   /**
    * Admin videoni qo'lda tasdiqlagan va Apify o'shandan beri uni topa olmagan — qayta-qayta
-   * qo'lda tekshiruvga yubormaymiz (admin bir marta ko'rgan, natija o'zgarmaydi).
+   * qo'lda tekshiruvga yubormaymiz (admin bir marta ko'rgan, natija o'zgarmaydi). AI tekshiruvidan
+   * keyin tasdiqlangan video bunga kirmaydi: uni Apify topgan edi, yo'qolsa — odatdagidek adminga.
    */
   private vouchedByAdmin(reel: Reel): boolean {
     const d = reel.review?.decision;
     return (
+      reel.review?.kind !== "AI_CHECK" &&
       d !== undefined &&
       d !== null &&
       d.approved &&
@@ -517,6 +622,8 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
       throw new ConflictException("Bu video qo'lda tekshiruvda emas (qaror allaqachon qabul qilingan)");
     }
     const now = this.now();
+    reel.aiCheck = null;
+    if (review.kind === "AI_CHECK") this.ai?.noteManualDecision(reel.shortcode, decision.approve, decision.note, actor);
     if (decision.approve) {
       reel.status = "ACCEPTED";
       reel.rejectReason = null;
@@ -723,10 +830,14 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
         }
         if (reel.status === "MANUAL_REVIEW") {
           const views = s === null ? null : readableViews(reel, s);
-          if (s !== null && views !== null) {
-            this.resolveByProvider(p, reel, s, views, now);
-            report.resolved += 1;
+          if (s === null || views === null) continue;
+          // AI mahsulotni topmagan video — Apify topgani yetarli emas, admin hal qiladi (ko'rishlari yangilanadi).
+          if (reel.review?.kind === "AI_CHECK") {
+            this.record(reel, views, s, now);
+            continue;
           }
+          this.resolveByProvider(p, reel, s, views, now);
+          report.resolved += 1;
           continue;
         }
         // ACCEPTED
@@ -868,8 +979,11 @@ const isRechecking = (reel: Reel): boolean => reel.status === "ACCEPTED" && (ree
 /** Admin qo'lda tasdiqlagan, lekin Apify ko'rishlarini hali bir marta ham o'qimagan video. */
 const awaitingViews = (reel: Reel): boolean => reel.status === "ACCEPTED" && reel.history.length === 0;
 
-/** Navbatdagi tekshiruvga tegishli video: yangi (PENDING) yoki qayta tekshiriladigan qabul qilingan. */
-const needsCheck = (reel: Reel): boolean => reel.status === "PENDING" || isRechecking(reel);
+/**
+ * Navbatdagi tekshiruvga tegishli video: yangi (PENDING, AI natijasini kutmayotgan) yoki qayta
+ * tekshiriladigan qabul qilingan.
+ */
+const needsCheck = (reel: Reel): boolean => (reel.status === "PENDING" && !reel.aiCheck) || isRechecking(reel);
 
 /**
  * Apify o'qigan ko'rishlar — ishonchli bo'lsa. Ilgari ko'rishlari bo'lgan videoda 0 — Instagram/Apify

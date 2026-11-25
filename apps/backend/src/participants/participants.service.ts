@@ -14,9 +14,10 @@ export type ParticipantStage =
   | "DISQUALIFIED";
 
 /**
- * PENDING — avtomatik tekshiruv kutilmoqda; ACCEPTED — reytingda (eng ko'p ko'rilgani hisoblanadi);
- * MANUAL_REVIEW — Apify 3 marta topa olmadi, admin qo'lda tekshiradi (reytingda hisoblanmaydi);
- * REJECTED — rad etilgan (shu linkni qayta yuborish mumkin).
+ * PENDING — avtomatik tekshiruv kutilmoqda (Apify, so'ng AI — `Reel.aiCheck`); ACCEPTED — reytingda
+ * (eng ko'p ko'rilgani hisoblanadi); MANUAL_REVIEW — AI videoda mahsulotni topmadi yoki Apify 3 marta
+ * topa olmadi, admin qo'lda tekshiradi (reytingda hisoblanmaydi); REJECTED — rad etilgan (shu linkni
+ * qayta yuborish mumkin).
  */
 export type ReelStatus = "PENDING" | "ACCEPTED" | "MANUAL_REVIEW" | "REJECTED";
 
@@ -27,7 +28,9 @@ export type ReelRejectReason =
   /** Rasm yoki karusel — Reel emas. */
   | "NOT_A_VIDEO"
   /** Shu Instagram akkauntdan boshqa ishtirokchi video yuborgan (bitta akkaunt — bitta ishtirokchi). */
-  | "OWNER_TAKEN";
+  | "OWNER_TAKEN"
+  /** Videoda tanlov mahsuloti ko'rinmaydi (AI topmadi, admin tekshirib rad etdi). */
+  | "NO_PRODUCT";
 
 /** Nakrutka shubhasi — admin ko'rib chiqishi uchun belgi; reytingga o'zi ta'sir qilmaydi. */
 export type ReelFlagType =
@@ -60,16 +63,28 @@ export interface ReelSnapshot {
   comments: number | null;
 }
 
+/** AI tekshiruvi natijasi (qo'lda tekshiruvga nega tushgani). FAILED — AI videoni ko'ra olmadi. */
+export interface ManualReviewAi {
+  verdict: "REJECTED" | "UNCERTAIN" | "FAILED";
+  /** AI izohi yoki xato sababi. */
+  reason: string | null;
+  /** 0–1; FAILED da — null. */
+  confidence: number | null;
+}
+
 /**
- * Qo'lda tekshiruv: Apify videoni ketma-ket 3 marta topa olmaganda ochiladi.
- * NEW_REEL — yangi yuborilgan video hali qabul qilinmagan;
+ * Qo'lda tekshiruv:
+ * AI_CHECK — AI yangi videoda tanlov mahsulotini topmadi (yoki videoni ko'ra olmadi);
+ * NEW_REEL — Apify yangi videoni ketma-ket 3 marta topa olmadi (yoki tekshira olmadi);
  * LOST_REEL — avval qabul qilingan video endi topilmayapti (reytingdan vaqtincha chiqadi).
  */
 export interface ManualReview {
-  kind: "NEW_REEL" | "LOST_REEL";
+  kind: "NEW_REEL" | "LOST_REEL" | "AI_CHECK";
   requestedAt: Date;
-  /** Qo'lda tekshiruvga o'tgunga qadar avtomatik urinishlar soni. */
+  /** Qo'lda tekshiruvga o'tgunga qadar avtomatik urinishlar soni (Apify). */
   attempts: number;
+  /** AI_CHECK da — AI natijasi; boshqalarida yo'q (eski holat fayllarida ham). */
+  ai?: ManualReviewAi | null;
   /** null — admin hali qaror qilmagan. `by: "Avtomatik"` — Apify keyinroq o'zi topdi. */
   decision: {
     approved: boolean;
@@ -98,6 +113,11 @@ export interface Reel {
   lastFoundAt: Date | null;
   /** Oxirgi qo'lda tekshiruv (bo'lmagan bo'lsa — null). */
   review: ManualReview | null;
+  /**
+   * Apify videoni topdi, endi AI mazmunini tekshirmoqda (holat — PENDING). AI tasdiqlasa —
+   * ACCEPTED; topmasa yoki ko'ra olmasa — qo'lda tekshiruv (AI_CHECK). Yo'q yoki null — kutmayapti.
+   */
+  aiCheck?: { requestedAt: Date } | null;
 }
 
 export interface Participant {

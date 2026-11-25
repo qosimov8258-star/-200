@@ -103,8 +103,16 @@ avtomatik `reels` ga o'tkaziladi.
    - rasm yoki karusel → `REJECTED: NOT_A_VIDEO`;
    - shu Instagram akkauntdan boshqa ishtirokchi qatnashyapti → `REJECTED: OWNER_TAKEN` (o'zining
      bir nechta akkauntidan yuborish mumkin);
-   - aks holda `ACCEPTED`, birinchi ko'rishlar yoziladi;
-   - topilmadi → 2 va 10 daqiqadan keyin qayta urinadi; **3 marta topilmasa — qo'lda tekshiruv** (pastda).
+   - aks holda birinchi ko'rishlar yoziladi va — admin AI mezonlarini tasdiqlagan bo'lsa — video
+     **AI tekshiruviga** o'tadi (holat `PENDING`, `Reel.aiCheck`; Apify bergan video fayli worker'ga
+     beriladi). **Ikkalasi ham o'tsa** — `ACCEPTED`: AI «Tasdiqlandi» (ishonch ≥ `AI_CONFIDENCE_MIN`)
+     → video qabul qilinadi va ishtirokchiga xabar boradi; «Rad etildi», «Shubhali» yoki AI videoni ko'ra
+     olmasa → **qo'lda tekshiruv** (`AI_CHECK`). AI worker 10 daqiqa ko'rinmasa yoki natija 2 soatda
+     kelmasa — video ham adminga o'tadi (cheksiz kutib qolmaydi). AI mezonlari tasdiqlanmagan bo'lsa —
+     darhol `ACCEPTED` (faqat Apify);
+   - topilmadi, ko'rishlari kelmadi yoki Apify xato berdi → 2 va 10 daqiqadan keyin qayta urinadi (xatoda —
+     2, 4… daqiqa); **3 marta bo'lmasa — qo'lda tekshiruv** (`NEW_REEL`, pastda). Video
+     "tekshirilmoqda"da cheksiz qolmaydi.
 2. **Muntazam yig'ish** — tanlov boshlangan kundan (25-noyabr) har `STATS_SYNC_EVERY_DAYS` kunda soat `STATS_SYNC_TIME` da
    rad etilmagan barcha videolar; har kunga bitta yozuv (tarix → Mini App grafigi). Qabul qilingan video topilmasa, 2 va 10
    daqiqadan keyin qayta tekshiriladi; 3 marta topilmasa — uning ko'rishlari reytingda vaqtincha hisobga olinmaydi va
@@ -113,12 +121,15 @@ avtomatik `reels` ga o'tkaziladi.
    oxirgi ma'lum ko'rishlar qoladi va video qo'lda tekshiruvga yuborilmaydi. Ko'rishlar — `videoPlayCount`
    va `videoViewCount` dan kattasi.
 3. **Qo'lda tekshiruv** (`MANUAL_REVIEW`) — avval ishtirokchiga bot orqali xabar boradi, so'ng video
-   admin paneldagi "Qo'lda tekshiruv" bo'limida paydo bo'ladi. Admin linkni ochib:
+   admin paneldagi "Qo'lda tekshiruv" bo'limida paydo bo'ladi (AI'dan kelganida — AI qarori va izohi
+   bilan). Admin linkni ochib:
    - **tasdiqlaydi** → `ACCEPTED`, video reytingga qo'shiladi. Ko'rishlari hali o'qilmagan yangi video
      uchun Apify **darhol** so'raladi (kunlik yig'ish kutilmaydi), topilmasa — 2, 10, 30 daqiqa, 1, 3 va
      6 soatdan keyin qayta; Apify topa olmasa ham qayta-qayta tekshiruvga tushmaydi;
-   - **rad etadi** (sabab bilan) → `REJECTED`, ishtirokchi sababni oladi.
-   Kutish paytida Apify videoni o'zi topsa — holat avtomatik yopiladi.
+   - **rad etadi** (sabab bilan; AI'dan kelganida odatda `NO_PRODUCT` — "videoda mahsulot ko'rinmadi")
+     → `REJECTED`, ishtirokchi sababni oladi.
+   Kutish paytida Apify videoni o'zi topsa — holat avtomatik yopiladi (`NEW_REEL`/`LOST_REEL`; AI
+   mahsulotni topmagan `AI_CHECK` videoni esa faqat admin hal qiladi).
 4. **Tanlov tugagach** (`contest.ts` → `endsAt`) — bitta yakuniy yig'ish, keyin to'xtaydi.
 5. **Reyting** (qoidalar 7.1, 7.3) — **videolar reytingi**: har bir qabul qilingan (`ACCEPTED`) video —
    alohida qator (`StatsService.reelRanking`), 4 ta videosi bor ishtirokchi 4 joyda ko'rinadi; ko'rishlar
@@ -176,8 +187,18 @@ uchun", izohi bilan) va umumiy mezon matnini yozadi, **Tasdiqlash** bosadi — s
 **versiya** sifatida muhrlanadi (keyin o'zgarmaydi; o'zgartirish — "Yangi versiya") va qabul
 qilingan videolar navbatga qo'yiladi. **Sinov** rejimida avval 20 ta video (tanlangan yoki eng ko'p
 ko'rilgan 20 tasi), natijani ko'rib — "Hammasini ishga tushirish". Hammasi rejimida keyin qabul
-qilingan videolar ham o'zi navbatga tushadi. AI qarori video holatini **o'zgartirmaydi** — bu
-moderatsiyaga yordam; SHUBHALI videolarni admin qo'lda tasdiqlaydi yoki rad etadi (izoh bilan, audit log'ga).
+qilingan videolar ham o'zi navbatga tushadi. Allaqachon qabul qilingan videolar bo'yicha AI qarori video
+holatini **o'zgartirmaydi** — bu moderatsiyaga yordam; SHUBHALI videolarni admin qo'lda tasdiqlaydi yoki
+rad etadi (izoh bilan, audit log'ga).
+
+**Yangi videolar — avval AI, keyin qabul.** Mezonlar tasdiqlangach (faol versiya bor), har bir yangi
+yuborilgan video Apify topgach shu navbatga tushadi (`AiReviewService.submitForAcceptance`) va natijasi
+qabulni hal qiladi: TASDIQLANDI → `ACCEPTED`; RAD ETILDI / SHUBHALI / FAILED → "Qo'lda tekshiruv"
+(`AI_CHECK`). Admin u yerda qaror qilsa, AI bo'limidagi natijaga ham yoziladi. Yangi versiya
+tasdiqlansa, navbatdagi yangi videolar yangi mezonlar bilan tekshiriladi. Worker ishlamasa (10 daqiqa
+heartbeat yo'q) yoki natija 2 soatda kelmasa — video adminga o'tadi. Shuning uchun mezonlar
+tasdiqlangan bo'lsa, **worker doim ishlab turishi kerak** (aks holda hamma yangi video qo'lda tekshiruvga
+tushadi).
 
 ```text
 admin panel ─► backend (navbat, versiyalar, natijalar — StateStore)

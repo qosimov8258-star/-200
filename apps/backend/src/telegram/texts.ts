@@ -68,10 +68,14 @@ export const texts = {
       "❌ Yuborilgan link Reel (video) emas. Iltimos, mahsulot haqidagi Reel linkini yuboring.",
     OWNER_TAKEN:
       "❌ Bu Instagram akkauntdan boshqa ishtirokchi video yuborgan. Bitta akkaunt — bitta ishtirokchi. Xato bo'lsa, shu chatga yozing.",
+    NO_PRODUCT:
+      "❌ Videoda tanlov mahsuloti ko'rinmadi. Iltimos, mahsulot aniq ko'rinadigan Reel joylab, linkini qaytadan yuboring. Xato bo'lsa, shu chatga yozing.",
   },
   reelManualReview: {
     NEW_REEL:
-      "🔎 Videongizni avtomatik tekshira olmadik — Instagram'da 3 marta topilmadi.\n\nUni administrator qo'lda tekshiradi, natijani shu chatga yozamiz. Akkauntingiz ochiq (yopiq emas) va video o'chirilmaganini tekshirib qo'ying.",
+      "🔎 Videongizni avtomatik tekshira olmadik — Instagram'dan ma'lumot olinmadi.\n\nUni administrator qo'lda tekshiradi, natijani shu chatga yozamiz. Akkauntingiz ochiq (yopiq emas) va video o'chirilmaganini tekshirib qo'ying.",
+    AI_CHECK:
+      "🔎 Videongizni administrator qo'lda tekshiradi — avtomatik tekshiruvda mahsulot aniq ko'rinmadi.\n\nNatijani shu chatga yozamiz.",
     LOST_REEL:
       "⚠️ Videongiz Instagram'da ketma-ket 3 marta topilmadi — uning ko'rishlari reytingda vaqtincha hisobga olinmaydi.\n\nUni administrator qo'lda tekshiradi, natijani shu chatga yozamiz. Video o'chirilmagani va akkauntingiz ochiq ekanini tekshiring.",
   },

@@ -11,14 +11,15 @@ import { actorOf } from "./auth/admin-auth.service";
 type ReviewStatus = "OPEN" | "APPROVED" | "REJECTED";
 
 const STATUSES: ReviewStatus[] = ["OPEN", "APPROVED", "REJECTED"];
-const REJECT_REASONS: ReelRejectReason[] = ["NOT_FOUND", "NOT_A_VIDEO", "OWNER_TAKEN"];
+const REJECT_REASONS: ReelRejectReason[] = ["NO_PRODUCT", "NOT_FOUND", "NOT_A_VIDEO", "OWNER_TAKEN"];
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
 const MAX_NOTE_LENGTH = 500;
 
 /**
- * Qo'lda tekshiruv (admin panel → "Qo'lda tekshiruv"). Apify videoni ketma-ket 3 marta
- * topa olmaganda video shu ro'yxatga tushadi; admin linkni ochib tasdiqlaydi yoki rad etadi.
+ * Qo'lda tekshiruv (admin panel → "Qo'lda tekshiruv"). Video shu ro'yxatga AI unda tanlov
+ * mahsulotini topmaganda (yoki ko'ra olmaganda) yoki Apify uni ketma-ket 3 marta topa olmaganda
+ * tushadi; admin linkni ochib tasdiqlaydi yoki rad etadi.
  * Kontrakt `apps/admin/src/lib/types.ts` → ManualReview* tiplari bilan bir xil.
  */
 @Controller("admin/manual-reviews")
@@ -118,6 +119,8 @@ function toItem(p: Participant, reel: Reel, review: ManualReview) {
     shortcode: reel.shortcode,
     kind: review.kind,
     attempts: review.attempts,
+    /** AI_CHECK da — AI qarori va izohi (nega qo'lda); boshqalarida — null. */
+    ai: review.ai ?? null,
     requestedAt: review.requestedAt.toISOString(),
     submittedAt: reel.submittedAt.toISOString(),
     /** Oxirgi o'qilgan ko'rishlar (tasdiqlangandan keyin — joriy ko'rishlar); hali o'qilmagan — null. */

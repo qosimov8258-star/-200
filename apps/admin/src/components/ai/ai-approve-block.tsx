@@ -158,8 +158,8 @@ export function ApproveBlock({ state, draft, ready, flushCriteria, onApproved }:
                 </p>
               )}
               <p className="text-xs text-slate-500">
-                Tekshiruv pullik (Claude API) — sarf «Jarayon» bo&apos;limida ko&apos;rinadi. AI xulosasi videolar
-                holatini o&apos;zi o&apos;zgartirmaydi.
+                Tekshiruv pullik (Claude API) — sarf «Jarayon» bo&apos;limida ko&apos;rinadi. Shu mezonlar bilan yangi
+                yuborilgan videolar ham tekshiriladi: AI tasdiqlasa — qabul, aks holda — «Qo&apos;lda tekshiruv».
               </p>
             </div>
           }
