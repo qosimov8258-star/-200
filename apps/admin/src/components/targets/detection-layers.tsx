@@ -112,7 +112,7 @@ export function DetectionLayers({ onChecked }: { onChecked: (message: string) =>
       </Layer>
 
       <Layer step={2} icon={TrendingUp} title="O'sish tahlili">
-        Har kuni barcha Reellar: ko&apos;rishlar bir kunda keskin oshsa yoki ko&apos;rishlar oshib,
+        Har bir yig&apos;ishda barcha Reellar: ko&apos;rishlar bir kunda keskin oshsa yoki ko&apos;rishlar oshib,
         layklar deyarli o&apos;smasa — pullik reklamaga xos signal ro&apos;yxatga tushadi.
       </Layer>
 

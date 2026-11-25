@@ -16,6 +16,9 @@ import { getContestData } from "./contest";
 import { auditId, readStore, writeStore, type MockStore } from "./store";
 
 const DEFAULT_SYNC_TIME = "00:00";
+/** Backend `DEFAULT_SYNC_EVERY_DAYS` — haftada bir marta. */
+const DEFAULT_SYNC_EVERY_DAYS = 7;
+const SYNC_EVERY_DAYS_RANGE = { min: 1, max: 30 } as const;
 const DEFAULT_MIN_AGE = 18;
 const SYNC_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const MIN_AGE_RANGE = { min: 14, max: 100 } as const;
@@ -28,6 +31,7 @@ export function effectiveSettings(store: MockStore = readStore()): ContestSettin
     startsOn: override?.startsOn ?? data.startsOn,
     endsOn: override?.endsOn ?? data.endsOn,
     syncTime: override?.syncTime ?? DEFAULT_SYNC_TIME,
+    syncEveryDays: override?.syncEveryDays ?? DEFAULT_SYNC_EVERY_DAYS,
     minAge: override?.minAge ?? DEFAULT_MIN_AGE,
     updatedAt: override?.updatedAt ?? null,
     updatedBy: override?.updatedBy ?? null,
@@ -64,6 +68,16 @@ function validate(update: ContestSettingsUpdate, current: ContestSettings, today
     throw new ApiError(400, "Yangilanish vaqti SS:DD ko'rinishida bo'lishi kerak.");
   }
   if (
+    !Number.isInteger(update.syncEveryDays) ||
+    update.syncEveryDays < SYNC_EVERY_DAYS_RANGE.min ||
+    update.syncEveryDays > SYNC_EVERY_DAYS_RANGE.max
+  ) {
+    throw new ApiError(
+      400,
+      `Yangilanish davri ${SYNC_EVERY_DAYS_RANGE.min}–${SYNC_EVERY_DAYS_RANGE.max} kun oralig'ida bo'lishi kerak.`,
+    );
+  }
+  if (
     !Number.isInteger(update.minAge) ||
     update.minAge < MIN_AGE_RANGE.min ||
     update.minAge > MIN_AGE_RANGE.max
@@ -77,6 +91,7 @@ const FIELD_LABELS: Record<keyof ContestSettingsUpdate, string> = {
   startsOn: "boshlanish",
   endsOn: "tugash",
   syncTime: "yangilanish vaqti",
+  syncEveryDays: "yangilanish davri (kun)",
   minAge: "minimal yosh",
 };
 

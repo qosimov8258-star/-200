@@ -443,6 +443,11 @@ export interface ContestSettings {
   endsOn: IsoDate;
   /** Ko'rishlar yig'iladigan vaqt, "HH:MM" (Toshkent) — TZ 5.1. */
   syncTime: string;
+  /**
+   * Ko'rishlar (va reyting) tanlov boshidan necha kunda bir yig'iladi: 7 — haftada bir (standart),
+   * 1 — har kuni (1–30). Yangi videolar yuborilganda darhol tekshiriladi.
+   */
+  syncEveryDays: number;
   /** Ro'yxatdan o'tish uchun minimal yosh (PLAN.md Q3). */
   minAge: number;
   updatedAt: string | null;
@@ -456,7 +461,7 @@ export interface ContestSettingsResponse {
   today: IsoDate;
 }
 
-export type ContestSettingsUpdate = Pick<ContestSettings, "startsOn" | "endsOn" | "syncTime" | "minAge">;
+export type ContestSettingsUpdate = Pick<ContestSettings, "startsOn" | "endsOn" | "syncTime" | "syncEveryDays" | "minAge">;
 
 // ---------------------------------------------------------------------------
 // Tanlov qoidalari (TZ 4) — Mini App'da bo'limlar ko'rinishida ko'rsatiladi
@@ -1388,6 +1393,11 @@ export interface AiSettings {
 }
 
 export interface AiState {
+  /**
+   * Yangi videolar qabul qilinishidan oldin AI'dan o'tadimi (backend `AI_ACCEPTANCE_GATE`). Standart —
+   * false: AI hech narsaga ulanmagan, xulosasi faqat yordam.
+   */
+  acceptanceGate: boolean;
   /** Tahrirlanadigan qoralama; yo'q bo'lsa — null. */
   draft: AiConfigVersion | null;
   /** Oxirgi tasdiqlangan versiya. */

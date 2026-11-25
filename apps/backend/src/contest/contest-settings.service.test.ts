@@ -72,3 +72,45 @@ test("saved 06:00 sync time moves to 00:00 once; a later admin choice is kept", 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("views are collected weekly by default; the period is validated and kept when not sent", () => {
+  const svc = new ContestSettingsService();
+  assert.equal(svc.get().syncEveryDays, 7, "standart — haftada bir marta");
+  const now = new Date("2026-11-20T10:00:00Z");
+  const base = { startsOn: "2026-11-26", endsOn: "2027-03-01", syncTime: "00:00", minAge: 18 };
+  assert.equal(svc.update({ ...base, syncEveryDays: 1 }, "Admin", now).syncEveryDays, 1);
+  assert.equal(svc.update(base, "Admin", now).syncEveryDays, 1, "berilmasa — joriy qiymat qoladi");
+  rejects(() => svc.update({ ...base, syncEveryDays: 0 }, "U", now), /davri/);
+  rejects(() => svc.update({ ...base, syncEveryDays: 31 }, "U", now), /davri/);
+  rejects(() => svc.update({ ...base, syncEveryDays: 2.5 }, "U", now), /davri/);
+});
+
+test("saved settings (daily, before the period was a setting) switch to weekly once; a later admin choice is kept", () => {
+  const dir = mkdtempSync(join(tmpdir(), "contest-settings-"));
+  try {
+    const { syncEveryDays: _dropped, ...old } = new ContestSettingsService().get();
+    writeFileSync(
+      join(dir, "state.json"),
+      encodeState({
+        version: 1,
+        savedAt: new Date(),
+        parts: { contestSettings: old, contestSettingsMigrations: ["sync-time-midnight-2026-11-24"] },
+      }),
+    );
+    const open = () => {
+      const store = new StateStore({ dir, saveEveryMs: 60_000, keepBackups: 1 });
+      return { store, settings: new ContestSettingsService(store) };
+    };
+
+    const first = open();
+    assert.equal(first.settings.get().syncEveryDays, 7, "haftalikka o'tdi");
+    assert.equal(first.settings.get().updatedBy, "Tizim");
+    first.settings.update({ ...first.settings.get(), syncEveryDays: 1 }, "Admin", new Date("2026-11-20T10:00:00Z"));
+    first.store.flush();
+
+    const second = open();
+    assert.equal(second.settings.get().syncEveryDays, 1, "admin tanlovi qayta o'zgartirilmaydi");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

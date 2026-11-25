@@ -46,12 +46,11 @@ export const config = {
     /** `apify` — haqiqiy ma'lumot; `mock` — faqat lokal sinov uchun soxta ko'rishlar. */
     provider: (str("STATS_PROVIDER") ?? "apify") as "apify" | "mock",
     apifyToken: str("APIFY_API_TOKEN"),
-    /** Kunning qaysi vaqtida yig'iladi (Asia/Tashkent, "HH:MM"; standart — yarim tun, reyting har kuni 00:00 da). */
+    /** Kunning qaysi vaqtida yig'iladi (Asia/Tashkent, "HH:MM"; standart — yarim tun 00:00). Keyin — Sozlamalarda. */
     syncTime: str("STATS_SYNC_TIME") ?? "00:00",
     /**
-     * Tanlov boshlangan kundan (`contest.ts` → `startsOn`) boshlab necha kunda bir marta:
-     * 1 — har kuni (standart; Mini App "har kuni tekshiriladi" deb yozadi), 7 — haftada bir marta;
-     * 0 — avtomatik yig'ish o'chiq.
+     * Faqat `0` — avtomatik yig'ish o'chiq (lokal sinov). Davrning o'zi (haftada bir, har kuni…) —
+     * admin panel → Sozlamalar (`ContestSettings.syncEveryDays`); boshqa qiymat e'tiborga olinmaydi.
      */
     syncEveryDays: Number(str("STATS_SYNC_EVERY_DAYS") ?? 1),
     /** Yangi videolar shuncha kutib, bitta so'rovda tekshiriladi (bir vaqtda kelganlar birga). */
@@ -75,6 +74,12 @@ export const config = {
     frameHeight: Number(str("AI_FRAME_HEIGHT") ?? 720),
     /** Shundan past ishonch — SHUBHALI (qo'lda ko'riladi). */
     confidenceMin: Number(str("AI_CONFIDENCE_MIN") ?? 0.8),
+    /**
+     * `true` — yangi videolar qabul qilinishidan oldin AI tekshiruvidan o'tadi (AI topmasa — qo'lda
+     * tekshiruv). Standart — o'chiq (tashkilotchi qarori, 2026-11-25): AI hech narsaga ulanmagan, video
+     * faqat Apify bo'yicha qabul qilinadi; AI bo'limi faqat admin uchun yordam.
+     */
+    acceptanceGate: str("AI_ACCEPTANCE_GATE") === "true",
   },
 
   /** Target (pullik reklama) tekshiruvi — Meta reklama kutubxonasi orqali (Apify). */

@@ -65,7 +65,10 @@ function statsOptions(contest: ContestSettingsService): StatsOptions {
     get syncTime() {
       return contest.get().syncTime;
     },
-    everyDays: syncEveryDays,
+    // Davr — admin Sozlamalarida (standart haftada bir); env faqat 0 bo'lsa (lokal sinov) yig'ish o'chiq.
+    get everyDays() {
+      return syncEveryDays === 0 ? 0 : contest.get().syncEveryDays;
+    },
     verifyDelayMs,
     get contestStartsOn() {
       return contest.get().startsOn;
@@ -94,7 +97,7 @@ function targetsOptions(contest: ContestSettingsService): TargetsOptions {
 
 /** AI tekshiruvi sozlamalari (env) — noto'g'ri qiymat bilan server ishga tushmaydi. */
 function aiReviewOptions(): AiReviewOptions {
-  const { model, frameIntervalSec, frameHeight, confidenceMin } = config.ai;
+  const { model, frameIntervalSec, frameHeight, confidenceMin, acceptanceGate } = config.ai;
   if (!Number.isFinite(frameIntervalSec) || frameIntervalSec < 0.5 || frameIntervalSec > 60) {
     throw new Error("AI_FRAME_INTERVAL_SEC 0.5–60 soniya bo'lishi kerak");
   }
@@ -104,7 +107,7 @@ function aiReviewOptions(): AiReviewOptions {
   if (!Number.isFinite(confidenceMin) || confidenceMin < 0 || confidenceMin > 1) {
     throw new Error("AI_CONFIDENCE_MIN 0–1 oralig'ida bo'lishi kerak");
   }
-  return { settings: { model, frameIntervalSec, frameHeight, confidenceMin, trialSize: 20 } };
+  return { settings: { model, frameIntervalSec, frameHeight, confidenceMin, trialSize: 20 }, acceptanceGate };
 }
 
 @Module({

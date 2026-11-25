@@ -8,17 +8,29 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { updateContestSettings } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
 import type { ContestSettingsResponse, ContestSettingsUpdate } from "@/lib/types";
 
 const SYNC_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+/** Ko'rishlar yig'ish davri (kun). Boshqa qiymat saqlangan bo'lsa — ro'yxatga qo'shiladi. */
+const SYNC_PERIODS: Array<{ days: number; label: string }> = [
+  { days: 7, label: "Haftada bir marta" },
+  { days: 1, label: "Har kuni" },
+  { days: 3, label: "Har 3 kunda" },
+  { days: 14, label: "Ikki haftada bir marta" },
+];
+
+const periodLabel = (days: number) =>
+  SYNC_PERIODS.find((p) => p.days === days)?.label ?? `Har ${days} kunda`;
+
 type FieldErrors = Partial<Record<keyof ContestSettingsUpdate, string>>;
 
 function toForm(data: ContestSettingsResponse): ContestSettingsUpdate {
-  const { startsOn, endsOn, syncTime, minAge } = data.settings;
-  return { startsOn, endsOn, syncTime, minAge };
+  const { startsOn, endsOn, syncTime, syncEveryDays, minAge } = data.settings;
+  return { startsOn, endsOn, syncTime, syncEveryDays, minAge };
 }
 
 /** Brauzerda tezkor tekshiruv; yakuniy tekshiruv serverda. */
@@ -44,7 +56,7 @@ interface SettingsFormProps {
   onSaved: () => void;
 }
 
-/** TZ 6: Sozlamalar — tanlov muddati, yangilanish vaqti, minimal yosh. Qoidalar — `RulesEditor`. */
+/** TZ 6: Sozlamalar — tanlov muddati, yangilanish vaqti va davri, minimal yosh. Qoidalar — `RulesEditor`. */
 export function SettingsForm({ data, onSaved }: SettingsFormProps) {
   const queryClient = useQueryClient();
   const initial = toForm(data);
@@ -142,10 +154,32 @@ export function SettingsForm({ data, onSaved }: SettingsFormProps) {
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <Field
+            id="syncEveryDays"
+            label="Ko'rishlar yangilanish davri"
+            error={fieldError("syncEveryDays")}
+            hint="Ko'rishlar va reyting tanlov boshidan shu davrda bir yangilanadi (Apify narxi davrga qarab). Yangi video yuborilganda darhol tekshiriladi."
+          >
+            <Select
+              id="syncEveryDays"
+              value={String(form.syncEveryDays)}
+              disabled={mutation.isPending}
+              onChange={(event) => update("syncEveryDays", Number.parseInt(event.target.value, 10))}
+            >
+              {SYNC_PERIODS.some((p) => p.days === initial.syncEveryDays) ? null : (
+                <option value={initial.syncEveryDays}>{periodLabel(initial.syncEveryDays)}</option>
+              )}
+              {SYNC_PERIODS.map((p) => (
+                <option key={p.days} value={p.days}>
+                  {p.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field
             id="syncTime"
             label="Ko'rishlar yig'iladigan vaqt (Toshkent)"
             error={fieldError("syncTime")}
-            hint="Har kuni shu vaqtda ko'rishlar yig'iladi va reyting yangilanadi."
+            hint={`${periodLabel(form.syncEveryDays)} shu vaqtda ko'rishlar yig'iladi va reyting yangilanadi.`}
           >
             <Input
               id="syncTime"

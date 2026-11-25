@@ -12,12 +12,24 @@ export interface ContestSettings {
   endsOn: string;
   /** Ko'rishlar yig'iladigan vaqt, "HH:MM" (Toshkent). */
   syncTime: string;
+  /**
+   * Ko'rishlar (va reyting) tanlov boshidan necha kunda bir yig'iladi: 7 — haftada bir (standart),
+   * 1 — har kuni. Yangi videolar esa yuborilganda darhol tekshiriladi.
+   */
+  syncEveryDays: number;
   minAge: number;
   updatedAt: string | null;
   updatedBy: string | null;
 }
 
-export type ContestSettingsUpdate = Pick<ContestSettings, "startsOn" | "endsOn" | "syncTime" | "minAge">;
+export type ContestSettingsUpdate = Pick<ContestSettings, "startsOn" | "endsOn" | "syncTime" | "minAge"> & {
+  /** Berilmasa — joriy qiymat qoladi. */
+  syncEveryDays?: number;
+};
+
+/** Ko'rishlar yig'ish davri (kun): standart — haftada bir marta (tashkilotchi qarori, 2026-11-25). */
+export const DEFAULT_SYNC_EVERY_DAYS = 7;
+const SYNC_EVERY_DAYS_RANGE = { min: 1, max: 30 } as const;
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -28,7 +40,7 @@ const fail = (message: string) => new HttpException({ message }, 422);
 const isRealDay = (day: string) => DAY.test(day) && new Date(`${day}T00:00:00Z`).toISOString().startsWith(day);
 
 /**
- * Tanlov muddati, ko'rishlar yig'iladigan vaqt va minimal yosh (TZ 6-bo'lim). Admin paneldan
+ * Tanlov muddati, ko'rishlar yig'iladigan vaqt va davri, minimal yosh (TZ 6-bo'lim). Admin paneldan
  * tahrirlanadi; ko'rishlar yig'ish va target tekshiruvi jadvallari shu qiymatlarni har safar
  * shu yerdan o'qiydi. Tanlov boshlangach boshlanish sanasini o'zgartirib bo'lmaydi.
  */
@@ -38,6 +50,7 @@ export class ContestSettingsService {
     startsOn: contestDefaults.startsOn,
     endsOn: contestDefaults.endsOn,
     syncTime: config.stats.syncTime,
+    syncEveryDays: DEFAULT_SYNC_EVERY_DAYS,
     minAge: contestDefaults.minAge,
     updatedAt: null,
     updatedBy: null,
@@ -66,12 +79,27 @@ export class ContestSettingsService {
    * qo'ygan bo'lsa yoki keyin 06:00 ni o'zi tanlasa — tegilmaydi.
    */
   private migrate(): void {
-    const id = "sync-time-midnight-2026-11-24";
-    if (this.migrations.includes(id)) return;
-    if (this.settings.syncTime === "06:00") {
-      this.settings = { ...this.settings, syncTime: "00:00", updatedAt: new Date().toISOString(), updatedBy: "Tizim" };
+    const midnight = "sync-time-midnight-2026-11-24";
+    if (!this.migrations.includes(midnight)) {
+      if (this.settings.syncTime === "06:00") {
+        this.settings = { ...this.settings, syncTime: "00:00", updatedAt: new Date().toISOString(), updatedBy: "Tizim" };
+      }
+      this.migrations.push(midnight);
     }
-    this.migrations.push(id);
+    // 2026-11-25: ko'rishlar haftada bir marta yig'iladi (tashkilotchi qarori). Davr ilgari env'da edi
+    // (`STATS_SYNC_EVERY_DAYS`), endi Sozlamalarda — bir marta haftalikka o'rnatiladi, keyin admin hal qiladi.
+    const weekly = "sync-every-week-2026-11-25";
+    if (!this.migrations.includes(weekly)) {
+      if (this.settings.syncEveryDays !== DEFAULT_SYNC_EVERY_DAYS) {
+        this.settings = {
+          ...this.settings,
+          syncEveryDays: DEFAULT_SYNC_EVERY_DAYS,
+          updatedAt: new Date().toISOString(),
+          updatedBy: "Tizim",
+        };
+      }
+      this.migrations.push(weekly);
+    }
   }
 
   get prizeName(): string {
@@ -88,7 +116,12 @@ export class ContestSettingsService {
   }
 
   update(input: ContestSettingsUpdate, actor: string, now: Date = new Date()): ContestSettings {
-    const next: ContestSettings = { ...input, updatedAt: now.toISOString(), updatedBy: actor };
+    const next: ContestSettings = {
+      ...input,
+      syncEveryDays: input.syncEveryDays ?? this.settings.syncEveryDays,
+      updatedAt: now.toISOString(),
+      updatedBy: actor,
+    };
     const error = validate(next);
     if (error) throw fail(error);
     if (this.started(now) && next.startsOn !== this.settings.startsOn) {
@@ -103,11 +136,15 @@ export class ContestSettingsService {
   }
 }
 
-function validate(s: ContestSettingsUpdate): string | null {
+function validate(s: Omit<ContestSettings, "updatedAt" | "updatedBy">): string | null {
   if (!isRealDay(s.startsOn) || !isRealDay(s.endsOn)) return "Sana YYYY-MM-DD ko'rinishida bo'lishi kerak.";
   if (s.endsOn <= s.startsOn) return "Tugash sanasi boshlanish sanasidan keyin bo'lishi kerak.";
   if (addDays(s.startsOn, MAX_DURATION_DAYS) < s.endsOn) return "Tanlov bir yildan uzun bo'lishi mumkin emas.";
   if (!TIME.test(s.syncTime)) return "Yig'ish vaqti HH:MM ko'rinishida bo'lishi kerak.";
+  const { min, max } = SYNC_EVERY_DAYS_RANGE;
+  if (!Number.isInteger(s.syncEveryDays) || s.syncEveryDays < min || s.syncEveryDays > max) {
+    return `Yangilanish davri ${min}–${max} kun oralig'ida butun son bo'lishi kerak.`;
+  }
   if (!Number.isInteger(s.minAge) || s.minAge < MIN_AGE_RANGE.min || s.minAge > MIN_AGE_RANGE.max) {
     return `Minimal yosh ${MIN_AGE_RANGE.min}–${MIN_AGE_RANGE.max} oralig'ida butun son bo'lishi kerak.`;
   }

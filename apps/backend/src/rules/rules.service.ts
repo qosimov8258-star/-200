@@ -45,7 +45,7 @@ const DEFAULT_SECTIONS: RulesSection[] = [
   },
   {
     title: "4. G'olibni aniqlash",
-    body: "Ko'rishlar har kuni avtomatik yig'iladi. Reytingda har bir qabul qilingan video alohida o'rin oladi; ishtirokchining natijasi — eng ko'p ko'rilgan videosi (videolar ko'rishlari qo'shilmaydi). Tanlov yakunida videosi eng ko'p ko'rilgan ishtirokchi tekshiruvdan so'ng g'olib deb e'lon qilinadi.",
+    body: "Ko'rishlar muntazam ravishda avtomatik yig'iladi. Reytingda har bir qabul qilingan video alohida o'rin oladi; ishtirokchining natijasi — eng ko'p ko'rilgan videosi (videolar ko'rishlari qo'shilmaydi). Tanlov yakunida videosi eng ko'p ko'rilgan ishtirokchi tekshiruvdan so'ng g'olib deb e'lon qilinadi.",
   },
   {
     title: "5. Shaxsiy ma'lumotlar",
