@@ -258,9 +258,11 @@ export const t = {
     NOT_A_VIDEO: "Yuborilgan link Reel (video) emas. Mahsulot haqidagi Reel linkini yuboring.",
     OWNER_TAKEN:
       "Bu Instagram akkauntdan boshqa ishtirokchi video yuborgan. Bitta akkaunt — bitta ishtirokchi. Xato bo'lsa, supportga yozing.",
+    NO_PRODUCT:
+      "Videoda tanlov mahsuloti ko'rinmadi. Mahsulot aniq ko'rinadigan Reel joylab, linkini qaytadan yuboring.",
   },
   manualReviewNote:
-    "Bu videoni Instagram'da 3 marta topa olmadik, shuning uchun uni administrator qo'lda tekshiradi. Natijani bot orqali xabar qilamiz. Shu orada akkauntingiz ochiq (yopiq emas) va video o'chirilmaganini tekshiring.",
+    "Bu videoni administrator qo'lda tekshiradi — natijani bot orqali xabar qilamiz. Shu orada akkauntingiz ochiq (yopiq emas) va video o'chirilmaganini tekshiring.",
   /** Plitka tor (telefonda ~130px) — bir qatorga sig'adigan qisqa matn. */
   statBest: "Eng ko'p ko'rilgan",
   statToday: "Oxirgi o'sish",

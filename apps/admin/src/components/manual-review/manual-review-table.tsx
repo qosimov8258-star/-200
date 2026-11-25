@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import {
+  MANUAL_REVIEW_AI_LABELS,
   MANUAL_REVIEW_KIND_LABELS,
   MANUAL_REVIEW_REJECT_LABELS,
   MANUAL_REVIEW_STATUS_LABELS,
@@ -148,11 +149,25 @@ function ManualReviewRow({
         <ViewsCell item={item} />
       </td>
 
-      <td className="px-4 py-3">
+      <td className="max-w-80 px-4 py-3">
         <p className="whitespace-nowrap text-slate-900">{MANUAL_REVIEW_KIND_LABELS[item.kind]}</p>
-        <p className="text-xs whitespace-nowrap text-slate-500">
-          Apify {item.attempts} marta topa olmadi
-        </p>
+        {item.ai ? (
+          <>
+            <p className="text-xs whitespace-nowrap text-slate-600">
+              {MANUAL_REVIEW_AI_LABELS[item.ai.verdict]}
+              {item.ai.confidence !== null && (
+                <span className="text-slate-400 tabular-nums"> · ishonch {Math.round(item.ai.confidence * 100)}%</span>
+              )}
+            </p>
+            {item.ai.reason && (
+              <p className="line-clamp-3 text-xs text-slate-500" title={item.ai.reason}>
+                «{item.ai.reason}»
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-xs whitespace-nowrap text-slate-500">Apify {item.attempts} marta topa olmadi</p>
+        )}
         <p className="text-xs whitespace-nowrap text-slate-500 tabular-nums">
           {formatDateTime(item.requestedAt)}
         </p>

@@ -1,5 +1,6 @@
 /**
- * MOCK backend: "Qo'lda tekshiruv" — Apify videoni ketma-ket 3 marta topa olmaganda video
+ * MOCK backend: "Qo'lda tekshiruv" — AI videoda mahsulotni topmaganda (AI_CHECK) yoki Apify
+ * videoni ketma-ket 3 marta topa olmaganda video
  * shu ro'yxatga tushadi, admin linkni ochib tasdiqlaydi yoki rad etadi. Haqiqiy backendda:
  *   GET  /api/v1/admin/manual-reviews
  *   POST /api/v1/admin/manual-reviews/:id/decision
@@ -14,6 +15,7 @@ import { ApiError } from "../api-error";
 import { addDays } from "../dates";
 import type {
   AdminUser,
+  ManualReviewAi,
   ManualReviewDecisionRequest,
   ManualReviewItem,
   ManualReviewKind,
@@ -35,6 +37,20 @@ const ATTEMPTS = 3;
 const OPEN_NEW = 4;
 const OPEN_LOST = 2;
 const DECIDED = 2;
+/** AI mahsulotni topmagan (yoki ko'ra olmagan) yangi videolar — ro'yxatning asosiy qismi. */
+const AI_CASES: ManualReviewAi[] = [
+  {
+    verdict: "REJECTED",
+    reason: "Videoda Olivia mahsuloti, qadog'i yoki logotipi ko'rinmadi — boshqa brend mahsuloti ko'rsatilgan.",
+    confidence: 0.91,
+  },
+  {
+    verdict: "UNCERTAIN",
+    reason: "Qadoq bir necha kadrda ko'rinadi, lekin logotip aniq o'qilmaydi.",
+    confidence: 0.62,
+  },
+  { verdict: "FAILED", reason: "AI tekshiruvi ishlamayapti (worker o'chiq) — video avtomatik tekshirilmadi.", confidence: null },
+];
 
 interface SeedCase {
   reel: MockReel;
@@ -42,6 +58,7 @@ interface SeedCase {
   kind: ManualReviewKind;
   requestedAt: string;
   lastViews: number | null;
+  ai: ManualReviewAi | null;
   /** Namunaviy tarix uchun — oldinroq qaror qilingan holatlar. */
   initial: MockManualDecision | null;
 }
@@ -78,6 +95,7 @@ function seedCases(): SeedCase[] {
       kind: "NEW_REEL",
       requestedAt,
       lastViews: null,
+      ai: null,
       initial: decided
         ? {
             approved: index === OPEN_NEW,
@@ -100,6 +118,23 @@ function seedCases(): SeedCase[] {
       // Uchinchi muvaffaqiyatsiz kunlik yig'ish.
       requestedAt: tashkentIso(addDays(reel.removedOn, 2), "06:05"),
       lastViews: latestViews(reel),
+      ai: null,
+      initial: null,
+    });
+  });
+
+  pending.slice(OPEN_NEW + DECIDED, OPEN_NEW + DECIDED + AI_CASES.length).forEach((reel, index) => {
+    const participant = participants.get(reel.participantId);
+    if (!participant) return;
+    const ai = AI_CASES[index];
+    cases.push({
+      reel,
+      participant,
+      kind: "AI_CHECK",
+      requestedAt: tashkentIso(reel.submittedOn, `0${index + 1}:4${index}`),
+      // Apify videoni topgan — ko'rishlari bor (AI esa mahsulotni tasdiqlamagan).
+      lastViews: 1_200 + index * 850,
+      ai,
       initial: null,
     });
   });
@@ -111,6 +146,7 @@ function seedCases(): SeedCase[] {
 /** Ko'rishlar oxirgi marta o'qilgan vaqt — oxirgi kunlik yig'ish (06:00, Toshkent). */
 function lastSyncedAt(seed: SeedCase): string | null {
   if (seed.lastViews === null) return null;
+  if (seed.kind === "AI_CHECK") return seed.requestedAt;
   const day = lastSnapshotDay(seed.reel);
   return day ? tashkentIso(day, "06:00") : null;
 }
@@ -143,7 +179,8 @@ function toItem(seed: SeedCase, store: MockStore): ManualReviewItem {
     submittedAt: tashkentIso(seed.reel.submittedOn, "09:00"),
     lastViews: seed.lastViews,
     lastSyncedAt: lastSyncedAt(seed),
-    owner: seed.kind === "LOST_REEL" ? (seed.reel.owner ?? seed.participant.instagramUsername) : null,
+    ai: seed.ai,
+    owner: seed.kind !== "NEW_REEL" ? (seed.reel.owner ?? seed.participant.instagramUsername) : null,
     status: statusOf(decision),
     decision: decision
       ? { at: decision.at, by: decision.by, reason: decision.reason, note: decision.note }

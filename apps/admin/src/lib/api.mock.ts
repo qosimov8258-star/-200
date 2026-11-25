@@ -444,7 +444,7 @@ export async function getDailyRating(query: DailyRatingQuery): Promise<DailyRati
 // ---------------------------------------------------------------------------
 
 /**
- * Apify ketma-ket 3 marta topa olmagan videolar. Ochiqlari navbat bo'yicha (eng eskisi yuqorida).
+ * AI mahsulotni topmagan (yoki ko'ra olmagan) va Apify ketma-ket 3 marta topa olmagan videolar. Ochiqlari navbat bo'yicha (eng eskisi yuqorida).
  * @endpoint GET /api/v1/admin/manual-reviews?status=&search=&page=&pageSize=
  */
 export async function getManualReviews(query: ManualReviewListQuery): Promise<ManualReviewListResponse> {

@@ -83,6 +83,11 @@ interface VideoReviewRecord {
   /** Worker shu vaqtgacha natija berishi kerak, aks holda ish navbatga qaytadi. */
   leaseUntil: Date | null;
   batchId: string | null;
+  /**
+   * Yangi yuborilgan videoning tekshiruvi (`submitForAcceptance`): natijasi video qabul qilinishini
+   * hal qiladi. Boshqalari (sinov/FULL) — faqat admin uchun yordam.
+   */
+  gate?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -179,6 +184,18 @@ export interface AiReviewItem {
   updatedAt: string;
 }
 
+/**
+ * Yangi video AI tekshiruvi natijasi (StatsService videoni qabul qiladi yoki qo'lda tekshiruvga
+ * yuboradi). FAILED — AI videoni ko'ra olmadi (yuklab bo'lmadi, urinishlar tugadi).
+ */
+export interface AiGateOutcome {
+  telegramId: number;
+  shortcode: string;
+  verdict: AiVerdict | "FAILED";
+  reason: string | null;
+  confidence: number | null;
+}
+
 export interface AiCandidate {
   shortcode: string;
   url: string;
@@ -221,6 +238,8 @@ const BATCH_LEASE_MS = 30 * 60 * 60 * 1000;
 /** Instagram CDN manzili bir necha kun ishlaydi — 6 soatdan eskisini yangilaymiz. */
 const VIDEO_URL_TTL_MS = 6 * 60 * 60 * 1000;
 const WORKER_ONLINE_MS = 3 * 60 * 1000;
+/** Yangi videolar shuncha vaqt ichida worker ko'rinmasa — AI ishlamayapti deb hisoblanadi. */
+const WORKER_ALIVE_FOR_GATE_MS = 10 * 60 * 1000;
 const SYNC_EVERY_MS = 2 * 60 * 1000;
 const MAX_LEASE = 50;
 const KEEP_CLOSED_BATCHES = 500;
@@ -244,8 +263,12 @@ export const VERDICT_LABEL: Record<AiVerdict, string> = {
  * Admin mezon (matn + namuna rasmlar) yozadi va "Tasdiqlash" bosadi: versiya muhrlanadi va
  * qabul qilingan videolar navbatga qo'yiladi (sinov rejimida — 20 tasi). Alohida worker jarayoni
  * `/internal/ai/*` orqali ishlarni oladi, videoni yuklab kadrlarga ajratadi, Claude Message Batches
- * API'ga yuboradi va natijani qaytaradi. AI qarori video holatini o'zi o'zgartirmaydi — bu
- * moderatsiya uchun yordam; SHUBHALI videolarni admin qo'lda tasdiqlaydi yoki rad etadi.
+ * API'ga yuboradi va natijani qaytaradi.
+ *
+ * Mezonlar tasdiqlangach, har bir yangi yuborilgan video ham shu yerdan o'tadi
+ * (`submitForAcceptance`): Apify videoni topadi → AI mazmunini tekshiradi → TASDIQLANDI bo'lsa video
+ * qabul qilinadi; RAD ETILDI, SHUBHALI yoki AI ko'ra olmasa — admin "Qo'lda tekshiruv"da hal qiladi.
+ * Sinov/FULL ishlari (allaqachon qabul qilingan videolar) esa video holatini o'zgartirmaydi.
  *
  * Navbat va natijalar `StateStore` da (Redis/ma'lumotlar bazasi ulanguncha), namuna rasmlar va
  * dalil kadrlari — uning `files/` papkasida.
@@ -265,6 +288,7 @@ export class AiReviewService implements OnModuleInit, OnModuleDestroy {
   /** Holat ombori ulanmagan bo'lsa (testlar) — fayllar xotirada. */
   private readonly memoryFiles = new Map<string, Buffer>();
   private timer: NodeJS.Timeout | null = null;
+  private gateListener: ((outcome: AiGateOutcome) => void) | null = null;
 
   constructor(
     private readonly participants: ParticipantsService,
@@ -486,6 +510,8 @@ export class AiReviewService implements OnModuleInit, OnModuleDestroy {
     draft.updatedAt = now;
     draft.settings = { ...this.settings };
     this.run = { version: draft.version, mode, startedAt: now, startedBy: by };
+    // Yangi videolar tekshiruvi (gate) yo'qolmaydi — yangi versiya mezonlari bilan tekshiriladi.
+    for (const r of this.reviews) if (r.gate && r.state === "QUEUED") r.version = draft.version;
     this.reviews = this.reviews.filter((r) => !(r.state === "QUEUED" && r.version !== draft.version));
     let queued = 0;
     for (const t of targets) if (this.enqueue(draft.version, t.p, t.reel)) queued += 1;
@@ -551,6 +577,82 @@ export class AiReviewService implements OnModuleInit, OnModuleDestroy {
     review.updatedAt = now;
     const item = this.toItem(review);
     return { before, item, fullName: item.participant.fullName, shortcode: review.shortcode };
+  }
+
+  // --- Yangi videolar: avval AI, keyin qabul ----------------------------------------------------
+
+  /**
+   * Yangi videolar AI tekshiruvidan o'tadimi: admin mezonlarni tasdiqlagan (faol versiya bor).
+   * Mezon yo'q bo'lsa — videolar faqat Apify bo'yicha qabul qilinadi (avvalgidek).
+   */
+  gateEnabled(): boolean {
+    const active = this.active();
+    return active !== null && this.run !== null && this.run.version === active.version;
+  }
+
+  /** Worker yaqinda (10 daqiqa ichida) ko'rindimi — ko'rinmasa, kutayotgan videolar adminga o'tadi. */
+  workerAlive(): boolean {
+    const seen = this.workerSeenAt;
+    return seen !== null && this.now().getTime() - seen.getTime() <= WORKER_ALIVE_FOR_GATE_MS;
+  }
+
+  /** StatsService natijani shu yerdan oladi (bitta tinglovchi). */
+  setGateListener(listener: (outcome: AiGateOutcome) => void): void {
+    this.gateListener = listener;
+  }
+
+  /**
+   * Apify topgan yangi videoni AI navbatiga qo'yadi. `videoUrl` — Apify bergan video fayli (worker
+   * uni qayta so'ramaydi). Natija `setGateListener` orqali keladi. AI yoqilmagan — false.
+   */
+  submitForAcceptance(telegramId: number, shortcode: string, videoUrl: string | null): boolean {
+    if (!this.gateEnabled() || !this.run) return false;
+    const version = this.run.version;
+    if (videoUrl) this.videoUrls.set(shortcode, { url: videoUrl, at: this.now() });
+    // Avvalgi (masalan, rad etilib qayta yuborilgan) tekshiruv — yangisi boshlanadi.
+    this.reviews = this.reviews.filter(
+      (r) => !(r.version === version && r.shortcode === shortcode && r.state === "QUEUED"),
+    );
+    const existing = this.reviews.find(
+      (r) => r.version === version && r.shortcode === shortcode && r.state === "PROCESSING",
+    );
+    if (existing) {
+      existing.gate = true;
+      existing.telegramId = telegramId;
+      return true;
+    }
+    for (const r of this.reviews) if (r.version === version && r.shortcode === shortcode) this.deleteFrames(r);
+    this.reviews = this.reviews.filter((r) => !(r.version === version && r.shortcode === shortcode));
+    this.pushReview(version, telegramId, shortcode, true);
+    return true;
+  }
+
+  /** Admin qo'lda tekshiruvda qaror qildi — AI bo'limida ham ko'rinsin (oxirgi tekshiruvga yoziladi). */
+  noteManualDecision(shortcode: string, approved: boolean, note: string, by: string): void {
+    const review = this.reviews.filter((r) => r.shortcode === shortcode && r.gate).at(-1);
+    if (!review) return;
+    const now = this.now();
+    review.manual = { decision: approved ? "APPROVED" : "REJECTED", note, by, at: now };
+    review.updatedAt = now;
+  }
+
+  private emitGate(r: VideoReviewRecord): void {
+    if (!r.gate || !this.gateListener) return;
+    const outcome: AiGateOutcome =
+      r.state === "DONE" && r.verdict
+        ? {
+            telegramId: r.telegramId,
+            shortcode: r.shortcode,
+            verdict: r.verdict,
+            reason: r.reason,
+            confidence: r.confidence,
+          }
+        : { telegramId: r.telegramId, shortcode: r.shortcode, verdict: "FAILED", reason: r.error, confidence: null };
+    try {
+      this.gateListener(outcome);
+    } catch (err) {
+      this.logger.error(`${r.shortcode}: AI natijasini qo'llab bo'lmadi: ${(err as Error).message}`);
+    }
   }
 
   // --- Worker API -----------------------------------------------------------------------------
@@ -770,6 +872,7 @@ export class AiReviewService implements OnModuleInit, OnModuleDestroy {
     r.leaseUntil = null;
     r.batchId = null;
     r.updatedAt = now;
+    this.emitGate(r);
   }
 
   private applyFailure(r: VideoReviewRecord, error: string, code: AiFailureCode | null, retryable: boolean): void {
@@ -784,6 +887,7 @@ export class AiReviewService implements OnModuleInit, OnModuleDestroy {
     r.batchId = null;
     r.updatedAt = this.now();
     r.state = retryable && r.attempts < this.maxAttempts ? "QUEUED" : "FAILED";
+    if (r.state === "FAILED") this.emitGate(r);
   }
 
   /** Muddati o'tgan ishlar (worker o'chib qolgan) va FULL rejimdagi yangi videolar. */
@@ -807,12 +911,17 @@ export class AiReviewService implements OnModuleInit, OnModuleDestroy {
 
   private enqueue(version: number, p: Participant, reel: Reel): boolean {
     if (this.reviews.some((r) => r.version === version && r.shortcode === reel.shortcode)) return false;
+    this.pushReview(version, p.telegramId, reel.shortcode, false);
+    return true;
+  }
+
+  private pushReview(version: number, telegramId: number, shortcode: string, gate: boolean): void {
     const now = this.now();
     this.reviews.push({
       id: newId(),
       version,
-      telegramId: p.telegramId,
-      shortcode: reel.shortcode,
+      telegramId,
+      shortcode,
       state: "QUEUED",
       modelStatus: null,
       verdict: null,
@@ -826,10 +935,10 @@ export class AiReviewService implements OnModuleInit, OnModuleDestroy {
       costUsd: 0,
       leaseUntil: null,
       batchId: null,
+      gate,
       createdAt: now,
       updatedAt: now,
     });
-    return true;
   }
 
   /** Faol ishtirokchilarning qabul qilingan videolari, eng ko'p ko'rilgani birinchi. */

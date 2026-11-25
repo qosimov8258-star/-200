@@ -25,7 +25,8 @@ const NOTICE_TIMEOUT_MS = 6000;
 
 /**
  * AI bo'limi (`/ai`, faqat ADMIN): namuna rasmlar va mezonlar (versiyalar bilan), tasdiqlash
- * (sinov yoki hammasi), jarayon va natijalar. AI xulosasi videolar holatini o'zi o'zgartirmaydi.
+ * (sinov yoki hammasi), jarayon va natijalar. Mezonlar tasdiqlangach, yangi yuborilgan videolar ham
+ * shu AI'dan o'tadi: tasdiqlasa — qabul, aks holda — "Qo'lda tekshiruv".
  */
 export function AiView() {
   const { data, error, isPending, isError, refetch } = useQuery({
@@ -92,8 +93,10 @@ function AiSections({
       <p className="flex items-start gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
         <IosIcon icon={Info} tint="blue" size={22} />
         <span>
-          AI xulosasi videoning tanlovdagi holatini <strong className="font-medium text-ink">o&apos;zi o&apos;zgartirmaydi</strong>{" "}
-          — bu faqat yordam. «Shubhali» va «Rad etildi» videolarni o&apos;zingiz ochib ko&apos;ring va qaror qiling.
+          Mezonlar tasdiqlangach, <strong className="font-medium text-ink">har bir yangi video</strong> Apify&apos;dan
+          keyin AI tekshiruvidan o&apos;tadi: AI «Tasdiqlandi» desa — video qabul qilinadi; «Rad etildi», «Shubhali»
+          yoki ko&apos;ra olmasa — «Qo&apos;lda tekshiruv»ga tushadi. Allaqachon qabul qilingan videolar (sinov yoki
+          «Hammasi») bo&apos;yicha AI xulosasi esa faqat yordam — ularning holatini o&apos;zi o&apos;zgartirmaydi.
           <span className="mt-1 block text-xs text-slate-500">
             Model: {settings.model} · kadr har {settings.frameIntervalSec} soniyada ({settings.frameHeight}p) · ishonch{" "}
             {formatPercent(settings.confidenceMin)} dan past bo&apos;lsa — «Shubhali».

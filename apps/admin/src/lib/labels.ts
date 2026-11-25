@@ -9,6 +9,7 @@ import type {
   DrawExclusion,
   DrawNotifyStatus,
   DrawStatus,
+  ManualReviewAi,
   ManualReviewKind,
   ManualReviewRejectReason,
   ManualReviewStatus,
@@ -80,6 +81,7 @@ export const REEL_REJECT_REASON_LABELS: Record<ReelRejectReason, string> = {
   NOT_FOUND: "Video topilmadi yoki akkaunt yopiq",
   NOT_A_VIDEO: "Reel (video) emas",
   OWNER_TAKEN: "Bu Instagram akkaunt boshqa ishtirokchida",
+  NO_PRODUCT: "Videoda mahsulot ko'rinmadi",
 };
 
 /** Nakrutka shubhasi belgilari (backend `ReelFlagType`). */
@@ -110,6 +112,14 @@ export const MANUAL_REVIEW_STATUS_TONES: Record<ManualReviewStatus, BadgeTone> =
 export const MANUAL_REVIEW_KIND_LABELS: Record<ManualReviewKind, string> = {
   NEW_REEL: "Yangi video",
   LOST_REEL: "Reytingdagi video yo'qoldi",
+  AI_CHECK: "AI mahsulotni topmadi",
+};
+
+/** AI qarori (qo'lda tekshiruvda — nega AI o'tkazmagani). */
+export const MANUAL_REVIEW_AI_LABELS: Record<ManualReviewAi["verdict"], string> = {
+  REJECTED: "AI: mahsulot yo'q",
+  UNCERTAIN: "AI: ishonchi past",
+  FAILED: "AI videoni ko'ra olmadi",
 };
 
 /** Rad etish sabablari — ishtirokchiga bot orqali shunga mos xabar boradi. */

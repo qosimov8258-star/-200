@@ -9,10 +9,10 @@
 export type IsoDate = string;
 
 /**
- * Bitta videoning holati. PENDING — avtomatik tekshiruv; ACCEPTED — qabul qilingan (reytingda
- * alohida qator bo'lib chiqadi; ishtirokchining o'rni va asosiy sovrin — eng ko'p ko'rilgan bitta
- * ACCEPTED videosi bo'yicha); MANUAL_REVIEW — Instagram'da 3 marta topilmadi, admin qo'lda
- * tekshiradi; REJECTED — rad etilgan (hisobga kirmaydi; shu linkni tuzatib qayta yuborish mumkin).
+ * Bitta videoning holati. PENDING — avtomatik tekshiruv (Apify, so'ng AI); ACCEPTED — qabul qilingan
+ * (reytingda alohida qator bo'lib chiqadi; ishtirokchining o'rni va asosiy sovrin — eng ko'p ko'rilgan
+ * bitta ACCEPTED videosi bo'yicha); MANUAL_REVIEW — AI mahsulotni topmadi yoki Instagram'da 3 marta
+ * topilmadi, admin qo'lda tekshiradi; REJECTED — rad etilgan (hisobga kirmaydi; shu linkni tuzatib qayta yuborish mumkin).
  */
 export type ReelStatus = "PENDING" | "ACCEPTED" | "MANUAL_REVIEW" | "REJECTED";
 
@@ -121,7 +121,9 @@ export type ReelRejectReason =
   /** Rasm yoki karusel — Reel emas. */
   | "NOT_A_VIDEO"
   /** Shu Instagram akkauntdan boshqa ishtirokchi video yuborgan. */
-  | "OWNER_TAKEN";
+  | "OWNER_TAKEN"
+  /** Videoda tanlov mahsuloti ko'rinmaydi. */
+  | "NO_PRODUCT";
 
 /** Ishtirokchining bitta videosi (`MyReels.reels` ichida). */
 export interface MyReelItem {

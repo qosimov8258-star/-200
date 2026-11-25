@@ -47,8 +47,11 @@ export function ApproveDialog({ item, onClose, onDone }: DialogProps) {
         <>
           <strong className="font-medium text-slate-900">{name}</strong> videosi reytingga
           {item.kind === "LOST_REEL" ? " qaytariladi" : " qo'shiladi"} va ishtirokchiga bot orqali
-          xabar boradi. Ko&apos;rishlar Apify videoni keyingi yig&apos;ishlarda topganda yangilanadi.
-          Tasdiqlashdan oldin video ochiq va mahsulot haqida ekaniga ishonch hosil qiling.
+          xabar boradi.{" "}
+          {item.lastViews !== null
+            ? "Ko'rishlari Apify'dan allaqachon o'qilgan."
+            : "Ko'rishlari Apify'dan darhol so'raladi."}{" "}
+          Tasdiqlashdan oldin videoda tanlov mahsuloti aniq ko&apos;rinishiga ishonch hosil qiling.
         </>
       }
       confirmLabel="Tasdiqlash"
@@ -65,7 +68,8 @@ export function ApproveDialog({ item, onClose, onDone }: DialogProps) {
 export function RejectDialog({ item, onClose, onDone }: DialogProps) {
   const invalidate = useInvalidateAfterDecision();
   const name = fullName(item);
-  const [reason, setReason] = useState<ManualReviewRejectReason>("NOT_FOUND");
+  // AI mahsulotni topmagan videoda eng ko'p uchraydigan sabab — "mahsulot ko'rinmadi".
+  const [reason, setReason] = useState<ManualReviewRejectReason>(item.kind === "AI_CHECK" ? "NO_PRODUCT" : "NOT_FOUND");
   const [note, setNote] = useState("");
 
   const mutation = useMutation({
