@@ -284,52 +284,12 @@ export async function getContest(): Promise<ContestInfo> {
   };
 }
 
-/** Mock uchun ofertaning qisqa mazmuni (o'zbekcha). */
-const MOCK_OFFER_UZ = [
-  {
-    title: "Ommaviy oferta — «OLIVIA» reklama aksiyasida ishtirok etish shartlari",
-    body: "Toshkent shahri, 2026-yil 25-noyabr\nTashkilotchi — «ALVIERO» MChJ. Ro'yxatdan o'tib, «Ommaviy oferta shartlari bilan tanishdim va roziman» ni tanlash ofertani qabul qilish (aksept) hisoblanadi.",
-  },
-  {
-    title: "2. Umumiy qoidalar",
-    body: "2.5. Aksiya muddati: 2026-yil 27-noyabrdan 2027-yil 27-fevralgacha (shu kunlar ham kiradi).\n2.7. Aksiyada ishtirok etish bepul. Mahsulot xarid qilish majburiy shart hisoblanmaydi.",
-  },
-  {
-    title: "6.1. Oylik sovrinlar",
-    body: "6.1.1. Har oy bosqichda 1 000 dan 100 000 gacha tasdiqlangan ko'rishga ega bo'lganlar orasida 500 000 so'mlik Korzinka vaucherlari tasodifiy tanlov (random) orqali o'ynaladi: oyiga 200 ta, jami 600 ta.",
-  },
-  {
-    title: "6.2. Asosiy sovrinlar",
-    body: "— 4 000 001 va undan ortiq — 1 ta — BYD Chazor avtomobili\n— 1 500 001 — 4 000 000 — 3 ta — Tailandga 2 kishilik sayohat yo'llanmasi\n— 500 001 — 1 500 000 — 15 ta — iPhone 18 Pro smartfoni\n— 100 001 — 500 000 — 25 ta — Planshet",
-  },
-];
-
-/** Mock uchun ofertaning qisqa mazmuni (ruscha). */
-const MOCK_OFFER_RU = [
-  {
-    title: "Публичная оферта — об условиях участия в рекламной акции «OLIVIA»",
-    body: "город Ташкент, 25 ноября 2026 года\nОрганизатор — ООО «ALVIERO». Регистрация и выбор «С условиями публичной оферты ознакомлен(а) и согласен(на)» являются акцептом оферты.",
-  },
-  {
-    title: "2. Общие положения",
-    body: "2.5. Срок проведения Акции: с 27 ноября 2026 года по 27 февраля 2027 года (включительно).\n2.7. Участие в Акции бесплатное. Покупка продукции не является обязательным условием участия.",
-  },
-  {
-    title: "6.1. Ежемесячные призы",
-    body: "6.1.1. Ежемесячно среди Участников, набравших в этапе от 1 000 до 100 000 подтверждённых просмотров, путём случайного выбора (random) разыгрываются ваучеры Korzinka номиналом 500 000 сумов: 200 в месяц, всего 600.",
-  },
-  {
-    title: "6.2. Главные призы",
-    body: "— 4 000 001 и более — 1 шт. — Автомобиль BYD Chazor\n— 1 500 001 — 4 000 000 — 3 шт. — Туристическая путёвка в Таиланд на 2 человек\n— 500 001 — 1 500 000 — 15 шт. — Смартфон iPhone 18 Pro\n— 100 001 — 500 000 — 25 шт. — Планшет",
-  },
-];
-
 export async function getRules(): Promise<ContestRules> {
-  await wait(250);
+  // Ommaviy ofertaning to'liq matni (backend bilan bir xil), tanlangan tilda.
+  const [{ OFFER_RU, OFFER_UZ }] = await Promise.all([import("./offer-text"), wait(250)]);
   return {
     version: RULES_VERSION,
-    // Mock — ofertaning qisqa mazmuni (haqiqiy to'liq matn backend `rules/offer-text.ts` dan, tanlangan tilda).
-    sections: lang === "ru" ? MOCK_OFFER_RU : MOCK_OFFER_UZ,
+    sections: lang === "ru" ? OFFER_RU : OFFER_UZ,
     // Haqiqiyda admin panelda yuklanadi; mock'da — namunaviy klip (ko'rinishini sinash uchun).
     video: { id: "mock-rules-video", mime: "video/mp4" },
   };

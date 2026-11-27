@@ -288,6 +288,62 @@ function RulesVideo({ id }: { id: string }) {
   );
 }
 
+/**
+ * Oferta bo'limining matni: "2.1." kabi bandlar — raqami qalin; "— " bilan boshlanadigan qatorlar —
+ * ro'yxat; "Nomi: qiymat" (rekvizitlar) — nomi xira. Qolganlari — oddiy xatboshi.
+ */
+function OfferBody({ text }: { text: string }) {
+  const blocks: ({ kind: "line"; text: string } | { kind: "list"; items: string[] })[] = [];
+  for (const line of text.split("\n")) {
+    if (!line.trim()) continue;
+    if (line.startsWith("— ")) {
+      const last = blocks.at(-1);
+      if (last?.kind === "list") last.items.push(line.slice(2));
+      else blocks.push({ kind: "list", items: [line.slice(2)] });
+    } else {
+      blocks.push({ kind: "line", text: line });
+    }
+  }
+  return (
+    <div className="mt-3 space-y-2.5 text-[15px] leading-relaxed text-ink/85">
+      {blocks.map((block, i) =>
+        block.kind === "list" ? (
+          <ul key={i} className="space-y-1.5">
+            {block.items.map((item, j) => (
+              <li key={j} className="relative pl-5">
+                <span aria-hidden className="absolute top-[0.62em] left-1.5 size-1.5 rounded-full bg-[#df3425]/70" />
+                {item}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <OfferLine key={i} text={block.text} />
+        ),
+      )}
+    </div>
+  );
+}
+
+function OfferLine({ text }: { text: string }) {
+  const clause = /^(\d+(?:\.\d+)+\.?)\s+(.*)$/.exec(text);
+  if (clause) {
+    return (
+      <p>
+        <span className="font-semibold text-ink tabular-nums">{clause[1]}</span> {clause[2]}
+      </p>
+    );
+  }
+  const field = /^([^:—«»]{2,40}):\s+(.+)$/.exec(text);
+  if (field) {
+    return (
+      <p>
+        <span className="text-muted">{field[1]}:</span> <span className="break-words text-ink">{field[2]}</span>
+      </p>
+    );
+  }
+  return <p>{text}</p>;
+}
+
 /** Tanlov qoidalari. `requireConsent` — ro'yxatdan o'tishdagi majburiy rozilik qadami. */
 export function RulesContent({ requireConsent = false }: { requireConsent?: boolean }) {
   const queryClient = useQueryClient();
@@ -319,7 +375,7 @@ export function RulesContent({ requireConsent = false }: { requireConsent?: bool
   };
 
   return (
-    <div className={requireConsent ? "pb-44" : undefined}>
+    <div className={requireConsent ? "pb-[calc(var(--safe-bottom)+24px)]" : undefined}>
       {rules.isPending ? (
         <Spinner />
       ) : rules.isError ? (
@@ -340,7 +396,8 @@ export function RulesContent({ requireConsent = false }: { requireConsent?: bool
                 <li
                   key={s.title}
                   className="relative isolate animate-rise overflow-hidden rounded-card bg-surface p-5"
-                  style={{ animationDelay: `${i * 70}ms` }}
+                  // Oferta uzun (20 bo'lim) — pastdagilar kechikib chiqmasin.
+                  style={{ animationDelay: `${Math.min(i, 6) * 70}ms` }}
                 >
                   <Snowflake
                     aria-hidden
@@ -349,11 +406,10 @@ export function RulesContent({ requireConsent = false }: { requireConsent?: bool
                   />
                   <div className="flex items-start gap-3.5">
                     <Bauble label={number} />
-                    <div className="min-w-0 pt-1">
-                      <h2 className="text-[17px] leading-snug font-bold tracking-tight">{title}</h2>
-                      <p className="mt-1.5 text-[15px] leading-relaxed whitespace-pre-line text-ink/85">{s.body}</p>
-                    </div>
+                    <h2 className="min-w-0 pt-3 text-[17px] leading-snug font-bold tracking-tight">{title}</h2>
                   </div>
+                  {/* Matn kartaning to'liq enida — uzun huquqiy matn telefonda ham qulay o'qiladi. */}
+                  <OfferBody text={s.body} />
                 </li>
               );
             })}
@@ -361,11 +417,11 @@ export function RulesContent({ requireConsent = false }: { requireConsent?: bool
         </>
       )}
 
-      {requireConsent && (
-        // Keng ekranda (sayt) ham ilova ustuni kengligida; yozuv ostidagi oferta matni ko'rinmasin —
-        // faqat yuqori chekka shaffof.
-        <div className="fixed inset-x-0 bottom-0 mx-auto max-w-[520px] bg-gradient-to-t from-bg from-80% to-bg/0 px-5 pt-10 pb-[calc(var(--safe-bottom)+12px)]">
-          <label className="mb-3 flex cursor-pointer items-center gap-3 px-1">
+      {/* Rozilik — ofertaning eng oxirida: foydalanuvchi matnni oxirigacha o'tib, shu yerda "roziman"
+          deydi (ustida suzib turuvchi panel yo'q — matn bilan aralashmaydi). */}
+      {requireConsent && rules.data && (
+        <div className="mt-5">
+          <label className="flex cursor-pointer items-center gap-3 rounded-card bg-surface px-5 py-4">
             <button
               type="button"
               role="checkbox"
@@ -385,11 +441,11 @@ export function RulesContent({ requireConsent = false }: { requireConsent?: bool
             </button>
             {/* Yozuvga bosish — `label` tugmani o'zi bosadi. Bu yerga alohida `onClick` qo'yilmaydi:
                 aks holda belgi ikki marta almashib, umuman qo'yilmasdi. */}
-            <span className="text-[15px]">{t.rulesAgree}</span>
+            <span className="text-[15px] leading-snug font-medium">{t.rulesAgree}</span>
           </label>
-          {error && <p className="mb-2 px-1 text-[13px] text-negative">{error}</p>}
+          {error && <p className="mt-2 px-1 text-[13px] text-negative">{error}</p>}
           <PillButton
-            className="mt-8"
+            className="mt-9"
             disabled={!agreed || !rules.data}
             loading={loading}
             onClick={() => void accept()}
@@ -410,7 +466,7 @@ export function ConsentScreen({ rulesUpdated }: { rulesUpdated: boolean }) {
         {rulesUpdated ? t.rulesUpdatedTitle : t.rulesTitle}
       </h1>
       {rulesUpdated && <p className="mt-1.5 text-muted">{t.rulesUpdatedBody}</p>}
-      <div className="mb-5" />
+      <p className="mt-1.5 mb-5 text-[15px] leading-snug text-muted">{t.rulesReadToEnd}</p>
       <RulesContent requireConsent />
     </main>
   );
