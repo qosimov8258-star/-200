@@ -20,23 +20,27 @@ function object(body: unknown, allowed: string[]): Record<string, unknown> {
 }
 
 /** Profil: ism va yosh. Familiya endi so'ralmaydi (eski ilova yuborsa — tekshirib qabul qilinadi). */
-export function parseRegister(body: unknown): { firstName: string; lastName: string; age: number } {
+/**
+ * Profil: ism (majburiy); familiya va yosh — ixtiyoriy (2026-11-27 dan ro'yxatdan o'tishda faqat ism va
+ * telefon so'raladi; 18 yosh sharti oferta qabul qilinganda tasdiqlanadi, g'olibda tekshiriladi — 9.4).
+ */
+export function parseRegister(body: unknown): { firstName: string; lastName: string; age: number | null } {
   const b = object(body, ["firstName", "lastName", "age"]);
   const firstName = typeof b.firstName === "string" ? b.firstName.trim() : "";
   const lastName = typeof b.lastName === "string" ? b.lastName.trim() : "";
   if (!NAME.test(firstName) || (lastName !== "" && !NAME.test(lastName))) {
     throw new ApiException(422, "INVALID_PROFILE");
   }
-  return { firstName, lastName, age: parseAge(b.age) };
+  return { firstName, lastName, age: b.age === undefined ? null : parseAge(b.age) };
 }
 
-/** Saytdan ro'yxatdan o'tish: ism, telefon raqam (matn — tekshiruvi `parseUzPhone` da), yosh. */
-export function parseWebRegister(body: unknown): { firstName: string; phone: string; age: number } {
+/** Saytdan ro'yxatdan o'tish: ism, telefon raqam (matn — tekshiruvi `parseUzPhone` da); yosh — ixtiyoriy. */
+export function parseWebRegister(body: unknown): { firstName: string; phone: string; age: number | null } {
   const b = object(body, ["firstName", "phone", "age"]);
   const firstName = typeof b.firstName === "string" ? b.firstName.trim() : "";
   if (!NAME.test(firstName)) throw new ApiException(422, "INVALID_PROFILE");
   if (typeof b.phone !== "string" || b.phone.length > 30) throw new ApiException(422, "INVALID_PHONE");
-  return { firstName, phone: b.phone, age: parseAge(b.age) };
+  return { firstName, phone: b.phone, age: b.age === undefined ? null : parseAge(b.age) };
 }
 
 /** "Hisobim bor" — yangi so'rov: tana bo'sh obyekt (yoki umuman yo'q). */

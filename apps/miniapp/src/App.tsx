@@ -21,9 +21,10 @@ import { PrizesScreen } from "./screens/PrizesScreen";
 import { HomeScreen } from "./screens/HomeScreen";
 import { LanguageScreen } from "./screens/LanguageScreen";
 import { ConsentScreen, ContactScreen, RegisterScreen, RulesContent, StatusScreen } from "./screens/onboarding";
-import { GuestGate, GuestProfile, ProfileScreen, WinnerContent } from "./screens/ProfileScreen";
+import { ProfileScreen, WinnerContent } from "./screens/ProfileScreen";
 import { RatingScreen } from "./screens/RatingScreen";
 import { ReportScreen } from "./screens/ReportScreen";
+import { WebStart } from "./screens/WebLoginScreen";
 
 type Tab = "home" | "rating" | "reel" | "profile" | "prizes";
 /** Pastki menyuga sig'masdan "Ko'proq" ichida turadigan bo'limlar. */
@@ -34,8 +35,8 @@ type SubPage = "rules" | "winner" | "report" | "support" | null;
 const isOverflow = (tab: Tab): tab is OverflowTab => tab === "prizes";
 
 /**
- * Birinchi marta — til tanlash (o'zbek yoki rus); keyin ro'yxatdan o'tish (raqam, ism, yosh), ommaviy
- * oferta va butun ilova shu tilda.
+ * Birinchi marta — til tanlash (o'zbek yoki rus); keyin darhol ro'yxatdan o'tish (ism va telefon),
+ * ommaviy oferta ("Roziman") va butun ilova shu tilda.
  */
 export default function App() {
   return langChosen ? <MainApp /> : <LanguageScreen />;
@@ -44,8 +45,8 @@ export default function App() {
 function MainApp() {
   const me = useQuery({ queryKey: ["me"], queryFn: api.getMe });
   const contest = useQuery({ queryKey: ["contest"], queryFn: api.getContest });
-  // Veb-sayt (Telegram'dan tashqarida), kirmagan: mehmon sifatida bosh sahifaga kiradi,
-  // ro'yxatdan o'tishni "Profil" da boshlaydi.
+  // Veb-sayt (Telegram'dan tashqarida), kirmagan: darhol ro'yxatdan o'tish (ism va telefon) yoki
+  // "Hisobim bor" — kirish.
   const isGuest = !isInTelegram && me.isError && errorCode(me.error) === "UNAUTHORIZED";
   const loading = (me.isPending || contest.isPending) && !isGuest;
   useTelegramLoginReturn();
@@ -65,7 +66,7 @@ function MainApp() {
     <>
       {api.IS_MOCK_API && <DevBanner />}
       {isGuest ? (
-        <MainShell me={null} />
+        <WebStart />
       ) : me.isPending || contest.isPending ? (
         <div className="grid min-h-dvh place-items-center">
           <Spinner />
@@ -75,7 +76,7 @@ function MainApp() {
           <ErrorBlock onRetry={() => void Promise.all([me.refetch(), contest.refetch()])} />
         </div>
       ) : (
-        <Stage me={me.data} prizeName={contest.data.prizeName} minAge={contest.data.minAge} />
+        <Stage me={me.data} prizeName={contest.data.prizeName} />
       )}
     </>
   );
@@ -84,7 +85,7 @@ function MainApp() {
 /**
  * Saytda "Telegram bilan kirish" telefonda bosilganda Telegram tasdiqdan keyin sahifani
  * `#tgAuthResult=…` bilan qayta ochadi — kirishni shu yerda yakunlaymiz (qaysi bo'lim ochiq
- * bo'lishidan qat'i nazar). Kompyuterda vidjet natijani o'zi qaytaradi (WebLoginPanel).
+ * bo'lishidan qat'i nazar). Kompyuterda vidjet natijani o'zi qaytaradi ("Hisobim bor" oynasi).
  */
 function useTelegramLoginReturn() {
   const queryClient = useQueryClient();
@@ -100,12 +101,12 @@ function useTelegramLoginReturn() {
   }, [queryClient, toast]);
 }
 
-function Stage({ me, prizeName, minAge }: { me: Me; prizeName: string; minAge: number }) {
+function Stage({ me, prizeName }: { me: Me; prizeName: string }) {
   switch (me.stage) {
     case "NEEDS_CONTACT":
       return <ContactScreen prizeName={prizeName} />;
     case "NEEDS_PROFILE":
-      return <RegisterScreen minAge={minAge} phoneMasked={me.phoneMasked} />;
+      return <RegisterScreen phoneMasked={me.phoneMasked} />;
     case "NEEDS_CONSENT":
       return <ConsentScreen rulesUpdated={me.rulesUpdated} />;
     case "BLOCKED":
@@ -117,10 +118,10 @@ function Stage({ me, prizeName, minAge }: { me: Me; prizeName: string; minAge: n
   }
 }
 
-/** `me === null` — veb-saytdagi mehmon: ochiq bo'limlarni ko'radi, qolganlarida ro'yxatdan o'tish taklifi. */
-function MainShell({ me }: { me: Me | null }) {
-  const firstName = me?.profile?.firstName ?? t.guestName;
-  const fullName = me?.profile ? `${me.profile.firstName} ${me.profile.lastName}`.trim() : t.guestName;
+/** Ro'yxatdan o'tib, ofertaga rozi bo'lgan ishtirokchining ilovasi (pastki menyu bilan). */
+function MainShell({ me }: { me: Me }) {
+  const firstName = me.profile?.firstName ?? "";
+  const fullName = me.profile ? `${me.profile.firstName} ${me.profile.lastName}`.trim() : "";
 
   const [tab, setTab] = useState<Tab>("home");
   const [sub, setSub] = useState<SubPage>(null);
@@ -134,8 +135,6 @@ function MainShell({ me }: { me: Me | null }) {
     setSub(next.sub ?? null);
     if (next.tab) setTab(next.tab);
   };
-  /** Mehmon yopiq bo'limga kirdi — ro'yxatdan o'tish "Profil" da. */
-  const toProfile = () => open({ tab: "profile" });
 
   // Ichki sahifada Telegram'ning "Orqaga" tugmasi ko'rinadi.
   useEffect(() => {
@@ -164,34 +163,22 @@ function MainShell({ me }: { me: Me | null }) {
           </SubPageLayout>
         ) : sub === "report" ? (
           <SubPageLayout title={t.reportTitle} onBack={() => setSub(null)}>
-            {me ? (
-              <ReportScreen onBack={() => open({ tab: "rating" })} />
-            ) : (
-              <GuestGate title={t.guestReportTitle} body={t.guestReportBody} onJoin={toProfile} />
-            )}
+            <ReportScreen onBack={() => open({ tab: "rating" })} />
           </SubPageLayout>
         ) : tab === "home" ? (
           <HomeScreen
             firstName={firstName}
             fullName={fullName}
-            canPostStory={me?.stage === "ACTIVE"}
+            canPostStory={me.stage === "ACTIVE"}
             onOpenPrizes={() => open({ tab: "prizes" })}
-            onJoin={me ? undefined : toProfile}
           />
         ) : tab === "rating" ? (
           <RatingScreen onOpenReel={() => setTab("reel")} />
         ) : tab === "reel" ? (
-          me ? (
-            <MyReelScreen />
-          ) : (
-            <div className="space-y-5">
-              <PageHeader title={t.navReel} />
-              <GuestGate title={t.guestReelTitle} body={t.guestReelBody} onJoin={toProfile} />
-            </div>
-          )
+          <MyReelScreen />
         ) : tab === "prizes" ? (
-          <PrizesScreen onOpenReel={() => setTab("reel")} guest={!me} />
-        ) : me ? (
+          <PrizesScreen onOpenReel={() => setTab("reel")} />
+        ) : (
           <ProfileScreen
             me={me}
             onOpenRules={() => setSub("rules")}
@@ -201,8 +188,6 @@ function MainShell({ me }: { me: Me | null }) {
               setSub("support");
             }}
           />
-        ) : (
-          <GuestProfile onOpenRules={() => setSub("rules")} onOpenWinner={() => setSub("winner")} />
         )}
       </main>
       <MoreMenu

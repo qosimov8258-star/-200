@@ -50,7 +50,7 @@ birinchi ekranda til tanlanadi; matnlar `apps/miniapp/src/i18n/uz.ts` va `ru.ts`
 `texts.ru.ts` (`textsFor(participant.lang)`). Ishtirokchi parol/SMS'siz
 tanilgan: Telegram ichida — `X-Telegram-Init-Data` imzosi, saytda — Telegram Login Widget'dan
 keyingi `HttpOnly` sessiya cookie'si (ikkalasi ham bitta `telegramId`) yoki saytning o'zida
-ro'yxatdan o'tgan hisob (ism, telefon raqam, yosh; `POST /auth/web-register`, ID — `WEB_ID_BASE`
+ro'yxatdan o'tgan hisob (ism va telefon raqam — til tanlangach birinchi ekran; `POST /auth/web-register`, ID — `WEB_ID_BASE`
 oralig'ida, shu brauzer sessiyasi bilan; bot orqali shu raqamni ulashib Telegram'ga ulanadi —
 `ParticipantsService.resolve` Telegram ID ni o'sha hisobga olib boradi). Familiya endi so'ralmaydi
 (o'rnida — telefon raqam). Saytga qaytib kirish — "Hisobim bor": Telegram bot orqali tasdiq

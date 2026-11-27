@@ -161,7 +161,7 @@ export interface OwnerParticipantPatch {
 }
 
 /** `ownerUpdate` rad etish sababi. */
-export type OwnerUpdateError = "NOT_FOUND" | "PHONE_TAKEN" | "PROFILE_INCOMPLETE";
+export type OwnerUpdateError = "NOT_FOUND" | "PHONE_TAKEN";
 
 /**
  * Diskdagi ko'rinish: ilgari ishtirokchida bitta `reel` bo'lgan, endi — `reels` (cheksiz).
@@ -370,26 +370,26 @@ export class ParticipantsService {
    * Profil (bir marta, keyin qulflanadi). Familiya endi so'ralmaydi — bo'sh satr saqlanadi (eski
    * ishtirokchilarniki saqlanib qoladi); uning o'rnida telefon raqam turadi.
    */
-  register(telegramId: number, firstName: string, lastName: string, age: number): void {
+  register(telegramId: number, firstName: string, lastName: string, age: number | null = null): void {
     const p = this.get(telegramId);
     if (!p?.phone) throw new ApiException(401, "UNAUTHORIZED");
     if (p.firstName) throw new ApiException(409, "PROFILE_LOCKED");
-    if (age < (this.contest?.get().minAge ?? MIN_AGE)) throw new ApiException(422, "UNDER_AGE");
+    if (age !== null && age < (this.contest?.get().minAge ?? MIN_AGE)) throw new ApiException(422, "UNDER_AGE");
     p.firstName = firstName;
     p.lastName = lastName;
     p.age = age;
   }
 
   /**
-   * Saytdan (Telegram'siz) ro'yxatdan o'tish: ism, telefon raqam, yosh. Akkaunt Telegram ID'lari
+   * Saytdan (Telegram'siz) ro'yxatdan o'tish: ism va telefon raqam (yosh — ixtiyoriy). Akkaunt Telegram ID'lari
    * bilan to'qnashmaydigan alohida oraliqda (`WEB_ID_BASE` dan) yaratiladi; ishtirokchi shu
    * brauzerdagi sessiya cookie'si bilan tanilgan. Raqam tasdiqlanmagan (SMS yo'q) — sovrin
    * topshirishda shaxsan tekshiriladi. Natija — yangi akkaunt ID si.
    */
-  registerWeb(firstName: string, rawPhone: string, age: number): number {
+  registerWeb(firstName: string, rawPhone: string, age: number | null = null): number {
     const phone = parseUzPhone(rawPhone);
     if (!phone) throw new ApiException(422, "INVALID_PHONE");
-    if (age < (this.contest?.get().minAge ?? MIN_AGE)) throw new ApiException(422, "UNDER_AGE");
+    if (age !== null && age < (this.contest?.get().minAge ?? MIN_AGE)) throw new ApiException(422, "UNDER_AGE");
     if (this.all().some((p) => p.phone === phone)) throw new ApiException(409, "PHONE_TAKEN");
     const id = Math.max(WEB_ID_BASE, ...this.all().map((p) => p.telegramId).filter(isWebAccount)) + 1;
     const p = this.getOrCreate(id);
@@ -513,7 +513,7 @@ export class ParticipantsService {
    * CLAUDE.md dagi "ism, familiya va yoshni o'zgartirib bo'lmaydi" qoidasidan yagona istisno
    * (egalar qarori): ega ism, familiya, yosh, telefon va holatni (istalgan tomonga, chetlatishni
    * bekor qilish ham) o'zgartira oladi. Qiymatlar chaqiruvchida tekshirilgan bo'ladi; bu yerda
-   * faqat ombor qoidalari: bitta telefon — bitta ishtirokchi, ism bilan birga familiya va yosh.
+   * faqat ombor qoidalari: bitta telefon — bitta ishtirokchi; familiya va yosh ixtiyoriy.
    * Hammasi tekshirilgach birdaniga yoziladi (yarim o'zgarish qolmaydi). Ko'rishlar va video
    * bu metod orqali o'zgarmaydi.
    */
@@ -527,9 +527,8 @@ export class ParticipantsService {
     const firstName = patch.firstName ?? p.firstName;
     // Familiya endi ixtiyoriy (ro'yxatdan o'tishda so'ralmaydi) — yo'q bo'lsa bo'sh satr.
     const lastName = patch.lastName ?? p.lastName ?? (firstName !== null ? "" : null);
+    // Yosh ixtiyoriy (ro'yxatdan o'tishda so'ralmaydi): ism yozilsa — profil to'liq.
     const age = patch.age ?? p.age;
-    // Ro'yxatdan o'tmagan ishtirokchiga faqat ism yozilsa — u o'zi ro'yxatdan o'ta olmay qoladi.
-    if (firstName !== null && age === null) return "PROFILE_INCOMPLETE";
 
     p.firstName = firstName;
     p.lastName = lastName;

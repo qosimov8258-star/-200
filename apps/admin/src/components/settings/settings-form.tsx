@@ -194,7 +194,7 @@ export function SettingsForm({ data, onSaved }: SettingsFormProps) {
             id="minAge"
             label="Minimal yosh"
             error={fieldError("minAge")}
-            hint="Ro'yxatdan o'tishda tekshiriladi (PLAN.md Q3)."
+            hint="Ro'yxatdan o'tishda yosh so'ralmaydi — ishtirokchi ommaviy ofertaga rozi bo'lib buni tasdiqlaydi."
           >
             <Input
               id="minAge"

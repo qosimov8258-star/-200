@@ -10,58 +10,13 @@ import { t } from "../i18n";
 import * as api from "../lib/api";
 import { errorCode } from "../lib/api-error";
 import { confirmDialog, haptic, openTelegram } from "../lib/telegram";
-import { ageInput, profileErrors } from "../lib/profile-form";
+import { profileErrors } from "../lib/profile-form";
 import type { BotLoginStart, BotLoginStatus, TelegramLoginUser } from "../lib/types";
 
 /** Mock rejimda widget o'rniga — imzo tekshirilmaydi. */
 const MOCK_USER: TelegramLoginUser = { id: 1, first_name: "Sinov", auth_date: 0, hash: "" };
 /** "Hisobim bor": botdagi tasdiqni shu oraliqda so'raymiz (sahifaga qaytilganda — darhol). */
 const BOT_LOGIN_POLL_MS = 2_000;
-
-/**
- * Veb-saytda ro'yxatdan o'tish / kirish bloki (mehmonning "Profil" bo'limida, qizil karta ichida —
- * yozuvlar oq, tugma oq fonda qizil). Asosiy tugma — saytning o'zida ro'yxatdan o'tish (ism,
- * telefon raqam, yosh); ostida "Hisobim bor — kirish": Telegram bot orqali qaytib kirish
- * (saytda ro'yxatdan o'tganlar ham, Telegram'dagilar ham). Kirgach hamma so'rovlar qayta
- * yuklanadi: ilova qolgan qadamlarga (qoidalar) yoki bosh sahifaga o'tadi.
- */
-export function WebLoginPanel() {
-  const [signup, setSignup] = useState(false);
-  const [login, setLogin] = useState(false);
-
-  return (
-    <div>
-      <h2 className="text-[19px] font-bold tracking-tight">{t.webJoinTitle}</h2>
-      <p className="mt-1 text-[14px] leading-snug text-white/85">{t.webJoinVia}</p>
-      <button
-        type="button"
-        onClick={() => setSignup(true)}
-        className="mt-4 flex h-14 w-full items-center justify-center gap-2 rounded-full bg-white text-base font-bold text-[#c22a24] shadow-[0_10px_24px_-10px_rgba(0,0,0,0.45)] transition active:scale-[0.98]"
-      >
-        {t.webSignupCta}
-        <ArrowRight className="size-5" />
-      </button>
-      <button
-        type="button"
-        onClick={() => setLogin(true)}
-        className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white/12 text-[15px] font-bold text-white ring-1 ring-white/45 transition active:scale-[0.98]"
-      >
-        <LogIn className="size-[18px]" />
-        {t.webHaveAccount}
-      </button>
-      {signup && (
-        <WebSignupScreen
-          onClose={() => setSignup(false)}
-          onLogin={() => {
-            setSignup(false);
-            setLogin(true);
-          }}
-        />
-      )}
-      {login && <AccountLoginScreen onClose={() => setLogin(false)} />}
-    </div>
-  );
-}
 
 type LoginState =
   | { step: "loading" }
@@ -73,7 +28,7 @@ type LoginState =
  * "Hisobim bor" — butun ekran. Ochilishi bilan bot orqali kirish so'rovi yaratiladi: kod ko'rinadi,
  * "Botda tasdiqlash" Telegram botni ochadi (`?start=login_<id>`). Foydalanuvchi botda (kerak bo'lsa
  * raqamini ulashib) "Ha, kirish" ni bosadi — sahifa har 2 soniyada so'rab turadi va tasdiqlangach
- * backend sessiya cookie'sini qo'yadi: ilova o'zi ochiladi (bu oyna mehmon kartasi bilan yopiladi).
+ * backend sessiya cookie'sini qo'yadi: ilova o'zi ochiladi (bu oyna ham yopiladi).
  * Muqobil — Telegram Login vidjeti (kompyuterda qulay).
  */
 function AccountLoginScreen({ onClose }: { onClose: () => void }) {
@@ -118,7 +73,7 @@ function AccountLoginScreen({ onClose }: { onClose: () => void }) {
         active = false;
         if (status === "CONFIRMED") {
           haptic.success();
-          // Endi kirgan foydalanuvchi — ilova o'zi ochiladi (mehmon kartasi va bu oyna yopiladi).
+          // Endi kirgan foydalanuvchi — ilova o'zi ochiladi (bu oyna yopiladi).
           await queryClient.invalidateQueries();
           return;
         }
@@ -324,16 +279,29 @@ function localDigits(input: string): string {
  * Muvaffaqiyatli bo'lsa backend sessiya cookie'sini qo'yadi va ilova qoidalarga rozilik
  * qadamiga o'tadi (bu oyna o'zi yopiladi). Raqam band bo'lsa — "Hisobimga kirish" ("Hisobim bor").
  */
-function WebSignupScreen({ onClose, onLogin }: { onClose: () => void; onLogin: () => void }) {
+/**
+ * Saytda ilk qadam (til tanlangach): darhol ro'yxatdan o'tish — ism va telefon; ostida "Hisobim bor —
+ * kirish" (bot orqali). Ro'yxatdan o'tgach — ommaviy oferta, "Roziman" va ilova.
+ */
+export function WebStart() {
+  const [login, setLogin] = useState(false);
+  return login ? (
+    <AccountLoginScreen onClose={() => setLogin(false)} />
+  ) : (
+    <WebSignupScreen onLogin={() => setLogin(true)} />
+  );
+}
+
+/** `onClose` berilmasa (sayt ochilgandagi ilk qadam) — "Orqaga" tugmasi yo'q. */
+function WebSignupScreen({ onClose, onLogin }: { onClose?: () => void; onLogin: () => void }) {
   const queryClient = useQueryClient();
-  const contest = useQuery({ queryKey: ["contest"], queryFn: api.getContest });
-  const minAge = contest.data?.minAge ?? 18;
-  const [form, setForm] = useState({ firstName: "", phone: "", age: "" });
-  const [errors, setErrors] = useState<{ firstName?: string; phone?: string; age?: string }>({});
+  const [form, setForm] = useState({ firstName: "", phone: "" });
+  const [errors, setErrors] = useState<{ firstName?: string; phone?: string }>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (!onClose) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -343,22 +311,21 @@ function WebSignupScreen({ onClose, onLogin }: { onClose: () => void; onLogin: (
     e.preventDefault();
     const firstName = form.firstName.trim();
     const next = {
-      ...profileErrors(firstName, form.age, minAge),
+      ...profileErrors(firstName),
       phone: form.phone.length === 9 ? undefined : t.phoneInvalid,
     };
     setErrors(next);
     setServerError(null);
-    if (next.firstName || next.phone || next.age) {
+    if (next.firstName || next.phone) {
       haptic.error();
       return;
     }
-    const age = Number.parseInt(form.age, 10);
     (document.activeElement as HTMLElement | null)?.blur();
-    if (!(await confirmDialog(t.confirmProfile(firstName, `+998 ${formatLocalPhone(form.phone)}`, age)))) return;
+    if (!(await confirmDialog(t.confirmProfile(firstName, `+998 ${formatLocalPhone(form.phone)}`)))) return;
 
     setLoading(true);
     try {
-      await api.webRegister({ firstName, phone: form.phone, age });
+      await api.webRegister({ firstName, phone: form.phone });
       haptic.success();
       // Endi kirgan foydalanuvchi — ilova qoidalarga rozilik qadamiga o'tadi.
       await queryClient.invalidateQueries();
@@ -367,26 +334,27 @@ function WebSignupScreen({ onClose, onLogin }: { onClose: () => void; onLogin: (
       const code = errorCode(error);
       if (code === "PHONE_TAKEN") setErrors({ phone: t.phoneTaken });
       else if (code === "INVALID_PHONE") setErrors({ phone: t.phoneInvalid });
-      else if (code === "UNDER_AGE") setErrors({ age: t.ageTooYoung(minAge) });
       else if (code === "INVALID_PROFILE") setErrors({ firstName: t.nameInvalid });
       else setServerError(code === "TOO_MANY" ? t.tooManyAttempts : t.genericError);
       setLoading(false);
     }
   };
 
-  // Portal: mehmon kartasida animatsiya (`transform`) bor — `fixed` oyna uning ichida qolib ketardi.
+  // Portal: `fixed` oyna animatsiyali (`transform`) ota element ichida qolib ketmasin.
   return createPortal(
     <div role="dialog" aria-modal="true" aria-label={t.webSignupTitle} className="fixed inset-0 z-[80] overflow-y-auto bg-bg text-ink">
       <main className="mx-auto max-w-[520px] px-5 pt-[calc(var(--safe-top)+16px)] pb-[calc(var(--safe-bottom)+24px)]">
-        <button
-          type="button"
-          onClick={onClose}
-          className="inline-flex h-10 items-center gap-1.5 rounded-full bg-surface px-4 text-[14px] font-semibold"
-        >
-          <ArrowLeft className="size-4" />
-          {t.webSignupBack}
-        </button>
-        <h1 className="mt-5 text-[28px] font-bold tracking-tight">{t.webSignupTitle}</h1>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="mb-5 inline-flex h-10 items-center gap-1.5 rounded-full bg-surface px-4 text-[14px] font-semibold"
+          >
+            <ArrowLeft className="size-4" />
+            {t.webSignupBack}
+          </button>
+        )}
+        <h1 className="text-[28px] font-bold tracking-tight">{t.webSignupTitle}</h1>
         <p className="mt-1.5 text-muted">{t.webSignupSubtitle}</p>
         <Card dark className="mt-6 flex gap-3 rounded-tile p-4">
           <Lock className="mt-0.5 size-5 shrink-0" />
@@ -425,7 +393,7 @@ function WebSignupScreen({ onClose, onLogin }: { onClose: () => void; onLogin: (
                   setErrors((er) => ({ ...er, phone: undefined }));
                 }}
                 aria-invalid={errors.phone ? true : undefined}
-                enterKeyHint="next"
+                enterKeyHint="done"
                 className="ml-2 h-full min-w-0 flex-1 bg-transparent text-base tabular-nums outline-none placeholder:text-muted"
               />
             </span>
@@ -442,23 +410,19 @@ function WebSignupScreen({ onClose, onLogin }: { onClose: () => void; onLogin: (
               {t.phoneTakenLogin}
             </button>
           )}
-          <TextField
-            label={t.age}
-            value={form.age}
-            onChange={(e) => {
-              const age = ageInput(e.target.value);
-              setForm((f) => ({ ...f, age }));
-              setErrors((er) => ({ ...er, age: undefined }));
-            }}
-            error={errors.age}
-            inputMode="numeric"
-            enterKeyHint="done"
-          />
           {serverError && <p className="px-1.5 text-[13px] text-negative">{serverError}</p>}
           <GiftButton type="submit" loading={loading} className="!mt-10" icon={<ArrowRight className="size-5" />}>
             {t.continue}
           </GiftButton>
           <p className="px-1.5 text-center text-[12.5px] leading-snug text-muted">{t.webSignupDeviceNote}</p>
+          <button
+            type="button"
+            onClick={onLogin}
+            className="mx-auto flex items-center gap-1.5 pt-2 text-[15px] font-bold text-[#c22a24]"
+          >
+            <LogIn className="size-[18px]" />
+            {t.webHaveAccount}
+          </button>
         </form>
       </main>
     </div>,

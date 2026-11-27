@@ -67,8 +67,8 @@ export function WinnerCandidateCard({ overview, onAction }: WinnerCandidateCardP
             <p className="text-xl font-semibold text-slate-900">{name}</p>
             <p className="text-sm text-slate-500">
               {candidate.rank === 1 ? "G'olib" : `${candidate.rank - 1}-zaxira`} · {formatNumber(candidate.views)}{" "}
-              ko&apos;rish (jami) ·{" "}
-              {candidate.participant.age} yosh
+              ko&apos;rish (jami)
+              {candidate.participant.age > 0 && ` · ${candidate.participant.age} yosh`}
             </p>
             <p className="mt-1 flex flex-wrap gap-x-3 text-sm text-slate-600">
               <span className="tabular-nums">{candidate.participant.phone}</span>

@@ -96,6 +96,7 @@ export interface ParticipantListItem {
   id: string;
   firstName: string;
   lastName: string;
+  /** 0 — kiritilmagan (ro'yxatdan o'tishda yosh endi so'ralmaydi). */
   age: number;
   phone: string;
   /**

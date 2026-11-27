@@ -58,7 +58,7 @@ interface MockState {
   /** Saytning o'zida (Telegram'siz) ro'yxatdan o'tilganmi. */
   webAccount?: boolean;
   phone: string | null;
-  profile: { firstName: string; lastName: string; age: number } | null;
+  profile: { firstName: string; lastName: string; age: number | null } | null;
   consentVersion: number | null;
   /** Saqlangan til (backenddagi `Participant.lang`). */
   lang?: "uz" | "ru" | null;
@@ -184,12 +184,11 @@ export async function webRegister(body: WebRegisterRequest): Promise<void> {
   if (body.firstName.trim().length < 2) throw new ApiError("INVALID_PROFILE");
   if (!/^\d{9}$/.test(local)) throw new ApiError("INVALID_PHONE");
   if (local === "900000000") throw new ApiError("PHONE_TAKEN");
-  if (body.age < MIN_AGE) throw new ApiError("UNDER_AGE");
   update({
     webSession: true,
     webAccount: true,
     phone: `+998${local}`,
-    profile: { firstName: body.firstName.trim(), lastName: "", age: body.age },
+    profile: { firstName: body.firstName.trim(), lastName: "", age: null },
   });
 }
 
@@ -260,12 +259,11 @@ export async function register(body: RegisterRequest): Promise<void> {
   if (!state.phone) throw new ApiError("UNAUTHORIZED");
   if (state.profile) throw new ApiError("PROFILE_LOCKED");
   if (body.firstName.trim().length < 2) throw new ApiError("INVALID_PROFILE");
-  if (body.age < MIN_AGE) throw new ApiError("UNDER_AGE");
   update({
     profile: {
       firstName: body.firstName.trim(),
       lastName: body.lastName?.trim() ?? "",
-      age: body.age,
+      age: null,
     },
   });
 }

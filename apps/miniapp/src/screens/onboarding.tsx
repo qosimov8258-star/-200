@@ -8,7 +8,7 @@ import { Card, ErrorBlock, PillButton, Spinner, TextField } from "../components/
 import { t } from "../i18n";
 import * as api from "../lib/api";
 import { errorCode } from "../lib/api-error";
-import { ageInput, profileErrors } from "../lib/profile-form";
+import { profileErrors } from "../lib/profile-form";
 import {
   botLink,
   confirmDialog,
@@ -110,9 +110,9 @@ export function ContactScreen({ prizeName }: { prizeName: string }) {
  * 2-qadam (Telegram): ism va yosh — bir marta, keyin qulflanadi. Familiya so'ralmaydi — uning
  * o'rnida bot orqali ulashilgan (tasdiqlangan) telefon raqam ko'rsatiladi.
  */
-export function RegisterScreen({ minAge, phoneMasked }: { minAge: number; phoneMasked: string | null }) {
+export function RegisterScreen({ phoneMasked }: { phoneMasked: string | null }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ firstName: "", age: "" });
+  const [form, setForm] = useState({ firstName: "" });
   const [errors, setErrors] = useState<Partial<Record<keyof typeof form, string>>>({});
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -125,26 +125,24 @@ export function RegisterScreen({ minAge, phoneMasked }: { minAge: number; phoneM
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const firstName = form.firstName.trim();
-    const next = profileErrors(firstName, form.age, minAge);
+    const next = profileErrors(firstName);
     setErrors(next);
     setServerError(null);
-    if (next.firstName || next.age) {
+    if (next.firstName) {
       haptic.error();
       return;
     }
-    const age = Number.parseInt(form.age, 10);
     (document.activeElement as HTMLElement | null)?.blur();
-    if (!(await confirmDialog(t.confirmProfile(firstName, phoneMasked ?? "", age)))) return;
+    if (!(await confirmDialog(t.confirmProfile(firstName, phoneMasked ?? "")))) return;
 
     setLoading(true);
     try {
-      await api.register({ firstName, age });
+      await api.register({ firstName });
       haptic.success();
       await queryClient.invalidateQueries({ queryKey: ["me"] });
     } catch (error) {
       haptic.error();
-      const code = errorCode(error);
-      if (code === "UNDER_AGE") setErrors({ age: t.ageTooYoung(minAge) });
+      if (errorCode(error) === "INVALID_PROFILE") setErrors({ firstName: t.nameInvalid });
       else setServerError(t.genericError);
     } finally {
       setLoading(false);
@@ -167,7 +165,7 @@ export function RegisterScreen({ minAge, phoneMasked }: { minAge: number; phoneM
           error={errors.firstName}
           autoComplete="given-name"
           autoCapitalize="words"
-          enterKeyHint="next"
+          enterKeyHint="done"
         />
         {phoneMasked && (
           <div>
@@ -182,17 +180,6 @@ export function RegisterScreen({ minAge, phoneMasked }: { minAge: number; phoneM
             </div>
           </div>
         )}
-        <TextField
-          label={t.age}
-          value={form.age}
-          onChange={(e) => {
-            e.target.value = ageInput(e.target.value);
-            set("age")(e);
-          }}
-          error={errors.age}
-          inputMode="numeric"
-          enterKeyHint="done"
-        />
         {serverError && <p className="px-1.5 text-[13px] text-negative">{serverError}</p>}
         {/* Sovg'a qutisi ko'rinishidagi tugma — tepasidagi bantik uchun ko'proq joy. */}
         <GiftButton type="submit" loading={loading} className="!mt-10" icon={<ArrowRight className="size-5" />}>

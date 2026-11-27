@@ -32,7 +32,8 @@ export interface Profile {
   firstName: string;
   /** Eski ishtirokchilarda bo'lishi mumkin; yangilarida — bo'sh satr. */
   lastName: string;
-  age: number;
+  /** Eski ishtirokchilarda bor; endi so'ralmaydi — null. */
+  age: number | null;
 }
 
 export interface Me {
@@ -54,18 +55,16 @@ export interface Me {
   lang?: "uz" | "ru" | null;
 }
 
-/** Profil: ism va yosh (familiya endi so'ralmaydi — uning o'rnida telefon raqam). */
+/** Profil: faqat ism (telefon — bot orqali ulashilgan). Familiya va yosh so'ralmaydi. */
 export interface RegisterRequest {
   firstName: string;
   lastName?: string;
-  age: number;
 }
 
-/** Saytdan (Telegram'siz) ro'yxatdan o'tish. `phone` — "90 123 45 67" (+998 siz) yoki to'liq. */
+/** Saytdan (Telegram'siz) ro'yxatdan o'tish: ism va telefon. `phone` — "90 123 45 67" (+998 siz) yoki to'liq. */
 export interface WebRegisterRequest {
   firstName: string;
   phone: string;
-  age: number;
 }
 
 export interface ContestInfo {
