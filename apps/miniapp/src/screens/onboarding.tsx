@@ -362,7 +362,9 @@ export function RulesContent({ requireConsent = false }: { requireConsent?: bool
       )}
 
       {requireConsent && (
-        <div className="fixed inset-x-0 bottom-0 bg-gradient-to-t from-bg via-bg to-bg/0 px-5 pt-10 pb-[calc(var(--safe-bottom)+12px)]">
+        // Keng ekranda (sayt) ham ilova ustuni kengligida; yozuv ostidagi oferta matni ko'rinmasin —
+        // faqat yuqori chekka shaffof.
+        <div className="fixed inset-x-0 bottom-0 mx-auto max-w-[520px] bg-gradient-to-t from-bg from-80% to-bg/0 px-5 pt-10 pb-[calc(var(--safe-bottom)+12px)]">
           <label className="mb-3 flex cursor-pointer items-center gap-3 px-1">
             <button
               type="button"

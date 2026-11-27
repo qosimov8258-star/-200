@@ -13,17 +13,18 @@ const OPTIONS: { value: Lang; flag: string; label: string; hint: string }[] = [
 ];
 
 /**
- * Birinchi ekran: ilova tilini tanlash (ro'yxatdan o'tishdan oldin). Keyingi barcha ekranlar,
- * ommaviy oferta va bot xabarlari shu tilda bo'ladi. Keyin profilda almashtirish mumkin.
+ * Ro'yxatdan o'tishning birinchi qadami: ilova tilini tanlash (ism va telefondan oldin). Keyingi
+ * barcha ekranlar, ommaviy oferta, sovg'alar va bot xabarlari shu tilda bo'ladi. Til o'zgarsa
+ * sahifa shu tilda qayta yuklanadi; o'sha til tanlansa — `onDone`. Keyin profilda almashtirish mumkin.
  */
-export function LanguageScreen() {
+export function LanguageScreen({ onDone }: { onDone?: () => void }) {
   useEffect(() => {
     hideSplash();
   }, []);
 
   const choose = (next: Lang) => {
     haptic.select();
-    setLang(next);
+    if (!setLang(next)) onDone?.();
   };
 
   return (
