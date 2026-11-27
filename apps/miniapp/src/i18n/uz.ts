@@ -108,6 +108,9 @@ export const t = {
   rulesSectionsCount: (n: number) => `${n} ta bo'lim`,
   rulesAgree: "Ommaviy oferta shartlari bilan tanishdim va roziman",
   rulesReadToEnd: "Oferta bilan oxirigacha tanishib chiqing — rozilik belgisi eng pastda.",
+  offerPdfTitle: "Ommaviy ofertani yuklab olish",
+  offerPdfHint: "Imzolangan asl nusxa · PDF, 5 MB",
+  offerPdfFileName: "Ommaviy-oferta-OLIVIA.pdf",
   rulesUpdatedTitle: "Ommaviy oferta",
   rulesUpdatedBody:
     "Aksiya shartlari ommaviy oferta ko'rinishida e'lon qilindi. Davom etish uchun oferta bilan tanishib, uni qabul qiling.",

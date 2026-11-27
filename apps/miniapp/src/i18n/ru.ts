@@ -133,6 +133,9 @@ export const ru: Texts = {
   rulesSectionsCount: (n: number) => `${n} ${plural(n, "раздел", "раздела", "разделов")}`,
   rulesAgree: "С условиями публичной оферты ознакомлен(а) и согласен(на)",
   rulesReadToEnd: "Прочитайте оферту до конца — отметка о согласии в самом низу.",
+  offerPdfTitle: "Скачать публичную оферту",
+  offerPdfHint: "Подписанный оригинал · PDF, 5 МБ",
+  offerPdfFileName: "Публичная-оферта-OLIVIA.pdf",
   rulesUpdatedTitle: "Публичная оферта",
   rulesUpdatedBody:
     "Условия акции опубликованы в виде публичной оферты. Чтобы продолжить, ознакомьтесь с офертой и примите её.",

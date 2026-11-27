@@ -42,6 +42,8 @@ interface TgWebApp {
   enableClosingConfirmation?(): void;
   disableClosingConfirmation?(): void;
   openLink(url: string, options?: { try_instant_view?: boolean }): void;
+  /** Bot API 8.0+: Telegram'ning o'z "Yuklab olish" oynasi. */
+  downloadFile?(params: { url: string; file_name: string }, callback?: (accepted: boolean) => void): void;
   openTelegramLink(url: string): void;
   requestContact?(callback?: (shared: boolean) => void): void;
   showConfirm(message: string, callback: (confirmed: boolean) => void): void;
@@ -138,6 +140,16 @@ export function confirmDialog(message: string): Promise<boolean> {
 export function openExternal(url: string): void {
   if (isInTelegram) webApp!.openLink(url);
   else window.open(url, "_blank", "noopener");
+}
+
+/**
+ * Telegram ichida faylni yuklab olish: 8.0+ — Telegram'ning o'z oynasi orqali; eski Telegram'da —
+ * tashqi brauzerda ochiladi (u yerdan saqlanadi). Saytda oddiy `<a download>` ishlatiladi.
+ */
+export function telegramDownload(url: string, fileName: string): void {
+  const absolute = new URL(url, window.location.href).href;
+  if (supports("8.0") && webApp!.downloadFile) webApp!.downloadFile({ url: absolute, file_name: fileName });
+  else webApp!.openLink(absolute);
 }
 
 /** Bot chati havolasi; `start` — /start parametri (masalan, saytdan raqam ulashish uchun "web"). */
