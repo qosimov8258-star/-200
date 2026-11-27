@@ -37,12 +37,18 @@ function AccountLoginScreen({ onClose }: { onClose: () => void }) {
   const [opened, setOpened] = useState(false);
   /** "Yangi kod olish" — har bosilganda yangi so'rov. */
   const [attempt, setAttempt] = useState(0);
+  /** Bot chati (support uchun) — so'rov havolasidan, `?start=` siz. */
+  const [botChat, setBotChat] = useState<string | null>(null);
 
   useEffect(() => {
     let current = true;
     api
       .startBotLogin()
-      .then((request) => current && setState({ step: "pending", request }))
+      .then((request) => {
+        if (!current) return;
+        setBotChat(botChatUrl(request.botUrl));
+        setState({ step: "pending", request });
+      })
       .catch((error: unknown) => current && setState({ step: "error", tooMany: errorCode(error) === "TOO_MANY" }));
     return () => {
       current = false;
@@ -119,8 +125,18 @@ function AccountLoginScreen({ onClose }: { onClose: () => void }) {
         ? t.webLoginDenied
         : state.status === "FAILED"
           ? t.webLoginTaken
-          : t.webLoginExpired
+          : state.status === "LOCKED"
+            ? t.webLoginLocked
+            : t.webLoginExpired
       : null;
+  const locked = state.step === "closed" && state.status === "LOCKED";
+
+  /** Qayta kirish yopiq — botda "Supportga yozish" (admin ruxsat beradi). */
+  const openSupport = () => {
+    if (!botChat) return;
+    haptic.tap();
+    openTelegram(botChat);
+  };
 
   return createPortal(
     <div role="dialog" aria-modal="true" aria-label={t.webLoginTitle} className="fixed inset-0 z-[80] overflow-y-auto bg-bg text-ink">
@@ -175,6 +191,11 @@ function AccountLoginScreen({ onClose }: { onClose: () => void }) {
               <p className="text-[15px] leading-snug">
                 {closedText ?? (state.step === "error" && state.tooMany ? t.webLoginTooMany : t.webLoginFailed)}
               </p>
+              {locked && botChat && (
+                <GiftButton onClick={openSupport} className="!mt-10" icon={<Send className="size-5" />}>
+                  {t.webLoginSupport}
+                </GiftButton>
+              )}
               <button
                 type="button"
                 onClick={retry}
@@ -207,17 +228,17 @@ function TelegramWidgetLogin() {
   const queryClient = useQueryClient();
   const [show, setShow] = useState(false);
   const auth = useQuery({ queryKey: ["auth-config"], queryFn: api.getAuthConfig, enabled: show });
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const login = async (user: TelegramLoginUser) => {
     setBusy(true);
-    setError(false);
+    setError(null);
     try {
       await api.telegramLogin(user);
       await queryClient.invalidateQueries();
-    } catch {
-      setError(true);
+    } catch (e) {
+      setError(errorCode(e) === "LOGIN_LOCKED" ? t.webLoginLocked : t.webLoginFailed);
     } finally {
       setBusy(false);
     }
@@ -259,9 +280,19 @@ function TelegramWidgetLogin() {
         <p className="rounded-xl bg-surface px-3 py-2 text-[14px]">{t.webLoginNotConfigured}</p>
       )}
       {busy && !api.mockControls && <Spinner />}
-      {error && <p className="mt-3 px-1.5 text-[13px] text-negative">{t.webLoginFailed}</p>}
+      {error && <p className="mt-3 px-1.5 text-[13px] text-negative">{error}</p>}
     </div>
   );
+}
+
+/** "https://t.me/bot?start=login_x" → "https://t.me/bot" (bot chati). Noto'g'ri havola — null. */
+function botChatUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return null;
+  }
 }
 
 /** "901234567" → "90 123 45 67" (yozish paytida ham). */
@@ -333,6 +364,7 @@ function WebSignupScreen({ onClose, onLogin }: { onClose?: () => void; onLogin: 
       haptic.error();
       const code = errorCode(error);
       if (code === "PHONE_TAKEN") setErrors({ phone: t.phoneTaken });
+      else if (code === "DEVICE_TAKEN") setServerError(t.deviceTaken);
       else if (code === "INVALID_PHONE") setErrors({ phone: t.phoneInvalid });
       else if (code === "INVALID_PROFILE") setErrors({ firstName: t.nameInvalid });
       else setServerError(code === "TOO_MANY" ? t.tooManyAttempts : t.genericError);

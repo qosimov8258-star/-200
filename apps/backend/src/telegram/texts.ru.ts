@@ -45,7 +45,13 @@ export const textsRu: BotTexts = {
     "⛔ Javob yuborilmadi: ishtirokchilarga faqat support guruhi adminlari (yoki TELEGRAM_SUPPORT_OPERATOR_IDS dagilar) javob bera oladi.",
   supportReceived: "📨 Ваше сообщение отправлено в поддержку. Ответ оператора придёт в этот чат.",
   supportNeedsContact: "Прежде чем писать в поддержку, поделитесь номером телефона — так мы сможем вас узнать.",
-  supportUnavailable: "Поддержка пока не подключена. Попробуйте позже.",
+  supportButton: "💬 Написать в поддержку",
+  supportPrompt:
+    "Напишите ваш вопрос — текстом или скриншотом. Сообщение получат сотрудники поддержки, ответ придёт в этот чат.",
+  loginLocked:
+    "🔒 Повторный вход в этот аккаунт на сайте закрыт: в аккаунт входят один раз.\n\nДля повторного входа нужно разрешение администратора — нажмите «💬 Написать в поддержку» ниже и опишите ситуацию.",
+  webLoginAllowed:
+    "✅ Повторный вход на сайт разрешён. На сайте нажмите «У меня есть аккаунт — войти» — разрешение действует один раз.",
   operatorPrefix: "💬 Ответ поддержки:\n\n",
   operatorDelivered: "✅ Ishtirokchiga yuborildi",
   operatorBlocked: "❌ Yetkazilmadi: ishtirokchi botni bloklagan.",

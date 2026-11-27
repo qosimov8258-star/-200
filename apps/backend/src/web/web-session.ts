@@ -9,13 +9,20 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  * almashtirilsa — barcha veb-sessiyalar bekor bo'ladi.
  */
 export const SESSION_COOKIE = "reels_session";
-export const SESSION_TTL_SECONDS = 30 * 86_400;
 /**
- * Saytda (Telegram'siz) ro'yxatdan o'tgan hisob faqat shu cookie bilan tanilgan — boshqa kirish
- * yo'li yo'q. Shuning uchun uzoq: 400 kun (brauzerlar cookie'ni bundan uzoq saqlamaydi), tanlov
- * va sovrin topshirish davrini to'liq qamraydi.
+ * Saytga bir marta kiriladi — qayta kirish faqat admin ruxsati bilan (`ParticipantsService.startWebSession`).
+ * Shuning uchun sessiya uzoq: 400 kun (brauzerlar cookie'ni bundan uzoq saqlamaydi), tanlov va sovrin
+ * topshirish davrini to'liq qamraydi — muddati tugab, foydalanuvchi bekordan qulflanib qolmasin.
  */
 export const WEB_ACCOUNT_SESSION_TTL_SECONDS = 400 * 86_400;
+export const SESSION_TTL_SECONDS = WEB_ACCOUNT_SESSION_TTL_SECONDS;
+
+/**
+ * "Bitta qurilma — bitta hisob": shu brauzerda ochilgan (yoki kirilgan) hisob. Chiqib ketganda ham
+ * qoladi — shu qurilmadan yangi hisob ochib bo'lmaydi. `HttpOnly`, imzolangan (soxtalashtirib bo'lmaydi).
+ */
+export const DEVICE_COOKIE = "reels_device";
+const DEVICE_TTL_SECONDS = 400 * 86_400;
 
 const b64url = (buf: Buffer) => buf.toString("base64url");
 
@@ -67,6 +74,31 @@ export function readSessionToken(
   } catch {
     return null;
   }
+}
+
+function deviceSignature(accountId: number, botToken: string): Buffer {
+  const deviceKey = createHmac("sha256", "reels-device").update(botToken).digest();
+  return createHmac("sha256", deviceKey).update(String(accountId)).digest();
+}
+
+/** Qurilma belgisi: "<hisob ID>.<imzo>". */
+export function createDeviceToken(accountId: number, botToken: string): string {
+  return `${accountId}.${b64url(deviceSignature(accountId, botToken))}`;
+}
+
+/** Imzo to'g'ri bo'lsa — hisob ID si, aks holda null. */
+export function readDeviceToken(token: string, botToken: string): number | null {
+  if (!botToken) return null;
+  const [rawId, signature, extra] = token.split(".");
+  const id = Number(rawId);
+  if (!rawId || !signature || extra !== undefined || !Number.isSafeInteger(id)) return null;
+  const expected = deviceSignature(id, botToken);
+  const given = Buffer.from(signature, "base64url");
+  return given.length === expected.length && timingSafeEqual(given, expected) ? id : null;
+}
+
+export function deviceCookie(value: string, secure: boolean): string {
+  return cookie(DEVICE_COOKIE, value, "/", DEVICE_TTL_SECONDS, secure);
 }
 
 /** `Cookie` sarlavhasidan bitta qiymat. */

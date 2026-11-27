@@ -30,9 +30,11 @@ export const BOT_LOGIN_START_PREFIX = "login_";
  * - `CONFIRMED` — tasdiqlandi (sessiya beriladi);
  * - `DENIED` — botda "Men emas" bosildi;
  * - `FAILED` — kirib bo'lmaydi (raqam boshqa Telegram hisobiga bog'langan — botda sababi yozilgan);
+ * - `LOCKED` — hisobga saytda allaqachon kirilgan: qayta kirish faqat admin ruxsati bilan (botda
+ *   "Supportga yozish" taklif qilinadi);
  * - `EXPIRED` — muddati o'tgan, ishlatilgan yoki noma'lum.
  */
-export type BotLoginStatus = "PENDING" | "CONFIRMED" | "DENIED" | "FAILED" | "EXPIRED";
+export type BotLoginStatus = "PENDING" | "CONFIRMED" | "DENIED" | "FAILED" | "LOCKED" | "EXPIRED";
 
 interface BotLoginRequest {
   id: string;
@@ -111,7 +113,7 @@ export class BotLoginService {
   }
 
   /** Botda "Men emas" yoki kirib bo'lmaydigan holat (`FAILED`). */
-  close(id: string, telegramId: number, status: "DENIED" | "FAILED", now: number = Date.now()): boolean {
+  close(id: string, telegramId: number, status: "DENIED" | "FAILED" | "LOCKED", now: number = Date.now()): boolean {
     const request = this.pending(id, now);
     if (!request || request.telegramId !== telegramId) return false;
     request.status = status;

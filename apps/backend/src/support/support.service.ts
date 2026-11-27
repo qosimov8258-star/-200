@@ -1,6 +1,6 @@
 import { HttpException, Inject, Injectable, Optional } from "@nestjs/common";
 
-import { instagramUsernames, type Participant } from "../participants/participants.service";
+import { instagramUsernames, webLoginState, type Participant, type WebLoginState } from "../participants/participants.service";
 import { StateStore } from "../persistence/state-store";
 
 export type TicketStatus = "NEW" | "IN_PROGRESS" | "CLOSED";
@@ -83,6 +83,8 @@ export interface SupportTicketDetail {
   participant: SupportTicketParticipant & {
     instagramUsername: string | null;
     status: Participant["status"];
+    /** Saytga kirish: qayta kirish yopiqmi (`USED`) — admin shu murojaatdan ruxsat beradi. */
+    webLogin: WebLoginState;
   };
   messages: SupportMessageView[];
 }
@@ -248,6 +250,7 @@ export class SupportService {
         ...personOf(ticket.telegramId, p),
         instagramUsername: p ? (instagramUsernames(p)[0] ?? null) : null,
         status: p?.status ?? "ACTIVE",
+        webLogin: p ? webLoginState(p) : "NEVER",
       },
       messages: ticket.messages.map((m, i) => ({
         id: `${ticket.id}-${i + 1}`,

@@ -60,6 +60,11 @@ export const t = {
   webLoginTaken:
     "Bu raqam boshqa Telegram hisobiga bog'langan — botdagi xabarni o'qing yoki botga yozing, support yordam beradi.",
   webLoginExpired: "Kod eskirdi yoki ishlatildi.",
+  webLoginLocked:
+    "Bu hisobga saytda qayta kirish yopiq — hisobga bir marta kiriladi. Qayta kirish uchun Telegram botda «💬 Supportga yozish» ni bosib yozing: admin tekshirib, ruxsat beradi.",
+  webLoginSupport: "Supportga yozish (Telegram)",
+  deviceTaken:
+    "Bu qurilmada hisob allaqachon ochilgan — bitta qurilmada bitta hisob. Qaytib kirish uchun «Hisobim bor — kirish» ni bosing.",
   webLoginTooMany: "Juda ko'p urinish. 10 daqiqadan keyin qayta urinib ko'ring.",
   webLoginRetry: "Yangi kod olish",
   webLoginOr: "yoki",
@@ -79,7 +84,7 @@ export const t = {
   phoneVerified: "Tasdiqlangan",
   logoutConfirmTitle: "Saytdan chiqasizmi?",
   logoutConfirmBody:
-    "Hisobingiz va ko'rishlaringiz saqlanib qoladi. Qaytish uchun «Hisobim bor — kirish» ni bosasiz — sovg'alar sizni kutadi.",
+    "Hisobingiz va ko'rishlaringiz saqlanib qoladi. Lekin hisobga saytda bir marta kiriladi: qaytib kirish uchun Telegram botda supportga yozib, admin ruxsatini olishingiz kerak bo'ladi.",
   logoutStay: "Qolaman",
   logoutLeave: "Ha, chiqish",
 

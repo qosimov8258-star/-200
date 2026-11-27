@@ -57,6 +57,11 @@ interface MockState {
   webSession: boolean;
   /** Saytning o'zida (Telegram'siz) ro'yxatdan o'tilganmi. */
   webAccount?: boolean;
+  /**
+   * Saytga kirilganmi (backenddagi `webLoginUsed`): hisobga bir marta kiriladi — chiqib ketgach
+   * qayta kirish yopiq (mock'da admin ruxsati yo'q — "Boshidan boshlash" bilan tozalanadi).
+   */
+  webLoginUsed?: boolean;
   phone: string | null;
   profile: { firstName: string; lastName: string; age: number | null } | null;
   consentVersion: number | null;
@@ -173,7 +178,8 @@ export async function getAuthConfig(): Promise<AuthConfig> {
 /** Login Widget'ni taqlid qiladi (haqiqiy widget faqat BotFather'da ko'rsatilgan domenda ishlaydi). */
 export async function webLogin(): Promise<void> {
   await wait(400);
-  update({ webSession: true, webAccount: false });
+  if (state.webLoginUsed) throw new ApiError("LOGIN_LOCKED");
+  update({ webSession: true, webAccount: false, webLoginUsed: true });
 }
 
 /** Saytdan ro'yxatdan o'tish (backenddagidek tekshiruvlar; "+998 90 000 00 00" — band raqam sinovi). */
@@ -184,9 +190,12 @@ export async function webRegister(body: WebRegisterRequest): Promise<void> {
   if (body.firstName.trim().length < 2) throw new ApiError("INVALID_PROFILE");
   if (!/^\d{9}$/.test(local)) throw new ApiError("INVALID_PHONE");
   if (local === "900000000") throw new ApiError("PHONE_TAKEN");
+  // Bitta qurilma — bitta hisob: shu brauzerda hisob ochilgan (chiqib ketilgan bo'lsa ham).
+  if (state.profile) throw new ApiError("DEVICE_TAKEN");
   update({
     webSession: true,
     webAccount: true,
+    webLoginUsed: true,
     phone: `+998${local}`,
     profile: { firstName: body.firstName.trim(), lastName: "", age: null },
   });
@@ -226,9 +235,12 @@ export async function pollBotLogin(id: string): Promise<{ status: BotLoginStatus
   if (!mockBotLogin || mockBotLogin.id !== id) return { status: "EXPIRED" };
   if (mockBotLogin.confirmAt === null || Date.now() < mockBotLogin.confirmAt) return { status: "PENDING" };
   mockBotLogin = null;
+  // Hisobga saytda allaqachon kirilgan — qayta kirish admin ruxsati bilan (mock'da ruxsat yo'q).
+  if (state.webLoginUsed) return { status: "LOCKED" };
   update({
     webSession: true,
     webAccount: false,
+    webLoginUsed: true,
     phone: state.phone ?? "+998901234567",
     profile: state.profile ?? { firstName: "Sinov", lastName: "", age: 25 },
   });

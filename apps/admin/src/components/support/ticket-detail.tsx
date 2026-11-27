@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   Image as ImageIcon,
+  KeyRound,
   Lock,
   Send,
   UserRound,
@@ -17,10 +18,11 @@ import { IosIcon } from "@/components/ui/ios-icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Select } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { getSupportTicket, replyToSupportTicket, updateSupportTicketStatus } from "@/lib/api";
+import { allowSupportWebLogin, getSupportTicket, replyToSupportTicket, updateSupportTicketStatus } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
 import { useCurrentAdmin } from "@/lib/auth-context";
 import { formatDateTime, formatDayTime, formatFileSize } from "@/lib/format";
@@ -30,7 +32,7 @@ import {
   SUPPORT_STATUS_LABELS,
   SUPPORT_STATUS_TONES,
 } from "@/lib/labels";
-import type { SupportMessage, SupportTicketDetail, SupportTicketStatus } from "@/lib/types";
+import type { SupportMessage, SupportTicketDetail, SupportTicketStatus, WebLoginState } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const MAX_REPLY_LENGTH = 2000;
@@ -184,6 +186,8 @@ function TicketHeader({
         </div>
       </div>
 
+      <WebLoginRow ticket={ticket} participantName={participantName} onUpdated={onUpdated} />
+
       <div role="status" aria-live="polite" className="text-xs">
         {statusMutation.isPending && <span className="text-slate-500">Saqlanmoqda…</span>}
         {statusMutation.isError && (
@@ -193,6 +197,59 @@ function TicketHeader({
           <span className="text-green-700">{statusNotice}</span>
         )}
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Saytga kirish: hisobga bir marta kiriladi — qayta kirishga ruxsat shu yerdan
+// ---------------------------------------------------------------------------
+
+const WEB_LOGIN_LABELS: Record<WebLoginState, string> = {
+  NEVER: "Saytga hali kirmagan",
+  USED: "Saytga kirgan — qayta kirish yopiq",
+  GRANTED: "Qayta kirishga ruxsat berilgan (bir marta, hali ishlatilmagan)",
+};
+
+function WebLoginRow({
+  ticket,
+  participantName,
+  onUpdated,
+}: {
+  ticket: SupportTicketDetail;
+  participantName: string;
+  onUpdated: (detail: SupportTicketDetail) => Promise<void>;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const state = ticket.participant.webLogin;
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+      <span className="flex min-w-0 items-center gap-2 text-slate-600">
+        <KeyRound className="size-4 shrink-0 text-slate-400" aria-hidden />
+        {WEB_LOGIN_LABELS[state]}
+      </span>
+      {state === "USED" && (
+        <Button size="sm" variant="secondary" onClick={() => setConfirming(true)}>
+          Qayta kirishga ruxsat berish
+        </Button>
+      )}
+      {confirming && (
+        <ConfirmDialog
+          title="Saytga qayta kirishga ruxsat berasizmi?"
+          description={
+            <>
+              {participantName} saytdagi hisobiga <b>bir marta</b> qayta kira oladi («Hisobim bor — kirish»).
+              Yangi kirish boshqa qurilmadagi eski kirishni yopadi. Ishtirokchiga bot orqali xabar boradi.
+              Murojaat egasi hisob egasi ekanini tekshirib bering.
+            </>
+          }
+          confirmLabel="Ruxsat berish"
+          onConfirm={async () => onUpdated(await allowSupportWebLogin(ticket.id))}
+          onClose={() => setConfirming(false)}
+          onDone={() => setConfirming(false)}
+        />
+      )}
     </div>
   );
 }

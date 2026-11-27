@@ -44,7 +44,13 @@ export const texts = {
     "📨 Xabaringiz supportga yuborildi. Operator javobi shu chatga keladi.",
   supportNeedsContact:
     "Supportga yozishdan oldin telefon raqamingizni ulashing — shunda sizni taniy olamiz.",
-  supportUnavailable: "Support hozircha ulanmagan. Keyinroq urinib ko'ring.",
+  supportButton: "💬 Supportga yozish",
+  supportPrompt:
+    "Savolingizni yozing — matn yoki skrinshot. Xabaringiz support xodimlariga boradi, javob shu chatga keladi.",
+  loginLocked:
+    "🔒 Bu hisobga saytda qayta kirish yopiq: hisobga bir marta kiriladi.\n\nQayta kirish uchun admin ruxsati kerak — pastdagi «💬 Supportga yozish» tugmasini bosib, vaziyatni yozing.",
+  webLoginAllowed:
+    "✅ Saytga qayta kirishga ruxsat berildi. Saytda «Hisobim bor — kirish» ni bosing — ruxsat bir marta ishlaydi.",
   operatorPrefix: "💬 Support javobi:\n\n",
   operatorDelivered: "✅ Ishtirokchiga yuborildi",
   operatorBlocked: "❌ Yetkazilmadi: ishtirokchi botni bloklagan.",

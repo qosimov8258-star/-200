@@ -27,6 +27,7 @@ import type { ParticipantNotifier, TelegramMessageKind } from "./notifier";
 import { langOf } from "../common/lang";
 import { textsFor } from "./bot-texts";
 import { texts, type BotTexts } from "./texts";
+import { textsRu } from "./texts.ru";
 
 /** Saytdagi hisobni Telegram'ga ulash: `https://t.me/<bot>?start=link`. */
 const LINK_START_PAYLOAD = "link";
@@ -38,6 +39,10 @@ const READ_PREFIX = "read:";
 const MENU_BUTTON_TEXT = "OLIVIA";
 /** Saytga kirishni tasdiqlash tugmalari: `login:ok:<id>` / `login:no:<id>` (`BotLoginService`). */
 const LOGIN_CALLBACK = /^login:(ok|no):([A-Za-z0-9_-]{22})$/;
+/** "💬 Supportga yozish" (xabar ostidagi tugma) — support taklifi. */
+const SUPPORT_CALLBACK = "support";
+/** Pastdagi doimiy "Supportga yozish" tugmasining matni (ikkala tilda) — murojaat emas, taklif. */
+const SUPPORT_BUTTON_TEXTS = new Set([texts.supportButton, textsRu.supportButton]);
 /** Bot API orqali yuklab olinadigan fayl chegarasi (`getFile` — 20 MB gacha). */
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const FILE_TIMEOUT_MS = 15_000;
@@ -235,9 +240,24 @@ export class TelegramService
         return;
       }
       const accountId = this.participants.resolve(ctx.from.id);
+      // Saytga allaqachon kirilgan hisob — qayta kirish faqat admin ruxsati bilan.
+      if (this.participants.get(accountId)?.phone && !this.participants.canStartWebSession(accountId)) {
+        const locked = this.botLogin.close(id, ctx.from.id, "LOCKED");
+        await ctx.answerCallbackQuery();
+        await ctx
+          .editMessageText(locked ? this.tx(ctx).loginLocked : this.tx(ctx).loginExpired, {
+            reply_markup: locked ? this.supportInline(this.tx(ctx)) : undefined,
+          })
+          .catch(() => undefined);
+        return;
+      }
       const confirmed = Boolean(this.participants.get(accountId)?.phone) && this.botLogin.confirm(id, ctx.from.id, accountId);
       await ctx.answerCallbackQuery(confirmed ? { text: this.tx(ctx).loginConfirmedToast } : undefined);
       await ctx.editMessageText(confirmed ? this.tx(ctx).loginDone : this.tx(ctx).loginExpired).catch(() => undefined);
+    });
+    bot.callbackQuery(SUPPORT_CALLBACK, async (ctx) => {
+      await ctx.answerCallbackQuery();
+      await this.askSupport(ctx);
     });
     // Eski yoki noma'lum tugmalar — Telegram'dagi "yuklanmoqda" belgisi osilib qolmasin.
     bot.on("callback_query", (ctx) => ctx.answerCallbackQuery());
@@ -290,7 +310,7 @@ export class TelegramService
       } else if (login) {
         this.webStarts.delete(ctx.from.id);
         await ctx.reply(result === "LINKED" ? this.tx(ctx).loginContactLinked : this.tx(ctx).loginContactSaved, {
-          reply_markup: { remove_keyboard: true },
+          reply_markup: this.supportKeyboard(this.tx(ctx)),
         });
         const account = this.participants.get(this.participants.resolve(ctx.from.id));
         if (account) await this.askLoginConfirm(ctx, login.id, login.code, account);
@@ -298,7 +318,7 @@ export class TelegramService
       }
       if (result === "LINKED") {
         this.webStarts.delete(ctx.from.id);
-        await ctx.reply(this.tx(ctx).contactLinked, { reply_markup: { remove_keyboard: true } });
+        await ctx.reply(this.tx(ctx).contactLinked, { reply_markup: this.supportKeyboard(this.tx(ctx)) });
         await this.replyWithMiniApp(ctx, this.tx(ctx).openMiniApp);
         return;
       }
@@ -308,10 +328,10 @@ export class TelegramService
         });
         return;
       }
-      // Pastdagi "Raqamni ulashish" klaviaturasini yopamiz, keyin Mini App tugmasi.
+      // Pastdagi "Raqamni ulashish" o'rniga — doimiy "Supportga yozish", keyin Mini App tugmasi.
       const fromWeb = this.webStarts.delete(ctx.from.id);
       await ctx.reply(fromWeb ? this.tx(ctx).contactSavedWeb : this.tx(ctx).contactSaved, {
-        reply_markup: { remove_keyboard: true },
+        reply_markup: this.supportKeyboard(this.tx(ctx)),
       });
       await this.replyWithMiniApp(ctx, this.tx(ctx).openMiniApp);
     });
@@ -368,6 +388,11 @@ export class TelegramService
         await ctx.reply(this.tx(ctx).supportNeedsContact, { reply_markup: this.contactKeyboard(this.tx(ctx)) });
         return;
       }
+      // "💬 Supportga yozish" tugmasi — murojaat emas: nima yozish kerakligini aytamiz.
+      if (ctx.message.text && SUPPORT_BUTTON_TEXTS.has(ctx.message.text.trim())) {
+        await this.askSupport(ctx);
+        return;
+      }
       const text = clip((ctx.message.text ?? ctx.message.caption ?? "").trim(), SUPPORT_TEXT_MAX);
       const photo = ctx.message.photo?.at(-1) ?? null;
       if (!text && !photo) return;
@@ -376,10 +401,11 @@ export class TelegramService
         if (this.supportLimitNotice.shouldNotify(p.telegramId)) await ctx.reply(this.tx(ctx).supportTooMany);
         return;
       }
+      // Murojaat admin panelning "Support" bo'limiga tushadi; operatorlar guruhi ulangan bo'lsa — u yerga ham.
       const ticket = this.support.addParticipantMessage(p.telegramId, text, photo?.file_id ?? null, photo?.file_size);
 
       if (supportChatId === null) {
-        await ctx.reply(this.tx(ctx).supportUnavailable);
+        await ctx.reply(this.tx(ctx).supportReceived, { reply_markup: this.supportKeyboard(this.tx(ctx)) });
         return;
       }
       const name = p.firstName ? `${p.firstName} ${p.lastName}` : ctx.from.first_name;
@@ -392,7 +418,7 @@ export class TelegramService
           })
         : await ctx.api.sendMessage(supportChatId, clip(`${header}\n\n${text}`, TELEGRAM_TEXT_MAX));
       this.support.rememberGroupMessage(sent.message_id, p.telegramId);
-      await ctx.reply(this.tx(ctx).supportReceived);
+      await ctx.reply(this.tx(ctx).supportReceived, { reply_markup: this.supportKeyboard(this.tx(ctx)) });
     });
   }
 
@@ -408,12 +434,33 @@ export class TelegramService
   }
 
   private async askLoginConfirm(ctx: Context, id: string, code: string, account: Participant): Promise<void> {
+    // Saytga allaqachon kirilgan hisob — tasdiq so'ralmaydi: qayta kirish faqat admin ruxsati bilan.
+    if (ctx.from && !this.participants.canStartWebSession(account.telegramId)) {
+      this.botLogin.close(id, ctx.from.id, "LOCKED");
+      await ctx.reply(this.tx(ctx).loginLocked, { reply_markup: this.supportInline(this.tx(ctx)) });
+      return;
+    }
     const name = account.firstName ? `${account.firstName} ${account.lastName}`.trim() : (ctx.from?.first_name ?? "");
     await ctx.reply(this.tx(ctx).loginConfirm(name, code), {
       reply_markup: new InlineKeyboard()
         .text(this.tx(ctx).loginConfirmButton, `login:ok:${id}`)
         .text(this.tx(ctx).loginDenyButton, `login:no:${id}`),
     });
+  }
+
+  /** Support taklifi: nima yozish kerakligi va pastda doimiy "Supportga yozish" tugmasi. */
+  private async askSupport(ctx: Context): Promise<void> {
+    await ctx.reply(this.tx(ctx).supportPrompt, { reply_markup: this.supportKeyboard(this.tx(ctx)) });
+  }
+
+  /** Pastda doimiy turadigan "💬 Supportga yozish" tugmasi. */
+  private supportKeyboard(tx: BotTexts): Keyboard {
+    return new Keyboard().text(tx.supportButton).resized().persistent();
+  }
+
+  /** Xabar ostidagi "💬 Supportga yozish" tugmasi. */
+  private supportInline(tx: BotTexts): InlineKeyboard {
+    return new InlineKeyboard().text(tx.supportButton, SUPPORT_CALLBACK);
   }
 
   private contactKeyboard(tx: BotTexts): Keyboard {
@@ -426,7 +473,12 @@ export class TelegramService
       await ctx.reply(this.tx(ctx).miniAppNotConfigured);
       return;
     }
-    await ctx.reply(text, { reply_markup: new InlineKeyboard().webApp(this.tx(ctx).openMiniApp, url) });
+    await ctx.reply(text, {
+      reply_markup: new InlineKeyboard()
+        .webApp(this.tx(ctx).openMiniApp, url)
+        .row()
+        .text(this.tx(ctx).supportButton, SUPPORT_CALLBACK),
+    });
   }
 
   /** Chat pastidagi doimiy "Tanlov" tugmasi Mini App'ni ochadi. */

@@ -193,9 +193,10 @@ export interface BotLoginStart {
 
 /**
  * PENDING — botda tasdiq kutilmoqda; CONFIRMED — kirildi (sessiya cookie'si qo'yildi);
- * DENIED — botda "Men emas"; FAILED — raqam boshqa hisobga bog'langan; EXPIRED — eskirgan/ishlatilgan.
+ * DENIED — botda "Men emas"; FAILED — raqam boshqa hisobga bog'langan; LOCKED — hisobga saytda bir
+ * marta kirilgan, qayta kirish admin ruxsati bilan (supportga yoziladi); EXPIRED — eskirgan/ishlatilgan.
  */
-export type BotLoginStatus = "PENDING" | "CONFIRMED" | "DENIED" | "FAILED" | "EXPIRED";
+export type BotLoginStatus = "PENDING" | "CONFIRMED" | "DENIED" | "FAILED" | "LOCKED" | "EXPIRED";
 
 /** Telegram Login Widget `onauth` qaytaradigan obyekt — backendga o'zgartirmasdan yuboriladi. */
 export interface TelegramLoginUser {
@@ -290,6 +291,10 @@ export type ApiErrorCode =
   | "INVALID_PHONE"
   /** Saytdan ro'yxatdan o'tish: bu raqam bilan allaqachon ro'yxatdan o'tilgan. */
   | "PHONE_TAKEN"
+  /** Saytdan ro'yxatdan o'tish: shu qurilmada hisob allaqachon ochilgan (bitta qurilma — bitta hisob). */
+  | "DEVICE_TAKEN"
+  /** Saytga qayta kirish yopiq — hisobga bir marta kiriladi, qayta kirish admin ruxsati bilan. */
+  | "LOGIN_LOCKED"
   /** Qisqa vaqtda juda ko'p urinish. */
   | "TOO_MANY"
   | "UNAUTHORIZED"

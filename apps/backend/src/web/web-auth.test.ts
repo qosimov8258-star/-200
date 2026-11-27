@@ -60,7 +60,8 @@ test("widget body validation rejects unknown fields and wrong types", () => {
 test("session token round-trips, expires and cannot be forged", () => {
   const token = createSessionToken(111, BOT_TOKEN, NOW);
   assert.equal(verifySessionToken(token, BOT_TOKEN, NOW + 1000), 111);
-  assert.equal(verifySessionToken(token, BOT_TOKEN, NOW + 31 * 86_400_000), null);
+  assert.equal(verifySessionToken(token, BOT_TOKEN, NOW + 399 * 86_400_000), 111, "uzoq — qayta kirish admin ruxsati bilan");
+  assert.equal(verifySessionToken(token, BOT_TOKEN, NOW + 401 * 86_400_000), null);
   assert.equal(verifySessionToken(token, "999:OTHER", NOW), null);
 
   const [payload, sig] = token.split(".");
@@ -84,7 +85,9 @@ test("web-register creates an account with a session cookie and is rate limited 
     const participants = new ParticipantsService(new RulesService());
     const controller = new AuthController(participants, new BotLoginService());
     const cookies: string[] = [];
-    const res = { setHeader: (_name: string, value: string) => cookies.push(value) } as unknown as Response;
+    const res = {
+      setHeader: (_name: string, value: string | string[]) => cookies.push(...(Array.isArray(value) ? value : [value])),
+    } as unknown as Response;
     const req = (ip: string) =>
       ({ secure: false, header: (h: string) => (h === "x-forwarded-for" ? `${ip}, 10.0.0.1` : undefined), socket: {} }) as unknown as Request;
 
@@ -148,7 +151,9 @@ test("bot login: start sets a secret cookie; poll gives the session only to that
 
     assert.deepEqual(controller.pollBotLogin({ id: started.id }, req(secretCookie), res), { status: "PENDING" });
 
-    // Bot tomoni: hisob Telegram'ga ulanadi (eski sayt sessiyalari bekor) va tasdiqlanadi.
+    // Bot tomoni: hisob Telegram'ga ulanadi (eski sayt sessiyalari bekor) va tasdiqlanadi. Saytdagi
+    // hisobga bir marta kirilgan (ro'yxatdan o'tishda) — qayta kirishga admin ruxsat bergan.
+    assert.ok(participants.allowWebLogin(webId));
     assert.equal(participants.setPhone(42, 42, "+998901234567"), "LINKED");
     assert.ok(botLogin.claim(started.id, 42));
     assert.ok(botLogin.confirm(started.id, 42, participants.resolve(42)));
@@ -164,8 +169,18 @@ test("bot login: start sets a secret cookie; poll gives the session only to that
     const sessionsFrom = participants.get(webId)?.sessionsFrom?.getTime() ?? 0;
     assert.ok((session?.issuedAt ?? 0) * 1000 >= sessionsFrom, "ulangandan keyin berilgan — guard rad etmaydi");
     assert.match(cookies[0], /Max-Age=34560000/, "saytdagi hisob — uzoq sessiya");
-    assert.match(cookies[1], /^reels_bot_login=; .*Max-Age=0/);
+    assert.match(cookies[1], /^reels_device=\d+\./, "qurilma belgisi");
+    assert.match(cookies[2], /^reels_bot_login=; .*Max-Age=0/);
     assert.deepEqual(controller.pollBotLogin({ id: started.id }, req(secretCookie), res), { status: "EXPIRED" }, "bir martalik");
+
+    // Ruxsat ishlatildi — keyingi kirish yana yopiq (botda tasdiqlansa ham sessiya berilmaydi).
+    const again = controller.startBotLogin({}, req(undefined, "7.7.7.7"), res);
+    const againCookie = cookies[0].split(";")[0];
+    assert.ok(botLogin.claim(again.id, 42));
+    assert.ok(botLogin.confirm(again.id, 42, webId));
+    cookies = [];
+    assert.deepEqual(controller.pollBotLogin({ id: again.id }, req(againCookie), res), { status: "LOCKED" });
+    assert.deepEqual(cookies, [], "sessiya berilmadi");
 
     // Noto'g'ri tana va IP chegarasi.
     assert.throws(() => controller.startBotLogin({ x: 1 }, req(), res));
@@ -177,5 +192,67 @@ test("bot login: start sets a secret cookie; poll gives the session only to that
   } finally {
     settings.botToken = previous.botToken;
     settings.botUsername = previous.botUsername;
+  }
+});
+
+test("site: one entry per account (again only with the admin's one-time permission) and one account per device", () => {
+  const settings = config.telegram as { botToken: string | null };
+  const previous = settings.botToken;
+  settings.botToken = BOT_TOKEN;
+  try {
+    const participants = new ParticipantsService(new RulesService());
+    const controller = new AuthController(participants, new BotLoginService());
+    let cookies: string[] = [];
+    const res = {
+      setHeader: (_name: string, value: string | string[]) => {
+        cookies = Array.isArray(value) ? value : [value];
+      },
+    } as unknown as Response;
+    const req = (cookie?: string, ip = "1.1.1.1") =>
+      ({
+        secure: false,
+        header: (h: string) => (h === "x-forwarded-for" ? ip : h === "cookie" ? cookie : undefined),
+        socket: {},
+      }) as unknown as Request;
+    const failure = (fn: () => unknown) => {
+      try {
+        fn();
+      } catch (e) {
+        const error = e as ApiException;
+        return { status: error.getStatus(), body: error.getResponse() };
+      }
+      return null;
+    };
+    const pair = (name: string) => cookies.find((c) => c.startsWith(`${name}=`))?.split(";")[0] ?? "";
+    const session = () => readSessionToken(readCookie(pair("reels_session"), "reels_session") ?? "", BOT_TOKEN);
+
+    // Bitta qurilma — bitta hisob: chiqib ketgandan keyin ham shu brauzerda yangi hisob ochilmaydi.
+    controller.webRegister({ firstName: "Dilnoza", phone: "90 123 45 67" }, req(), res);
+    const device = pair("reels_device");
+    assert.match(device, /^reels_device=\d+\./);
+    assert.match(cookies.find((c) => c.startsWith("reels_device="))!, /HttpOnly/);
+    assert.deepEqual(failure(() => controller.webRegister({ firstName: "Ali", phone: "91 111 11 11" }, req(device), res)), {
+      status: 409,
+      body: { code: "DEVICE_TAKEN" },
+    });
+    const forged = device.replace(/\.[^.]+$/, ".AAAA");
+    assert.equal(failure(() => controller.webRegister({ firstName: "Ali", phone: "91 111 11 11" }, req(forged, "2.2.2.2"), res)), null, "soxta belgi hisobga olinmaydi");
+
+    // Telegram orqali saytga: birinchi kirish ochiq, keyingisi — faqat admin ruxsati bilan, bir marta.
+    const widget = signWidget({ id: 555, first_name: "Vali", auth_date: Math.floor(Date.now() / 1000) - 10 });
+    controller.login(widget, req(), res);
+    const first = session();
+    assert.equal(first?.id, 555);
+    assert.deepEqual(failure(() => controller.login(widget, req(), res)), { status: 403, body: { code: "LOGIN_LOCKED" } });
+
+    assert.ok(participants.allowWebLogin(555));
+    controller.login(widget, req(), res);
+    const second = session();
+    const from = participants.get(555)?.sessionsFrom?.getTime() ?? 0;
+    assert.ok(second && second.issuedAt * 1000 >= from, "yangi sessiya amal qiladi");
+    assert.ok(first && first.issuedAt * 1000 < from, "boshqa qurilmadagi eski sessiya yopildi (bir soniya ichida ham)");
+    assert.equal(failure(() => controller.login(widget, req(), res))?.status, 403, "ruxsat bir martalik");
+  } finally {
+    settings.botToken = previous;
   }
 });

@@ -32,8 +32,8 @@ interface ApiCall {
 }
 
 /** Bot va soxta Telegram API: har bir chaqiruv yoziladi, natija — oddiy muvaffaqiyat. */
-function setup(memberStatus: Record<number, string> = {}) {
-  (config.telegram as { supportChatId: string | null }).supportChatId = String(SUPPORT_CHAT);
+function setup(memberStatus: Record<number, string> = {}, supportChat: number | null = SUPPORT_CHAT) {
+  (config.telegram as { supportChatId: string | null }).supportChatId = supportChat === null ? null : String(supportChat);
   const participants = new ParticipantsService(new RulesService());
   const support = new SupportService();
   const log = new MessageLogService(participants);
@@ -165,6 +165,27 @@ test("support spam: 10 messages in 10 minutes reach operators, then one notice; 
   assert.equal(support.recentParticipantMessages(42, 600_000), 10, "ortiqchasi saqlanmaydi");
 });
 
+test("support: the Support button asks for the question; messages land in the admin panel even without an operators group", async () => {
+  const { bot, calls, participants, support, privateText, press } = setup({}, null);
+  participants.setPhone(42, 42, "+998901234567");
+  participants.register(42, "Ali", "", 25);
+
+  await bot.handleUpdate(privateText(42, texts.supportButton));
+  await bot.handleUpdate(press(42, "support"));
+  assert.equal(sent(calls, 42).filter((t) => t === texts.supportPrompt).length, 2, "pastdagi va xabar ostidagi tugma");
+  assert.equal(support.recentParticipantMessages(42, 600_000), 0, "tugma bosilishi murojaat emas");
+
+  await bot.handleUpdate(privateText(42, "Saytga qayta kira olmayapman"));
+  assert.equal(support.recentParticipantMessages(42, 600_000), 1, "admin paneldagi Support bo'limiga tushdi");
+  assert.ok(sent(calls, 42).includes(texts.supportReceived), "\"ulanmagan\" demaydi");
+  const keyboard = calls.filter((c) => c.method === "sendMessage" && c.payload.chat_id === 42).at(-1)?.payload.reply_markup as
+    | { keyboard?: { text: string }[][]; is_persistent?: boolean }
+    | undefined;
+  assert.deepEqual(keyboard?.keyboard?.[0]?.[0]?.text, texts.supportButton, "pastda doimiy Support tugmasi");
+  assert.equal(keyboard?.is_persistent, true);
+  (config.telegram as { supportChatId: string | null }).supportChatId = String(SUPPORT_CHAT);
+});
+
 test("only support group admins can reply to participants through the bot", async () => {
   const { bot, calls, participants, support, groupReply } = setup({ 7: "administrator", 8: "member" });
   participants.setPhone(42, 42, "+998901234567");
@@ -222,18 +243,28 @@ const loginButtons = (calls: ApiCall[], chatId: number) =>
     })
     .filter((d) => d.startsWith("login:"));
 
-test("site login: a web-only account shares its phone in the bot, confirms, and the site gets that account", async () => {
+test("site login: a web-only account is locked after its one entry; with the admin's permission it confirms and the site gets it", async () => {
   const { bot, calls, participants, botLogin, start, contact, press } = setup();
+  // Saytda ro'yxatdan o'tgan (shu bilan saytga bir marta kirilgan) hisob — keyin chiqib ketgan.
   const webId = participants.registerWeb("Dilnoza", "90 123 45 67", 22);
-  const request = botLogin.start();
-  assert.ok(request);
+  const locked = botLogin.start();
+  assert.ok(locked);
 
-  await bot.handleUpdate(start(42, `login_${request.id}`));
-  assert.ok(sent(calls, 42).some((t) => t === texts.loginShareContact(request.code)), "raqam so'raladi, kod ko'rinadi");
+  await bot.handleUpdate(start(42, `login_${locked.id}`));
+  assert.ok(sent(calls, 42).some((t) => t === texts.loginShareContact(locked.code)), "raqam so'raladi, kod ko'rinadi");
 
   await bot.handleUpdate(contact(42, "+998 90 123 45 67"));
   assert.ok(sent(calls, 42).includes(texts.loginContactLinked));
   assert.equal(participants.resolve(42), webId, "saytdagi hisob Telegram'ga ulandi");
+  assert.ok(sent(calls, 42).includes(texts.loginLocked), "qayta kirish yopiq — supportga yozish taklif qilinadi");
+  assert.ok(!sent(calls, 42).includes(texts.loginConfirm("Dilnoza", locked.code)), "tasdiq so'ralmaydi");
+  assert.equal(botLogin.poll(locked.id, locked.secret).status, "LOCKED");
+
+  // Admin (Support murojaati orqali) bir martalik ruxsat berdi.
+  assert.ok(participants.allowWebLogin(webId));
+  const request = botLogin.start();
+  assert.ok(request);
+  await bot.handleUpdate(start(42, `login_${request.id}`));
   assert.ok(sent(calls, 42).includes(texts.loginConfirm("Dilnoza", request.code)));
   assert.deepEqual(loginButtons(calls, 42), [`login:ok:${request.id}`, `login:no:${request.id}`]);
   assert.equal(botLogin.poll(request.id, request.secret).status, "PENDING", "tugma bosilmaguncha kirilmaydi");

@@ -134,3 +134,4 @@ export const getSupportTickets = impl.getSupportTickets;
 export const getSupportTicket = impl.getSupportTicket;
 export const replyToSupportTicket = impl.replyToSupportTicket;
 export const updateSupportTicketStatus = impl.updateSupportTicketStatus;
+export const allowSupportWebLogin = impl.allowSupportWebLogin;
