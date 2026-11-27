@@ -6,13 +6,14 @@ import { AlertCircle, CheckCircle2, Clock, Loader2, RefreshCw } from "lucide-rea
 
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { MoreDetails } from "@/components/ui/more-details";
 import { getViewsRefreshPreview, startViewsRefresh } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
 import { formatCompact, formatDateTime, formatNumber } from "@/lib/format";
 import type { ViewsRefreshRequest } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
-import { parseDigits, toText, VIEWS_PRESETS } from "./views-range-filter";
+import { useViewsPresets } from "./prize-ranges";
+import { parseDigits, toText, ViewsPresetChips } from "./views-range-filter";
 
 const POLL_MS = 3000;
 const PREVIEW_DEBOUNCE_MS = 300;
@@ -34,10 +35,11 @@ const rangeText = ({ from, to }: { from: number | null; to: number | null }) => 
 };
 
 /**
- * "Ko'rishlarni yangilash": tanlangan oraliqdagi videolar Instagram'dan hoziroq qayta o'qiladi
- * (masalan, hafta o'rtasida sovg'a topshirishdan oldin). Fonda ishlaydi — oyna yopilsa ham davom
- * etadi; natija shu yerda ko'rinadi va ro'yxat yangilanadi. Ochilganda o'rnatiladi (boshlang'ich
- * qiymatlar — joriy filtrdan), yopilganda olib tashlanadi.
+ * "Ko'rishlarni hoziroq yangilash": tanlangan oraliqdagi videolar Instagram'dan hoziroq qayta
+ * o'qiladi (masalan, tanlovdan oldin eng so'nggi raqamlar kerak bo'lsa). Ko'rishlar baribir har
+ * kuni avtomatik yig'iladi. Fonda ishlaydi — oyna yopilsa ham davom etadi; natija shu yerda
+ * ko'rinadi va ro'yxat yangilanadi. Ochilganda o'rnatiladi (boshlang'ich qiymatlar — joriy
+ * filtrdan), yopilganda olib tashlanadi.
  */
 export function ViewsRefreshDialog({
   open,
@@ -51,6 +53,7 @@ export function ViewsRefreshDialog({
   initialMax: number | null;
 }) {
   const queryClient = useQueryClient();
+  const presets = useViewsPresets();
   const [minText, setMinText] = useState(toText(initialMin));
   const [maxText, setMaxText] = useState(toText(initialMax));
   const [includeNear, setIncludeNear] = useState(true);
@@ -83,13 +86,12 @@ export function ViewsRefreshDialog({
   const running = Boolean(data?.running) || (startedAt !== null && !(ours && report?.finishedAt));
   const finished = ours && report?.finishedAt ? report : null;
 
-  // Tugagach — ro'yxat va dashboard yangi ko'rishlarni ko'rsatsin.
+  // Tugagach — ro'yxat, dashboard va sovrinlar oraliqlaridagilar yangi ko'rishlarni ko'rsatsin.
   useEffect(() => {
     if (!finished) return;
-    void queryClient.invalidateQueries({ queryKey: ["participants"] });
-    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-    void queryClient.invalidateQueries({ queryKey: ["dashboard-top"] });
-    void queryClient.invalidateQueries({ queryKey: ["daily-rating"] });
+    for (const key of ["participants", "participant-reels", "dashboard", "dashboard-top", "daily-rating", "rating-prizes"]) {
+      void queryClient.invalidateQueries({ queryKey: [key] });
+    }
   }, [finished, queryClient]);
 
   const count = data?.count ?? 0;
@@ -100,8 +102,8 @@ export function ViewsRefreshDialog({
       open={open}
       onClose={onClose}
       busy={busy}
-      title="Ko'rishlarni yangilash"
-      description="Tanlangan oraliqdagi videolarning ko'rishlari Instagram'dan hoziroq qayta o'qiladi. Har bir yangilash Apify orqali va pullik — faqat kerakli oraliqni tanlang."
+      title="Ko'rishlarni hoziroq yangilash"
+      description="Ko'rishlar har kuni avtomatik yig'iladi. Tanlovdan oldin eng so'nggi raqamlar kerak bo'lsa — tanlangan oraliqdagi ishtirokchilarning videolari Instagram'dan hoziroq qayta o'qiladi. Har bir yangilash pullik — faqat kerakli oraliqni tanlang."
       className="max-w-lg"
     >
       {startedAt === null ? (
@@ -112,35 +114,19 @@ export function ViewsRefreshDialog({
           }}
           className="space-y-4"
         >
-          <div>
-            <p className="text-xs font-medium text-muted">Tez tanlash</p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {VIEWS_PRESETS.map((preset) => {
-                const selected = preset.min === request.minViews && preset.max === request.maxViews;
-                return (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    onClick={() => {
-                      setMinText(toText(preset.min));
-                      setMaxText(toText(preset.max));
-                    }}
-                    className={cn(
-                      "rounded-full border px-3 py-1 text-xs font-medium transition",
-                      selected
-                        ? "border-brand-600 bg-brand-600 text-white"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-brand-300 hover:bg-brand-50",
-                    )}
-                  >
-                    {preset.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <ViewsPresetChips
+            presets={presets}
+            value={{ min: request.minViews, max: request.maxViews }}
+            onSelect={(range) => {
+              setMinText(toText(range.min));
+              setMaxText(toText(range.max));
+            }}
+          />
 
           <div>
-            <p className="text-xs font-medium text-muted">Oraliq (oxirgi yig&apos;ishdagi ko&apos;rishlar bo&apos;yicha)</p>
+            <p className="text-xs font-medium text-muted">
+              Yoki o&apos;zingiz kiriting — ishtirokchining umumiy ko&apos;rishlari bo&apos;yicha (oxirgi yig&apos;ishdagi)
+            </p>
             <div className="mt-2 flex items-center gap-2">
               <label className="flex-1">
                 <span className="sr-only">Ko&apos;rishlar, dan</span>
@@ -170,21 +156,29 @@ export function ViewsRefreshDialog({
             {invalid && <p className="mt-1.5 text-xs text-red-600">«Dan» «gacha»dan katta bo&apos;lmasin.</p>}
           </div>
 
-          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-3 transition hover:border-brand-200">
-            <input
-              type="checkbox"
-              checked={includeNear}
-              onChange={(event) => setIncludeNear(event.target.checked)}
-              className="mt-0.5 size-4 accent-brand-600"
-            />
-            <span className="text-sm">
-              <span className="font-medium text-ink">Chegaraga yaqinlarni ham qo&apos;shish (20% pastroq)</span>
-              <span className="mt-0.5 block text-xs text-muted">
-                Oxirgi yig&apos;ishdan beri ko&apos;rishlari oshib, chegaradan o&apos;tgan bo&apos;lishi mumkin. Masalan, 100 ming
-                tanlansa — 80 mingdan boshlab yangilanadi.
+          <MoreDetails
+            title="Batafsil"
+            meta={includeNear ? "chegaraga yaqinlar ham yangilanadi" : "faqat oraliqdagilar"}
+            contentClassName="p-3"
+          >
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={includeNear}
+                onChange={(event) => setIncludeNear(event.target.checked)}
+                className="mt-0.5 size-4 accent-brand-600"
+              />
+              <span className="text-sm">
+                <span className="font-medium text-ink">
+                  Chegaraga yaqin ishtirokchilarni ham yangilash (tavsiya etiladi)
+                </span>
+                <span className="mt-0.5 block text-xs text-muted">
+                  Oxirgi yig&apos;ishdan beri ko&apos;rishlari oshib, chegaradan o&apos;tgan bo&apos;lishi mumkin. Masalan, 100 ming
+                  tanlansa — 80 mingdan boshlab yangilanadi.
+                </span>
               </span>
-            </span>
-          </label>
+            </label>
+          </MoreDetails>
 
           <div className="rounded-xl bg-[#f7f6fb] px-4 py-3">
             {preview.isError ? (
@@ -206,7 +200,7 @@ export function ViewsRefreshDialog({
                 {data?.lastSyncAt && (
                   <p className="mt-1 flex items-center gap-2 text-xs text-muted">
                     <Clock className="size-3.5" aria-hidden />
-                    Oxirgi umumiy yig&apos;ish: {formatDateTime(data.lastSyncAt)}
+                    Oxirgi avtomatik yig&apos;ish: {formatDateTime(data.lastSyncAt)}
                   </p>
                 )}
                 {data?.running && (

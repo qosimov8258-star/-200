@@ -1,13 +1,23 @@
 "use client";
 
-import { useImperativeHandle, useRef, useState, type Ref } from "react";
+import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { flushSync } from "react-dom";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, ArrowRight, Dices, FastForward, PartyPopper, RefreshCw, Ticket, type LucideIcon } from "lucide-react";
+import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  AlertCircle,
+  ArrowRight,
+  Dices,
+  FastForward,
+  PartyPopper,
+  RefreshCw,
+  RotateCcw,
+  Ticket,
+  type LucideIcon,
+} from "lucide-react";
 
-import { RATING_PRIZE_ICONS } from "@/components/prizes/rating-prize";
+import { CAR_PRIZE_ID, CAR_WINNER_ANCHOR, RATING_PRIZE_ICONS } from "@/components/prizes/rating-prize";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -18,9 +28,17 @@ import { errorMessage } from "@/lib/api-error";
 import { periodLabel } from "@/lib/draw-rules";
 import { formatDate, formatNumber, formatViewsRange } from "@/lib/format";
 import { DRAW_STATUS_LABELS, DRAW_STATUS_TONES, RATING_PRIZE_LABELS } from "@/lib/labels";
-import type { DrawEntry, DrawSettings, DrawSetup, RatingPrizeKind, VoucherDraw, VoucherDrawSummary } from "@/lib/types";
+import type {
+  DrawEntry,
+  DrawSettings,
+  DrawSetup,
+  DrawStatus,
+  RatingPrizeKind,
+  VoucherDraw,
+  VoucherDrawSummary,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { voucherTabHref } from "@/lib/winner-links";
+import { drawHref, WINNER_PATH } from "@/lib/winner-links";
 
 /**
  * Lentaning aylanish vaqti (jonli efirda tomoshabin kuzatib tursin), ms: bosh sovrin — avtomobil —
@@ -34,6 +52,29 @@ const ROWS_PER_SECOND = 11;
 const MAIN_ORDER: RatingPrizeKind[] = ["car", "travel", "phone", "tablet"];
 /** `maxViews` shundan katta bo'lsa — yuqori chegara yo'q ("4 000 001+"). */
 const NO_UPPER_LIMIT = 1_000_000_000;
+/**
+ * G'oliblar ko'rinadigan so'rovlar (sovrin kartochkalari, voucher g'oliblari, avtomobil g'olibi):
+ * baraban hamma g'olibni ochib bo'lmaguncha yangilanmaydi — natija oldindan ko'rinib qolmasin.
+ */
+const RESULT_QUERY_KEYS = ["draws", "rating-prizes", "winner"] as const;
+/** Hamma g'olib ochilgandan keyingi qadam: izoh va havola matni (holat bo'yicha). */
+const NEXT_STEPS: Record<DrawStatus, { text: string; label: string }> = {
+  DRAFT: {
+    text: "Hamma g'oliblar aniqlandi. Endi natijani tekshirib tasdiqlang, keyin g'oliblarga xabar yuborasiz.",
+    label: "Natijani tasdiqlash",
+  },
+  CONFIRMED: { text: "Natija tasdiqlangan — g'oliblarga xabar yuborish qoldi.", label: "G'oliblarga xabar yuborish" },
+  SENT: { text: "Bu sovrin bo'yicha g'oliblarga xabar yuborilgan.", label: "Natijani ko'rish" },
+  CANCELLED: { text: "Bu tanlov bekor qilingan.", label: "Natijani ko'rish" },
+};
+/**
+ * Avtomobilda natija tasdiqlanmaydi va xabar yuborilmaydi: g'olib avtomobil g'olibi kartasida
+ * yuzma-yuz tekshiriladi, tasdiqlanadi va e'lon qilinadi (tabrik e'lon bilan birga boradi).
+ */
+const CAR_NEXT_STEP = {
+  text: "G'olib aniqlandi. Uni yuzma-yuz tekshirish, tasdiqlash va e'lon qilish — avtomobil g'olibi kartasida.",
+  label: "G'olib kartasini ochish",
+};
 
 /** Barabanda o'ynaladigan bitta sovrin: asosiy sovrin yoki bir bosqich voucherlari. */
 interface DrumPrize {
@@ -55,6 +96,15 @@ interface DrumPrize {
   blocker: string | null;
   /** Ogohlantirish (bosqich tugamagan, sinov rejimi). */
   note: string | null;
+}
+
+/** Shu sahifada barabanda ochilayotgan tanlov: g'oliblar aylanish bo'yicha birma-bir (10 tadan) ochiladi. */
+interface DrumReveal {
+  drawId: string;
+  /** Nechta g'olib ochilgan. */
+  revealed: number;
+  /** Oxirgi aylanishda ochilganlarning boshi — yangilari ajratib ko'rsatiladi. */
+  freshFrom: number;
 }
 
 function drumPrizes(setup: DrawSetup, draws: VoucherDrawSummary[]): DrumPrize[] {
@@ -122,29 +172,48 @@ function drumPrizes(setup: DrawSetup, draws: VoucherDrawSummary[]): DrumPrize[] 
  * sovrin oralig'idagi ko'rishlarga ega ishtirokchilar (oferta 6.1–6.2).
  *
  * Adolat: birinchi aylanishda server tanlovni o'tkazadi (kriptografik kalit, nomzodlar izi — o'zgarmaydi);
- * baraban g'oliblarni shu natija tartibida birma-bir ochib beradi. Natija qoralama — keyin
- * "Natijani ochish" da tekshirib, tasdiqlanadi va g'oliblarga yuboriladi.
+ * baraban g'oliblarni shu natija tartibida birma-bir ochib beradi. Natija tasdiqlanmagan holda turadi —
+ * keyin natija sahifasida tekshirib, tasdiqlanadi va g'oliblarga yuboriladi (avtomobilda esa g'olib
+ * avtomobil g'olibi kartasida tekshirilib, e'lon qilinadi).
+ *
+ * Aylanish paytida boshqa sovrinni tanlab bo'lmaydi; ochilish holati shu bo'limda saqlanadi — sovrin
+ * almashtirib qaytilsa, qolgan g'oliblarni ochish davom etadi.
  */
 export function DrawDrumSection() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const setup = useQuery({ queryKey: ["draw-setup"], queryFn: getDrawSetup });
   const draws = useQuery({ queryKey: ["draws"], queryFn: getDraws });
+  /** Hozir aylanayotgan sovrin: aylanish tugaguncha baraban shu sovrinda qoladi (URL o'zgarsa ham). */
+  const [spinningKey, setSpinningKey] = useState<string | null>(null);
+  /** Ochilayotgan tanlovlar — sovrin kaliti bo'yicha. */
+  const [reveals, setReveals] = useState<Partial<Record<string, DrumReveal>>>({});
 
   const prizes = setup.data && draws.data ? drumPrizes(setup.data, draws.data) : [];
   const fallback = setup.data ? `monthly-${setup.data.defaults.stage ?? 1}` : null;
   const wanted = searchParams.get("prize") ?? fallback;
-  const selected = prizes.find((p) => p.key === wanted) ?? prizes.find((p) => p.key === fallback) ?? prizes[0] ?? null;
+  const selected =
+    prizes.find((p) => p.key === spinningKey) ??
+    prizes.find((p) => p.key === wanted) ??
+    prizes.find((p) => p.key === fallback) ??
+    prizes[0] ??
+    null;
 
   const choose = (key: string) => {
+    if (spinningKey !== null) return;
     const params = new URLSearchParams(searchParams.toString());
     params.set("prize", key);
     params.delete("draw");
     router.replace(`?${params.toString()}#baraban`, { scroll: false });
   };
 
+  const saveReveal = (key: string, next: DrumReveal) => setReveals((prev) => ({ ...prev, [key]: next }));
+  const markSpinning = (key: string, on: boolean) =>
+    setSpinningKey((prev) => (on ? key : prev === key ? null : prev));
+
   return (
-    <section id="baraban" className="scroll-mt-24 space-y-4" aria-labelledby="drum-title">
+    // tabIndex: sovrin kartochkasidagi "Barabanda aylantirish" fokusni shu yerga olib keladi.
+    <section id="baraban" tabIndex={-1} className="scroll-mt-24 space-y-4 outline-none" aria-labelledby="drum-title">
       <SectionTitle
         id="drum-title"
         icon={Dices}
@@ -154,46 +223,66 @@ export function DrawDrumSection() {
       <Card className="overflow-hidden">
         {setup.isPending || draws.isPending ? (
           <Spinner className="p-6" />
-        ) : setup.isError || draws.isError ? (
+        ) : !setup.data || !draws.data ? (
+          // Faqat ma'lumot umuman yo'q bo'lsa: fonda qayta yuklash xatosi barabanni yopib qo'ymaydi.
           <p role="alert" className="p-6 text-sm text-red-700">
             {errorMessage(setup.error ?? draws.error)}
           </p>
         ) : (
           <>
-            <div role="tablist" aria-label="Sovrin" className="flex flex-wrap gap-2 border-b border-line p-4">
-              {prizes.map((prize) => {
-                const Icon = prize.icon;
-                const on = prize.key === selected?.key;
-                return (
-                  <button
-                    key={prize.key}
-                    type="button"
-                    role="tab"
-                    aria-selected={on}
-                    onClick={() => choose(prize.key)}
-                    className={cn(
-                      "inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-medium transition-colors",
-                      on
-                        ? "border-brand-500 bg-brand-500 text-white shadow-[0_6px_14px_-6px_rgba(124,98,219,0.8)]"
-                        : "border-line bg-white text-ink hover:bg-brand-50",
-                    )}
-                  >
-                    <Icon className="size-4" aria-hidden />
-                    {prize.label}
-                    <span className={cn("tabular-nums", on ? "text-white/80" : "text-muted")}>
-                      · {formatNumber(prize.quantity)} ta
-                    </span>
-                    {prize.existing && (
-                      <span
-                        aria-label="tanlov o'tkazilgan"
-                        className={cn("size-2 rounded-full", on ? "bg-white" : "bg-up-bar")}
-                      />
-                    )}
-                  </button>
-                );
-              })}
+            <div className="border-b border-line p-4">
+              <div role="tablist" aria-label="Sovrin" className="flex flex-wrap gap-2">
+                {prizes.map((prize) => {
+                  const Icon = prize.icon;
+                  const on = prize.key === selected?.key;
+                  const locked = spinningKey !== null && !on;
+                  return (
+                    <button
+                      key={prize.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={on}
+                      disabled={locked}
+                      onClick={() => choose(prize.key)}
+                      className={cn(
+                        "inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+                        on
+                          ? "border-brand-500 bg-brand-500 text-white shadow-[0_6px_14px_-6px_rgba(124,98,219,0.8)]"
+                          : "border-line bg-white text-ink enabled:hover:bg-brand-50",
+                      )}
+                    >
+                      <Icon className="size-4" aria-hidden />
+                      {prize.label}
+                      <span className={cn("tabular-nums", on ? "text-white/80" : "text-muted")}>
+                        · {formatNumber(prize.quantity)} ta
+                      </span>
+                      {prize.existing && (
+                        <span
+                          role="img"
+                          aria-label="tanlov o'tkazilgan"
+                          className={cn("size-2 rounded-full", on ? "bg-white" : "bg-up-bar")}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              {spinningKey !== null && (
+                <p className="mt-2 text-xs text-muted">
+                  Baraban aylanmoqda — tugagach boshqa sovrinni tanlashingiz mumkin.
+                </p>
+              )}
             </div>
-            {selected && <PrizeDrum key={selected.key} prize={selected} />}
+            {selected && (
+              <PrizeDrum
+                key={selected.key}
+                prize={selected}
+                reveal={reveals[selected.key] ?? null}
+                onReveal={(next) => saveReveal(selected.key, next)}
+                spinning={spinningKey === selected.key}
+                onSpinningChange={(on) => markSpinning(selected.key, on)}
+              />
+            )}
           </>
         )}
       </Card>
@@ -208,74 +297,160 @@ function activeWinners(draw: VoucherDraw | null): DrawEntry[] {
   return draw.winnerEntries.filter((entry) => entry.state === "ACTIVE").sort((a, b) => a.position - b.position);
 }
 
-function PrizeDrum({ prize }: { prize: DrumPrize }) {
+/** Tanlov — doim keshdan (`["draw", id]`): natija sahifasidagi o'zgarishlar barabanda ham ko'rinadi. */
+function drawQuery(id: string | null) {
+  return queryOptions({
+    queryKey: ["draw", id],
+    queryFn: () => (id ? getDraw(id) : Promise.reject(new Error("Tanlov topilmadi."))),
+    enabled: id !== null,
+  });
+}
+
+/** Bekor qilingan tanlov barabanda ko'rsatilmaydi — baraban yangi tanlovga tayyor turadi. */
+function liveDraw(draw: VoucherDraw | undefined): VoucherDraw | null {
+  return draw && draw.status !== "CANCELLED" ? draw : null;
+}
+
+/**
+ * Hamma g'olib ochilgandan keyingi qadam: izoh, havola matni va manzili. Barabandagi tanlangan sovrin
+ * (`?prize=`) saqlanadi va sahifa kerakli joyga suriladi.
+ */
+function nextStep(draw: VoucherDraw, prizeKey: string): { text: string; label: string; href: string } {
+  if (draw.prizeId === CAR_PRIZE_ID) {
+    return { ...CAR_NEXT_STEP, href: `${WINNER_PATH}?prize=${encodeURIComponent(prizeKey)}#${CAR_WINNER_ANCHOR}` };
+  }
+  // Natija joyi: winners-view.tsx ("Asosiy sovrinlar" tabi) va voucher-tab.tsx ("Voucher" tabi).
+  const anchor = draw.prizeId.startsWith("main-") ? "main-draw-result" : "voucher-draw-title";
+  return { ...NEXT_STEPS[draw.status], href: `${drawHref(draw, prizeKey)}#${anchor}` };
+}
+
+function PrizeDrum({
+  prize,
+  reveal,
+  onReveal,
+  spinning,
+  onSpinningChange,
+}: {
+  prize: DrumPrize;
+  /** Shu sovrin bo'yicha ochilayotgan tanlov (bo'limda saqlanadi); null — yo'q. */
+  reveal: DrumReveal | null;
+  onReveal: (next: DrumReveal) => void;
+  spinning: boolean;
+  onSpinningChange: (spinning: boolean) => void;
+}) {
   const queryClient = useQueryClient();
   const existingId = prize.existing?.id ?? null;
+  const revealId = reveal?.drawId ?? null;
+  const revealQuery = useQuery(drawQuery(revealId));
+  const existingQuery = useQuery(drawQuery(existingId));
+
+  const revealDraw = liveDraw(revealQuery.data);
+  /** Shu sahifada ochilayotgan tanlov — g'oliblar aylanish bo'yicha ochiladi. */
+  const progress = revealDraw && reveal ? reveal : null;
+  const current = revealDraw ?? liveDraw(existingQuery.data);
+  /** Oldindan o'tkazilgan tanlov (shu yerda ochilmagan) — hamma g'olib birdan ko'rinadi. */
+  const settled = progress === null ? current : null;
+  /** Ko'rsatiladigan tanlov hali yuklanmagan bo'lsa — shu so'rov. */
+  const waiting =
+    revealId !== null && revealQuery.data === undefined
+      ? revealQuery
+      : revealDraw === null && existingId !== null && existingQuery.data === undefined
+        ? existingQuery
+        : null;
+  const loading = waiting !== null;
+
   const preview = useQuery({
     queryKey: ["draw-preview", prize.settings],
     queryFn: () => previewDraw(prize.settings),
-    enabled: existingId === null,
-  });
-  const existing = useQuery({
-    queryKey: ["draw", existingId],
-    queryFn: () => (existingId ? getDraw(existingId) : Promise.reject(new Error("Tanlov topilmadi."))),
-    enabled: existingId !== null,
+    // Faqat tanlov yo'q paytda; aylanish boshlangach lenta shu (keshdagi) ro'yxatda qoladi.
+    enabled: current === null && !loading,
   });
 
-  /** Shu sahifada hozir aylantirilgan tanlov — g'oliblar birma-bir (10 tadan) ochiladi. */
-  const [draw, setDraw] = useState<VoucherDraw | null>(null);
-  const [revealed, setRevealed] = useState(0);
-  const [spinning, setSpinning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const reel = useRef<NameReelHandle>(null);
 
-  const current = draw ?? existing.data ?? null;
   const winners = activeWinners(current);
-  // Oldindan o'tkazilgan tanlov — hammasi ochiq; shu yerda aylantirilgani — aylanish bo'yicha.
-  const shownCount = draw ? revealed : winners.length;
+  const shownCount = progress ? Math.min(progress.revealed, winners.length) : winners.length;
   const shown = winners.slice(0, shownCount);
-  const freshFrom = draw ? Math.max(0, revealed - prize.batch) : shownCount;
+  const freshFrom = progress ? progress.freshFrom : shownCount;
   const done = current !== null && shownCount >= winners.length;
   const eligible = current?.poolSize ?? preview.data?.eligibleCount ?? null;
   // Lentadagi ismlar: talabga javob beradigan barcha nomzodlar (oldindan o'tkazilgan tanlovda —
   // g'oliblar va zaxira).
-  const pool =
-    preview.data?.names ??
-    (current ? [...winners, ...current.reserveEntries].map(fullName) : []);
+  const pool = preview.data?.names ?? (current ? [...winners, ...current.reserveEntries].map(fullName) : []);
+  // Ramkada boshida turadigan ismlar: oldindan o'tkazilgan tanlovda — birinchi g'olib(lar); ochilish
+  // davom etayotgan bo'lsa (sovrin almashtirib qaytilganda) — oxirgi ochilganlar.
+  const reelInitial = settled
+    ? winners.slice(0, prize.batch).map(fullName)
+    : progress && shownCount > 0
+      ? shown.slice(freshFrom).map(fullName)
+      : null;
 
   const blocker =
-    prize.blocker ?? (existingId === null && preview.data?.eligibleCount === 0 ? "Bu oraliqda hozircha ishtirokchi yo'q." : null);
-  const canSpin = !spinning && blocker === null && !done && (current === null || draw !== null);
+    prize.blocker ??
+    (current === null && !loading && preview.data?.eligibleCount === 0 ? "Bu oraliqda hozircha ishtirokchi yo'q." : null);
+  const canSpin = !spinning && !loading && blocker === null && !done && settled === null;
   const nextBatch = Math.min(prize.batch, Math.max(0, winners.length - shownCount)) || prize.batch;
+  const isCar = prize.settings.prizeId === CAR_PRIZE_ID;
+  /** Hamma g'olib ochilgach — keyingi qadam (natijani tasdiqlash, xabar yuborish yoki g'olib kartasi). */
+  const step = done && current ? nextStep(current, prize.key) : null;
+
+  const refreshResults = useCallback(() => {
+    for (const key of RESULT_QUERY_KEYS) void queryClient.invalidateQueries({ queryKey: [key] });
+  }, [queryClient]);
+
+  // Ochilish tugamay baraban yopilsa (boshqa sovrin yoki sahifa) — natijalar keshi eskirib qolmasin.
+  const revealingId = progress?.drawId ?? null;
+  useEffect(() => {
+    if (revealingId === null) return;
+    return refreshResults;
+  }, [revealingId, refreshResults]);
 
   const spin = async () => {
     if (!canSpin) return;
     setError(null);
-    setSpinning(true);
-    let target = draw;
-    try {
-      if (!target) {
+    onSpinningChange(true);
+    const from = progress ? progress.revealed : 0;
+    let target = progress ? revealDraw : null;
+    if (!target) {
+      try {
         target = await runDraw(prize.settings);
-        setDraw(target);
-        setRevealed(0);
-        queryClient.setQueryData(["draw", target.id], target);
-        void Promise.all(
-          ["draws", "rating-prizes", "draw-preview", "audit-log", "winner"].map((key) =>
-            queryClient.invalidateQueries({ queryKey: [key] }),
-          ),
-        );
+      } catch (e) {
+        onSpinningChange(false);
+        setError(errorMessage(e));
+        // Masalan, tanlov boshqa oynada o'tkazilgan (409) — ro'yxat yangilansa, baraban uni ko'rsatadi.
+        void queryClient.invalidateQueries({ queryKey: ["draws"] });
+        return;
       }
-    } catch (e) {
-      setSpinning(false);
-      setError(errorMessage(e));
-      return;
+      queryClient.setQueryData(["draw", target.id], target);
+      onReveal({ drawId: target.id, revealed: 0, freshFrom: 0 });
+      // Darhol — faqat g'oliblarni ko'rsatmaydigan so'rovlar; qolganlari hamma g'olib ochilgach.
+      void queryClient.invalidateQueries({ queryKey: ["draw-preview"] });
+      void queryClient.invalidateQueries({ queryKey: ["audit-log"] });
     }
     const list = activeWinners(target);
-    const from = draw ? revealed : 0;
     const landing = list.slice(from, from + prize.batch).map(fullName);
-    await reel.current?.spinTo(landing, prize.spinMs);
-    setSpinning(false);
-    setRevealed(Math.min(from + prize.batch, list.length));
+    await reel.current?.spinTo(landing, prize.spinMs, target.id);
+    const next = Math.min(from + prize.batch, list.length);
+    onSpinningChange(false);
+    onReveal({ drawId: target.id, revealed: next, freshFrom: from });
+    if (next >= list.length) refreshResults();
+  };
+
+  const revealAll = () => {
+    if (!progress) return;
+    onReveal({ drawId: progress.drawId, revealed: winners.length, freshFrom: shownCount });
+    refreshResults();
+  };
+
+  /**
+   * Oldindan o'tkazilgan (tasdiqlanmagan) tanlov g'oliblarini barabanda boshidan qayta ko'rsatish —
+   * masalan, efirda. Yangi tanlov o'tkazilmaydi: g'oliblar o'sha-o'sha.
+   */
+  const replay = () => {
+    if (!settled) return;
+    setError(null);
+    onReveal({ drawId: settled.id, revealed: 0, freshFrom: 0 });
   };
 
   const maxViews = prize.settings.maxViews >= NO_UPPER_LIMIT ? null : prize.settings.maxViews;
@@ -283,29 +458,52 @@ function PrizeDrum({ prize }: { prize: DrumPrize }) {
   return (
     <div className="grid gap-6 p-5 lg:grid-cols-[320px_minmax(0,1fr)]">
       <div className="space-y-4">
-        <NameReel
-          ref={reel}
-          pool={pool}
-          batch={prize.batch}
-          // Oldindan o'tkazilgan tanlov: ramkada birinchi g'olib(lar).
-          initial={current && !draw ? winners.slice(0, prize.batch).map(fullName) : null}
-        />
-        {current && !draw ? null : (
+        <NameReel ref={reel} pool={pool} batch={prize.batch} initial={reelInitial} drawId={progress?.drawId ?? null} />
+        {waiting ? (
+          waiting.isError ? (
+            <div
+              role="alert"
+              className="space-y-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+            >
+              <p className="flex items-start gap-2">
+                <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+                Tanlovni yuklab bo&apos;lmadi: {errorMessage(waiting.error)}
+              </p>
+              <Button variant="secondary" size="sm" onClick={() => void waiting.refetch()}>
+                <RefreshCw className="size-4" aria-hidden />
+                Qayta urinish
+              </Button>
+            </div>
+          ) : (
+            <Spinner className="h-12 justify-center" label="Tanlov yuklanmoqda…" />
+          )
+        ) : settled ? (
+          settled.status === "DRAFT" && (
+            <button
+              type="button"
+              onClick={replay}
+              className="mx-auto flex items-center gap-1.5 text-xs font-medium text-brand-700 hover:underline"
+            >
+              <RotateCcw className="size-3.5" aria-hidden />
+              Barabanda qayta ko&apos;rsatish (g&apos;oliblar o&apos;zgarmaydi)
+            </button>
+          )
+        ) : (
           <Button className="h-12 w-full text-base" disabled={!canSpin} onClick={() => void spin()}>
             <RefreshCw className={cn("size-5", spinning && "animate-spin")} aria-hidden />
             {spinning
               ? "Aylanmoqda…"
               : done
                 ? "Hammasi aniqlandi"
-                : draw
+                : progress && shownCount > 0
                   ? `Yana aylantirish (${formatNumber(nextBatch)} ta)`
                   : "Aylantirish"}
           </Button>
         )}
-        {draw && !done && !spinning && winners.length - shownCount > prize.batch && (
+        {progress && !done && !spinning && winners.length - shownCount > prize.batch && (
           <button
             type="button"
-            onClick={() => setRevealed(winners.length)}
+            onClick={revealAll}
             className="mx-auto flex items-center gap-1.5 text-xs font-medium text-brand-700 hover:underline"
           >
             <FastForward className="size-3.5" aria-hidden />
@@ -349,9 +547,14 @@ function PrizeDrum({ prize }: { prize: DrumPrize }) {
               <p role="status" aria-live="polite" className="text-sm font-semibold text-ink tabular-nums">
                 Aniqlandi: {formatNumber(shownCount)} / {formatNumber(winners.length)} g&apos;olib
               </p>
-              <Badge tone={DRAW_STATUS_TONES[current.status]}>
-                #{current.number} · {DRAW_STATUS_LABELS[current.status]}
-              </Badge>
+              {isCar ? (
+                // Avtomobil tanlovi tasdiqlanmaydi — holati g'olib kartasida (tekshiruv, e'lon).
+                <Badge>Tanlov #{current.number}</Badge>
+              ) : (
+                <Badge tone={DRAW_STATUS_TONES[current.status]}>
+                  #{current.number} · {DRAW_STATUS_LABELS[current.status]}
+                </Badge>
+              )}
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-slate-100">
               <div
@@ -362,36 +565,39 @@ function PrizeDrum({ prize }: { prize: DrumPrize }) {
             {shown.length > 0 && (
               <ol className="grid max-h-[420px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
                 {/* Yangi chiqqanlari tepada. */}
-                {[...shown].reverse().map((entry) => {
-                  const fresh = entry.position - 1 >= freshFrom;
-                  return <WinnerChip key={entry.candidate.participantId} entry={entry} fresh={fresh} />;
-                })}
+                {shown
+                  .map((entry, index) => ({ entry, fresh: index >= freshFrom }))
+                  .reverse()
+                  .map(({ entry, fresh }) => (
+                    <WinnerChip key={entry.candidate.participantId} entry={entry} fresh={fresh} />
+                  ))}
               </ol>
             )}
-            {done && (
+            {step && (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-green-200 bg-green-50 px-4 py-3">
                 <p className="flex items-start gap-2 text-sm text-green-900">
                   <PartyPopper className="mt-0.5 size-4 shrink-0 text-green-700" aria-hidden />
-                  {current.status === "DRAFT"
-                    ? "Hamma g'oliblar aniqlandi. Endi natijani tekshirib, tasdiqlang va g'oliblarga yuboring."
-                    : "Bu sovrin bo'yicha tanlov o'tkazilgan."}
+                  {step.text}
                 </p>
                 <Link
-                  href={voucherTabHref(current.id)}
+                  href={step.href}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-green-700 px-3.5 py-2 text-sm font-semibold text-white hover:bg-green-800"
                 >
-                  {current.status === "DRAFT" ? "Tasdiqlash va yuborish" : "Natijani ochish"}
+                  {step.label}
                   <ArrowRight className="size-4" aria-hidden />
                 </Link>
               </div>
             )}
           </div>
-        ) : (
+        ) : loading ? null : (
           <p className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
             «Aylantirish» ni bosing — ismlar pastdan tepaga aylanadi va ramkada{" "}
             {prize.batch > 1 ? `${formatNumber(prize.batch)} ta g'olib` : "g'olib"} ismida to&apos;xtaydi. Yana bosib,
             keyingilarini chiqarasiz. Hamma {formatNumber(prize.quantity)} ta g&apos;olib (va zaxira) birinchi aylanishda
-            server tomonidan tasodifiy aniqlanadi — lenta ularni ochib beradi.
+            tasodifiy aniqlanadi — lenta ularni ochib beradi.{" "}
+            {isCar
+              ? "G'olibni e'lon qilmaguningizcha hech kimga xabar bormaydi."
+              : "Natijani tasdiqlamaguningizcha hech kimga xabar bormaydi."}
           </p>
         )}
       </div>
@@ -435,8 +641,11 @@ function WinnerChip({ entry, fresh }: { entry: DrawEntry; fresh: boolean }) {
 }
 
 interface NameReelHandle {
-  /** Lenta aylanadi va `names` ramkada to'xtaydi; tugaganda resolve bo'ladi. */
-  spinTo: (names: string[], durationMs: number) => Promise<void>;
+  /**
+   * Lenta aylanadi va `names` ramkada to'xtaydi; tugaganda resolve bo'ladi. `drawId` — qaysi tanlov
+   * g'oliblari: to'xtagan holat faqat shu tanlov ko'rsatilayotganda saqlanadi.
+   */
+  spinTo: (names: string[], durationMs: number, drawId: string) => Promise<void>;
 }
 
 /** Lenta o'lchamlari: asosiy sovrinda — 5 qator, ramka o'rtada (1 ta); voucherda — ramka 10 qator. */
@@ -456,6 +665,11 @@ function pickNames(pool: string[], n: number): string[] {
   return out;
 }
 
+/** Ramkaning g'olibsiz qatorlari — bo'sh (boshqa ism g'olibdek ko'rinib qolmasin). */
+function emptyRows(n: number): string[] {
+  return Array.from({ length: Math.max(0, n) }, () => "");
+}
+
 /**
  * Ismlar lentasi (baraban): nomzodlarning to'liq ismlari ustun bo'lib turadi; aylantirilganda pastdan
  * tepaga yuradi, sekinlashib, ramkada g'olib(lar) ismida to'xtaydi. Hamma ko'rib turishi uchun oddiy,
@@ -465,33 +679,39 @@ function NameReel({
   pool,
   batch,
   initial,
+  drawId,
   ref,
 }: {
   pool: string[];
   batch: number;
   /** Boshida ramkada turadigan ismlar (oldindan o'tkazilgan tanlov g'oliblari); null — oddiy ro'yxat. */
   initial: string[] | null;
+  /** Hozir ochilayotgan tanlov; boshqasi bo'lsa (masalan, bekor qilingan) — oldingi to'xtash unutiladi. */
+  drawId: string | null;
   ref: Ref<NameReelHandle>;
 }) {
   const { row, visible, frame } = reelGeometry(batch);
   const stripRef = useRef<HTMLDivElement>(null);
   /** Aylanish paytidagi butun lenta; null — tinch holat. */
   const [strip, setStrip] = useState<string[] | null>(null);
-  /** Oxirgi to'xtagan oyna va ramkadagi g'oliblar soni. */
-  const [landed, setLanded] = useState<{ rows: string[]; count: number } | null>(null);
+  /** Oxirgi to'xtagan oyna, ramkadagi g'oliblar soni va ular qaysi tanlovdan. */
+  const [landed, setLanded] = useState<{ rows: string[]; count: number; drawId: string } | null>(null);
+  const stopped = landed !== null && landed.drawId === drawId ? landed : null;
 
   // Tinch holat: ro'yxat boshidan (render toza — tasodif faqat aylantirishda).
   const idle = Array.from({ length: visible }, (_, i) => (pool.length > 0 ? pool[i % pool.length] : "—"));
-  if (initial && initial.length > 0) idle.splice(frame, initial.length, ...initial);
-  const rows = strip ?? landed?.rows ?? idle;
-  const highlighted = strip ? 0 : (landed?.count ?? (initial ? initial.length : 0));
+  const framed = initial ? initial.slice(0, batch) : null;
+  if (framed) idle.splice(frame, batch, ...framed, ...emptyRows(batch - framed.length));
+  const rows = strip ?? stopped?.rows ?? idle;
+  const highlighted = strip ? 0 : (stopped?.count ?? framed?.length ?? 0);
 
   useImperativeHandle(ref, () => ({
-    spinTo: (names, durationMs) =>
+    spinTo: (names, durationMs, targetId) =>
       new Promise<void>((resolve) => {
-        const start = landed?.rows ?? idle;
+        const start = stopped?.rows ?? idle;
         const fillers = pickNames(pool, Math.round((durationMs / 1000) * ROWS_PER_SECOND));
-        const below = pickNames(pool, Math.max(0, visible - frame - names.length));
+        // Ramka to'liq to'lmasa (oxirgi to'plam) — qolgan qatorlari bo'sh, ramkadan keyin — tasodifiy ismlar.
+        const below = [...emptyRows(batch - names.length), ...pickNames(pool, Math.max(0, visible - frame - batch))];
         const all = [...start, ...fillers, ...names, ...below];
         const target = start.length + fillers.length - frame;
         flushSync(() => setStrip(all));
@@ -500,7 +720,7 @@ function NameReel({
         const finish = () => {
           flushSync(() => {
             setStrip(null);
-            setLanded({ rows: all.slice(target, target + visible), count: names.length });
+            setLanded({ rows: all.slice(target, target + visible), count: names.length, drawId: targetId });
           });
           animation?.cancel();
           resolve();

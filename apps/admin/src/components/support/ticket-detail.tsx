@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { MoreDetails } from "@/components/ui/more-details";
 import { Select } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
@@ -97,7 +98,7 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Sarlavha: mavzu, ishtirokchi, holat
+// Sarlavha: mavzu, ishtirokchi, yopish tugmasi (holatni qo'lda tanlash — "Batafsil" ichida)
 // ---------------------------------------------------------------------------
 
 function TicketHeader({
@@ -110,16 +111,33 @@ function TicketHeader({
   onUpdated: (detail: SupportTicketDetail) => Promise<void>;
 }) {
   const admin = useCurrentAdmin();
-  const [statusNotice, setStatusNotice] = useState<string | null>(null);
+  // Xabar qaysi holat uchun yozilgani bilan saqlanadi: holat boshqa yo'l bilan o'zgarsa
+  // (masalan, "Yuborish va yopish"), eski xabar ko'rinmay qoladi.
+  const [statusNotice, setStatusNotice] = useState<{ status: SupportTicketStatus; text: string } | null>(null);
   const participantName = `${ticket.participant.firstName} ${ticket.participant.lastName}`;
+  const closed = ticket.status === "CLOSED";
 
   const statusMutation = useMutation({
     mutationFn: (status: SupportTicketStatus) => updateSupportTicketStatus(ticket.id, { status }),
     onSuccess: async (detail) => {
       await onUpdated(detail);
-      setStatusNotice(`Holat "${SUPPORT_STATUS_LABELS[detail.status]}" ga o'zgartirildi.`);
+      setStatusNotice({
+        status: detail.status,
+        text:
+          detail.status === "CLOSED"
+            ? "Murojaat yopildi."
+            : `Holat «${SUPPORT_STATUS_LABELS[detail.status]}» ga o'zgartirildi.`,
+      });
     },
   });
+
+  function changeStatus(status: SupportTicketStatus) {
+    setStatusNotice(null);
+    statusMutation.mutate(status);
+  }
+
+  const closing = statusMutation.isPending && statusMutation.variables === "CLOSED";
+  const notice = statusNotice && statusNotice.status === ticket.status ? statusNotice.text : null;
 
   return (
     <div className="space-y-3 border-b border-slate-200 p-4">
@@ -163,7 +181,24 @@ function TicketHeader({
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        {!closed && (
+          <Button
+            size="sm"
+            variant="secondary"
+            loading={closing}
+            disabled={statusMutation.isPending}
+            onClick={() => changeStatus("CLOSED")}
+          >
+            {!closing && <Lock className="size-4" aria-hidden />}
+            Murojaatni yopish
+          </Button>
+        )}
+      </div>
+
+      <WebLoginRow ticket={ticket} participantName={participantName} onUpdated={onUpdated} />
+
+      <MoreDetails title="Batafsil: holatni qo'lda o'zgartirish" contentClassName="space-y-2 p-3">
+        <div className="flex flex-wrap items-center gap-2">
           <label htmlFor="ticket-status" className="text-sm text-slate-500">
             Holat
           </label>
@@ -171,10 +206,7 @@ function TicketHeader({
             id="ticket-status"
             value={ticket.status}
             disabled={statusMutation.isPending}
-            onChange={(event) => {
-              setStatusNotice(null);
-              statusMutation.mutate(event.target.value as SupportTicketStatus);
-            }}
+            onChange={(event) => changeStatus(event.target.value as SupportTicketStatus)}
             className="w-40"
           >
             {STATUSES.map((status) => (
@@ -184,17 +216,18 @@ function TicketHeader({
             ))}
           </Select>
         </div>
-      </div>
-
-      <WebLoginRow ticket={ticket} participantName={participantName} onUpdated={onUpdated} />
+        <p className="text-xs text-slate-500">
+          Odatda kerak emas: javob yuborilganda holat o&apos;zi «{SUPPORT_STATUS_LABELS.IN_PROGRESS}» bo&apos;ladi.
+        </p>
+      </MoreDetails>
 
       <div role="status" aria-live="polite" className="text-xs">
         {statusMutation.isPending && <span className="text-slate-500">Saqlanmoqda…</span>}
         {statusMutation.isError && (
           <span className="text-red-600">{errorMessage(statusMutation.error)}</span>
         )}
-        {!statusMutation.isPending && !statusMutation.isError && statusNotice && (
-          <span className="text-green-700">{statusNotice}</span>
+        {!statusMutation.isPending && !statusMutation.isError && notice && (
+          <span className="text-green-700">{notice}</span>
         )}
       </div>
     </div>
@@ -202,13 +235,14 @@ function TicketHeader({
 }
 
 // ---------------------------------------------------------------------------
-// Saytga kirish: hisobga bir marta kiriladi — qayta kirishga ruxsat shu yerdan
+// Saytga kirish: hisobga bir marta kiriladi — qayta kirishga ruxsat shu yerdan.
+// Faqat foydali bo'lganda ko'rinadi: saytga hali kirmagan ishtirokchida qator chiqmaydi.
 // ---------------------------------------------------------------------------
 
-const WEB_LOGIN_LABELS: Record<WebLoginState, string> = {
-  NEVER: "Saytga hali kirmagan",
-  USED: "Saytga kirgan — qayta kirish yopiq",
-  GRANTED: "Qayta kirishga ruxsat berilgan (bir marta, hali ishlatilmagan)",
+const WEB_LOGIN_LABELS: Record<WebLoginState, string | null> = {
+  NEVER: null,
+  USED: "Bu ishtirokchi saytga bir marta kirgan. Yangi telefon yoki brauzerdan kira olmasa — ruxsat bering.",
+  GRANTED: "Saytga qayta kirishga ruxsat berildi — ishtirokchi hali kirmadi.",
 };
 
 function WebLoginRow({
@@ -222,16 +256,19 @@ function WebLoginRow({
 }) {
   const [confirming, setConfirming] = useState(false);
   const state = ticket.participant.webLogin;
+  const label = WEB_LOGIN_LABELS[state];
+
+  if (!label) return null;
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
       <span className="flex min-w-0 items-center gap-2 text-slate-600">
         <KeyRound className="size-4 shrink-0 text-slate-400" aria-hidden />
-        {WEB_LOGIN_LABELS[state]}
+        {label}
       </span>
       {state === "USED" && (
         <Button size="sm" variant="secondary" onClick={() => setConfirming(true)}>
-          Qayta kirishga ruxsat berish
+          Saytga qayta kirishga ruxsat berish
         </Button>
       )}
       {confirming && (
@@ -355,8 +392,14 @@ function AttachmentChip({
 }
 
 // ---------------------------------------------------------------------------
-// Javob yozish
+// Javob yozish: "Yuborish" yoki "Yuborish va yopish" (savol hal bo'lganda)
 // ---------------------------------------------------------------------------
+
+interface ReplyResult {
+  detail: SupportTicketDetail;
+  /** Javob yuborildi, lekin murojaat yopilmadi — sababi; yopish so'ralmagan yoki o'tgan bo'lsa — null. */
+  closeError: string | null;
+}
 
 function ReplyComposer({
   ticket,
@@ -367,50 +410,76 @@ function ReplyComposer({
 }) {
   const [draft, setDraft] = useState("");
   const [showEmptyError, setShowEmptyError] = useState(false);
+  const [closeError, setCloseError] = useState<string | null>(null);
 
   const replyMutation = useMutation({
-    mutationFn: (text: string) => replyToSupportTicket(ticket.id, { text }),
-    onSuccess: async (detail) => {
+    mutationFn: async ({ text, close }: { text: string; close: boolean }): Promise<ReplyResult> => {
+      const replied = await replyToSupportTicket(ticket.id, { text });
+      if (!close) return { detail: replied, closeError: null };
+      try {
+        return { detail: await updateSupportTicketStatus(ticket.id, { status: "CLOSED" }), closeError: null };
+      } catch (error) {
+        // Javob allaqachon ketgan — matn tozalanadi, faqat murojaat yopilmagani aytiladi.
+        return { detail: replied, closeError: errorMessage(error) };
+      }
+    },
+    onMutate: () => setCloseError(null),
+    onSuccess: async (result) => {
       setDraft("");
       setShowEmptyError(false);
-      await onUpdated(detail);
+      setCloseError(result.closeError);
+      await onUpdated(result.detail);
     },
   });
 
   const reopenMutation = useMutation({
     mutationFn: () => updateSupportTicketStatus(ticket.id, { status: "IN_PROGRESS" }),
-    onSuccess: onUpdated,
+    onSuccess: async (detail) => {
+      setCloseError(null);
+      await onUpdated(detail);
+    },
   });
 
   if (ticket.status === "CLOSED") {
     return (
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3">
         <p className="flex items-center gap-2 text-sm text-slate-500">
-          <Lock className="size-4" aria-hidden />
-          Murojaat yopilgan. Javob yozish uchun qayta oching.
+          <Lock className="size-4 shrink-0" aria-hidden />
+          Murojaat yopilgan. Yana yozish kerak bo&apos;lsa — «Qayta ochish» ni bosing.
         </p>
-        <Button
-          variant="secondary"
-          size="sm"
-          loading={reopenMutation.isPending}
-          onClick={() => reopenMutation.mutate()}
-        >
-          Qayta ochish
-        </Button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {reopenMutation.isError && (
+            <p role="alert" className="flex items-center gap-1.5 text-sm text-red-600">
+              <AlertCircle className="size-4 shrink-0" aria-hidden />
+              {errorMessage(reopenMutation.error)}
+            </p>
+          )}
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={reopenMutation.isPending}
+            onClick={() => reopenMutation.mutate()}
+          >
+            Qayta ochish
+          </Button>
+        </div>
       </div>
     );
   }
 
   const trimmed = draft.trim();
   const tooLong = trimmed.length > MAX_REPLY_LENGTH;
+  const sending = replyMutation.isPending;
+  const sendingAndClosing = sending && replyMutation.variables?.close === true;
+  const sendingOnly = sending && !sendingAndClosing;
 
-  function submit() {
+  function submit(close: boolean) {
     if (!trimmed) {
       setShowEmptyError(true);
       return;
     }
-    if (!tooLong) {
-      replyMutation.mutate(trimmed);
+    if (!tooLong && !sending) {
+      replyMutation.mutate({ text: trimmed, close });
     }
   }
 
@@ -419,13 +488,19 @@ function ReplyComposer({
       className="space-y-2 border-t border-slate-200 p-3"
       onSubmit={(event) => {
         event.preventDefault();
-        submit();
+        submit(false);
       }}
     >
       {replyMutation.isError && (
         <p role="alert" className="flex items-center gap-1.5 text-sm text-red-600">
           <AlertCircle className="size-4 shrink-0" aria-hidden />
           {errorMessage(replyMutation.error)}
+        </p>
+      )}
+      {closeError && (
+        <p role="alert" className="flex items-center gap-1.5 text-sm text-red-600">
+          <AlertCircle className="size-4 shrink-0" aria-hidden />
+          Javob yuborildi, lekin murojaat yopilmadi: {closeError}
         </p>
       )}
 
@@ -442,12 +517,12 @@ function ReplyComposer({
         onKeyDown={(event) => {
           if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
             event.preventDefault();
-            submit();
+            submit(false);
           }
         }}
         placeholder="Javobingizni yozing…"
         rows={3}
-        disabled={replyMutation.isPending}
+        disabled={sending}
         aria-invalid={showEmptyError || tooLong || undefined}
         aria-describedby="reply-hint"
       />
@@ -463,10 +538,26 @@ function ReplyComposer({
               ? `Javob ${MAX_REPLY_LENGTH} belgidan oshmasligi kerak (${trimmed.length}).`
               : "Javob ishtirokchiga ilovada va Telegramda ko'rinadi. Ctrl+Enter — yuborish."}
         </p>
-        <Button type="submit" size="sm" loading={replyMutation.isPending} disabled={tooLong}>
-          {!replyMutation.isPending && <Send className="size-4" aria-hidden />}
-          Yuborish
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={sendingAndClosing}
+            disabled={tooLong || sending}
+            onClick={() => submit(true)}
+          >
+            Yuborish va yopish
+          </Button>
+          <Button
+            type="submit"
+            size="sm"
+            loading={sendingOnly}
+            disabled={tooLong || sending}
+          >
+            {!sendingOnly && <Send className="size-4" aria-hidden />}
+            Yuborish
+          </Button>
+        </div>
       </div>
     </form>
   );

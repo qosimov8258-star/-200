@@ -8,16 +8,18 @@ import { AlertTriangle, CheckCircle2, Crosshair } from "lucide-react";
 import { IosIcon } from "@/components/ui/ios-icon";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { MoreDetails } from "@/components/ui/more-details";
+import { PageHint } from "@/components/ui/page-hint";
 import { Pagination } from "@/components/ui/pagination";
 import { SearchInput } from "@/components/ui/search-input";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { Segmented } from "@/components/ui/segmented";
 import { getTargetCases } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
-import { TARGET_CASE_STATUS_LABELS } from "@/lib/labels";
 import type { TargetAction, TargetCaseListItem, TargetStatusFilter } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+import { AdsCheckBar } from "./ads-check-bar";
 import { DetectionLayers } from "./detection-layers";
 import { TargetActionDialog } from "./target-action-dialog";
 import { TargetEvidenceDialog } from "./target-evidence-dialog";
@@ -27,15 +29,20 @@ type ListFilter = TargetStatusFilter | "ALL";
 
 const PAGE_SIZE = 25;
 const NOTICE_TIMEOUT_MS = 5000;
-const DEFAULT_FILTER: ListFilter = "OPEN";
+const DEFAULT_FILTER: ListFilter = "NEW";
 
-const FILTER_TABS: Array<{ value: ListFilter; label: string }> = [
-  { value: "OPEN", label: "Ro'yxatda" },
-  { value: "NEW", label: TARGET_CASE_STATUS_LABELS.NEW },
-  { value: "WARNED", label: TARGET_CASE_STATUS_LABELS.WARNED },
-  { value: "DISQUALIFIED", label: TARGET_CASE_STATUS_LABELS.DISQUALIFIED },
-  { value: "DISMISSED", label: TARGET_CASE_STATUS_LABELS.DISMISSED },
+/**
+ * Tab nomlari — faqat shu sahifada (jadvaldagi holat belgilari `TARGET_CASE_STATUS_LABELS` dan).
+ * "Ro'yxatda" (yangi + ogohlantirilganlar) tab sifatida ko'rinmaydi — faqat `?status=OPEN` havolasi
+ * bilan ochiladi (boshqa tablar bilan ustma-ust tushmasin).
+ */
+const FILTER_TABS: Array<{ value: ListFilter; label: string; hidden?: boolean }> = [
+  { value: "NEW", label: "Qaror kutmoqda" },
+  { value: "WARNED", label: "Ogohlantirilganlar" },
+  { value: "DISQUALIFIED", label: "Chetlatilganlar" },
+  { value: "DISMISSED", label: "Xato signal" },
   { value: "ALL", label: "Hammasi" },
+  { value: "OPEN", label: "Ro'yxatda", hidden: true },
 ];
 
 type Overlay =
@@ -84,13 +91,25 @@ export function TargetsView() {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }
 
+  // Yashirin tab havola orqali ochilgan bo'lsa — tanlangani ko'rinib tursin.
+  const tabs = FILTER_TABS.filter((tab) => !tab.hidden || tab.value === filter);
+
+  const emptyText = search
+    ? "Qidiruv bo'yicha hech kim topilmadi."
+    : filter === "NEW"
+      ? "Hozircha qaror kutayotgan shubhali ishtirokchi yo'q. Tizim har kuni tekshiradi — signal chiqsa, shu yerda paydo bo'ladi."
+      : "Bu ro'yxat bo'sh.";
+
   return (
     <div className="space-y-4">
-      <DetectionLayers onChecked={setNotice} />
-      <p className="text-xs text-muted">
-        Tizim faqat signal beradi. Qarorni (ogohlantirish, diskvalifikatsiya yoki ro&apos;yxatdan
-        chiqarish) faqat Admin qabul qiladi.
-      </p>
+      <div className="space-y-2">
+        <PageHint>
+          Bu yerda pullik reklama (target) yoqqan bo&apos;lishi mumkin bo&apos;lgan ishtirokchilar.
+          Har birini «Ko&apos;rib chiqish» bilan oching, dalilni ko&apos;ring va qaror qiling. Tizim
+          o&apos;zi hech kimni chetlatmaydi — qarorni faqat siz qabul qilasiz.
+        </PageHint>
+        <AdsCheckBar onChecked={setNotice} />
+      </div>
 
       <div role="status" aria-live="polite">
         {notice && (
@@ -113,7 +132,7 @@ export function TargetsView() {
           label="Holat bo'yicha filtr"
           value={filter}
           onChange={(value) => navigate({ filter: value })}
-          options={FILTER_TABS.map((tab) => ({
+          options={tabs.map((tab) => ({
             value: tab.value,
             label: tab.label,
             count: data?.statusCounts[tab.value],
@@ -136,7 +155,7 @@ export function TargetsView() {
         ) : data && data.items.length === 0 ? (
           <div className="flex flex-col items-center gap-2 px-4 py-12 text-center">
             <IosIcon icon={Crosshair} tint="gray" size={48} />
-            <p className="text-sm text-slate-600">Bu bo&apos;limda hech kim yo&apos;q.</p>
+            <p className="max-w-md text-sm text-slate-600">{emptyText}</p>
           </div>
         ) : data ? (
           <>
@@ -144,11 +163,7 @@ export function TargetsView() {
               className={cn("transition-opacity", isFetching && "opacity-60")}
               aria-busy={isFetching}
             >
-              <TargetsTable
-                items={data.items}
-                onShowEvidence={(item) => setOverlay({ kind: "evidence", item })}
-                onAction={(item, action) => setOverlay({ kind: "action", item, action })}
-              />
+              <TargetsTable items={data.items} onOpen={(item) => setOverlay({ kind: "evidence", item })} />
             </div>
             {data.total > data.pageSize && (
               <div className="border-t border-slate-200 px-4 py-3">
@@ -164,6 +179,13 @@ export function TargetsView() {
         ) : null}
       </Card>
 
+      <MoreDetails
+        title="Batafsil: tizim reklamani qanday topadi (4 usul)"
+        contentClassName="overflow-hidden rounded-b-2xl p-0"
+      >
+        <DetectionLayers />
+      </MoreDetails>
+
       {overlay?.kind === "evidence" && (
         <TargetEvidenceDialog
           key={`evidence:${overlay.item.id}`}
@@ -177,7 +199,8 @@ export function TargetsView() {
           key={`action:${overlay.item.id}:${overlay.action}`}
           item={overlay.item}
           action={overlay.action}
-          onClose={() => setOverlay(null)}
+          // Qaror dalil oynasidan ochiladi — bekor qilinsa, o'sha oynaga qaytiladi.
+          onClose={() => setOverlay({ kind: "evidence", item: overlay.item })}
           onDone={(message) => {
             setOverlay(null);
             setNotice(message);

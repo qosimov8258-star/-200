@@ -1,6 +1,6 @@
 import clsx from "clsx";
 
-import { lang, setLang, type Lang } from "../i18n";
+import { lang, langSaveable, setLang, type Lang } from "../i18n";
 import { haptic } from "../lib/telegram";
 
 const OPTIONS: { value: Lang; label: string; title: string }[] = [
@@ -11,7 +11,8 @@ const OPTIONS: { value: Lang; label: string; title: string }[] = [
 /**
  * Til almashtirgich: O'zbekcha / Русский. Tanlov saqlanadi va sahifa qayta yuklanadi (barcha matnlar,
  * oferta va sovg'alar yangi tilda). `onChange` — qayta yuklashdan oldin (masalan, botga ham tilni
- * saqlash uchun serverga yuborish).
+ * saqlash uchun serverga yuborish). Brauzer tanlovni saqlay olmasa (xotira yopiq) — ko'rsatilmaydi:
+ * ilova qurilma tilida qoladi.
  */
 export function LangSwitch({
   className,
@@ -33,6 +34,8 @@ export function LangSwitch({
     }
     setLang(next);
   };
+
+  if (!langSaveable) return null;
 
   return (
     <div

@@ -6,23 +6,31 @@ import { createPortal } from "react-dom";
 
 import { GiftButton } from "../components/GiftButton";
 import { Card, Spinner, TextField } from "../components/ui";
-import { t } from "../i18n";
+import { lang, t } from "../i18n";
 import * as api from "../lib/api";
 import { errorCode } from "../lib/api-error";
 import { confirmDialog, haptic, openTelegram } from "../lib/telegram";
 import { profileErrors } from "../lib/profile-form";
 import type { BotLoginStart, BotLoginStatus, TelegramLoginUser } from "../lib/types";
+import { sessionRejected } from "../lib/web-session";
 
 /** Mock rejimda widget o'rniga — imzo tekshirilmaydi. */
 const MOCK_USER: TelegramLoginUser = { id: 1, first_name: "Sinov", auth_date: 0, hash: "" };
 /** "Hisobim bor": botdagi tasdiqni shu oraliqda so'raymiz (sahifaga qaytilganda — darhol). */
 const BOT_LOGIN_POLL_MS = 2_000;
+/**
+ * Oyna mazmunining yuqori chekinishi. Mock rejimda tepadagi dev-panel (28px, `App.tsx` dagi
+ * `DevBanner`) oyna ustida turadi — mazmun uning ostidan boshlanadi.
+ */
+const DIALOG_TOP = api.IS_MOCK_API ? "pt-[calc(var(--safe-top)+44px)]" : "pt-[calc(var(--safe-top)+16px)]";
 
 type LoginState =
   | { step: "loading" }
   | { step: "error"; tooMany: boolean }
   | { step: "pending"; request: BotLoginStart }
-  | { step: "closed"; status: Exclude<BotLoginStatus, "PENDING" | "CONFIRMED"> };
+  | { step: "closed"; status: Exclude<BotLoginStatus, "PENDING" | "CONFIRMED"> }
+  /** Botda tasdiqlandi, lekin brauzer sessiya cookie'sini saqlamadi (`sessionRejected`). */
+  | { step: "cookies" };
 
 /**
  * "Hisobim bor" — butun ekran. Ochilishi bilan bot orqali kirish so'rovi yaratiladi: kod ko'rinadi,
@@ -72,21 +80,38 @@ function AccountLoginScreen({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     if (!request) return;
     let active = true;
+    /**
+     * Bir vaqtda faqat bitta so'rov: taymer va sahifaga qaytish birga ishlasa, ikki so'rov bir-birini
+     * bosib ketmasin. (Server tasdiqlangan kirishni 60 soniya saqlaydi — javob yo'qolsa, qayta
+     * so'rov o'sha sessiyani oladi.)
+     */
+    let busy = false;
     const check = async () => {
+      if (busy || !active) return;
+      busy = true;
       try {
         const { status } = await api.pollBotLogin(request.id);
-        if (!active || status === "PENDING") return;
-        active = false;
         if (status === "CONFIRMED") {
-          haptic.success();
-          // Endi kirgan foydalanuvchi — ilova o'zi ochiladi (bu oyna yopiladi).
-          await queryClient.invalidateQueries();
+          // Sessiya cookie'si qo'yildi va bir martalik kirish ishlatildi — oyna shu orada yopilgan
+          // yoki kod muddati tugagan bo'lsa ham ilova kirgan holatga o'tadi (bu oyna yopiladi).
+          // Brauzer cookie'ni saqlamagan bo'lsa — "kutilmoqda" da qolib ketmasdan sababi aytiladi.
+          active = false;
+          if (await sessionRejected(queryClient)) {
+            haptic.error();
+            setState({ step: "cookies" });
+          } else {
+            haptic.success();
+          }
           return;
         }
+        if (!active || status === "PENDING") return;
+        active = false;
         haptic.error();
         setState({ step: "closed", status });
       } catch {
         // Tarmoq uzildi — keyingi urinishda yana so'raymiz.
+      } finally {
+        busy = false;
       }
     };
     const timer = window.setInterval(() => void check(), BOT_LOGIN_POLL_MS);
@@ -120,15 +145,17 @@ function AccountLoginScreen({ onClose }: { onClose: () => void }) {
   };
 
   const closedText =
-    state.step === "closed"
-      ? state.status === "DENIED"
-        ? t.webLoginDenied
-        : state.status === "FAILED"
-          ? t.webLoginTaken
-          : state.status === "LOCKED"
-            ? t.webLoginLocked
-            : t.webLoginExpired
-      : null;
+    state.step === "cookies"
+      ? t.cookiesBlocked
+      : state.step === "closed"
+        ? state.status === "DENIED"
+          ? t.webLoginDenied
+          : state.status === "FAILED"
+            ? t.webLoginTaken
+            : state.status === "LOCKED"
+              ? t.webLoginLocked
+              : t.webLoginExpired
+        : null;
   const locked = state.step === "closed" && state.status === "LOCKED";
 
   /** Qayta kirish yopiq — botda "Supportga yozish" (admin ruxsat beradi). */
@@ -140,7 +167,7 @@ function AccountLoginScreen({ onClose }: { onClose: () => void }) {
 
   return createPortal(
     <div role="dialog" aria-modal="true" aria-label={t.webLoginTitle} className="fixed inset-0 z-[80] overflow-y-auto bg-bg text-ink">
-      <main className="mx-auto max-w-[520px] px-5 pt-[calc(var(--safe-top)+16px)] pb-[calc(var(--safe-bottom)+24px)]">
+      <main className={clsx("mx-auto max-w-[520px] px-5 pb-[calc(var(--safe-bottom)+24px)]", DIALOG_TOP)}>
         <button
           type="button"
           onClick={onClose}
@@ -186,9 +213,9 @@ function AccountLoginScreen({ onClose }: { onClose: () => void }) {
             </>
           )}
 
-          {(state.step === "closed" || state.step === "error") && (
+          {(state.step === "closed" || state.step === "error" || state.step === "cookies") && (
             <div className="space-y-4 text-center">
-              <p className="text-[15px] leading-snug">
+              <p role="alert" className="text-[15px] leading-snug">
                 {closedText ?? (state.step === "error" && state.tooMany ? t.webLoginTooMany : t.webLoginFailed)}
               </p>
               {locked && botChat && (
@@ -236,7 +263,8 @@ function TelegramWidgetLogin() {
     setError(null);
     try {
       await api.telegramLogin(user);
-      await queryClient.invalidateQueries();
+      // Brauzer cookie'ni saqlamagan bo'lsa — "hech narsa bo'lmadi" o'rniga sababi aytiladi.
+      if (await sessionRejected(queryClient)) setError(t.cookiesBlocked);
     } catch (e) {
       setError(errorCode(e) === "LOGIN_LOCKED" ? t.webLoginLocked : t.webLoginFailed);
     } finally {
@@ -280,7 +308,11 @@ function TelegramWidgetLogin() {
         <p className="rounded-xl bg-surface px-3 py-2 text-[14px]">{t.webLoginNotConfigured}</p>
       )}
       {busy && !api.mockControls && <Spinner />}
-      {error && <p className="mt-3 px-1.5 text-[13px] text-negative">{error}</p>}
+      {error && (
+        <p role="alert" className="mt-3 px-1.5 text-[13px] text-negative">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -306,11 +338,6 @@ function localDigits(input: string): string {
 }
 
 /**
- * Saytdan (Telegram'siz) ro'yxatdan o'tish: ism, telefon raqam (+998), yosh — butun ekran.
- * Muvaffaqiyatli bo'lsa backend sessiya cookie'sini qo'yadi va ilova qoidalarga rozilik
- * qadamiga o'tadi (bu oyna o'zi yopiladi). Raqam band bo'lsa — "Hisobimga kirish" ("Hisobim bor").
- */
-/**
  * Saytda ilk qadam (til tanlangach): darhol ro'yxatdan o'tish — ism va telefon; ostida "Hisobim bor —
  * kirish" (bot orqali). Ro'yxatdan o'tgach — ommaviy oferta, "Roziman" va ilova.
  */
@@ -323,7 +350,12 @@ export function WebStart() {
   );
 }
 
-/** `onClose` berilmasa (sayt ochilgandagi ilk qadam) — "Orqaga" tugmasi yo'q. */
+/**
+ * Saytdan (Telegram'siz) ro'yxatdan o'tish: ism va telefon raqam (+998) — butun ekran.
+ * Muvaffaqiyatli bo'lsa backend sessiya cookie'sini qo'yadi va ilova qoidalarga rozilik
+ * qadamiga o'tadi (bu oyna o'zi yopiladi). Raqam band bo'lsa — "Hisobimga kirish" ("Hisobim bor").
+ * `onClose` berilmasa (sayt ochilgandagi ilk qadam) — "Orqaga" tugmasi yo'q.
+ */
 function WebSignupScreen({ onClose, onLogin }: { onClose?: () => void; onLogin: () => void }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState({ firstName: "", phone: "" });
@@ -357,9 +389,6 @@ function WebSignupScreen({ onClose, onLogin }: { onClose?: () => void; onLogin: 
     setLoading(true);
     try {
       await api.webRegister({ firstName, phone: form.phone });
-      haptic.success();
-      // Endi kirgan foydalanuvchi — ilova qoidalarga rozilik qadamiga o'tadi.
-      await queryClient.invalidateQueries();
     } catch (error) {
       haptic.error();
       const code = errorCode(error);
@@ -369,13 +398,23 @@ function WebSignupScreen({ onClose, onLogin }: { onClose?: () => void; onLogin: 
       else if (code === "INVALID_PROFILE") setErrors({ firstName: t.nameInvalid });
       else setServerError(code === "TOO_MANY" ? t.tooManyAttempts : t.genericError);
       setLoading(false);
+      return;
     }
+    // Endi kirgan foydalanuvchi — ilova qoidalarga rozilik qadamiga o'tadi (bu oyna o'zi yopiladi).
+    // Brauzer cookie'ni saqlamagan bo'lsa — oyna ochiq qoladi: tugma to'xtaydi va sababi aytiladi.
+    if (await sessionRejected(queryClient)) {
+      haptic.error();
+      setServerError(t.cookiesBlocked);
+      setLoading(false);
+      return;
+    }
+    haptic.success();
   };
 
   // Portal: `fixed` oyna animatsiyali (`transform`) ota element ichida qolib ketmasin.
   return createPortal(
     <div role="dialog" aria-modal="true" aria-label={t.webSignupTitle} className="fixed inset-0 z-[80] overflow-y-auto bg-bg text-ink">
-      <main className="mx-auto max-w-[520px] px-5 pt-[calc(var(--safe-top)+16px)] pb-[calc(var(--safe-bottom)+24px)]">
+      <main className={clsx("mx-auto max-w-[520px] px-5 pb-[calc(var(--safe-bottom)+24px)]", DIALOG_TOP)}>
         {onClose && (
           <button
             type="button"
@@ -442,7 +481,11 @@ function WebSignupScreen({ onClose, onLogin }: { onClose?: () => void; onLogin: 
               {t.phoneTakenLogin}
             </button>
           )}
-          {serverError && <p className="px-1.5 text-[13px] text-negative">{serverError}</p>}
+          {serverError && (
+            <p role="alert" className="px-1.5 text-[13px] text-negative">
+              {serverError}
+            </p>
+          )}
           <GiftButton type="submit" loading={loading} className="!mt-10" icon={<ArrowRight className="size-5" />}>
             {t.continue}
           </GiftButton>
@@ -463,7 +506,7 @@ function WebSignupScreen({ onClose, onLogin }: { onClose?: () => void; onLogin: 
 }
 
 /**
- * Rasmiy Telegram Login Widget (`telegram-widget.js`), o'zbek tilida. Faqat @BotFather → /setdomain
+ * Rasmiy Telegram Login Widget (`telegram-widget.js`), ilova tilida. Faqat @BotFather → /setdomain
  * da ko'rsatilgan domenda ishlaydi; boshqa joyda Telegram "Bot domain invalid" deydi.
  */
 function TelegramLoginButton({
@@ -490,9 +533,10 @@ function TelegramLoginButton({
     script.setAttribute("data-size", "large");
     script.setAttribute("data-radius", "20");
     script.setAttribute("data-request-access", "write");
-    // O'zbekcha tugma ("Telegram bilan kirish"). Shu bilan vidjet manzili ham o'zgaradi: domen
-    // @BotFather'da yoqilishidan oldin keshlangan "Bot domain invalid" javobi qayta ishlatilmaydi.
-    script.setAttribute("data-lang", "uz");
+    // Tugma va Telegram tasdiq oynasi ilova tilida (o'zbek yoki rus). Shu bilan vidjet manzili ham
+    // o'zgaradi: domen @BotFather'da yoqilishidan oldin keshlangan "Bot domain invalid" javobi
+    // qayta ishlatilmaydi.
+    script.setAttribute("data-lang", lang);
     script.setAttribute("data-onauth", "onTelegramAuth(user)");
     el.appendChild(script);
     return () => {

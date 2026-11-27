@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Info } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { IosIcon } from "@/components/ui/ios-icon";
+import { MoreDetails } from "@/components/ui/more-details";
+import { PageHint } from "@/components/ui/page-hint";
 import { Spinner } from "@/components/ui/spinner";
 import { getAiState } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
@@ -14,19 +16,20 @@ import { formatDayTime, formatPercent } from "@/lib/format";
 import type { AiState, AiWorkerStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-import { AI_POLL_MS, AI_STATE_KEY, SuccessNotice, aiRunInProgress } from "./ai-common";
+import { AI_POLL_MS, AI_SECTION_IDS, AI_STATE_KEY, SuccessNotice, aiRunInProgress, scrollToAiSection } from "./ai-common";
 import { ConfigCard } from "./ai-config-card";
-import { ProgressCard } from "./ai-progress-card";
+import { ProgressCard, RunAllDialog } from "./ai-progress-card";
 import { Results } from "./ai-results";
+import { AiSteps } from "./ai-steps";
 
 /** Worker ishlamayotganda ham uning holati shu oraliqda tekshiriladi. */
 const IDLE_POLL_MS = 30_000;
 const NOTICE_TIMEOUT_MS = 6000;
 
 /**
- * AI bo'limi (`/ai`, faqat ADMIN): namuna rasmlar va mezonlar (versiyalar bilan), tasdiqlash
- * (sinov yoki hammasi), jarayon va natijalar. Standart — AI hech narsaga ulanmagan, xulosasi faqat
- * yordam; `AI_ACCEPTANCE_GATE=true` bo'lsa, yangi videolar ham shu AI'dan o'tadi.
+ * AI bo'limi (`/ai`, faqat ADMIN): tepada ish tartibi (qadamlar, har birida bitta asosiy tugma), keyin
+ * sozlamalar ("AI nimaga qaraydi"), jarayon va natijalar. Standart — AI hech narsaga ulanmagan, xulosasi
+ * faqat yordam; `AI_ACCEPTANCE_GATE=true` bo'lsa, yangi videolar ham shu AI'dan o'tadi.
  */
 export function AiView() {
   const { data, error, isPending, isError, refetch } = useQuery({
@@ -52,7 +55,7 @@ export function AiView() {
             kerakli narsa bor-yo&apos;qligini aytadi.
           </p>
         </div>
-        {data && <WorkerChip worker={data.worker} />}
+        {data && <WorkerChip worker={data.worker} busy={aiRunInProgress(data)} />}
       </header>
 
       {isPending ? (
@@ -87,63 +90,128 @@ function AiSections({
   notice: string | null;
   onNotice: (message: string) => void;
 }) {
-  const { run, settings } = state;
+  const { run, draft } = state;
+  const [runningAll, setRunningAll] = useState(false);
+
+  /** Ish boshlangach "Jarayon" ga o'tamiz — videolar navbatga tushgani ko'rinsin. */
+  function noticeAndShowProgress(message: string) {
+    onNotice(message);
+    scrollToAiSection(AI_SECTION_IDS.progress, AI_SECTION_IDS.progressTitle);
+  }
+
+  const config = <ConfigCard state={state} onNotice={noticeAndShowProgress} />;
+  const runSections = run && (
+    <>
+      <ProgressCard state={state} run={run} onRunAll={() => setRunningAll(true)} />
+      <Results
+        run={run}
+        progress={state.progress}
+        polling={aiRunInProgress(state)}
+        acceptanceGate={state.acceptanceGate}
+        confidenceMin={state.settings.confidenceMin}
+        onNotice={onNotice}
+      />
+    </>
+  );
+
   return (
     <>
-      <p className="flex items-start gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
-        <IosIcon icon={Info} tint="blue" size={22} />
-        <span>
-          {state.acceptanceGate ? (
-            <>
-              Mezonlar tasdiqlangach, <strong className="font-medium text-ink">har bir yangi video</strong>{" "}
-              Apify&apos;dan keyin AI tekshiruvidan o&apos;tadi: AI «Tasdiqlandi» desa — video qabul qilinadi;
-              «Rad etildi», «Shubhali» yoki ko&apos;ra olmasa — «Qo&apos;lda tekshiruv»ga tushadi. Allaqachon qabul
-              qilingan videolar bo&apos;yicha AI xulosasi esa faqat yordam.
-            </>
-          ) : (
-            <>
-              AI hozircha <strong className="font-medium text-ink">hech narsaga ulanmagan</strong>: yangi videolar
-              faqat Apify bo&apos;yicha qabul qilinadi. Bu yerdagi sinov va natijalar — faqat yordam, videolar
-              holatini o&apos;zi o&apos;zgartirmaydi. «Shubhali» va «Rad etildi» videolarni o&apos;zingiz ko&apos;rib
-              qaror qiling.
-            </>
-          )}
-          <span className="mt-1 block text-xs text-slate-500">
-            Model: {settings.model} · kadr har {settings.frameIntervalSec} soniyada ({settings.frameHeight}p) · ishonch{" "}
-            {formatPercent(settings.confidenceMin)} dan past bo&apos;lsa — «Shubhali».
-          </span>
-        </span>
-      </p>
+      <PageHint>
+        {state.acceptanceGate
+          ? "AI ishga tushirilgach, yangi videolar avval AI'dan o'tadi: AI tasdiqlasa — qabul qilinadi, aks holda «Qo'lda tekshiruv»ga tushadi."
+          : "AI faqat maslahat beradi: videolar holatini o'zi o'zgartirmaydi. «Shubhali» va «Rad etildi»larni o'zingiz ko'rib chiqing."}
+      </PageHint>
+
+      <AiSteps state={state} onRunAll={() => setRunningAll(true)} />
 
       <div role="status" aria-live="polite">
         {notice && <SuccessNotice>{notice}</SuccessNotice>}
       </div>
 
-      <ConfigCard
-        state={state}
-        onNotice={(message) => {
-          onNotice(message);
-          // Tasdiqlangach "Jarayon" ga o'tamiz — videolar navbatga tushgani ko'rinsin.
-          setTimeout(() => document.getElementById("ai-progress")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
-        }}
-      />
-
-      {run ? (
+      {/* Ish ketayotgan va tahrirlanayotgan sozlama yo'q — asosiy ish natijalarda, sozlamalar pastda. */}
+      {run && !draft ? (
         <>
-          <ProgressCard state={state} run={run} onNotice={onNotice} />
-          <Results run={run} progress={state.progress} polling={aiRunInProgress(state)} onNotice={onNotice} />
+          {runSections}
+          {config}
         </>
       ) : (
-        <p className="rounded-2xl border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500">
-          Hali ishga tushirilmagan. Sozlamalarni tasdiqlang — «Jarayon» va «Natijalar» shundan keyin shu yerda ko&apos;rinadi.
-        </p>
+        <>
+          {config}
+          {runSections}
+        </>
+      )}
+
+      <HowAiSees state={state} />
+
+      {runningAll && run && (
+        <RunAllDialog
+          progress={state.progress}
+          onClose={() => setRunningAll(false)}
+          onStarted={() => {
+            setRunningAll(false);
+            noticeAndShowProgress("Tekshiruv boshlandi — barcha qabul qilingan videolar AI navbatiga qo'yildi.");
+          }}
+        />
       )}
     </>
   );
 }
 
-function WorkerChip({ worker }: { worker: AiWorkerStatus }) {
-  const lastSeen = worker.lastSeenAt ? `Oxirgi signal: ${formatDayTime(worker.lastSeenAt)}` : "Worker hali signal bermagan";
+/** Texnik tafsilotlar: kadrlar, ishonch chegarasi, qabul qilish tartibi, AI dasturi va model. */
+function HowAiSees({ state }: { state: AiState }) {
+  const { settings, worker } = state;
+  return (
+    <MoreDetails title="Batafsil: AI qanday ko'radi">
+      <ul className="space-y-1.5 text-sm text-slate-600">
+        <li>
+          Har bir videodan har {settings.frameIntervalSec} soniyada bitta kadr olinadi ({settings.frameHeight}p) va
+          namuna rasmlar bilan solishtiriladi.
+        </li>
+        <li>
+          AI o&apos;z xulosasiga {formatPercent(settings.confidenceMin)} dan kam ishonsa — video «Shubhali» bo&apos;ladi.
+        </li>
+        <li>
+          {state.acceptanceGate
+            ? "AI ishga tushirilgach, yangi video avval Instagram tekshiruvidan, keyin AI'dan o'tadi. «Rad etildi», «Shubhali» yoki AI ko'ra olmasa — «Qo'lda tekshiruv»ga tushadi. Allaqachon qabul qilingan videolar bo'yicha AI xulosasi esa faqat yordam."
+            : "Yangi videolar faqat Instagram tekshiruvi bo'yicha qabul qilinadi — AI bunga aralashmaydi."}
+        </li>
+        <li>
+          AI dasturi: {worker.online ? "ishlayapti" : "o'chiq"}
+          {worker.lastSeenAt ? (
+            <>
+              {" "}
+              · oxirgi signal <span className="tabular-nums">{formatDayTime(worker.lastSeenAt)}</span>
+            </>
+          ) : (
+            " · hali signal bermagan"
+          )}
+          .
+        </li>
+        <li className="text-xs text-slate-500">
+          Model: <span className="font-mono">{settings.model}</span>
+        </li>
+      </ul>
+    </MoreDetails>
+  );
+}
+
+/**
+ * AI dasturi holati. Sariq ogohlantirish — faqat navbatda video turganda; ish yo'q paytda o'chiq bo'lishi
+ * xavfli emas, shuning uchun kulrang kichik matn.
+ */
+function WorkerChip({ worker, busy }: { worker: AiWorkerStatus; busy: boolean }) {
+  const lastSeen = worker.lastSeenAt
+    ? `Oxirgi signal: ${formatDayTime(worker.lastSeenAt)}`
+    : "AI dasturi hali signal bermagan";
+
+  if (!worker.online && !busy) {
+    return (
+      <span title={lastSeen} className="text-xs text-slate-500">
+        AI dasturi o&apos;chiq (hozir ish yo&apos;q)
+      </span>
+    );
+  }
+
   return (
     <div className="flex flex-col items-start gap-1 sm:items-end">
       <span
@@ -157,7 +225,8 @@ function WorkerChip({ worker }: { worker: AiWorkerStatus }) {
           {worker.online && <span className="absolute inline-flex size-full animate-ping rounded-full bg-up/50" />}
           <span className={cn("relative inline-flex size-2.5 rounded-full", worker.online ? "bg-up" : "bg-[#e0a03a]")} />
         </span>
-        {worker.online ? "Worker ishlayapti" : "Worker o'chiq — videolar navbatda kutadi"}
+        {/* "Ishlayapti" emas: AI hali sozlanmagan bo'lsa ham dastur ulangan bo'lishi mumkin. */}
+        {worker.online ? (busy ? "AI videolarni tekshirmoqda" : "AI dasturi ulangan — tayyor") : "AI to'xtab turibdi"}
       </span>
       {!worker.online && <span className="text-xs text-slate-500 tabular-nums">{lastSeen}</span>}
     </div>

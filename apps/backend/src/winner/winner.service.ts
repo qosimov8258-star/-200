@@ -250,6 +250,14 @@ export class WinnerService {
     this.now = options?.clock ?? (() => new Date());
     const saved = store?.attach("winner", () => this.state);
     if (saved) this.state = { ...emptyState(), ...saved };
+    // G'olib tasdiqlangan/e'lon qilingan bo'lsa, avtomobil tanlovi o'zgarmasin (navbat shundan olinadi).
+    this.draws?.lockCarDraw(() =>
+      this.state.announced
+        ? "Avtomobil g'olibi e'lon qilingan — avtomobil tanlovini o'zgartirib bo'lmaydi."
+        : this.state.confirmed
+          ? "Avtomobil g'olibi tasdiqlangan — avval G'oliblar → Bosh sovrin bo'limida tasdiqni bekor qiling."
+          : null,
+    );
   }
 
   // --- O'qish ----------------------------------------------------------------

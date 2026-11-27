@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 const MAX_NOTE_LENGTH = 500;
 const REJECT_REASONS = Object.keys(MANUAL_REVIEW_REJECT_LABELS) as ManualReviewRejectReason[];
 
-/** Qaror videolar ro'yxati, ishtirokchilar (va ularning videolari), reyting va audit logga ta'sir qiladi. */
+/** Qaror videolar ro'yxati, ishtirokchilar (va ularning videolari), reyting va amallar tarixiga ta'sir qiladi. */
 function useInvalidateAfterDecision() {
   const queryClient = useQueryClient();
   return () =>
@@ -49,9 +49,9 @@ export function ApproveDialog({ item, onClose, onDone }: DialogProps) {
           {item.kind === "LOST_REEL" ? " qaytariladi" : " qo'shiladi"} va ishtirokchiga bot orqali
           xabar boradi.{" "}
           {item.lastViews !== null
-            ? "Ko'rishlari Apify'dan allaqachon o'qilgan."
-            : "Ko'rishlari Apify'dan darhol so'raladi."}{" "}
-          Tasdiqlashdan oldin videoda tanlov mahsuloti aniq ko&apos;rinishiga ishonch hosil qiling.
+            ? "Ko'rishlari allaqachon hisoblangan."
+            : "Ko'rishlari bir necha daqiqada hisoblanadi."}{" "}
+          Tasdiqlashdan oldin videoda OLIVIA mahsuloti aniq ko&apos;rinishiga ishonch hosil qiling.
         </>
       }
       confirmLabel="Tasdiqlash"
@@ -148,7 +148,7 @@ export function RejectDialog({ item, onClose, onDone }: DialogProps) {
             aria-describedby="reject-note-hint"
           />
           <p id="reject-note-hint" className="text-xs text-slate-500">
-            Izoh audit logga yoziladi, ishtirokchiga yuborilmaydi.
+            Izoh faqat panelda saqlanadi — ishtirokchiga yuborilmaydi.
           </p>
         </div>
 

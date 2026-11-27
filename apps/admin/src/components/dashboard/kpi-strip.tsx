@@ -1,9 +1,6 @@
-import { TrendingDown, TrendingUp } from "lucide-react";
-
-import { formatDate, formatNumber, formatSigned } from "@/lib/format";
+import { formatDate, formatNumber, formatPercent, formatSigned } from "@/lib/format";
 import { periodPhrase, type Period } from "@/lib/period";
 import type { DashboardStats, IsoDate } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
 interface KpiStripProps {
   stats: DashboardStats;
@@ -11,67 +8,68 @@ interface KpiStripProps {
   today: IsoDate;
 }
 
-/** O'sish foizi; taqqoslash uchun asos bo'lmasa — null. */
-function ratio(part: number, base: number): number | null {
-  return base > 0 ? part / base : null;
+/** Nisbiy o'zgarish matni ("+3,2%"); taqqoslash uchun asos bo'lmasa — null. */
+function change(part: number, base: number): string | null {
+  if (base <= 0) return null;
+  const value = part / base;
+  return `${value >= 0 ? "+" : "−"}${(Math.abs(value) * 100).toFixed(1).replace(".", ",")}%`;
 }
 
-/** CareOps "Revenue / Expenses / …" qatori: bitta kartada 5 ta ko'rsatkich, orasida nozik chiziq. */
+/**
+ * Asosiy 4 ta ko'rsatkich bitta kartada, orasida nozik chiziq. Foizli o'zgarish ko'rinmaydi —
+ * qiymat ustiga olib borilganda (va ekran o'quvchida) chiqadi.
+ */
 export function KpiStrip({ stats, period, today }: KpiStripProps) {
-  const phrase = periodPhrase(period);
+  // Izoh qatori shu so'z bilan boshlanadi: "So'nggi 7 kunda +1 234".
+  const periodText = periodPhrase(period);
+  const phrase = periodText.charAt(0).toUpperCase() + periodText.slice(1);
   const growth = stats.views.growthInRange;
-  const prevTotal = stats.views.total - growth;
   const fromStart = stats.range.from === stats.contest.startsOn;
-  const lastDayLabel =
-    stats.lastDay.date === today ? "Bugungi o'sish" : `${formatDate(stats.lastDay.date)} o'sishi`;
-  const accepted = ratio(stats.reels.accepted, stats.reels.total);
+  const viewsChange = fromStart ? null : change(growth, stats.views.total - growth);
+  const { lastDay } = stats;
+  const dayChange =
+    lastDay.previousGrowth === null ? null : change(lastDay.growth - lastDay.previousGrowth, lastDay.previousGrowth);
+  const participantsChange = fromStart
+    ? null
+    : change(stats.participants.newInRange, stats.participants.total - stats.participants.newInRange);
 
   return (
-    <dl className="grid grid-cols-1 gap-px bg-line sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+    <dl className="grid grid-cols-1 gap-px bg-line sm:grid-cols-2 xl:grid-cols-4">
       <Kpi
         label="Jami ko'rishlar"
         value={formatNumber(stats.views.total)}
         unit="ko'rish"
-        note={`${formatSigned(growth)} ${phrase}`}
-        trend={fromStart ? null : ratio(growth, prevTotal)}
+        note={`${phrase} ${formatSigned(growth)}`}
+        hint={viewsChange && `davr boshiga nisbatan ${viewsChange}`}
       />
       <Kpi
-        label={lastDayLabel}
-        value={formatSigned(stats.lastDay.growth)}
+        label={
+          lastDay.date === today ? "Bugun qo'shilgan ko'rishlar" : `${formatDate(lastDay.date)} kuni qo'shilgan ko'rishlar`
+        }
+        value={formatSigned(lastDay.growth)}
         unit="ko'rish"
         note={
-          stats.lastDay.previousGrowth === null
+          lastDay.previousGrowth === null
             ? "Tanlovning birinchi kuni"
-            : `${formatNumber(stats.lastDay.previousGrowth)} oldingi kun`
+            : `Oldingi kuni: ${formatNumber(lastDay.previousGrowth)}`
         }
-        trend={
-          stats.lastDay.previousGrowth === null
-            ? null
-            : ratio(stats.lastDay.growth - stats.lastDay.previousGrowth, stats.lastDay.previousGrowth)
-        }
+        hint={dayChange && `oldingi kunga nisbatan ${dayChange}`}
       />
       <Kpi
         label="Ishtirokchilar"
         value={formatNumber(stats.participants.total)}
         unit="kishi"
-        note={`${formatSigned(stats.participants.newInRange)} ${phrase}`}
-        trend={
-          fromStart ? null : ratio(stats.participants.newInRange, stats.participants.total - stats.participants.newInRange)
-        }
+        note={`${phrase} ${formatSigned(stats.participants.newInRange)} yangi`}
+        hint={participantsChange && `davr boshiga nisbatan ${participantsChange}`}
       />
       <Kpi
-        label="Qabul qilingan Reellar"
+        label="Qabul qilingan videolar"
         value={formatNumber(stats.reels.accepted)}
-        unit={`/ ${formatNumber(stats.reels.total)}`}
-        note={`${formatNumber(stats.reels.pending)} kutilmoqda · ${formatNumber(stats.reels.rejected)} rad etilgan`}
-        badge={accepted === null ? null : `${Math.round(accepted * 100)}%`}
-      />
-      <Kpi
-        label="Ochiq murojaatlar"
-        value={formatNumber(stats.support.open)}
-        unit="ta"
-        note={`${formatNumber(stats.support.new)} yangi · ${formatNumber(stats.support.inProgress)} ko'rilmoqda`}
-        attention={stats.support.new > 0}
+        unit={`/ jami ${formatNumber(stats.reels.total)}`}
+        note={`${formatNumber(stats.reels.pending)} ta tekshiruvda · ${formatNumber(stats.reels.rejected)} ta rad etilgan`}
+        hint={
+          stats.reels.total > 0 ? `yuborilganlarning ${formatPercent(stats.reels.accepted / stats.reels.total)} qismi` : null
+        }
       />
     </dl>
   );
@@ -82,45 +80,25 @@ function Kpi({
   value,
   unit,
   note,
-  trend = null,
-  badge = null,
-  attention = false,
+  hint,
 }: {
   label: string;
   value: string;
   unit: string;
   note: string;
-  /** Nisbiy o'zgarish (0.032 = +3,2%). */
-  trend?: number | null;
-  badge?: string | null;
-  attention?: boolean;
+  /** Qo'shimcha izoh (foizli o'zgarish) — sichqoncha ustiga kelganda va ekran o'quvchida. */
+  hint: string | null;
 }) {
-  const up = trend !== null && trend >= 0;
-  const TrendIcon = up ? TrendingUp : TrendingDown;
   return (
     <div className="bg-[#fbfbfd] px-5 py-4">
-      <dt className="flex items-center gap-2 text-[13px] text-muted">
-        {label}
-        {attention && <span className="size-1.5 rounded-full bg-down" aria-label="yangi murojaatlar bor" />}
-      </dt>
+      <dt className="text-[13px] text-muted">{label}</dt>
       <dd className="mt-1.5">
-        <p className="flex items-baseline gap-1.5">
+        <p className="flex items-baseline gap-1.5" title={hint ?? undefined}>
           <span className="text-[26px] leading-none font-semibold tracking-tight text-ink tabular-nums">{value}</span>
           <span className="text-sm font-medium text-[#b3b1bb]">{unit}</span>
+          {hint && <span className="sr-only">({hint})</span>}
         </p>
-        <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
-          <span className="tabular-nums">{note}</span>
-          {trend !== null && (
-            <span className={cn("inline-flex items-center gap-0.5 font-medium tabular-nums", up ? "text-up" : "text-down")}>
-              <TrendIcon className="size-3.5" aria-hidden />
-              {up ? "+" : "−"}
-              {(Math.abs(trend) * 100).toFixed(1).replace(".", ",")}%
-            </span>
-          )}
-          {badge && (
-            <span className="rounded-full bg-brand-100 px-1.5 py-px font-medium text-brand-600 tabular-nums">{badge}</span>
-          )}
-        </p>
+        <p className="mt-2 text-xs text-muted tabular-nums">{note}</p>
       </dd>
     </div>
   );

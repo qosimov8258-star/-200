@@ -95,7 +95,7 @@ export function CandidatePicker({ selected, defaults, limit, onSave, onClose }: 
         <SearchInput
           value={search}
           onDebouncedChange={setSearch}
-          placeholder="Ism, telefon yoki shortcode"
+          placeholder="Ism yoki telefon"
           label="Videolarni qidirish"
         />
 

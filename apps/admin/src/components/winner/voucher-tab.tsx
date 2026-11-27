@@ -3,119 +3,116 @@
 import { useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, ArrowLeft, Dices, History, PartyPopper, Plus, Scale, Ticket } from "lucide-react";
+import { AlertCircle, ArrowLeft, Dices, PartyPopper, Scale, Ticket } from "lucide-react";
 
 import { DrawPeriodPicker } from "@/components/draws/draw-period-picker";
 import { DrawPoolCard } from "@/components/draws/draw-pool-card";
 import { DrawResult } from "@/components/draws/draw-result";
 import { DrawSettingsCard } from "@/components/draws/draw-settings-card";
 import { DrawStockSummary } from "@/components/draws/draw-stock-card";
-import { Badge } from "@/components/ui/badge";
+import { VOUCHER_DRAW_ANCHOR, withDrumPrize } from "@/components/prizes/rating-prize";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MoreDetails } from "@/components/ui/more-details";
 import { Spinner } from "@/components/ui/spinner";
-import { getDraw, getDraws, getDrawSetup, previewDraw, runDraw } from "@/lib/api";
+import { getDraw, getDrawSetup, previewDraw, runDraw } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
-import { drawRunSettings, stageLabel, type DrawPeriodChoice } from "@/lib/draw-rules";
-import { formatDateTime, formatNumber } from "@/lib/format";
-import { DRAW_STATUS_LABELS, DRAW_STATUS_TONES } from "@/lib/labels";
-import type { DrawSettings, DrawSetup, VoucherDraw, VoucherDrawSummary } from "@/lib/types";
+import { drawRunSettings, type DrawPeriodChoice } from "@/lib/draw-rules";
+import { formatNumber } from "@/lib/format";
+import type { DrawSettings, DrawSetup, VoucherDraw } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { voucherTabHref } from "@/lib/winner-links";
 
 import { SectionTitle } from "./section-title";
 import { VoucherWinners } from "./voucher-winners";
 
+/** "O'tkazilgan voucher tanlovlari" sarlavhasi — "Barcha tanlovlar" shu yerga qaytaradi. */
+const VOUCHER_DRAWS_ANCHOR = "voucher-draws-title";
+
 /**
- * G'oliblar → "Voucher" tabi: oylik voucherlar uchun random tanlov va uning g'oliblari.
- * Chapda — voucherlar qoldig'i va "Yangi tanlov" (doimiy sozlamalar, bosqich, bitta "Tanlash");
- * tanlov ochilsa (`?draw=<id>`) shu joyda uning natijasi. O'ngda (kompyuterda) — tanlovlar tarixi.
- * Pastda — barcha voucher g'oliblari.
+ * G'oliblar → "Voucher" tabi. Tanlovning o'zi — tepadagi barabanda. Bu yerda tartib: qolgan
+ * voucherlar → "O'tkazilgan voucher tanlovlari" (bitta ro'yxat, g'oliblari qator ichida) → eng
+ * pastda yopiq "Batafsil" (adolatli tanlov qanday ishlaydi; qo'shimcha sozlamalar va qo'lda tanlov).
+ * Tanlov ochilsa (`?draw=<id>`) — butun eni bo'yicha uning natijasi va "Barcha tanlovlar" tugmasi.
  */
 export function VoucherTab() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const selectedId = searchParams.get("draw");
-  /** Tanlovni ochish (`null` — "Yangi tanlov"); brauzer tarixiga yoziladi. */
-  const open = (id: string | null) => router.push(voucherTabHref(id));
+  /**
+   * Tanlovni ochish (`null` — ro'yxatga qaytish); brauzer tarixiga yoziladi. Sahifa natija (yoki
+   * ro'yxat) sarlavhasiga suriladi, tepadagi barabandagi sovrin saqlanadi.
+   */
+  const open = (id: string | null) =>
+    router.push(
+      `${withDrumPrize(voucherTabHref(id), searchParams.get("prize"))}#${id ? VOUCHER_DRAW_ANCHOR : VOUCHER_DRAWS_ANCHOR}`,
+    );
 
-  const setup = useQuery({ queryKey: ["draw-setup"], queryFn: getDrawSetup });
-  const draws = useQuery({ queryKey: ["draws"], queryFn: getDraws });
-
-  /** "Tanlash" bilan hozirgina o'tkazilgan tanlov — natija ustida qisqa xabar ko'rsatiladi. */
+  /** Qo'lda tanlov bilan hozirgina o'tkazilgan tanlov — natija ustida qisqa xabar ko'rsatiladi. */
   const [freshId, setFreshId] = useState<string | null>(null);
+
+  if (selectedId) {
+    return (
+      <section className="space-y-4" aria-labelledby={VOUCHER_DRAW_ANCHOR}>
+        <SectionTitle
+          id={VOUCHER_DRAW_ANCHOR}
+          icon={Dices}
+          title="Tanlov natijasi"
+          action={
+            <Button variant="secondary" onClick={() => open(null)}>
+              <ArrowLeft className="size-4" aria-hidden />
+              Barcha tanlovlar
+            </Button>
+          }
+        />
+        <SelectedDraw id={selectedId} fresh={freshId === selectedId} onBack={() => open(null)} />
+      </section>
+    );
+  }
 
   return (
     <div className="space-y-8">
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="min-w-0 space-y-6">
-          <DrawStockSummary />
+      <DrawStockSummary />
 
-          <section className="space-y-4" aria-labelledby="voucher-draw-title">
-            <SectionTitle
-              id="voucher-draw-title"
-              icon={Dices}
-              title={selectedId ? "Tanlov natijasi" : "Voucher tanlovi sozlamalari"}
-              meta={selectedId ? null : "Tanlovni tepadagi barabanda o'tkazing"}
-              action={
-                selectedId ? (
-                  <Button variant="secondary" onClick={() => open(null)}>
-                    <Plus className="size-4" aria-hidden />
-                    Yangi tanlov
-                  </Button>
-                ) : null
-              }
-            />
-            {selectedId ? (
-              <SelectedDraw id={selectedId} fresh={freshId === selectedId} onBack={() => open(null)} />
-            ) : setup.isPending ? (
-              <Spinner />
-            ) : setup.isError || !setup.data ? (
-              <p role="alert" className="text-sm text-red-700">
-                {setup.isError ? errorMessage(setup.error) : "Sozlamalarni yuklab bo'lmadi."}
-              </p>
-            ) : (
-              // Oddiy yo'l — tepadagi baraban. Bu yerda: zaxira soni, bot xabari, maxsus davr va h.k.
-              <details className="group rounded-2xl border border-line bg-white">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-ink">
-                  Batafsil: sozlamalar, maxsus davr va qo&apos;lda tanlov
-                  <span className="text-xs font-normal text-muted group-open:hidden">ochish</span>
-                </summary>
-                <div className="border-t border-line p-5">
-                  <NewDraw
-                    setup={setup.data}
-                    onCreated={(draw) => {
-                      setFreshId(draw.id);
-                      open(draw.id);
-                    }}
-                  />
-                </div>
-              </details>
-            )}
-          </section>
-        </div>
-
-        <aside className="grid min-w-0 content-start items-start gap-4 md:grid-cols-2 xl:grid-cols-1">
-          <DrawHistory
-            items={draws.data}
-            loading={draws.isPending}
-            error={draws.isError ? errorMessage(draws.error) : null}
-            selectedId={selectedId}
-            onSelect={open}
-          />
-          <FairnessNote />
-        </aside>
-      </div>
-
-      <section className="space-y-4" aria-labelledby="voucher-winners-title">
-        <SectionTitle id="voucher-winners-title" icon={Ticket} title="Voucher g'oliblari" />
+      <section className="space-y-4" aria-labelledby={VOUCHER_DRAWS_ANCHOR}>
+        <SectionTitle id={VOUCHER_DRAWS_ANCHOR} icon={Ticket} title="O'tkazilgan voucher tanlovlari" />
         <VoucherWinners />
       </section>
+
+      <div className="space-y-3">
+        <MoreDetails title="Batafsil: adolatli tanlov qanday ishlaydi">
+          <FairnessNote />
+        </MoreDetails>
+        <MoreDetails
+          title="Qo'shimcha sozlamalar (kamdan-kam kerak)"
+          meta="zaxira soni, bot xabari, maxsus davr, qo'lda tanlov"
+        >
+          <AdvancedSettings
+            onCreated={(draw) => {
+              setFreshId(draw.id);
+              open(draw.id);
+            }}
+          />
+        </MoreDetails>
+      </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
+
+/** Doimiy sozlamalar va qo'lda tanlov — oddiy yo'l tepadagi baraban, bu yer kamdan-kam kerak. */
+function AdvancedSettings({ onCreated }: { onCreated: (draw: VoucherDraw) => void }) {
+  const setup = useQuery({ queryKey: ["draw-setup"], queryFn: getDrawSetup });
+  if (setup.isPending) return <Spinner />;
+  if (setup.isError || !setup.data) {
+    return (
+      <p role="alert" className="text-sm text-red-700">
+        {setup.isError ? errorMessage(setup.error) : "Sozlamalarni yuklab bo'lmadi."}
+      </p>
+    );
+  }
+  return <NewDraw setup={setup.data} onCreated={onCreated} />;
+}
 
 /** Yangi tanlov: doimiy sozlamalar, bosqich va bitta "Tanlash" tugmasi. */
 function NewDraw({ setup, onCreated }: { setup: DrawSetup; onCreated: (draw: VoucherDraw) => void }) {
@@ -160,7 +157,7 @@ function NewDraw({ setup, onCreated }: { setup: DrawSetup; onCreated: (draw: Vou
     : editing
       ? "Avval sozlamalarni saqlang yoki tahrirlashni bekor qiling."
       : existing
-        ? "Bu bosqich uchun tanlov o'tkazilgan — natija tarixda."
+        ? "Bu bosqich uchun tanlov o'tkazilgan — natija ro'yxatda."
         : empty
           ? "Bu bosqichda talabga javob beradigan nomzod yo'q."
           : null;
@@ -201,14 +198,14 @@ function NewDraw({ setup, onCreated }: { setup: DrawSetup; onCreated: (draw: Vou
           onClick={() => settings && run.mutate(settings)}
         >
           {!run.isPending && <Dices className="size-5" aria-hidden />}
-          {run.isPending ? "Tanlanmoqda…" : "Tanlash"}
+          {run.isPending ? "Tanlanmoqda…" : "Qo'lda tanlash"}
         </Button>
         <p className={cn("text-center text-xs", blocker ? "text-amber-700" : "text-slate-500")}>
           {blocker ?? (
             <>
               Bir bosishda {formatNumber(saved?.winnersCount ?? 0)} g&apos;olib va{" "}
-              {formatNumber(saved?.reservesCount ?? 0)} zaxira tanlanadi. Natija qoralama bo&apos;ladi — tekshirib,
-              tasdiqlagach g&apos;oliblarga yuboriladi.
+              {formatNumber(saved?.reservesCount ?? 0)} zaxira tanlanadi. Natijani tasdiqlamaguningizcha hech kimga
+              xabar bormaydi.
             </>
           )}
         </p>
@@ -254,81 +251,20 @@ function SelectedDraw({ id, fresh, onBack }: { id: string; fresh: boolean; onBac
   );
 }
 
-function DrawHistory({
-  items,
-  loading,
-  error,
-  selectedId,
-  onSelect,
-}: {
-  items: VoucherDrawSummary[] | undefined;
-  loading: boolean;
-  error: string | null;
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-}) {
-  return (
-    <Card>
-      <CardHeader className="flex items-center gap-2">
-        <History className="size-4 text-slate-500" aria-hidden />
-        <CardTitle>Tanlovlar tarixi</CardTitle>
-      </CardHeader>
-      {loading ? (
-        <Spinner className="px-5 py-4" />
-      ) : error ? (
-        <p className="px-5 py-4 text-sm text-red-700">{error}</p>
-      ) : !items || items.length === 0 ? (
-        <p className="px-5 py-6 text-center text-sm text-slate-500">Hali tanlov o&apos;tkazilmagan</p>
-      ) : (
-        <ul className="divide-y divide-slate-100">
-          {items.map((item) => (
-            <li key={item.id}>
-              <button
-                type="button"
-                onClick={() => onSelect(item.id)}
-                aria-current={selectedId === item.id ? "true" : undefined}
-                className={cn(
-                  "w-full px-5 py-3 text-left transition-colors hover:bg-slate-50",
-                  selectedId === item.id && "bg-brand-50/60",
-                )}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-semibold">
-                    #{item.number} · {stageLabel(item.stage)}
-                  </span>
-                  <Badge tone={DRAW_STATUS_TONES[item.status]}>{DRAW_STATUS_LABELS[item.status]}</Badge>
-                </div>
-                <p className="mt-0.5 truncate text-xs text-slate-500">{item.prizeTitle}</p>
-                <p className="mt-1 text-xs text-slate-600 tabular-nums">
-                  {formatNumber(item.winners)} g&apos;olib · {formatNumber(item.poolSize)} nomzod
-                  {item.status === "SENT" && ` · ${formatNumber(item.delivery.sent)} yuborildi`}
-                </p>
-                <p className="text-[11px] text-slate-400">{formatDateTime(item.createdAt)}</p>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
-  );
-}
-
 function FairnessNote() {
   return (
-    <Card className="bg-slate-50/60">
-      <CardContent className="space-y-2 text-xs text-slate-600">
-        <p className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-          <Scale className="size-4 text-brand-600" aria-hidden />
-          Adolatli tanlov qanday ishlaydi
-        </p>
-        <ol className="list-decimal space-y-1 pl-4">
-          <li>Talabga javob beradigan har bir ishtirokchida teng imkoniyat bor.</li>
-          <li>Oldingi oylarda voucher yutganlar ham qatnashadi — har oy alohida tanlov (oferta 6.1.5).</li>
-          <li>Server kriptografik tasodifiy kalit (seed) yaratadi va nomzodlarni aralashtiradi.</li>
-          <li>Birinchilari — g&apos;oliblar, keyingilari — zaxira.</li>
-          <li>Kalit va nomzodlar izi saqlanadi: natijani istalgan payt qayta tekshirish mumkin.</li>
-        </ol>
-      </CardContent>
-    </Card>
+    <div className="space-y-2 text-sm text-slate-600">
+      <p className="flex items-center gap-2 font-medium text-slate-800">
+        <Scale className="size-4 text-brand-600" aria-hidden />
+        Har bir tanlov bir xil tartibda o&apos;tadi:
+      </p>
+      <ol className="list-decimal space-y-1 pl-5">
+        <li>Talabga javob beradigan har bir ishtirokchida teng imkoniyat bor.</li>
+        <li>Oldingi oylarda voucher yutganlar ham qatnashadi — har oy alohida tanlov.</li>
+        <li>Server tasodifiy kalit yaratadi va nomzodlarni shu kalit bilan aralashtiradi.</li>
+        <li>Birinchilari — g&apos;oliblar, keyingilari — zaxira.</li>
+        <li>Kalit va nomzodlar ro&apos;yxati saqlanadi: natijani istalgan payt qayta tekshirish mumkin.</li>
+      </ol>
+    </div>
   );
 }

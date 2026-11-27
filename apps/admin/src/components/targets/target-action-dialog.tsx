@@ -20,20 +20,20 @@ const ACTIONS: Record<TargetAction, ActionConfig> = {
     title: "Ishtirokchini ogohlantirish",
     confirmLabel: "Ogohlantirish",
     variant: "primary",
-    placeholder: "Masalan: Reel uchun reklama yoqilgani aniqlandi, takrorlansa diskvalifikatsiya",
+    placeholder: "Masalan: videoga reklama yoqilgani aniqlandi, takrorlansa tanlovdan chetlatiladi",
     describe: (name) => (
       <>
-        <strong className="font-medium text-slate-900">{name}</strong> &quot;Ogohlantirilgan&quot;
-        holatiga o&apos;tadi va ilovada (hamda Telegramda) ogohlantirish oladi. Reytingda qoladi.
+        <strong className="font-medium text-slate-900">{name}</strong> «Ogohlantirilgan» holatiga
+        o&apos;tadi va ilovada (hamda Telegramda) ogohlantirish oladi. Reytingda qoladi.
       </>
     ),
     successMessage: (name) => `${name} ogohlantirildi.`,
   },
   disqualify: {
-    title: "Target uchun diskvalifikatsiya",
-    confirmLabel: "Diskvalifikatsiya qilish",
+    title: "Tanlovdan chetlatish",
+    confirmLabel: "Tanlovdan chetlatish",
     variant: "danger",
-    placeholder: "Masalan: Reklama Instagram API va skrinshot bilan tasdiqlandi",
+    placeholder: "Masalan: skrinshotda «Reklama» belgisi aniq ko'rinadi",
     describe: (name) => (
       <>
         <strong className="font-medium text-slate-900">{name}</strong> tanlovdan chetlatiladi:
@@ -43,21 +43,21 @@ const ACTIONS: Record<TargetAction, ActionConfig> = {
         </strong>
       </>
     ),
-    successMessage: (name) => `${name} diskvalifikatsiya qilindi.`,
+    successMessage: (name) => `${name} tanlovdan chetlatildi.`,
   },
   dismiss: {
-    title: "Ro'yxatdan chiqarish",
-    confirmLabel: "Ro'yxatdan chiqarish",
+    title: "Bu xato signalmi?",
+    confirmLabel: "Xato signal — yopish",
     variant: "primary",
-    placeholder: "Masalan: O'sish organik — Reel mashhur sahifada ulashilgan",
+    placeholder: "Masalan: ko'rishlar tabiiy o'sgan — video mashhur sahifada ulashilgan",
     describe: (name) => (
       <>
-        Signal yolg&apos;on deb topiladi:{" "}
-        <strong className="font-medium text-slate-900">{name}</strong> &quot;Target
-        yoqqanlar&quot; ro&apos;yxatidan chiqariladi. Ishtirokchining holati o&apos;zgarmaydi.
+        Signal xato deb belgilanadi va{" "}
+        <strong className="font-medium text-slate-900">{name}</strong> shu ro&apos;yxatdan olinadi.
+        Ishtirokchiga hech narsa bo&apos;lmaydi: holati o&apos;zgarmaydi, xabar bormaydi.
       </>
     ),
-    successMessage: (name) => `${name} ro'yxatdan chiqarildi.`,
+    successMessage: (name) => `${name}: signal xato deb yopildi.`,
   },
 };
 
@@ -71,7 +71,7 @@ interface TargetActionDialogProps {
 export function TargetActionDialog({ item, action, onClose, onDone }: TargetActionDialogProps) {
   const queryClient = useQueryClient();
   const config = ACTIONS[action];
-  const name = `${item.participant.firstName} ${item.participant.lastName}`;
+  const name = targetParticipantName(item) || "Ismsiz ishtirokchi";
 
   return (
     <ReasonDialog
@@ -95,6 +95,11 @@ export function TargetActionDialog({ item, action, onClose, onDone }: TargetActi
   );
 }
 
+/** Ishtirokchi ismi: familiya endi so'ralmaydi (bo'sh bo'lishi mumkin) — ortiqcha bo'shliqsiz. */
+export function targetParticipantName(item: TargetCaseListItem): string {
+  return `${item.participant.firstName} ${item.participant.lastName}`.trim();
+}
+
 /** Target holati va ishtirokchi holatiga qarab mumkin bo'lgan amallar. */
 export function availableTargetActions(item: TargetCaseListItem): TargetAction[] {
   if (item.status === "NEW") {
@@ -110,6 +115,13 @@ export function availableTargetActions(item: TargetCaseListItem): TargetAction[]
 
 export const TARGET_ACTION_LABELS: Record<TargetAction, string> = {
   warn: "Ogohlantirish",
-  disqualify: "Diskvalifikatsiya qilish",
-  dismiss: "Ro'yxatdan chiqarish",
+  disqualify: "Tanlovdan chetlatish",
+  dismiss: "Xato signal — yopish",
+};
+
+/** Har bir qarorning oqibati — dalil oynasida tugma yonida bir qatorda. */
+export const TARGET_ACTION_CONSEQUENCES: Record<TargetAction, string> = {
+  warn: "Reytingda qoladi, ilovada va botda ogohlantirish oladi.",
+  disqualify: "Reytingdan chiqadi, g'olib bo'la olmaydi. Qaytarib bo'lmaydi.",
+  dismiss: "Ro'yxatdan olinadi, ishtirokchiga hech narsa bo'lmaydi.",
 };

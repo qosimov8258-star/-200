@@ -369,6 +369,25 @@ test("confirm needs the final sync, the current candidate and every check passed
   assert.equal(status(() => winner.unconfirm(ADMIN)), 409, "bekor qilinadigan tasdiq yo'q");
 });
 
+test("once the car winner is confirmed, the car draw cannot be cancelled or its winner replaced (until unconfirmed)", async () => {
+  const { winner, draws, setNow, stats, drawCar } = await setup();
+  setNow("2027-01-01", "00:01");
+  const [first] = drawCar();
+  setNow("2027-01-01", "00:05");
+  await stats.syncAll("final");
+  passAllManual(winner, first);
+  winner.confirm(first, ADMIN);
+
+  const carDraw = draws.mainDraw("car");
+  assert.ok(carDraw);
+  assert.equal(status(() => draws.cancel(carDraw.id, "Qayta o'tkazamiz", "Admin")), 409);
+  assert.equal(status(() => draws.replace(carDraw.id, first, "Boshqasini qo'yamiz", "Admin")), 409);
+  assert.match(message(() => draws.cancel(carDraw.id, "Qayta o'tkazamiz", "Admin")), /tasdiqni bekor qiling/);
+
+  winner.unconfirm(ADMIN);
+  assert.equal(draws.cancel(carDraw.id, "Qayta o'tkazamiz", "Admin").status, "CANCELLED", "tasdiq bekor qilingach — mumkin");
+});
+
 test("skip moves the next reserve of the car draw up and keeps the reason; only the current candidate can be skipped", async () => {
   const { winner, audit, drawCar, finish } = await setup();
   await finish();

@@ -4,10 +4,9 @@ import { CheckCircle2, Clock, Crown, ExternalLink, XCircle } from "lucide-react"
 
 import { IosIcon } from "@/components/ui/ios-icon";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatDateTime, formatNumber } from "@/lib/format";
+import { formatNumber } from "@/lib/format";
 import { WINNER_CHECK_LABELS } from "@/lib/labels";
-import type { WinnerCheck, WinnerManualCheckKey, WinnerOverview } from "@/lib/types";
+import type { WinnerCandidate, WinnerCheck, WinnerManualCheckKey, WinnerOverview } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /** Qo'lda tekshiriladigan bandni belgilash: o'tdi / o'tmadi. */
@@ -25,93 +24,86 @@ const MANUAL_BUTTONS: Record<WinnerManualCheckKey, [string, string]> = {
 
 const isManualKey = (key: WinnerCheck["key"]): key is WinnerManualCheckKey => key in MANUAL_BUTTONS;
 
-interface WinnerCandidateCardProps {
-  overview: WinnerOverview;
-  onAction: (action: WinnerAction) => void;
-}
-
-const STAGE_TITLES: Record<WinnerOverview["stage"], string> = {
-  NOT_STARTED: "Random tanlov g'olibi (oldindan)",
+/** Nomzod ismi ustidagi kichik izoh — hozir u kim. */
+const STAGE_CAPTIONS: Record<WinnerOverview["stage"], string> = {
+  NOT_STARTED: "G'olib nomzodi — aksiya tugagach tasdiqlanadi",
   CANDIDATE: "G'olib nomzodi",
   CONFIRMED: "G'olib (tasdiqlangan)",
   ANNOUNCED: "G'olib",
 };
 
-export function WinnerCandidateCard({ overview, onAction }: WinnerCandidateCardProps) {
-  const { candidate, stage } = overview;
+export const candidateName = (candidate: WinnerCandidate): string =>
+  `${candidate.participant.firstName} ${candidate.participant.lastName}`;
 
-  if (!candidate) {
-    return (
-      <Card>
-        <CardContent className="py-10 text-center text-sm text-slate-500">
-          Nomzod yo&apos;q — avval yuqorida avtomobil uchun random tanlov o&apos;tkazing.
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const name = `${candidate.participant.firstName} ${candidate.participant.lastName}`;
+/** Tekshiruv bandlari bo'yicha hisob: nechtasi o'tdi, o'tmadi, kutmoqda. */
+export function checkCounts(candidate: WinnerCandidate) {
   const passed = candidate.checks.filter((check) => check.status === "PASSED").length;
-  const allPassed = passed === candidate.checks.length;
-  const manualEditable = stage === "NOT_STARTED" || stage === "CANDIDATE";
+  const failed = candidate.checks.filter((check) => check.status === "FAILED").length;
+  return { passed, failed, total: candidate.checks.length, allPassed: passed === candidate.checks.length };
+}
 
+/**
+ * Nomzod: ismi, barabandagi o'rni, ko'rishlari, telefon, Instagram va videosi. `reservePlace` —
+ * nomzod tanlovning zaxirasidan o'tgan bo'lsa, uning zaxira raqami (oldingi nomzod rad etilgan yoki
+ * chiqib ketgan); `candidate.rank` bunga yaramaydi — rad etilganlar navbatdan chiqqach u yana 1 bo'ladi.
+ */
+export function CandidateSummary({
+  candidate,
+  stage,
+  reservePlace,
+}: {
+  candidate: WinnerCandidate;
+  stage: WinnerOverview["stage"];
+  reservePlace: number | null;
+}) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{STAGE_TITLES[stage]}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        <div className="flex flex-wrap items-start gap-4">
-          <IosIcon icon={Crown} tint="yellow" size={48} />
-          <div className="min-w-0 flex-1">
-            <p className="text-xl font-semibold text-slate-900">{name}</p>
-            <p className="text-sm text-slate-500">
-              {candidate.rank === 1 ? "G'olib" : `${candidate.rank - 1}-zaxira`} · {formatNumber(candidate.views)}{" "}
-              ko&apos;rish (jami)
-              {candidate.participant.age > 0 && ` · ${candidate.participant.age} yosh`}
-            </p>
-            <p className="mt-1 flex flex-wrap gap-x-3 text-sm text-slate-600">
-              <span className="tabular-nums">{candidate.participant.phone}</span>
-              {candidate.participant.instagramUsername && (
-                <span>@{candidate.participant.instagramUsername}</span>
-              )}
-              <a
-                href={candidate.reelUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-brand-700 hover:underline"
-              >
-                Reelni ochish
-                <ExternalLink className="size-3.5" aria-hidden />
-              </a>
-            </p>
-          </div>
-        </div>
+    <div className="flex flex-wrap items-start gap-3">
+      <IosIcon icon={Crown} tint="yellow" size={40} />
+      <div className="min-w-0 flex-1">
+        <p className="text-xs text-muted">{STAGE_CAPTIONS[stage]}</p>
+        <p className="text-lg font-semibold text-ink">{candidateName(candidate)}</p>
+        <p className="text-sm text-slate-500 tabular-nums">
+          {reservePlace === null
+            ? "Barabanda chiqqan g'olib"
+            : `${reservePlace}-zaxira g'olib (oldingi nomzod o'rniga)`}
+          <span aria-hidden> · </span>
+          {formatNumber(candidate.views)} ko&apos;rish (jami)
+          {candidate.participant.age > 0 && ` · ${candidate.participant.age} yosh`}
+        </p>
+        <p className="mt-1 flex flex-wrap gap-x-3 text-sm text-slate-600">
+          <span className="tabular-nums">{candidate.participant.phone}</span>
+          {candidate.participant.instagramUsername && <span>@{candidate.participant.instagramUsername}</span>}
+          <a
+            href={candidate.reelUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-brand-700 hover:underline"
+          >
+            Videoni ochish
+            <ExternalLink className="size-3.5" aria-hidden />
+          </a>
+        </p>
+      </div>
+    </div>
+  );
+}
 
-        <section aria-labelledby="winner-checks-title">
-          <div className="mb-2 flex items-baseline justify-between gap-2">
-            <h3 id="winner-checks-title" className="text-sm font-semibold text-slate-900">
-              Tekshiruv ro&apos;yxati
-            </h3>
-            <span className="text-xs text-slate-500 tabular-nums">
-              {candidate.checks.length} tadan {passed} tasi o&apos;tdi
-            </span>
-          </div>
-          <ul className="divide-y divide-slate-100 rounded-md border border-slate-200">
-            {candidate.checks.map((check) => (
-              <CheckRow
-                key={check.key}
-                check={check}
-                editable={check.manual && manualEditable}
-                onAction={onAction}
-              />
-            ))}
-          </ul>
-        </section>
-
-        <StageActions overview={overview} allPassed={allPassed} onAction={onAction} />
-      </CardContent>
-    </Card>
+/** Tekshiruv bandlari; qo'lda belgilanadigan bandda (reklama tarixi) — "Reklama yo'q / bor" tugmalari. */
+export function CheckList({
+  candidate,
+  editable,
+  onAction,
+}: {
+  candidate: WinnerCandidate;
+  editable: boolean;
+  onAction: (action: WinnerAction) => void;
+}) {
+  return (
+    <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white" aria-label="Tekshiruv bandlari">
+      {candidate.checks.map((check) => (
+        <CheckRow key={check.key} check={check} editable={check.manual && editable} onAction={onAction} />
+      ))}
+    </ul>
   );
 }
 
@@ -146,9 +138,7 @@ function CheckRow({
         </p>
         <p className="text-sm text-slate-600">{check.detail}</p>
       </div>
-      {editable && isManualKey(check.key) && (
-        <ManualButtons check={check.key} onAction={onAction} />
-      )}
+      {editable && isManualKey(check.key) && <ManualButtons check={check.key} onAction={onAction} />}
     </li>
   );
 }
@@ -171,68 +161,4 @@ function ManualButtons({
       </Button>
     </div>
   );
-}
-
-function StageActions({
-  overview,
-  allPassed,
-  onAction,
-}: {
-  overview: WinnerOverview;
-  allPassed: boolean;
-  onAction: (action: WinnerAction) => void;
-}) {
-  switch (overview.stage) {
-    case "NOT_STARTED":
-      return (
-        <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
-          Tasdiqlash aksiya tugagach ochiladi (yakuniy ko&apos;rishlar 27.02.2027 23:59 holatida). Reklama
-          tarixi g&apos;olib bilan yuzma-yuz uchrashuvda ko&apos;riladi.
-        </p>
-      );
-    case "CANDIDATE":
-      return (
-        <div className="flex flex-col gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:items-center">
-          <Button onClick={() => onAction("confirm")} disabled={!allPassed}>
-            G&apos;olibni tasdiqlash
-          </Button>
-          <Button variant="secondary" onClick={() => onAction("skip")}>
-            Nomzodni rad etish
-          </Button>
-          {!allPassed && (
-            <p className="text-xs text-slate-500 sm:ml-2">
-              Tasdiqlash uchun barcha bandlar o&apos;tishi kerak.
-            </p>
-          )}
-        </div>
-      );
-    case "CONFIRMED":
-      return (
-        <div className="space-y-3 border-t border-slate-100 pt-4">
-          {overview.confirmed && (
-            <p className="text-sm text-slate-600">
-              Tasdiqlangan: {formatDateTime(overview.confirmed.at)} · {overview.confirmed.by}
-            </p>
-          )}
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Button onClick={() => onAction("announce")}>G&apos;olibni e&apos;lon qilish</Button>
-            <Button variant="ghost" onClick={() => onAction("unconfirm")}>
-              Tasdiqni bekor qilish
-            </Button>
-          </div>
-        </div>
-      );
-    case "ANNOUNCED":
-      return (
-        <div className="flex items-start gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
-          <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden />
-          <span>
-            G&apos;olib e&apos;lon qilindi
-            {overview.announced &&
-              `: ${formatDateTime(overview.announced.at)} · ${overview.announced.by}`}
-            . Ilovada &quot;G&apos;olib e&apos;loni&quot; ekrani ko&apos;rinmoqda.
-          </span>
-        </div>
-      );
-  }
 }

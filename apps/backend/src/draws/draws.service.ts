@@ -593,8 +593,26 @@ export class DrawsService {
     return draw;
   }
 
+  /**
+   * Avtomobil tanlovi qulfi — `WinnerService` ulaydi: avtomobil g'olibi tasdiqlangan yoki e'lon
+   * qilingan bo'lsa, sababi (409 matni), aks holda null.
+   */
+  private carLock: (() => string | null) | null = null;
+
+  lockCarDraw(check: () => string | null): void {
+    this.carLock = check;
+  }
+
+  /** G'olib tasdiqlangan/e'lon qilingan avtomobil tanlovini bekor qilib ham, g'olibini almashtirib ham bo'lmaydi. */
+  private assertCarDrawOpen(draw: VoucherDraw): void {
+    if (draw.prizeId !== mainPrizeId("car")) return;
+    const reason = this.carLock?.() ?? null;
+    if (reason) throw fail(409, reason);
+  }
+
   replace(id: string, participantId: string, reason: string, actor: string): VoucherDraw {
     const draw = this.get(id);
+    this.assertCarDrawOpen(draw);
     const why = reason.trim();
     if (draw.status === "CANCELLED") throw fail(409, "Tanlov bekor qilingan.");
     if (why.length < MIN_REASON_LENGTH) throw fail(400, "Sababni yozing (kamida 5 belgi).");
@@ -634,6 +652,7 @@ export class DrawsService {
 
   cancel(id: string, reason: string, actor: string): VoucherDraw {
     const draw = this.get(id);
+    this.assertCarDrawOpen(draw);
     const why = reason.trim();
     if (draw.status !== "DRAFT" && draw.status !== "CONFIRMED") {
       throw fail(409, "G'oliblarga xabar yuborilgan tanlovni bekor qilib bo'lmaydi.");

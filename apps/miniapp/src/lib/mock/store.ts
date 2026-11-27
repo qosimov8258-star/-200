@@ -203,11 +203,13 @@ export async function webRegister(body: WebRegisterRequest): Promise<void> {
 
 /**
  * Bot orqali raqam ulashilib, saytdagi hisob Telegram'ga ulanganini taqlid qiladi: hisob endi
- * Telegram hisobi, eski sayt sessiyasi yopiladi (qayta "Telegram orqali kirish" kerak).
+ * Telegram hisobi, eski sayt sessiyasi yopiladi. Sessiyani tizim yopgani va raqam egasini Telegram
+ * tasdiqlagani uchun saytga bir marta qayta kirish ochiladi ("Hisobim bor — kirish" yoki
+ * "Telegram hisobi bilan kirish") — backenddagi `webLoginGrant` kabi.
  */
 export async function simulateTelegramLink(): Promise<void> {
   await wait(600);
-  update({ webAccount: false, webSession: false });
+  update({ webAccount: false, webSession: false, webLoginUsed: false });
 }
 
 /**

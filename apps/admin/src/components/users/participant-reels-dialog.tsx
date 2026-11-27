@@ -2,7 +2,7 @@
 
 import { useId } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Clapperboard, ExternalLink, Flag } from "lucide-react";
+import { AlertTriangle, Ban, ChevronDown, Clapperboard, ExternalLink, Flag, LockOpen, UserX } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,12 +23,15 @@ import {
 } from "@/lib/labels";
 import type {
   AdminReelItem,
+  ParticipantAction,
   ParticipantListItem,
   ParticipantReelCounts,
   ParticipantReels,
+  ParticipantStatus,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+import { PrizeRangeChip, prizeRangeFor, showsPrizeRange, usePrizeRanges } from "./prize-ranges";
 import { ReelCountBadges } from "./reel-count-badges";
 import { fullName } from "./users-table";
 
@@ -36,6 +39,13 @@ interface ParticipantReelsDialogProps {
   participant: Pick<ParticipantListItem, "id" | "firstName" | "lastName">;
   /** Shu video ro'yxatda ajratib ko'rsatiladi (masalan, Qo'lda tekshiruvdan ochilganda). */
   highlight?: string;
+  /** Ajratilgan video nima ekani — ekran o'quvchilar uchun (standart: qo'lda tekshiruvdagi video). */
+  highlightLabel?: string;
+  /**
+   * Berilsa — pastda "Bloklash" / "Blokdan chiqarish" va "Tanlovdan chetlatish" tugmalari chiqadi
+   * (Ishtirokchilar sahifasidan). Berilmasa — faqat "Yopish" (masalan, Qo'lda tekshiruvda).
+   */
+  onAction?: (action: ParticipantAction) => void;
   onClose: () => void;
 }
 
@@ -44,12 +54,22 @@ interface ParticipantReelsDialogProps {
  * ko'rishlari va shubha belgilari. Ishtirokchining natijasi — barcha tasdiqlangan videolari
  * ko'rishlarining yig'indisi (oferta 7.1).
  */
-export function ParticipantReelsDialog({ participant, highlight, onClose }: ParticipantReelsDialogProps) {
+export function ParticipantReelsDialog({
+  participant,
+  highlight,
+  highlightLabel = "qo'lda tekshiruvdagi video",
+  onAction,
+  onClose,
+}: ParticipantReelsDialogProps) {
   const name = fullName(participant);
   const { data, error, isPending, isError, isFetching, refetch } = useQuery({
     queryKey: ["participant-reels", participant.id],
     queryFn: () => getParticipantReels(participant.id),
   });
+
+  // Amal tugmalari faqat holat ma'lum bo'lganda; chetlatilgan ishtirokchiga amal yo'q.
+  const status = data?.participant.status;
+  const actionStatus = onAction && status && status !== "DISQUALIFIED" ? status : null;
 
   return (
     <Dialog open onClose={onClose} title={name} className="max-w-2xl">
@@ -66,15 +86,50 @@ export function ParticipantReelsDialog({ participant, highlight, onClose }: Part
           </Button>
         </div>
       ) : (
-        <ReelsBody data={data} highlight={highlight} />
+        <ReelsBody data={data} highlight={highlight} highlightLabel={highlightLabel} />
       )}
 
-      <div className="mt-5 flex justify-end border-t border-slate-100 pt-4">
+      <div
+        className={cn(
+          "mt-5 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4",
+          actionStatus ? "justify-between" : "justify-end",
+        )}
+      >
+        {onAction && actionStatus && <ParticipantActions status={actionStatus} onAction={onAction} />}
         <Button variant="secondary" onClick={onClose}>
           Yopish
         </Button>
       </div>
     </Dialog>
+  );
+}
+
+/** Oyna pastidagi amallar: videolarni ko'rib bo'lgach, oynani yopmasdan qaror qilish. */
+function ParticipantActions({
+  status,
+  onAction,
+}: {
+  status: ParticipantStatus;
+  onAction: (action: ParticipantAction) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {status === "BLOCKED" ? (
+        <Button variant="secondary" onClick={() => onAction("unblock")}>
+          <LockOpen className="size-4" aria-hidden />
+          Blokdan chiqarish
+        </Button>
+      ) : (
+        <Button variant="secondary" onClick={() => onAction("block")}>
+          <Ban className="size-4" aria-hidden />
+          Bloklash
+        </Button>
+      )}
+      <Button variant="danger" onClick={() => onAction("disqualify")}>
+        <UserX className="size-4" aria-hidden />
+        Tanlovdan chetlatish
+      </Button>
+    </div>
   );
 }
 
@@ -88,13 +143,24 @@ function countReels(reels: AdminReelItem[]): ParticipantReelCounts {
   return counts;
 }
 
-function ReelsBody({ data, highlight }: { data: ParticipantReels; highlight?: string }) {
+function ReelsBody({
+  data,
+  highlight,
+  highlightLabel,
+}: {
+  data: ParticipantReels;
+  highlight?: string;
+  highlightLabel: string;
+}) {
   // Tartib backenddan: qabul qilinganlar ko'rishlar bo'yicha, keyin tekshiruvdagilar, keyin rad etilganlar.
   const reels = data.reels;
   const acceptedCount = reels.filter((reel) => reel.status === "ACCEPTED").length;
   const profile = data.participant;
   const usernames = profile.instagramUsernames;
   const listTitleId = useId();
+  const prizeRanges = usePrizeRanges();
+  const prizeRange =
+    acceptedCount > 0 && showsPrizeRange(profile.status) ? prizeRangeFor(prizeRanges, data.totalViews) : null;
 
   return (
     <div className="space-y-4 text-sm">
@@ -134,7 +200,7 @@ function ReelsBody({ data, highlight }: { data: ParticipantReels; highlight?: st
           </dt>
           <dd className="mt-0.5">
             {usernames.length === 0 ? (
-              <span className="text-slate-400">Aniqlanmagan</span>
+              <span className="text-slate-400">Video tekshirilgach chiqadi</span>
             ) : (
               <ul className="flex flex-wrap gap-x-3 gap-y-0.5">
                 {usernames.map((username) => (
@@ -156,6 +222,11 @@ function ReelsBody({ data, highlight }: { data: ParticipantReels; highlight?: st
               ? "qabul qilingan video yo'q"
               : `${formatNumber(acceptedCount)} ta tasdiqlangan video yig'indisi`}
           </dd>
+          {prizeRange && (
+            <dd className="mt-1">
+              <PrizeRangeChip kind={prizeRange.kind} />
+            </dd>
+          )}
         </div>
         <div>
           <dt className="text-xs text-slate-500">Videolar</dt>
@@ -180,7 +251,12 @@ function ReelsBody({ data, highlight }: { data: ParticipantReels; highlight?: st
           </h3>
           <ul className="max-h-[55vh] divide-y divide-slate-100 overflow-y-auto rounded-md border border-slate-200">
             {reels.map((reel) => (
-              <ReelRow key={reel.shortcode} reel={reel} highlighted={reel.shortcode === highlight} />
+              <ReelRow
+                key={reel.shortcode}
+                reel={reel}
+                highlighted={reel.shortcode === highlight}
+                highlightLabel={highlightLabel}
+              />
             ))}
           </ul>
         </section>
@@ -189,7 +265,15 @@ function ReelsBody({ data, highlight }: { data: ParticipantReels; highlight?: st
   );
 }
 
-function ReelRow({ reel, highlighted }: { reel: AdminReelItem; highlighted: boolean }) {
+function ReelRow({
+  reel,
+  highlighted,
+  highlightLabel,
+}: {
+  reel: AdminReelItem;
+  highlighted: boolean;
+  highlightLabel: string;
+}) {
   const synced = reel.lastSyncedAt !== null;
 
   return (
@@ -199,13 +283,14 @@ function ReelRow({ reel, highlighted }: { reel: AdminReelItem; highlighted: bool
           href={reel.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex min-w-0 items-center gap-1 font-mono text-[13px] break-all text-brand-700 hover:underline"
+          title={`Video: ${reel.shortcode}`}
+          className="inline-flex min-w-0 items-center gap-1 font-medium text-brand-700 hover:underline"
         >
-          {reel.shortcode}
+          Videoni ochish
           <ExternalLink className="size-3.5 shrink-0" aria-hidden />
-          <span className="sr-only">(Instagramda, yangi oynada)</span>
+          <span className="sr-only">({reel.shortcode}, Instagramda, yangi oynada)</span>
         </a>
-        {highlighted && <span className="sr-only">— qo&apos;lda tekshiruvdagi video</span>}
+        {highlighted && <span className="sr-only">— {highlightLabel}</span>}
         <span className="inline-flex flex-wrap items-center gap-1.5">
           {reel.manualReview ? (
             <Badge tone="brand">{MANUAL_REVIEW_REEL_LABEL}</Badge>
@@ -221,14 +306,7 @@ function ReelRow({ reel, highlighted }: { reel: AdminReelItem; highlighted: bool
         </p>
       )}
 
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-3">
-        <Meta label="Akkaunt">
-          {reel.owner ? (
-            <InstagramLink username={reel.owner} />
-          ) : (
-            <span className="text-slate-400">Aniqlanmagan</span>
-          )}
-        </Meta>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
         <Meta label="Ko'rishlar">
           {synced ? (
             <span className="font-semibold tabular-nums">{formatNumber(reel.views)}</span>
@@ -236,21 +314,8 @@ function ReelRow({ reel, highlighted }: { reel: AdminReelItem; highlighted: bool
             <span className="text-slate-400">Hali o&apos;qilmagan</span>
           )}
         </Meta>
-        <Meta label="Layklar">
-          <span className="tabular-nums">{reel.likes === null ? "—" : formatNumber(reel.likes)}</span>
-        </Meta>
         <Meta label="Yuborilgan">
           <span className="tabular-nums">{formatDateTime(reel.submittedAt)}</span>
-        </Meta>
-        <Meta label="Instagramda joylangan">
-          <span className="tabular-nums">{reel.postedAt ? formatDateTime(reel.postedAt) : "—"}</span>
-        </Meta>
-        <Meta label="Oxirgi yangilanish">
-          {reel.lastSyncedAt ? (
-            <span className="tabular-nums">{formatDateTime(reel.lastSyncedAt)}</span>
-          ) : (
-            <span className="text-slate-400">Hali yig&apos;ilmagan</span>
-          )}
         </Meta>
       </dl>
 
@@ -266,6 +331,37 @@ function ReelRow({ reel, highlighted }: { reel: AdminReelItem; highlighted: bool
           ))}
         </ul>
       )}
+
+      {/* Kamdan-kam kerak bo'ladigan tafsilotlar — har bir video uchun yopiq. */}
+      <details className="group text-xs">
+        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded text-slate-500 hover:text-ink focus-visible:outline-2 focus-visible:outline-brand-500 [&::-webkit-details-marker]:hidden">
+          Batafsil
+          <span className="sr-only">: {reel.shortcode} video akkaunti, layklari va sanalari</span>
+          <ChevronDown className="size-3.5 transition-transform group-open:rotate-180" aria-hidden />
+        </summary>
+        <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+          <Meta label="Akkaunt">
+            {reel.owner ? (
+              <InstagramLink username={reel.owner} />
+            ) : (
+              <span className="text-slate-400">Hali aniqlanmagan</span>
+            )}
+          </Meta>
+          <Meta label="Layklar">
+            <span className="tabular-nums">{reel.likes === null ? "—" : formatNumber(reel.likes)}</span>
+          </Meta>
+          <Meta label="Instagramda joylangan">
+            <span className="tabular-nums">{reel.postedAt ? formatDateTime(reel.postedAt) : "—"}</span>
+          </Meta>
+          <Meta label="Oxirgi yangilanish">
+            {reel.lastSyncedAt ? (
+              <span className="tabular-nums">{formatDateTime(reel.lastSyncedAt)}</span>
+            ) : (
+              <span className="text-slate-400">Hali yig&apos;ilmagan</span>
+            )}
+          </Meta>
+        </dl>
+      </details>
     </li>
   );
 }

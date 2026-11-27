@@ -4,7 +4,7 @@ import { test } from "node:test";
 import type { HttpException } from "@nestjs/common";
 
 import { AuditService } from "../audit/audit.service";
-import { ParticipantsService } from "../participants/participants.service";
+import { ParticipantsService, webLoginState } from "../participants/participants.service";
 import { RulesService } from "../rules/rules.service";
 import { SupportService } from "../support/support.service";
 import { ParticipantNotifier } from "../telegram/notifier";
@@ -45,6 +45,8 @@ test("support ticket: staff give a one-time permission to re-enter the site; it 
   const webId = participants.registerWeb("Dilnoza", "90 123 45 67");
   participants.startWebSession(webId);
   participants.setPhone(42, 42, "+998901234567"); // Telegram'ga ulandi — bot orqali yozadi
+  assert.equal(webLoginState(participants.get(webId)!), "GRANTED", "ulanishdan keyin bir marta kirish ochiq");
+  participants.startWebSession(webId); // shu bilan qayta kirdi, keyin yana chiqib ketdi
   const ticket = support.addParticipantMessage(webId, "Chiqib ketdim, saytga kira olmayapman", null);
 
   assert.equal(controller.get(String(ticket.id)).participant.webLogin, "USED");

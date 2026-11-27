@@ -5,7 +5,7 @@ import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
 import { DashboardView } from "@/components/dashboard/dashboard-view";
 
 export const metadata: Metadata = {
-  title: "Dashboard",
+  title: "Bosh sahifa",
 };
 
 export default function DashboardPage() {

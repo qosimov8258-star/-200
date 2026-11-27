@@ -1,32 +1,46 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Dices, ExternalLink } from "lucide-react";
+import { ArrowRight, CheckCircle2, Dices, ExternalLink } from "lucide-react";
 
-import { RATING_PRIZE_ICONS } from "@/components/prizes/rating-prize";
+import { drumHref, mainPrizeId, RATING_PRIZE_ICONS } from "@/components/prizes/rating-prize";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getDrawSetup } from "@/lib/api";
 import { formatDate, formatNumber, formatViewsRange } from "@/lib/format";
 import { DRAW_STATUS_LABELS, DRAW_STATUS_TONES, RATING_PRIZE_LABELS } from "@/lib/labels";
-import type { RatingPrizeEntry, RatingPrizeTier } from "@/lib/types";
+import type { DrawStatus, RatingPrizeEntry, RatingPrizeTier } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { voucherTabHref, WINNER_PATH } from "@/lib/winner-links";
+import { drawHref } from "@/lib/winner-links";
+
+type TierDraw = NonNullable<RatingPrizeTier["draw"]>;
+
+/** Tanlovdan keyingi qadam — plitka pastidagi asosiy havola. */
+const NEXT_STEP_LABELS: Record<DrawStatus, string> = {
+  DRAFT: "Natijani tasdiqlash",
+  CONFIRMED: "G'oliblarga xabar yuborish",
+  SENT: "Natijani ko'rish",
+  CANCELLED: "Natijani ko'rish",
+};
+
+/** "Asosiy sovrinlar" tabidagi natija bo'limi (winners-view.tsx) — havola sahifani shu joyga suradi. */
+const RESULT_ANCHOR = "main-draw-result";
 
 /**
  * Asosiy sovrin kartochkasi (G'oliblar sahifasi): eni 350, bo'yi 420 px — yonma-yon turadi (tor
  * telefonda eni ekranga sig'adigan qilib qisqaradi). Oferta 6.2: g'oliblar shu sovrin oralig'idagi
- * ishtirokchilar (umumiy tasdiqlangan ko'rishlar bo'yicha) orasidan **random tanlov** bilan aniqlanadi.
- * Tanlov o'tkazilmagan bo'lsa — oraliqdagilar va "Random tanlov o'tkazish"; o'tkazilgan bo'lsa —
- * g'oliblar, zaxira va tanlovni ochish (tasdiqlash, almashtirish, xabar yuborish).
+ * ishtirokchilar (umumiy tasdiqlangan ko'rishlar bo'yicha) orasidan tasodifiy tanlanadi.
+ * Tanlov o'tkazilmagan bo'lsa — oraliqdagilar va "Barabanda aylantirish"; o'tkazilgan bo'lsa —
+ * g'oliblar, zaxira va holatga qarab keyingi qadam (tasdiqlash, xabar yuborish yoki natijani ko'rish).
+ * Avtomobil uchun ishlatilmaydi: uning g'olibi tasdiqlash/xabar o'rniga g'olib kartasida tekshirilib,
+ * e'lon qilinadi (`winner-view.tsx`).
  */
 export function RatingPrizeTile({ tier }: { tier: RatingPrizeTier }) {
   const Icon = RATING_PRIZE_ICONS[tier.kind];
   const label = RATING_PRIZE_LABELS[tier.kind];
-  const draw = tier.draw;
 
   return (
     <Card className="flex h-[420px] w-[350px] max-w-full shrink-0 flex-col overflow-hidden">
@@ -35,17 +49,9 @@ export function RatingPrizeTile({ tier }: { tier: RatingPrizeTier }) {
           <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
             <Icon className="size-[18px]" aria-hidden />
           </span>
-          <div className="min-w-0 flex-1">
-            <h3 className="text-[15px] leading-tight font-semibold tracking-tight text-ink">{label}</h3>
-            <span className="mt-1 inline-flex flex-wrap gap-1">
-              <Badge className="px-2 text-[11px]">Random tanlov</Badge>
-              {draw && (
-                <Badge tone={DRAW_STATUS_TONES[draw.status]} className="px-2 text-[11px]">
-                  #{draw.number} · {DRAW_STATUS_LABELS[draw.status]}
-                </Badge>
-              )}
-            </span>
-          </div>
+          <h3 className="min-w-0 flex-1 self-center text-[15px] leading-tight font-semibold tracking-tight text-ink">
+            {label}
+          </h3>
         </div>
         <p className="mt-2.5 text-xs text-muted tabular-nums">
           {formatNumber(tier.quantity)} ta ·{" "}
@@ -54,13 +60,19 @@ export function RatingPrizeTile({ tier }: { tier: RatingPrizeTier }) {
         </p>
       </div>
 
-      {draw ? <DrawResult tier={tier} drawId={draw.id} /> : <BeforeDraw tier={tier} />}
+      {tier.draw ? <DrawOutcome tier={tier} draw={tier.draw} /> : <BeforeDraw tier={tier} />}
     </Card>
   );
 }
 
-function DrawResult({ tier, drawId }: { tier: RatingPrizeTier; drawId: string }) {
+/** Tanlov o'tkazilgan: g'oliblar, zaxira va pastda — holat hamda keyingi qadam. */
+function DrawOutcome({ tier, draw }: { tier: RatingPrizeTier; draw: TierDraw }) {
+  const searchParams = useSearchParams();
   const label = RATING_PRIZE_LABELS[tier.kind];
+  // Natija "Asosiy sovrinlar" tabida ochiladi; barabandagi tanlangan sovrin (`?prize=`) saqlanadi.
+  const href = `${drawHref({ id: draw.id, prizeId: mainPrizeId(tier.kind) }, searchParams.get("prize"))}#${RESULT_ANCHOR}`;
+  const step = NEXT_STEP_LABELS[draw.status];
+
   return (
     <>
       <div
@@ -83,30 +95,69 @@ function DrawResult({ tier, drawId }: { tier: RatingPrizeTier; drawId: string })
         )}
       </div>
       <div className="border-t border-line px-4 py-3">
-        {tier.kind === "car" && (
-          <p className="mb-2 text-xs text-muted">
-            G&apos;olib quyida tekshiriladi va «E&apos;lon qilish» orqali tabriklanadi.
-          </p>
+        {draw.status === "SENT" ? (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Badge tone="success" className="gap-1">
+              <CheckCircle2 className="size-3.5" aria-hidden />
+              {DRAW_STATUS_LABELS.SENT}
+            </Badge>
+            <Link
+              href={href}
+              aria-label={`${label}: ${step.toLowerCase()}`}
+              className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:underline"
+            >
+              {step}
+              <ArrowRight className="size-3.5" aria-hidden />
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
+              Tanlov #{draw.number}
+              <Badge tone={DRAW_STATUS_TONES[draw.status]} className="px-2 text-[11px]">
+                {DRAW_STATUS_LABELS[draw.status]}
+              </Badge>
+            </p>
+            <Link
+              href={href}
+              aria-label={`${label}: ${step.toLowerCase()}`}
+              className={cn(
+                "inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-[10px] px-3 text-sm font-medium transition-colors",
+                draw.status === "CANCELLED"
+                  ? "border border-line bg-white text-ink hover:bg-brand-50/50"
+                  : "bg-brand-500 text-white shadow-[0_6px_14px_-6px_rgba(124,98,219,0.8)] hover:bg-brand-600",
+              )}
+            >
+              {step}
+              <ArrowRight className="size-4" aria-hidden />
+            </Link>
+          </div>
         )}
-        <Link
-          href={voucherTabHref(drawId)}
-          className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:underline"
-        >
-          Tanlovni ochish
-          <ArrowRight className="size-3.5" aria-hidden />
-        </Link>
       </div>
     </>
   );
 }
 
+/** Tanlov hali o'tkazilmagan: oraliqdagi ishtirokchilar va "Barabanda aylantirish". */
 function BeforeDraw({ tier }: { tier: RatingPrizeTier }) {
   const router = useRouter();
   const label = RATING_PRIZE_LABELS[tier.kind];
   const setup = useQuery({ queryKey: ["draw-setup"], queryFn: getDrawSetup });
-  const settings = setup.data?.mainDefaults.find((item) => item.prizeId === `main-${tier.kind}`) ?? null;
+  const prizeId = mainPrizeId(tier.kind);
+  const settings = setup.data?.mainDefaults.find((item) => item.prizeId === prizeId) ?? null;
   // Oferta 6.2.1, 7.5: asosiy sovrinlar aksiya yakunida — oxirgi kundan keyin (backend ham tekshiradi).
   const tooEarly = settings !== null && setup.data !== undefined && setup.data.today <= settings.periodTo;
+
+  /** Tepadagi barabanda shu sovrinni tanlaydi va sahifani o'sha yerga suradi (fokus ham o'sha yerga). */
+  const openDrum = () => {
+    router.replace(drumHref(prizeId), { scroll: false });
+    // `scroll: false` da Next hash bo'yicha surmaydi — o'zimiz suramiz.
+    const drum = document.getElementById("baraban");
+    if (!drum) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    drum.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+    drum.focus({ preventScroll: true });
+  };
 
   return (
     <>
@@ -129,19 +180,14 @@ function BeforeDraw({ tier }: { tier: RatingPrizeTier }) {
       )}
       <div className="space-y-2 border-t border-line px-4 py-3">
         {/* Tanlov — tepadagi barabanda (g'oliblar birma-bir chiqadi). */}
-        <Button
-          size="sm"
-          className="w-full"
-          disabled={!settings || tier.eligibleCount === 0}
-          onClick={() => router.replace(`${WINNER_PATH}?prize=main-${tier.kind}#baraban`, { scroll: false })}
-        >
+        <Button size="sm" className="w-full" disabled={!settings || tier.eligibleCount === 0} onClick={openDrum}>
           <Dices className="size-4" aria-hidden />
           Barabanda aylantirish
         </Button>
         <p className="text-[11px] text-muted">
           {tooEarly && settings
             ? `Aksiya tugagach (${formatDate(settings.periodTo)} dan keyin) yakuniy ko'rishlar bo'yicha o'tkaziladi.`
-            : "G'oliblar va zaxira tasodifiy tanlanadi (oferta 6.4); natija tasdiqlanmaguncha qoralama bo'lib turadi."}
+            : "G'oliblar tasodifiy chiqadi. Natijani tasdiqlamaguningizcha hech kimga xabar bormaydi."}
         </p>
       </div>
     </>

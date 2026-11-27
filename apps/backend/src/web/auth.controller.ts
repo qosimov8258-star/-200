@@ -17,6 +17,8 @@ import {
   deviceCookie,
   readCookie,
   readDeviceToken,
+  readSessionToken,
+  SESSION_COOKIE,
   sessionCookie,
   WEB_ACCOUNT_SESSION_TTL_SECONDS,
 } from "./web-session";
@@ -47,8 +49,10 @@ const clientIp = (req: Request): string =>
  * - saytdagi hisobga **bir marta** kiriladi; chiqib ketsa yoki boshqa qurilmadan — qayta kirish faqat
  *   admin ruxsati bilan (Support murojaati → "Qayta kirishga ruxsat"), ruxsat bir martalik va yangi
  *   kirish boshqa qurilmadagi eski sessiyani yopadi (`LOGIN_LOCKED`, `LOCKED`);
- * - **bitta qurilma — bitta hisob**: shu brauzerda hisob ochilgan bo'lsa (`reels_device` cookie),
- *   yangisini ochib bo'lmaydi (`DEVICE_TAKEN`).
+ * - hisob bot orqali Telegram'ga ulansa, eski sessiyalar yopiladi va raqam egasiga bir marta qayta
+ *   kirish beriladi (`ParticipantsService.setPhone`);
+ * - **bitta qurilma — bitta hisob**: shu brauzerda hisob ochilgan bo'lsa (`reels_device` cookie yoki
+ *   belgisiz eski `reels_session`), yangisini ochib bo'lmaydi (`DEVICE_TAKEN`).
  * Mini App'ning o'zi bu endpointlarga muhtoj emas — u `initData` bilan tanilgan.
  *
  * Widget ishlashi uchun @BotFather → /setdomain da sayt domeni ko'rsatilgan bo'lishi kerak.
@@ -87,7 +91,7 @@ export class AuthController {
     if (!token || !identity) throw new ApiException(401, "UNAUTHORIZED");
     const accountId = this.participants.resolve(identity.telegramId);
     if (!this.participants.canStartWebSession(accountId)) throw new ApiException(403, "LOGIN_LOCKED");
-    res.setHeader("Set-Cookie", this.sessionCookies(accountId, token, isHttps(req)));
+    res.setHeader("Set-Cookie", this.newSession(accountId, token, isHttps(req)));
     this.logger.log(`Saytga kirish: ${accountId}`);
   }
 
@@ -104,7 +108,10 @@ export class AuthController {
     if (!token) throw new ApiException(503, "SERVER");
     const { firstName, phone, age } = parseWebRegister(body);
     // Bitta qurilma — bitta hisob: shu brauzerda ochilgan hisob hali bor bo'lsa, yangisi ochilmaydi.
-    if (this.deviceAccount(req, token) !== null) throw new ApiException(409, "DEVICE_TAKEN");
+    // Qurilma belgisidan oldingi (deploy'dan oldin berilgan) sessiya cookie'si ham hisobga olinadi.
+    if (this.deviceAccount(req, token) !== null || this.sessionAccount(req, token) !== null) {
+      throw new ApiException(409, "DEVICE_TAKEN");
+    }
     const now = Date.now();
     const ip = clientIp(req);
     const mine = (this.signups.get(ip) ?? []).filter((at) => now - at < HOUR_MS);
@@ -116,7 +123,7 @@ export class AuthController {
     this.signups.set(ip, [...mine, now]);
     this.recentSignups.push(now);
     if (this.signups.size > 10_000) this.signups.clear();
-    res.setHeader("Set-Cookie", this.sessionCookies(id, token, isHttps(req)));
+    res.setHeader("Set-Cookie", this.newSession(id, token, isHttps(req)));
     this.logger.log(`Saytdan ro'yxatdan o'tdi: ${id}`);
   }
 
@@ -155,9 +162,11 @@ export class AuthController {
 
   /**
    * "Hisobim bor" — holat (sayt har 2 soniyada so'raydi): `{ id }` → `{ status }`. `CONFIRMED`
-   * bo'lsa — shu javob bilan sessiya cookie'si qo'yiladi (bir marta). Cookie'dagi kalit mos
-   * kelmasa yoki so'rov yo'q bo'lsa — `EXPIRED`. Hisobga saytda allaqachon kirilgan bo'lsa (admin
-   * ruxsatisiz) — `LOCKED`, sessiya berilmaydi.
+   * bo'lsa — shu javob bilan sessiya cookie'si qo'yiladi. Kirish bir marta qayd etiladi: javob
+   * yetib bormay, brauzer qisqa muddat ichida (`BOT_LOGIN_GRACE_MS`) qayta so'rasa — o'sha sessiya
+   * qayta beriladi, ruxsat ikkinchi marta sarflanmaydi. Cookie'dagi kalit mos kelmasa yoki so'rov
+   * yo'q bo'lsa — `EXPIRED`. Hisobga saytda allaqachon kirilgan bo'lsa (admin ruxsatisiz) — `LOCKED`,
+   * sessiya berilmaydi.
    */
   @Post("bot-login/poll")
   @HttpCode(200)
@@ -170,45 +179,98 @@ export class AuthController {
     const token = config.telegram.botToken;
     if (!token) throw new ApiException(503, "SERVER");
     const secret = readCookie(req.header("cookie"), BOT_LOGIN_COOKIE) ?? "";
-    const { status, accountId } = this.botLogin.poll(id, secret);
+    const { status, accountId, issuedAt } = this.botLogin.poll(id, secret);
     if (status !== "CONFIRMED") return { status };
     const account = accountId === null ? null : this.participants.get(accountId);
-    if (!account) return { status: "EXPIRED" };
-    // Bot tasdig'idan keyin admin ruxsati ishlatilgan bo'lishi mumkin — shu yerda yana tekshiriladi.
-    if (!this.participants.canStartWebSession(account.telegramId)) return { status: "LOCKED" };
+    if (!account) {
+      this.botLogin.drop(id);
+      return { status: "EXPIRED" };
+    }
+    let sessionAt: number;
+    if (issuedAt === null) {
+      // Bot tasdig'idan keyin admin ruxsati ishlatilgan bo'lishi mumkin — shu yerda yana tekshiriladi.
+      if (!this.participants.canStartWebSession(account.telegramId)) {
+        this.botLogin.drop(id);
+        return { status: "LOCKED" };
+      }
+      sessionAt = this.participants.startWebSession(account.telegramId);
+      this.botLogin.issued(id, sessionAt);
+      this.logger.log(`Saytga bot orqali kirish: ${account.telegramId}`);
+    } else {
+      // Avvalgi javob brauzerga yetmagan — o'sha sessiya qayta beriladi. Shu orada hisobga boshqa
+      // joydan kirilgan yoki hisob Telegram'ga ulangan bo'lsa — u sessiya allaqachon yopilgan:
+      // so'rov tugaydi, yangi urinish hisobning hozirgi holatiga qarab hal bo'ladi.
+      if ((account.sessionsFrom?.getTime() ?? 0) > issuedAt) {
+        this.botLogin.drop(id);
+        return { status: "EXPIRED" };
+      }
+      sessionAt = issuedAt;
+    }
     const secure = isHttps(req);
-    res.setHeader("Set-Cookie", [...this.sessionCookies(account.telegramId, token, secure), botLoginCookie("", 0, secure)]);
-    this.logger.log(`Saytga bot orqali kirish: ${account.telegramId}`);
+    res.setHeader("Set-Cookie", [
+      ...this.sessionCookies(account.telegramId, token, sessionAt, secure),
+      botLoginCookie("", 0, secure),
+    ]);
     return { status: "CONFIRMED" };
   }
 
   /**
    * Chiqish: sessiya cookie'si o'chadi. Qurilma belgisi qoladi (shu qurilmadan yangi hisob ochilmaydi);
-   * shu hisobga qaytib kirish — admin ruxsati bilan.
+   * shu hisobga qaytib kirish — admin ruxsati bilan. Qurilma belgisidan oldin (deploy'dan oldin)
+   * berilgan sessiyada belgi yo'q — chiqishda sessiyadagi hisob bilan qo'yiladi.
    */
   @Post("logout")
   @HttpCode(204)
   logout(@Req() req: Request, @Res({ passthrough: true }) res: Response): void {
-    res.setHeader("Set-Cookie", sessionCookie("", 0, isHttps(req)));
+    const secure = isHttps(req);
+    const cookies = [sessionCookie("", 0, secure)];
+    const token = config.telegram.botToken;
+    const accountId = token ? this.sessionAccount(req, token) : null;
+    if (token && accountId !== null && this.deviceAccount(req, token) === null) {
+      cookies.push(deviceCookie(createDeviceToken(accountId, token), secure));
+    }
+    res.setHeader("Set-Cookie", cookies);
   }
 
   /**
-   * Sayt sessiyasi va qurilma belgisi. Kirish qayd etiladi (`startWebSession`): keyingi kirish
-   * yopiladi, boshqa qurilmadagi eski sessiya bekor bo'ladi.
+   * Yangi sayt sessiyasi: kirish qayd etiladi (`startWebSession`) — keyingi kirish yopiladi, boshqa
+   * qurilmadagi eski sessiya bekor bo'ladi.
    */
-  private sessionCookies(accountId: number, token: string, secure: boolean): string[] {
+  private newSession(accountId: number, token: string, secure: boolean): string[] {
+    return this.sessionCookies(accountId, token, this.participants.startWebSession(accountId), secure);
+  }
+
+  /** Sessiya cookie'si (`issuedAt` — berilgan vaqti, ms) va qurilma belgisi. */
+  private sessionCookies(accountId: number, token: string, issuedAt: number, secure: boolean): string[] {
     const ttl = WEB_ACCOUNT_SESSION_TTL_SECONDS;
-    const issuedAt = this.participants.startWebSession(accountId);
     return [
       sessionCookie(createSessionToken(accountId, token, issuedAt, ttl), ttl, secure),
       deviceCookie(createDeviceToken(accountId, token), secure),
     ];
   }
 
-  /** Shu brauzerda ochilgan (yoki kirilgan) hisob — imzo to'g'ri va hisob hali bor bo'lsa, aks holda null. */
+  /** Shu brauzerda ochilgan (yoki kirilgan) hisob — qurilma belgisi bo'yicha (`existingAccount`). */
   private deviceAccount(req: Request, token: string): number | null {
     const raw = readCookie(req.header("cookie"), DEVICE_COOKIE);
-    const id = raw ? readDeviceToken(raw, token) : null;
-    return id !== null && this.participants.get(id) ? id : null;
+    return this.existingAccount(raw ? readDeviceToken(raw, token) : null);
+  }
+
+  /**
+   * Shu brauzerdagi sayt sessiyasining hisobi (`existingAccount`). Imzo va muddat tekshiriladi;
+   * keyin yopilgan sessiya ham hisobga olinadi — shu qurilmada o'sha hisob ochilgan.
+   */
+  private sessionAccount(req: Request, token: string): number | null {
+    const raw = readCookie(req.header("cookie"), SESSION_COOKIE);
+    return this.existingAccount(raw ? (readSessionToken(raw, token)?.id ?? null) : null);
+  }
+
+  /**
+   * Cookie'dagi ID → hisob: Telegram ID saytdagi hisobga ulangan bo'lsa — o'sha hisob (Telegram
+   * yozuvi ulanishda o'chgan bo'lishi mumkin). Hisob hali bor bo'lsa — uning ID si, aks holda null.
+   */
+  private existingAccount(id: number | null): number | null {
+    if (id === null) return null;
+    const accountId = this.participants.resolve(id);
+    return this.participants.get(accountId) ? accountId : null;
   }
 }

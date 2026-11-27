@@ -10,11 +10,14 @@ interface SectionTitleProps {
   action?: React.ReactNode;
 }
 
-/** G'oliblar sahifasidagi bo'lim sarlavhasi: ikonka, nom, izoh va ixtiyoriy tugma. */
+/**
+ * G'oliblar sahifasidagi bo'lim sarlavhasi: ikonka, nom, izoh va ixtiyoriy tugma. `id` — havola
+ * langari ham (`#voucher-draw-title`): `scroll-mt-24` sarlavhani yopishqoq menyu ostida qoldirmaydi.
+ */
 export function SectionTitle({ id, icon: Icon, title, meta = null, action = null }: SectionTitleProps) {
   const heading = (
     <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
-      <h2 id={id} className="flex items-center gap-2 text-lg font-semibold tracking-tight text-ink">
+      <h2 id={id} className="flex scroll-mt-24 items-center gap-2 text-lg font-semibold tracking-tight text-ink">
         <Icon className="size-5 text-brand-600" aria-hidden />
         {title}
       </h2>

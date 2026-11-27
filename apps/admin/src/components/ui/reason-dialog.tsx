@@ -98,7 +98,7 @@ export function ReasonDialog({
           >
             {reasonError
               ? `${fieldLabel}ni yozing (kamida ${minLength} ta belgi).`
-              : `${fieldLabel} audit logga yoziladi: kim, nima, qachon.`}
+              : `${fieldLabel} amallar tarixiga yoziladi: kim, nima, qachon.`}
           </p>
         </div>
 

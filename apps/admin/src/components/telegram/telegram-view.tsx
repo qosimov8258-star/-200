@@ -3,14 +3,15 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, Eye, Info, MailWarning, RotateCw, Send, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, MailCheck, MailWarning, RotateCw, Send, XCircle } from "lucide-react";
 
 import { IosIcon } from "@/components/ui/ios-icon";
 import { Segmented } from "@/components/ui/segmented";
-import { StatCard } from "@/components/dashboard/stat-card";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { MoreDetails } from "@/components/ui/more-details";
+import { PageHint } from "@/components/ui/page-hint";
 import { Pagination } from "@/components/ui/pagination";
 import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/select";
@@ -27,7 +28,7 @@ import type {
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-import { TelegramTable } from "./telegram-table";
+import { TelegramTable, telegramParticipantName } from "./telegram-table";
 
 const PAGE_SIZE = 25;
 const NOTICE_TIMEOUT_MS = 5000;
@@ -36,8 +37,24 @@ const SENT_REFRESH_MS = 4000;
 
 type StatusFilter = TelegramDeliveryStatus | "ALL";
 type KindFilter = TelegramMessageKind | "ALL";
+type NavigatePatch = { status?: StatusFilter; kind?: KindFilter; search?: string; page?: number };
 
-const STATUS_TABS: StatusFilter[] = ["ALL", "UNREAD", "READ", "DELIVERED", "SENT", "FAILED"];
+/** URL orqali ochiladigan barcha holatlar (`?status=…`). */
+const STATUS_TABS: StatusFilter[] = ["ALL", "UNREAD", "FAILED", "READ", "DELIVERED", "SENT"];
+/**
+ * Tab sifatida ko'rinadiganlari — muammolar birinchi. "Yuborildi" va "Yetkazildi" — bir necha
+ * soniya–soat davom etadigan oraliq holatlar: tab emas, faqat "Batafsil" va havola orqali.
+ */
+const VISIBLE_TABS: StatusFilter[] = ["ALL", "UNREAD", "FAILED", "READ"];
+/** Tab nomlari — faqat shu sahifada (jadvaldagi belgilar `TELEGRAM_STATUS_LABELS` dan). */
+const TAB_LABELS: Record<StatusFilter, string> = {
+  ALL: "Hammasi",
+  UNREAD: "O'qilmagan",
+  FAILED: "Yetib bormagan",
+  READ: "O'qilgan",
+  DELIVERED: TELEGRAM_STATUS_LABELS.DELIVERED,
+  SENT: TELEGRAM_STATUS_LABELS.SENT,
+};
 const KINDS = Object.keys(TELEGRAM_KIND_LABELS) as TelegramMessageKind[];
 
 export function TelegramView() {
@@ -81,11 +98,12 @@ export function TelegramView() {
     mutationFn: (item: TelegramMessageListItem) => resendTelegramMessage(item.id),
     onSuccess: async (_result, item) => {
       await queryClient.invalidateQueries({ queryKey: ["telegram-messages"] });
-      setNotice(`${item.participant.firstName} ${item.participant.lastName}ga qayta yuborildi.`);
+      const name = telegramParticipantName(item);
+      setNotice(name ? `Xabar qayta yuborildi: ${name}.` : "Xabar qayta yuborildi.");
     },
   });
 
-  function navigate(patch: { status?: StatusFilter; kind?: KindFilter; search?: string; page?: number }) {
+  function navigate(patch: NavigatePatch) {
     const next = { status, kind, search, page: 1, ...patch };
     const params = new URLSearchParams();
     if (next.status !== "ALL") params.set("status", next.status);
@@ -97,18 +115,38 @@ export function TelegramView() {
   }
 
   const unreadCount = data?.statusCounts.UNREAD ?? 0;
+  /** Sonlar (`statusCounts`) qidiruv va tur filtriga bog'liq — holat filtriga emas. */
+  const filtered = kind !== "ALL" || search !== "";
+  // Oraliq holat URL orqali ochilgan bo'lsa — tanlangani ko'rinib tursin.
+  const tabs = VISIBLE_TABS.includes(status) ? VISIBLE_TABS : [...VISIBLE_TABS, status];
+
+  const emptyText = search
+    ? "Qidiruv bo'yicha xabar topilmadi."
+    : status === "UNREAD"
+      ? "O'qilmagan xabar yo'q."
+      : status === "FAILED"
+        ? "Yetib bormagan xabar yo'q — hammasi joyida."
+        : status === "ALL" && kind === "ALL"
+          ? "Bot hali hech kimga xabar yubormagan."
+          : "Bu filtr bo'yicha xabar yo'q.";
 
   return (
     <div className="space-y-4">
-      <p className="flex items-start gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
-        <IosIcon icon={Info} tint="blue" size={22} />
-        <span>
-          Telegram bot xabar o&apos;qilganini o&apos;zi bildirmaydi. Shuning uchun har bir xabar
-          ostida <strong className="font-medium">&quot;✅ O&apos;qidim&quot;</strong> tugmasi bor:
-          bosilsa — &quot;O&apos;qildi&quot;, yetkazilganiga 24 soatdan oshib bosilmasa —
-          &quot;O&apos;qilmadi&quot;. Telegramni ulamaganlarga xabarlar faqat ilovada boradi.
-        </span>
-      </p>
+      <PageHint>
+        Bu yerda bot ishtirokchilarga yuborgan xabarlar. Ishtirokchi xabar ostidagi «O&apos;qidim»
+        tugmasini 24 soat ichida bosmasa — xabar «O&apos;qilmagan» bo&apos;ladi va unga qayta yuborish
+        mumkin.
+      </PageHint>
+
+      {data && (
+        <ResendBlock
+          data={data}
+          filtered={filtered}
+          showFailedLink={status !== "FAILED"}
+          onResendAll={() => setConfirmBulk(true)}
+          onShowFailed={() => navigate({ status: "FAILED" })}
+        />
+      )}
 
       <div role="status" aria-live="polite">
         {notice && (
@@ -125,8 +163,6 @@ export function TelegramView() {
         )}
       </div>
 
-      {data && <TelegramSummary data={data} />}
-
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-3">
           <SearchInput
@@ -142,31 +178,22 @@ export function TelegramView() {
             aria-label="Xabar turi bo'yicha filtr"
             className="w-full sm:w-56"
           >
-            <option value="ALL">Barcha xabarlar</option>
+            <option value="ALL">Xabar turi: hammasi</option>
             {KINDS.map((item) => (
               <option key={item} value={item}>
                 {TELEGRAM_KIND_LABELS[item]}
               </option>
             ))}
           </Select>
-          <Button
-            variant="secondary"
-            className="sm:ml-auto"
-            disabled={unreadCount === 0}
-            onClick={() => setConfirmBulk(true)}
-          >
-            <RotateCw className="size-4" aria-hidden />
-            O&apos;qilmaganlarga qayta yuborish ({formatNumber(unreadCount)})
-          </Button>
         </div>
 
         <Segmented
           label="Holat bo'yicha filtr"
           value={status}
           onChange={(value) => navigate({ status: value })}
-          options={STATUS_TABS.map((tab) => ({
+          options={tabs.map((tab) => ({
             value: tab,
-            label: tab === "ALL" ? "Hammasi" : TELEGRAM_STATUS_LABELS[tab],
+            label: TAB_LABELS[tab],
             count: data?.statusCounts[tab],
             attention: tab === "FAILED" || tab === "UNREAD",
           }))}
@@ -187,7 +214,7 @@ export function TelegramView() {
         ) : data && data.items.length === 0 ? (
           <div className="flex flex-col items-center gap-2 px-4 py-12 text-center">
             <IosIcon icon={Send} tint="gray" size={48} />
-            <p className="text-sm text-slate-600">Xabar topilmadi.</p>
+            <p className="max-w-md text-sm text-slate-600">{emptyText}</p>
           </div>
         ) : data ? (
           <>
@@ -201,27 +228,31 @@ export function TelegramView() {
                 onResend={(item) => resendOne.mutate(item)}
               />
             </div>
-            <div className="border-t border-slate-200 px-4 py-3">
-              <Pagination
-                page={data.page}
-                pageSize={data.pageSize}
-                total={data.total}
-                onPageChange={(nextPage) => {
-                  navigate({ page: nextPage });
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }}
-              />
-            </div>
+            {data.total > data.pageSize && (
+              <div className="border-t border-slate-200 px-4 py-3">
+                <Pagination
+                  page={data.page}
+                  pageSize={data.pageSize}
+                  total={data.total}
+                  onPageChange={(nextPage) => {
+                    navigate({ page: nextPage });
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                />
+              </div>
+            )}
           </>
         ) : null}
       </Card>
 
+      {data && <TelegramStats data={data} filtered={filtered} onNavigate={navigate} />}
+
       {confirmBulk && (
         <ConfirmDialog
-          title="O'qilmaganlarga qayta yuborish"
+          title="O'qilmagan xabarlarni qayta yuborish"
           description={
             <>
-              Yetkazilganiga 24 soatdan oshgan, lekin o&apos;qilmagan{" "}
+              «O&apos;qidim» 24 soat ichida bosilmagan{" "}
               <strong className="font-medium text-slate-900">
                 {formatNumber(unreadCount)} ta xabar
               </strong>{" "}
@@ -247,41 +278,179 @@ export function TelegramView() {
   );
 }
 
-function TelegramSummary({ data }: { data: TelegramMessageListResponse }) {
+/**
+ * Sahifaning asosiy amali: o'qilmagan xabarlarni qayta yuborish. Ostida — yetib bormagan
+ * xabarlar soni va ularni ko'rish havolasi.
+ */
+function ResendBlock({
+  data,
+  filtered,
+  showFailedLink,
+  onResendAll,
+  onShowFailed,
+}: {
+  data: TelegramMessageListResponse;
+  filtered: boolean;
+  showFailedLink: boolean;
+  onResendAll: () => void;
+  onShowFailed: () => void;
+}) {
+  const unread = data.statusCounts.UNREAD;
+  const failed = data.statusCounts.FAILED;
+
+  return (
+    <Card role="region" aria-labelledby="telegram-unread-title">
+      <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <IosIcon icon={unread > 0 ? MailWarning : MailCheck} tint={unread > 0 ? "orange" : "green"} size={44} />
+          <div className="min-w-0">
+            <h2 id="telegram-unread-title" className="text-sm font-medium text-muted">
+              O&apos;qilmagan xabarlar
+              {filtered && <span className="font-normal"> (faqat joriy filtr bo&apos;yicha)</span>}
+            </h2>
+            <p className="text-[28px] leading-tight font-semibold tracking-tight text-ink tabular-nums">
+              {formatNumber(unread)} ta
+            </p>
+            <p className="text-sm text-slate-600">Ishtirokchi 24 soat ichida «O&apos;qidim»ni bosmagan.</p>
+          </div>
+        </div>
+        {unread > 0 ? (
+          <Button onClick={onResendAll} className="h-11 px-5">
+            <RotateCw className="size-4" aria-hidden />
+            Hammasiga qayta yuborish
+          </Button>
+        ) : (
+          <p className="text-sm text-slate-600 sm:max-w-64 sm:text-right">
+            Javobsiz qolgan xabar yo&apos;q — qayta yuborish kerak emas.
+          </p>
+        )}
+      </div>
+
+      {failed > 0 && (
+        <p className="flex flex-wrap items-center gap-x-1.5 border-t border-line px-5 py-3 text-sm text-slate-600">
+          <XCircle className="size-4 shrink-0 text-red-600" aria-hidden />
+          <span>
+            Yetib bormagan:{" "}
+            <strong className="font-semibold text-red-700 tabular-nums">{formatNumber(failed)} ta</strong>{" "}
+            (botni bloklagan yoki tarmoq xatosi)
+          </span>
+          {showFailedLink && (
+            <>
+              <span aria-hidden>—</span>
+              <button
+                type="button"
+                onClick={onShowFailed}
+                className="rounded font-medium text-brand-700 hover:underline"
+              >
+                ko&apos;rish
+                <span className="sr-only"> (yetib bormagan xabarlar)</span>
+              </button>
+            </>
+          )}
+        </p>
+      )}
+    </Card>
+  );
+}
+
+/** "Batafsil": umumiy statistika, Telegram ulaganlar va oraliq holatlar. */
+function TelegramStats({
+  data,
+  filtered,
+  onNavigate,
+}: {
+  data: TelegramMessageListResponse;
+  filtered: boolean;
+  onNavigate: (patch: NavigatePatch) => void;
+}) {
   const counts = data.statusCounts;
   const delivered = counts.DELIVERED + counts.READ + counts.UNREAD;
   const { linkedParticipants, totalParticipants, blockedBot } = data.summary;
 
+  // Bo'lim jadval ostida — tanlangan ro'yxat ko'rinishi uchun sahifa tepasiga qaytiladi.
+  function openStatus(status: TelegramDeliveryStatus) {
+    onNavigate({ status });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   return (
-    <div className="space-y-2">
-      <p className="text-xs text-slate-500">
-        Telegram ulangan:{" "}
-        <span className="font-medium text-slate-700 tabular-nums">
-          {formatNumber(linkedParticipants)} / {formatNumber(totalParticipants)}
-        </span>{" "}
-        ishtirokchi
-        <span aria-hidden> · </span>
-        botni bloklagan: <span className="tabular-nums">{formatNumber(blockedBot)}</span>
-      </p>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Yuborilgan xabarlar" value={formatNumber(counts.ALL)} icon={Send} tint="cyan">
-          Yetkazilgan: {formatNumber(delivered)}
-        </StatCard>
-        <StatCard label="O'qildi" value={formatNumber(counts.READ)} icon={Eye} tint="green">
-          {delivered > 0 ? `${formatPercent(counts.READ / delivered)} yetkazilganlardan` : "—"}
-        </StatCard>
-        <StatCard
-          label="O'qilmadi"
-          value={formatNumber(counts.UNREAD)}
-          icon={MailWarning}
-          tint={counts.UNREAD > 0 ? "orange" : "gray"}
-        >
-          24 soatdan ko&apos;p javobsiz
-        </StatCard>
-        <StatCard label="Yuborilmadi" value={formatNumber(counts.FAILED)} icon={XCircle} tint="red">
-          Bot bloklangan yoki tarmoq xatosi
-        </StatCard>
+    <MoreDetails
+      title="Batafsil: statistika"
+      meta={`${formatNumber(linkedParticipants)} / ${formatNumber(totalParticipants)} ishtirokchi Telegram ulagan`}
+    >
+      <div className="space-y-4 text-sm text-slate-600">
+        <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Stat label="Jami xabarlar" value={counts.ALL}>
+            Yetkazilgan: {formatNumber(delivered)}
+          </Stat>
+          <Stat label="O'qilgan" value={counts.READ}>
+            {delivered > 0 ? `${formatPercent(counts.READ / delivered)} yetkazilganlardan` : "—"}
+          </Stat>
+          <Stat label="O'qilmagan" value={counts.UNREAD}>
+            24 soatdan ko&apos;p javobsiz
+          </Stat>
+          <Stat label="Yetib bormagan" value={counts.FAILED}>
+            Botni bloklagan yoki tarmoq xatosi
+          </Stat>
+        </dl>
+        {filtered && <p className="text-xs text-muted">Sonlar joriy qidiruv va xabar turi bo&apos;yicha.</p>}
+
+        <p>
+          Yo&apos;ldagi xabarlar:{" "}
+          <StatusLink count={counts.SENT} onClick={() => openStatus("SENT")}>
+            {TELEGRAM_STATUS_LABELS.SENT}
+          </StatusLink>
+          <span aria-hidden> · </span>
+          <StatusLink count={counts.DELIVERED} onClick={() => openStatus("DELIVERED")}>
+            {TELEGRAM_STATUS_LABELS.DELIVERED}
+          </StatusLink>
+          . Bu oraliq holatlar: Telegram tasdig&apos;i kelgach yoki 24 soat o&apos;tgach o&apos;zi
+          o&apos;zgaradi.
+        </p>
+
+        <p>
+          Telegram ulangan:{" "}
+          <span className="font-medium text-slate-900 tabular-nums">
+            {formatNumber(linkedParticipants)} / {formatNumber(totalParticipants)}
+          </span>{" "}
+          ishtirokchi
+          <span aria-hidden> · </span>
+          botni bloklagan: <span className="tabular-nums">{formatNumber(blockedBot)}</span>.
+          Telegramni ulamaganlarga xabarlar faqat ilovada boradi.
+        </p>
+
+        <p>
+          Telegram bot xabar o&apos;qilganini o&apos;zi bildirmaydi. Shuning uchun har bir xabar ostida
+          «✅ O&apos;qidim» tugmasi bor: bosilsa — «{TELEGRAM_STATUS_LABELS.READ}», yetkazilganiga 24
+          soatdan oshib bosilmasa — «{TELEGRAM_STATUS_LABELS.UNREAD}».
+        </p>
       </div>
+    </MoreDetails>
+  );
+}
+
+function Stat({ label, value, children }: { label: string; value: number; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-line px-4 py-3">
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className="text-xl font-semibold text-ink tabular-nums">{formatNumber(value)}</dd>
+      <dd className="text-xs text-muted">{children}</dd>
     </div>
+  );
+}
+
+function StatusLink({
+  count,
+  onClick,
+  children,
+}: {
+  count: number;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button type="button" onClick={onClick} className="rounded font-medium text-brand-700 hover:underline">
+      {children} <span className="tabular-nums">({formatNumber(count)})</span>
+    </button>
   );
 }

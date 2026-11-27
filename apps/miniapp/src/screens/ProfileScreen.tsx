@@ -263,7 +263,8 @@ function HeroStat({ icon, label, value }: { icon: ReactNode; label: string; valu
  * Saytda ro'yxatdan o'tgan hisob: Telegram'ga ulash taklifi. Bot `?start=link` bilan ochiladi,
  * foydalanuvchi saytda yozgan raqamini ulashadi — hisob Telegram'ga ulanadi (boshqa qurilmadan
  * kirish va bot xabarlari). Xavfsizlik uchun shu paytgacha bo'lgan sayt sessiyasi yopiladi —
- * ilova mehmon ko'rinishiga o'tadi va foydalanuvchi "Hisobim bor — kirish" bilan qaytib kiradi.
+ * ilova mehmon ko'rinishiga o'tadi va foydalanuvchi "Hisobim bor — kirish" bilan qaytib kiradi
+ * (backend ulashdan keyin bir marta qayta kirishga ruxsat beradi — kirish yopilib qolmaydi).
  */
 function LinkTelegramCard() {
   const queryClient = useQueryClient();

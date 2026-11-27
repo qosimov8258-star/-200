@@ -6,7 +6,7 @@ import type {
   SortOrder,
 } from "./types";
 
-/** Foydalanuvchilar sahifasining URL da saqlanadigan holati. */
+/** Ishtirokchilar sahifasining URL da saqlanadigan holati. */
 export interface UsersFilters {
   search: string;
   status: ParticipantStatus | "ALL";
@@ -24,6 +24,7 @@ export const USERS_PAGE_SIZE = 20;
 
 const PARTICIPANT_STATUSES: ParticipantStatus[] = ["ACTIVE", "WARNED", "BLOCKED", "DISQUALIFIED"];
 const REEL_FILTERS: Array<ReelStatus | "NONE"> = ["ACCEPTED", "PENDING", "REJECTED", "REMOVED", "NONE"];
+/** "rank" — eski havolalar uchun (ustun endi yo'q, lekin `?sort=rank` ishlayveradi). */
 const SORTS: ParticipantSort[] = ["rank", "views", "name"];
 
 /** Har bir ustun bosilganda birinchi qaysi tartibda saralanadi. */
@@ -39,8 +40,9 @@ export const DEFAULT_USERS_FILTERS: UsersFilters = {
   reel: "ALL",
   minViews: null,
   maxViews: null,
-  sort: "rank",
-  order: "asc",
+  // Standart — umumiy ko'rishlar bo'yicha, ko'pidan (reytingdagi o'rin bilan deyarli bir xil tartib).
+  sort: "views",
+  order: "desc",
   page: 1,
 };
 

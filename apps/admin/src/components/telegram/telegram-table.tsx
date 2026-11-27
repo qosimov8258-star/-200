@@ -21,10 +21,15 @@ interface TelegramTableProps {
   onResend: (item: TelegramMessageListItem) => void;
 }
 
+/** Ishtirokchi ismi: familiya endi so'ralmaydi (bo'sh bo'lishi mumkin) — ortiqcha bo'shliqsiz. */
+export function telegramParticipantName(item: TelegramMessageListItem): string {
+  return `${item.participant.firstName} ${item.participant.lastName}`.trim();
+}
+
 export function TelegramTable({ items, resendingId, onResend }: TelegramTableProps) {
   return (
     <div className="relative overflow-x-auto">
-      <table className="w-full min-w-[900px] text-sm">
+      <table className="w-full min-w-[760px] text-sm">
         <thead className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500">
           <tr>
             <th scope="col" className="px-4 py-2.5 text-left font-medium">
@@ -32,9 +37,6 @@ export function TelegramTable({ items, resendingId, onResend }: TelegramTablePro
             </th>
             <th scope="col" className="px-4 py-2.5 text-left font-medium">
               Xabar
-            </th>
-            <th scope="col" className="px-4 py-2.5 text-left font-medium">
-              Yuborilgan
             </th>
             <th scope="col" className="px-4 py-2.5 text-left font-medium">
               Holat
@@ -68,7 +70,7 @@ function TelegramRow({
   resending: boolean;
   onResend: TelegramTableProps["onResend"];
 }) {
-  const name = `${item.participant.firstName} ${item.participant.lastName}`;
+  const name = telegramParticipantName(item) || "Ismsiz";
 
   return (
     <tr className="align-top hover:bg-slate-50/70">
@@ -86,52 +88,50 @@ function TelegramRow({
         <p className="mt-1 text-slate-700">{item.text}</p>
       </td>
 
-      <td className="px-4 py-3 whitespace-nowrap">
-        <time dateTime={item.lastSentAt} className="text-slate-900 tabular-nums">
-          {formatDayTime(item.lastSentAt)}
-        </time>
-        {item.attempts > 1 && (
-          <p className="text-xs text-slate-500">{item.attempts}-urinish</p>
-        )}
-      </td>
-
+      {/* Holat, yuborilgan vaqt va urinishlar — bitta katakda. */}
       <td className="px-4 py-3">
         <Badge tone={TELEGRAM_STATUS_TONES[item.status]}>{TELEGRAM_STATUS_LABELS[item.status]}</Badge>
         <p className="mt-1 text-xs whitespace-nowrap text-slate-500">
-          <StatusDetail item={item} />
+          Yuborilgan:{" "}
+          <time dateTime={item.lastSentAt} className="tabular-nums">
+            {formatDayTime(item.lastSentAt)}
+          </time>
+          {item.attempts > 1 && ` · ${item.attempts}-urinish`}
         </p>
+        <StatusDetail item={item} />
       </td>
 
       <td className="px-4 py-3 text-right">
-        {item.canResend ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            loading={resending}
-            onClick={() => onResend(item)}
-            aria-label={`${name}ga qayta yuborish`}
-          >
+        {item.canResend && (
+          <Button variant="secondary" size="sm" loading={resending} onClick={() => onResend(item)}>
             {!resending && <RotateCw className="size-3.5" aria-hidden />}
             Qayta yuborish
+            <span className="sr-only">: {name}</span>
           </Button>
-        ) : item.failureReason === "BOT_BLOCKED" ? (
-          <span className="text-xs text-slate-400">Qayta yuborib bo&apos;lmaydi</span>
-        ) : null}
+        )}
       </td>
     </tr>
   );
 }
 
+/** Holat ostidagi qisqa izoh: qachon yetkazilgan/o'qilgan yoki nega yetib bormagan. */
 function StatusDetail({ item }: { item: TelegramMessageListItem }) {
+  const text = statusDetailText(item);
+  if (!text) return null;
+  return <p className="text-xs whitespace-nowrap text-slate-500">{text}</p>;
+}
+
+function statusDetailText(item: TelegramMessageListItem): string | null {
   switch (item.status) {
     case "READ":
-      return item.readAt ? <>&quot;O&apos;qidim&quot; bosilgan: {formatDayTime(item.readAt)}</> : null;
+      return item.readAt ? `O'qigan: ${formatDayTime(item.readAt)}` : null;
     case "DELIVERED":
     case "UNREAD":
-      return item.deliveredAt ? <>Yetkazilgan: {formatDayTime(item.deliveredAt)}</> : null;
+      return item.deliveredAt ? `Yetkazilgan: ${formatDayTime(item.deliveredAt)}` : null;
     case "SENT":
-      return <>Telegram tasdig&apos;i kutilmoqda…</>;
+      return "Yetib borishi kutilmoqda…";
     case "FAILED":
-      return item.failureReason ? <>{TELEGRAM_FAILURE_LABELS[item.failureReason]}</> : null;
+      if (item.failureReason === "BOT_BLOCKED") return "Botni bloklagan — yuborib bo'lmaydi";
+      return item.failureReason ? TELEGRAM_FAILURE_LABELS[item.failureReason] : null;
   }
 }

@@ -65,6 +65,8 @@ export const t = {
   webLoginSupport: "Supportga yozish (Telegram)",
   deviceTaken:
     "Bu qurilmada hisob allaqachon ochilgan — bitta qurilmada bitta hisob. Qaytib kirish uchun «Hisobim bor — kirish» ni bosing.",
+  cookiesBlocked:
+    "Brauzeringiz kirishni saqlay olmadi — sayt ma'lumotlari (cookie) o'chirilgan. Brauzer sozlamalarida cookie'larni yoqing yoki boshqa brauzerni oching, so'ng «Hisobim bor — kirish» ni bosing.",
   webLoginTooMany: "Juda ko'p urinish. 10 daqiqadan keyin qayta urinib ko'ring.",
   webLoginRetry: "Yangi kod olish",
   webLoginOr: "yoki",

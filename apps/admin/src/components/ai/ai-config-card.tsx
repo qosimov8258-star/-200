@@ -2,19 +2,19 @@
 
 import { useId, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, CopyPlus, Loader2, Lock, PencilLine, Sparkles } from "lucide-react";
+import { Check, CheckCircle2, Loader2, PencilLine } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { IosIcon } from "@/components/ui/ios-icon";
+import { MoreDetails } from "@/components/ui/more-details";
 import { Textarea } from "@/components/ui/textarea";
 import { createAiDraft, updateAiDraft } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
-import { formatDateTime, formatNumber } from "@/lib/format";
+import { formatDayTime, formatNumber } from "@/lib/format";
 import { AI_LIMITS, type AiConfigVersion, type AiState } from "@/lib/types";
 
-import { ErrorAlert, useSetAiState } from "./ai-common";
+import { AI_SECTION_IDS, ErrorAlert, scrollToAiSection, useSetAiState } from "./ai-common";
 import { ApproveBlock } from "./ai-approve-block";
 import { DraftReferenceCard, ReadonlyReferenceCard } from "./ai-reference-card";
 import { ReferenceUpload } from "./ai-reference-upload";
@@ -28,114 +28,113 @@ interface ConfigCardProps {
   onNotice: (message: string) => void;
 }
 
-/** "Sozlamalar (versiya N)": qoralama muharriri, tasdiqlangan versiya yoki birinchi marta boshlash. */
+/**
+ * "AI nimaga qaraydi": tahrirlanayotgan sozlamalar (rasmlar, mezonlar, ishga tushirish) yoki amaldagi
+ * sozlamalarning qisqa xulosasi. Hali hech narsa yo'q bo'lsa — chizilmaydi ("Sozlashni boshlash" — qadamlarda).
+ */
 export function ConfigCard({ state, onNotice }: ConfigCardProps) {
   const { draft, active } = state;
-  const version = draft?.version ?? active?.version ?? null;
+  if (!draft && !active) return null;
 
   return (
-    <Card>
+    <Card id={AI_SECTION_IDS.config} className="scroll-mt-28">
       <CardHeader className="flex flex-wrap items-center justify-between gap-2">
-        <CardTitle>{version ? `Sozlamalar (versiya ${version})` : "Sozlamalar"}</CardTitle>
+        <CardTitle id={AI_SECTION_IDS.configTitle} tabIndex={-1} className="outline-none">
+          AI nimaga qaraydi
+        </CardTitle>
         {draft ? (
           <Badge tone="warning">
             <PencilLine className="mr-1 size-3.5" aria-hidden />
-            Qoralama — tahrirlash mumkin
+            Tahrirlanmoqda — hali kuchga kirmagan
           </Badge>
-        ) : active ? (
+        ) : (
           <Badge tone="success">
-            <Lock className="mr-1 size-3.5" aria-hidden />
-            Tasdiqlangan
+            <CheckCircle2 className="mr-1 size-3.5" aria-hidden />
+            Amalda
           </Badge>
-        ) : null}
+        )}
       </CardHeader>
       <CardContent>
         {draft ? (
           // Versiya almashsa (yangi qoralama) — mahalliy holat (mezon matni) qaytadan boshlanadi.
           <DraftEditor key={draft.version} state={state} draft={draft} onNotice={onNotice} />
-        ) : active ? (
-          <ActiveVersion version={active} />
         ) : (
-          <EmptyConfig />
+          active && <ActiveVersion version={active} />
         )}
       </CardContent>
     </Card>
   );
 }
 
-function EmptyConfig() {
-  const setState = useSetAiState();
-  const create = useMutation({ mutationFn: createAiDraft, onSuccess: setState });
-  return (
-    <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 px-4 py-10 text-center">
-      <IosIcon icon={Sparkles} tint="purple" size={44} />
-      <p className="max-w-md text-sm text-slate-600">
-        AI hali sozlanmagan. Namuna rasmlar va mezonlarni kiriting, keyin tasdiqlang — shundan so&apos;ng videolar
-        tekshiriladi.
-      </p>
-      <Button onClick={() => create.mutate()} loading={create.isPending}>
-        Sozlashni boshlash
-      </Button>
-      {create.isError && <ErrorAlert>{errorMessage(create.error)}</ErrorAlert>}
-    </div>
-  );
-}
-
-/** Tasdiqlangan versiya — faqat ko'rish, o'zgartirish uchun "Yangi versiya". */
+/** Amaldagi sozlamalar: bir qatorlik xulosa, "O'zgartirish" (nusxa ochadi) va yopiq "Ko'rish" bo'limi. */
 function ActiveVersion({ version }: { version: AiConfigVersion }) {
   const setState = useSetAiState();
-  const create = useMutation({ mutationFn: createAiDraft, onSuccess: setState });
+  const create = useMutation({
+    mutationFn: createAiDraft,
+    onSuccess: (next) => {
+      setState(next);
+      // Qoralama paydo bo'lgach bu karta sahifa tepasiga ko'chadi — o'sha yerga o'tamiz.
+      scrollToAiSection(AI_SECTION_IDS.config, AI_SECTION_IDS.configTitle);
+    },
+  });
+  const count = version.references.length;
+  const hasCriteria = version.criteria.trim() !== "";
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="text-sm text-slate-600">
-          {version.approvedAt && (
-            <>
-              Tasdiqlangan: <span className="tabular-nums">{formatDateTime(version.approvedAt)}</span>
-              {version.approvedBy && <> · {version.approvedBy}</>}.{" "}
-            </>
-          )}
-          Bu versiya qulflangan — AI videolarni shu sozlamalar bo&apos;yicha tekshiradi.
-        </p>
+        <div className="min-w-0 space-y-1">
+          <p className="text-sm text-ink">
+            <span className="tabular-nums">{formatNumber(count)}</span> ta namuna rasm ·{" "}
+            {hasCriteria ? "mezonlar yozilgan" : "mezon yozilmagan"}
+            {version.approvedAt && (
+              <>
+                {" "}
+                · <span className="tabular-nums">{formatDayTime(version.approvedAt)}</span> da{" "}
+                {version.approvedBy ? `${version.approvedBy} tasdiqlagan` : "tasdiqlangan"}
+              </>
+            )}
+          </p>
+          <p className="text-xs text-slate-500">
+            «O&apos;zgartirish» — nusxa ochiladi, tasdiqlaguningizcha AI eskisi bo&apos;yicha ishlaydi.
+          </p>
+        </div>
         <Button variant="secondary" onClick={() => create.mutate()} loading={create.isPending}>
-          {!create.isPending && <CopyPlus className="size-4" aria-hidden />}
-          Yangi versiya
+          {!create.isPending && <PencilLine className="size-4" aria-hidden />}
+          O&apos;zgartirish
         </Button>
       </div>
-      <p className="text-xs text-slate-500">
-        «Yangi versiya» — hozirgi rasmlar va mezonlardan nusxa olinadi, uni o&apos;zgartirib tasdiqlaysiz. Tasdiqlaguningizcha
-        natijalar versiya {version.version} bo&apos;yicha qoladi.
-      </p>
       {create.isError && <ErrorAlert>{errorMessage(create.error)}</ErrorAlert>}
 
-      <section aria-labelledby="ai-active-refs" className="space-y-3">
-        <h3 id="ai-active-refs" className="text-sm font-semibold text-ink">
-          Namuna rasmlar <span className="font-normal text-slate-500 tabular-nums">({version.references.length})</span>
-        </h3>
-        {version.references.length > 0 ? (
-          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {version.references.map((reference, index) => (
-              <ReadonlyReferenceCard key={reference.id} reference={reference} index={index} />
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-slate-500">Rasm qo&apos;shilmagan.</p>
-        )}
-      </section>
+      <MoreDetails title="Ko'rish: rasmlar va mezonlar" meta={`${formatNumber(count)} ta rasm`} contentClassName="space-y-5">
+        <section aria-labelledby="ai-active-refs" className="space-y-3">
+          <h3 id="ai-active-refs" className="text-sm font-semibold text-ink">
+            Namuna rasmlar <span className="font-normal text-slate-500 tabular-nums">({formatNumber(count)})</span>
+          </h3>
+          {count > 0 ? (
+            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {version.references.map((reference, index) => (
+                <ReadonlyReferenceCard key={reference.id} reference={reference} index={index} />
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-slate-500">Rasm qo&apos;shilmagan.</p>
+          )}
+        </section>
 
-      <section aria-labelledby="ai-active-criteria" className="space-y-2">
-        <h3 id="ai-active-criteria" className="text-sm font-semibold text-ink">
-          Umumiy mezonlar
-        </h3>
-        {version.criteria.trim() ? (
-          <p className="rounded-xl bg-canvas px-4 py-3 text-sm whitespace-pre-wrap break-words text-slate-700">
-            {version.criteria}
-          </p>
-        ) : (
-          <p className="text-sm text-slate-500">Mezon yozilmagan — faqat rasmlar bo&apos;yicha.</p>
-        )}
-      </section>
+        <section aria-labelledby="ai-active-criteria" className="space-y-2">
+          <h3 id="ai-active-criteria" className="text-sm font-semibold text-ink">
+            Umumiy mezonlar
+          </h3>
+          {hasCriteria ? (
+            <p className="rounded-xl bg-canvas px-4 py-3 text-sm whitespace-pre-wrap break-words text-slate-700">
+              {version.criteria}
+            </p>
+          ) : (
+            <p className="text-sm text-slate-500">Mezon yozilmagan — faqat rasmlar bo&apos;yicha.</p>
+          )}
+        </section>
+      </MoreDetails>
     </div>
   );
 }
@@ -173,8 +172,8 @@ function DraftEditor({ state, draft, onNotice }: { state: AiState; draft: AiConf
     <div className="space-y-6">
       {state.active && (
         <p className="rounded-xl bg-canvas px-3 py-2 text-xs text-slate-600">
-          Hozir AI versiya {state.active.version} bo&apos;yicha ishlayapti. Bu qoralama (versiya {draft.version}) tasdiqlanmaguncha
-          hech narsa o&apos;zgarmaydi.
+          Hozir AI amaldagi sozlamalar bo&apos;yicha ishlayapti. Bu o&apos;zgarishlar pastdagi «Ishga tushirish»
+          bo&apos;limida boshlanmaguncha kuchga kirmaydi.
         </p>
       )}
 

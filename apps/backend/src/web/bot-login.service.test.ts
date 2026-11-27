@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { BOT_LOGIN_ID, BOT_LOGIN_MAX_OPEN, BOT_LOGIN_TTL_MS, BotLoginService } from "./bot-login.service";
+import { BOT_LOGIN_GRACE_MS, BOT_LOGIN_ID, BOT_LOGIN_MAX_OPEN, BOT_LOGIN_TTL_MS, BotLoginService } from "./bot-login.service";
 
 const NOW = 1_795_000_000_000;
 
@@ -18,7 +18,7 @@ test("start: unguessable id that fits a Telegram start link, a 4-digit code and 
   assert.equal(a.expiresAt.getTime(), NOW + BOT_LOGIN_TTL_MS);
 });
 
-test("only the Telegram user who opened the link can confirm; the browser needs the secret; result is single use", () => {
+test("only the Telegram user who opened the link can confirm; the browser needs the secret; an issued result lasts only a short grace period", () => {
   const service = new BotLoginService();
   const r = service.start(NOW);
   assert.ok(r);
@@ -32,10 +32,29 @@ test("only the Telegram user who opened the link can confirm; the browser needs 
 
   assert.equal(service.confirm(r.id, 42, 9_000, NOW), true);
   assert.equal(service.claimedBy(42, NOW), null, "tasdiqlangani endi kutilmaydi");
-  assert.deepEqual(service.poll(r.id, "noto'g'ri", NOW), { status: "EXPIRED", accountId: null });
-  assert.deepEqual(service.poll(r.id, "", NOW), { status: "EXPIRED", accountId: null });
-  assert.deepEqual(service.poll(r.id, r.secret, NOW), { status: "CONFIRMED", accountId: 9_000 });
-  assert.deepEqual(service.poll(r.id, r.secret, NOW), { status: "EXPIRED", accountId: null });
+  assert.deepEqual(service.poll(r.id, "noto'g'ri", NOW), { status: "EXPIRED", accountId: null, issuedAt: null });
+  assert.deepEqual(service.poll(r.id, "", NOW), { status: "EXPIRED", accountId: null, issuedAt: null });
+  assert.deepEqual(service.poll(r.id, r.secret, NOW), { status: "CONFIRMED", accountId: 9_000, issuedAt: null });
+
+  // Sessiya berildi: qisqa muddat o'sha sessiya vaqti qaytadi (javob yo'qolsa), keyin so'rov tugaydi.
+  service.issued(r.id, NOW + 500, NOW);
+  service.issued(r.id, NOW + 9_999, NOW);
+  const grace = NOW + BOT_LOGIN_GRACE_MS;
+  assert.deepEqual(service.poll(r.id, r.secret, grace - 1), { status: "CONFIRMED", accountId: 9_000, issuedAt: NOW + 500 });
+  assert.equal(service.poll(r.id, "noto'g'ri", grace - 1).status, "EXPIRED", "kalitsiz — baribir yo'q");
+  assert.equal(service.claim(r.id, 42, NOW), null, "tasdiqlangani qayta ochilmaydi");
+  assert.equal(service.confirm(r.id, 42, 7_000, NOW), false);
+  assert.deepEqual(service.poll(r.id, r.secret, grace), { status: "EXPIRED", accountId: null, issuedAt: null });
+  assert.equal(service.poll(r.id, r.secret, NOW).status, "EXPIRED", "o'chirildi");
+
+  // Sessiya berilmaydigan bo'lsa (hisob yo'q, kirish yopiq) — chaqiruvchi so'rovni yopadi.
+  const dropped = service.start(NOW);
+  assert.ok(dropped);
+  service.claim(dropped.id, 42, NOW);
+  service.confirm(dropped.id, 42, 9_000, NOW);
+  assert.equal(service.poll(dropped.id, dropped.secret, NOW).status, "CONFIRMED");
+  service.drop(dropped.id);
+  assert.equal(service.poll(dropped.id, dropped.secret, NOW).status, "EXPIRED");
 });
 
 test("deny / fail close the request; expired requests cannot be claimed, confirmed or polled", () => {

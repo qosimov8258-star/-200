@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * G'oliblar → "Voucher" tabi tepasidagi karta: oylik voucherlardan hozir nechtasi qolgani
- * (jami / yuborilgan / tasdiqlangan / qoralamada) va bosqichlar bo'yicha taqsimot.
+ * (jami / yuborilgan / tasdiqlangan / tasdiqlanmagan) va bosqichlar bo'yicha taqsimot.
  * So'rov kaliti `["draws", …]` — tanlov o'tkazilsa, tasdiqlansa yoki yuborilsa o'zi yangilanadi.
  */
 export function DrawStockSummary() {
@@ -42,7 +42,7 @@ export function DrawStockSummary() {
 const SEGMENTS = [
   { key: "sent", label: "Yuborilgan", dot: "bg-up-bar", bar: "bg-up-bar" },
   { key: "confirmed", label: "Tasdiqlangan", dot: "bg-brand-500", bar: "bg-brand-500" },
-  { key: "draft", label: "Qoralamada", dot: "bg-amber-400", bar: "bg-amber-300 bg-hatch" },
+  { key: "draft", label: "Tasdiqlanmagan", dot: "bg-amber-400", bar: "bg-amber-300 bg-hatch" },
 ] as const;
 
 function StockCard({ stock }: { stock: DrawStock }) {
@@ -71,7 +71,7 @@ function StockCard({ stock }: { stock: DrawStock }) {
         <div className="min-w-0 space-y-3">
           <div
             role="img"
-            aria-label={`Jami ${stock.total}: yuborilgan ${stock.sent}, tasdiqlangan ${stock.confirmed}, qoralamada ${stock.draft}, qolgan ${stock.remaining}`}
+            aria-label={`Jami ${stock.total}: yuborilgan ${stock.sent}, tasdiqlangan ${stock.confirmed}, tasdiqlanmagan ${stock.draft}, qolgan ${stock.remaining}`}
             className="flex h-3 overflow-hidden rounded-full bg-[#efeef4]"
           >
             {SEGMENTS.map((segment) =>
@@ -100,7 +100,7 @@ function StockCard({ stock }: { stock: DrawStock }) {
           </ul>
           {stock.draft > 0 && (
             <p className="text-xs text-amber-700">
-              Qoralamadagi {formatNumber(stock.draft)} ta hali tasdiqlanmagan — qoldiqdan ayrilmagan.
+              Tasdiqlanmagan {formatNumber(stock.draft)} ta hali qoldiqdan ayrilmagan — natija tasdiqlangach ayriladi.
             </p>
           )}
         </div>
@@ -168,7 +168,7 @@ function StageCell({ stage, today }: { stage: DrawStockStage; today: string }) {
         )}
       </div>
       {stage.draft > 0 && (
-        <p className="mt-1.5 text-[11px] text-amber-700">Qoralamada: {formatNumber(stage.draft)}</p>
+        <p className="mt-1.5 text-[11px] text-amber-700">Tasdiqlanmagan: {formatNumber(stage.draft)}</p>
       )}
     </li>
   );

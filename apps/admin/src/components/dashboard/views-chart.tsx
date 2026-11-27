@@ -30,7 +30,7 @@ export function ViewsChart({ daily }: { daily: DailyStat[] }) {
   return (
     <DashboardSection
       title="Kunlik ko'rishlar o'sishi"
-      subtitle="Har bir yig'ishda qo'shilgan yangi ko'rishlar"
+      subtitle="Har kuni qo'shilgan yangi ko'rishlar — ustun ustiga olib borsangiz aniq son chiqadi"
       actions={
         <>
           <IconButton label="Grafik" active={view === "chart"} onClick={() => setView("chart")}>
@@ -49,7 +49,7 @@ export function ViewsChart({ daily }: { daily: DailyStat[] }) {
 
 function Columns({ daily }: { daily: DailyStat[] }) {
   if (daily.length === 0) {
-    return <p className="py-16 text-center text-sm text-muted">Bu davrda ma&apos;lumot yo&apos;q</p>;
+    return <p className="py-16 text-center text-sm text-muted">Bu davrda hali ko&apos;rishlar yig&apos;ilmagan</p>;
   }
   const max = Math.max(...daily.map((d) => d.viewsGrowth));
   const top = niceMax(max);
