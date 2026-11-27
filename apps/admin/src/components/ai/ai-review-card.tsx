@@ -1,40 +1,58 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ExternalLink, ImageOff, Loader2, X } from "lucide-react";
+import { Check, ChevronDown, Clock, ExternalLink, ImageOff, Loader2, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { aiFrameUrl } from "@/lib/api";
 import { formatDayTime, formatNumber, formatPercent, formatUsd, formatVideoSecond } from "@/lib/format";
-import {
-  AI_MANUAL_DECISION_LABELS,
-  AI_REVIEW_STATE_LABELS,
-  AI_REVIEW_STATE_TONES,
-  AI_VERDICT_LABELS,
-  AI_VERDICT_TONES,
-} from "@/lib/labels";
+import { AI_MANUAL_DECISION_LABELS, AI_REVIEW_STATE_LABELS, AI_VERDICT_FILTER_LABELS, AI_VERDICT_LABELS, AI_VERDICT_TONES } from "@/lib/labels";
 import type { AiEvidence, AiManualDecision, AiReviewItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+/** Shundan yuqori ishonch — "AI aniq". */
+const SURE_CONFIDENCE = 0.85;
+
 interface ReviewCardProps {
   item: AiReviewItem;
+  /** Bundan past ishonch — "Shubhali" (backend sozlamasi). */
+  confidenceMin: number;
   onDecide: (item: AiReviewItem, decision: AiManualDecision) => void;
 }
 
-/** Natijalar ro'yxatidagi bitta video: ishtirokchi, xulosa, sabab, dalil kadrlari, qo'lda qaror. */
-export function ReviewCard({ item, onDecide }: ReviewCardProps) {
+/** AI ishonchi foiz o'rniga so'z bilan (aniq foiz — "Batafsil" ichida). */
+function confidenceText(confidence: number, confidenceMin: number): string {
+  if (confidence >= SURE_CONFIDENCE) return "AI aniq";
+  if (confidence >= confidenceMin) return "AI deyarli aniq";
+  return "AI ishonchsiz";
+}
+
+/**
+ * Natijalar ro'yxatidagi bitta video: ishtirokchi, xulosa, sabab, dalil kadrlari va "Mos / Mos emas" belgisi.
+ * Texnik ma'lumotlar (shortcode, aniq ishonch, narx, token) — kartaning pastidagi "Batafsil" ichida.
+ */
+export function ReviewCard({ item, confidenceMin, onDecide }: ReviewCardProps) {
   const [frame, setFrame] = useState<AiEvidence | null>(null);
   const { manual } = item;
   const tokens = item.tokens ? item.tokens.input + item.tokens.output + item.tokens.cacheRead + item.tokens.cacheWrite : null;
+  const name = item.participant.fullName;
+  // "SHUBHALI" belgisining o'zi yetarli — yoniga "AI aniq" yozilsa, bir-biriga zid bo'lardi.
+  const aiNote = !item.verdict
+    ? null
+    : manual
+      ? `AI: ${AI_VERDICT_FILTER_LABELS[item.verdict]}`
+      : item.verdict !== "UNCERTAIN" && item.confidence !== null
+        ? confidenceText(item.confidence, confidenceMin)
+        : null;
 
   return (
     <li className="rounded-2xl border border-line bg-white p-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:gap-6">
         {/* Ishtirokchi va video */}
         <div className="min-w-0 lg:w-56 lg:shrink-0">
-          <p className="truncate font-medium text-ink">{item.participant.fullName}</p>
+          <p className="truncate font-medium text-ink">{name}</p>
           <p className="text-xs text-slate-500 tabular-nums">{item.participant.phone}</p>
           <a
             href={item.reel.url}
@@ -44,50 +62,42 @@ export function ReviewCard({ item, onDecide }: ReviewCardProps) {
           >
             Reelni ochish
             <ExternalLink className="size-3.5" aria-hidden />
-            <span className="sr-only">({item.participant.fullName}, yangi oynada)</span>
+            <span className="sr-only">({name}, yangi oynada)</span>
           </a>
-          <p className="text-xs text-slate-500">
-            <span className="font-mono">{item.reel.shortcode}</span> ·{" "}
-            <span className="tabular-nums">{formatNumber(item.reel.views)} ko&apos;rish</span>
-          </p>
+          <p className="text-xs text-slate-500 tabular-nums">{formatNumber(item.reel.views)} ko&apos;rish</p>
         </div>
 
         {/* Xulosa */}
         <div className="min-w-0 flex-1 space-y-2.5">
           <div className="flex flex-wrap items-center gap-2">
             {manual ? (
-              <Badge tone={AI_VERDICT_TONES[manual.decision]}>Qo&apos;lda: {AI_VERDICT_LABELS[manual.decision]}</Badge>
+              <Badge tone={AI_VERDICT_TONES[manual.decision]}>Siz: {AI_MANUAL_DECISION_LABELS[manual.decision]}</Badge>
             ) : item.verdict ? (
               <Badge tone={AI_VERDICT_TONES[item.verdict]}>{AI_VERDICT_LABELS[item.verdict]}</Badge>
             ) : null}
-            {item.state !== "DONE" && (
-              <Badge tone={AI_REVIEW_STATE_TONES[item.state]}>
-                {item.state === "PROCESSING" && <Loader2 className="mr-1 size-3 animate-spin" aria-hidden />}
-                {AI_REVIEW_STATE_LABELS[item.state]}
-              </Badge>
-            )}
-            {item.verdict && (
-              <span className="text-xs text-slate-500">
-                {manual ? `AI: ${AI_VERDICT_LABELS[item.verdict]}` : "AI"}
-                {item.confidence !== null && (
-                  <>
-                    {" · ishonch "}
-                    <span className="font-medium text-ink tabular-nums">{formatPercent(item.confidence)}</span>
-                  </>
-                )}
-              </span>
-            )}
+            {item.state === "FAILED" && <Badge tone="danger">{AI_REVIEW_STATE_LABELS.FAILED}</Badge>}
+            {aiNote && <span className="text-xs text-slate-500">{aiNote}</span>}
           </div>
 
           {item.reason && <p className="text-sm break-words text-slate-700">{item.reason}</p>}
-          {item.state === "QUEUED" && <p className="text-sm text-slate-500">Worker navbati kelganda tekshiriladi.</p>}
+          {item.state === "QUEUED" && (
+            <p className="flex items-center gap-1.5 text-sm text-slate-500">
+              <Clock className="size-4 shrink-0" aria-hidden />
+              Navbatda — tez orada tekshiriladi
+            </p>
+          )}
           {item.state === "PROCESSING" && (
-            <p className="text-sm text-slate-500">Video yuklab olinmoqda va kadrlar AI ga yuborilmoqda…</p>
+            <p className="flex items-center gap-1.5 text-sm text-brand-700">
+              <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden />
+              Hozir tekshirilmoqda…
+            </p>
           )}
           {item.state === "FAILED" && (
             <p className="text-sm break-words text-red-700">
               {item.error ?? "Tekshirib bo'lmadi."}{" "}
-              <span className="text-xs text-slate-500 tabular-nums">(urinishlar: {item.attempts})</span>
+              {item.attempts > 0 && (
+                <span className="text-xs text-slate-500 tabular-nums">· {item.attempts} marta urinildi</span>
+              )}
             </p>
           )}
 
@@ -107,24 +117,24 @@ export function ReviewCard({ item, onDecide }: ReviewCardProps) {
 
           {manual && (
             <p className="rounded-lg border border-line px-3 py-2 text-xs break-words text-slate-600">
-              <span className="font-medium text-ink">Qo&apos;lda: {AI_MANUAL_DECISION_LABELS[manual.decision]}</span> — «
-              {manual.note}» · {manual.by}, <span className="tabular-nums">{formatDayTime(manual.at)}</span>
+              <span className="font-medium text-ink">Belgi: {AI_MANUAL_DECISION_LABELS[manual.decision]}</span> — «{manual.note}» ·{" "}
+              {manual.by}, <span className="tabular-nums">{formatDayTime(manual.at)}</span>
             </p>
           )}
         </div>
 
-        {/* Qaror */}
-        <div className="flex flex-wrap items-center gap-2 lg:w-40 lg:shrink-0 lg:flex-col lg:flex-nowrap lg:items-stretch">
+        {/* Belgi: faqat AI natijasini to'g'rilaydi */}
+        <div className="flex flex-wrap items-center gap-2 lg:w-36 lg:shrink-0 lg:flex-col lg:flex-nowrap lg:items-stretch">
           {manual?.decision !== "APPROVED" && (
             <Button
               size="sm"
               variant="secondary"
               onClick={() => onDecide(item, "APPROVED")}
               className="flex-1 text-up hover:border-green-200 hover:bg-green-50 sm:flex-none lg:flex-none"
-              aria-label={`${item.participant.fullName} videosini qo'lda tasdiqlash`}
+              aria-label={`${name}: AI natijasini «mos» deb belgilash`}
             >
               <Check className="size-4" aria-hidden />
-              Tasdiqlash
+              Mos
             </Button>
           )}
           {manual?.decision !== "REJECTED" && (
@@ -133,27 +143,38 @@ export function ReviewCard({ item, onDecide }: ReviewCardProps) {
               variant="secondary"
               onClick={() => onDecide(item, "REJECTED")}
               className="flex-1 text-red-600 hover:border-red-200 hover:bg-red-50 sm:flex-none lg:flex-none"
-              aria-label={`${item.participant.fullName} videosini qo'lda rad etish`}
+              aria-label={`${name}: AI natijasini «mos emas» deb belgilash`}
             >
               <X className="size-4" aria-hidden />
-              Rad etish
+              Mos emas
             </Button>
           )}
-          <p className="w-full text-xs text-slate-400 tabular-nums sm:w-auto lg:w-full lg:text-right">
-            {formatDayTime(item.updatedAt)}
-            {item.costUsd !== null && ` · ${formatUsd(item.costUsd)}`}
-            {tokens !== null && (
-              <span className="block">{formatNumber(tokens)} token</span>
-            )}
-          </p>
         </div>
       </div>
+
+      <details className="group mt-3 border-t border-line pt-2 text-xs text-slate-500">
+        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded hover:text-ink focus-visible:outline-2 focus-visible:outline-brand-500 [&::-webkit-details-marker]:hidden">
+          Batafsil
+          <span className="sr-only">: {name} videosi bo&apos;yicha texnik ma&apos;lumot</span>
+          <ChevronDown className="size-3.5 transition-transform group-open:rotate-180" aria-hidden />
+        </summary>
+        <dl className="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
+          <DetailRow label="Video kodi">
+            <span className="font-mono">{item.reel.shortcode}</span>
+          </DetailRow>
+          {item.confidence !== null && <DetailRow label="AI ishonchi">{formatPercent(item.confidence)}</DetailRow>}
+          {item.costUsd !== null && <DetailRow label="Narxi">{formatUsd(item.costUsd)}</DetailRow>}
+          {tokens !== null && <DetailRow label="Token">{formatNumber(tokens)}</DetailRow>}
+          {item.attempts > 0 && <DetailRow label="Urinishlar">{formatNumber(item.attempts)}</DetailRow>}
+          <DetailRow label="Yangilangan">{formatDayTime(item.updatedAt)}</DetailRow>
+        </dl>
+      </details>
 
       {frame && (
         <Dialog
           open
           onClose={() => setFrame(null)}
-          title={`${item.participant.fullName} — ${formatVideoSecond(frame.second)}`}
+          title={`${name} — ${formatVideoSecond(frame.second)}`}
           description={frame.description}
           className="max-w-sm"
         >
@@ -167,6 +188,15 @@ export function ReviewCard({ item, onDecide }: ReviewCardProps) {
         </Dialog>
       )}
     </li>
+  );
+}
+
+function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex min-w-0 justify-between gap-2">
+      <dt>{label}</dt>
+      <dd className="min-w-0 truncate text-slate-700 tabular-nums">{children}</dd>
+    </div>
   );
 }
 

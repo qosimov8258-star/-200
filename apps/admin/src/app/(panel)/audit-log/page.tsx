@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 
 export const metadata: Metadata = {
-  title: "Audit log",
+  title: "Amallar tarixi",
 };
 
 export default function AuditLogPage() {

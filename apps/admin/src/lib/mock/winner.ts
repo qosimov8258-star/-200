@@ -22,6 +22,7 @@ import type {
   WinnerStage,
 } from "../types";
 import { getContestData, reelStatusOn, type MockReel } from "./contest";
+import { mainDrawOf } from "./draws";
 import { computeRanking, type MockRankingEntry } from "./ranking";
 import { effectiveSettings } from "./settings";
 import {
@@ -196,9 +197,16 @@ function compute(store: MockStore): Computed {
     entry.reelIds.flatMap((id) => reelsById.get(id) ?? []);
   const skippedIds = new Set(store.winner.skipped.map((item) => item.participantId));
 
-  const ranking = computeRanking(contest.ratingDate, store).filter(
-    (entry) => !skippedIds.has(entry.participantId),
-  );
+  // Backend kabi (oferta 6.2, 9.1): nomzodlar navbati — avtomobil random tanlovidan (g'olib, so'ng
+  // zaxiralar tartibda), reyting bo'yicha emas. Tanlov o'tkazilmagan bo'lsa — nomzod yo'q.
+  const carDraw = mainDrawOf("car");
+  const queue = carDraw
+    ? [...carDraw.winnerEntries, ...carDraw.reserveEntries]
+        .filter((entry) => entry.state === "ACTIVE")
+        .map((entry) => entry.candidate.participantId)
+    : [];
+  const rankingById = new Map(computeRanking(contest.ratingDate, store).map((entry) => [entry.participantId, entry]));
+  const ranking = queue.filter((id) => !skippedIds.has(id)).flatMap((id) => rankingById.get(id) ?? []);
 
   // Tasdiqlangan g'olib reyting keyin o'zgarsa ham o'zgarmaydi.
   const confirmedId = store.winner.confirmed?.participantId;

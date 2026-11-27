@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ListChecks, Lock } from "lucide-react";
+import { ListChecks, PlayCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -11,7 +11,7 @@ import { errorMessage } from "@/lib/api-error";
 import { AI_LIMITS, type AiCandidate, type AiConfigVersion, type AiRunMode, type AiState } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-import { AI_CANDIDATES_KEY, AI_REVIEWS_KEY, useSetAiState } from "./ai-common";
+import { AI_CANDIDATES_KEY, AI_REVIEWS_KEY, AI_SECTION_IDS, useSetAiState } from "./ai-common";
 import { CandidatePicker } from "./ai-candidate-picker";
 
 /** Xulosada shuncha ism ko'rinadi, qolgani "+N". */
@@ -27,7 +27,10 @@ interface ApproveBlockProps {
   onApproved: (message: string) => void;
 }
 
-/** "Sinov (20 ta video)" yoki "Hammasi", sinov videolarini tanlash va "Tasdiqlash". */
+/**
+ * "Ishga tushirish": sinov (20 ta video) yoki hamma videolar, sinov videolarini tanlash va boshlash.
+ * Boshlangach rasm va mezonlar o'zgarmaydi (backend versiyani qulflaydi).
+ */
 export function ApproveBlock({ state, draft, ready, flushCriteria, onApproved }: ApproveBlockProps) {
   const setState = useSetAiState();
   const queryClient = useQueryClient();
@@ -46,16 +49,21 @@ export function ApproveBlock({ state, draft, ready, flushCriteria, onApproved }:
   const defaultList = (defaults.data ?? []).slice(0, trialSize);
   const trialList = custom ?? defaultList;
 
-  const replacingRun = state.run && state.run.version !== draft.version ? state.run.version : null;
+  const replacingRun = state.run !== null && state.run.version !== draft.version;
+  const trialCount = trialList.length || trialSize;
 
   return (
-    <section aria-labelledby="ai-approve-title" className="space-y-4 rounded-2xl border border-brand-200 bg-brand-50/40 p-4">
+    <section
+      id={AI_SECTION_IDS.approve}
+      aria-labelledby="ai-approve-title"
+      className="scroll-mt-28 space-y-4 rounded-2xl border border-brand-200 bg-brand-50/40 p-4"
+    >
       <div>
         <h3 id="ai-approve-title" className="text-sm font-semibold text-ink">
-          Tasdiqlash va ishga tushirish
+          Ishga tushirish
         </h3>
         <p className="mt-0.5 text-xs text-slate-500">
-          Tasdiqlangach versiya {draft.version} qulflanadi va videolar AI tekshiruviga navbatga qo&apos;yiladi.
+          Boshlagach, rasm va mezonlar shu holicha qoladi va videolar AI navbatiga qo&apos;yiladi.
         </p>
       </div>
 
@@ -71,8 +79,8 @@ export function ApproveBlock({ state, draft, ready, flushCriteria, onApproved }:
         <ModeOption
           checked={mode === "FULL"}
           onSelect={() => setMode("FULL")}
-          title="Hammasi"
-          hint="Barcha qabul qilingan videolar darhol tekshiriladi. Keyin qabul qilinadiganlar ham avtomatik."
+          title="Hamma videolar"
+          hint="Barcha qabul qilingan videolar darhol tekshiriladi. Keyin qabul qilinadiganlar ham o'zi tekshiriladi."
         />
       </fieldset>
 
@@ -87,7 +95,7 @@ export function ApproveBlock({ state, draft, ready, flushCriteria, onApproved }:
             </p>
             <Button size="sm" variant="secondary" onClick={() => setPicking(true)}>
               <ListChecks className="size-4" aria-hidden />
-              Videolarni tanlash
+              Boshqa videolarni tanlash
             </Button>
           </div>
           {defaults.isError && !custom ? (
@@ -109,9 +117,9 @@ export function ApproveBlock({ state, draft, ready, flushCriteria, onApproved }:
       )}
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <Button onClick={() => setConfirming(true)} disabled={!ready}>
-          <Lock className="size-4" aria-hidden />
-          Tasdiqlash
+        <Button id={AI_SECTION_IDS.approveStart} onClick={() => setConfirming(true)} disabled={!ready}>
+          <PlayCircle className="size-4" aria-hidden />
+          {mode === "TRIAL" ? `Sinovni boshlash (${trialCount} ta video)` : "Hamma videolarni tekshirish"}
         </Button>
         {!ready && (
           <p className="text-xs text-slate-500">
@@ -139,33 +147,28 @@ export function ApproveBlock({ state, draft, ready, flushCriteria, onApproved }:
 
       {confirming && (
         <ConfirmDialog
-          title={`Versiya ${draft.version} tasdiqlansinmi?`}
+          title={mode === "TRIAL" ? "Sinov boshlansinmi?" : "Hamma videolar tekshirilsinmi?"}
           description={
             <div className="space-y-2">
               <p>
-                Versiya {draft.version} <strong className="font-medium text-ink">qulflanadi</strong>: rasmlar va
-                mezonlarni endi o&apos;zgartirib bo&apos;lmaydi. Keyin o&apos;zgartirish kerak bo&apos;lsa — «Yangi
-                versiya» yaratasiz.
-              </p>
-              <p>
+                Shundan keyin bu rasm va mezonlar o&apos;zgarmaydi (o&apos;zgartirish uchun «O&apos;zgartirish» bilan
+                yangi nusxa ochasiz).{" "}
                 {mode === "TRIAL"
-                  ? `Sinov: ${trialList.length || trialSize} ta video AI tekshiruviga yuboriladi.`
-                  : "Barcha qabul qilingan videolar navbatga qo'yiladi. Keyin qabul qilinadigan videolar ham avtomatik tekshiriladi."}
+                  ? `${trialCount} ta video tekshiriladi.`
+                  : "Barcha qabul qilingan videolar tekshiriladi, keyin qabul qilinadiganlar ham o'zi tekshiriladi."}
               </p>
-              {replacingRun !== null && (
-                <p>
-                  «Natijalar»da endi versiya {replacingRun} o&apos;rniga versiya {draft.version} natijalari ko&apos;rinadi.
-                </p>
+              {replacingRun && (
+                <p>«Natijalar»da endi avvalgi sozlamalar o&apos;rniga shu sozlamalar natijalari ko&apos;rinadi.</p>
               )}
               <p className="text-xs text-slate-500">
-                Tekshiruv pullik (Claude API) — sarf «Jarayon» bo&apos;limida ko&apos;rinadi.{" "}
+                Tekshiruv pullik — sarf «Jarayon»da ko&apos;rinadi.{" "}
                 {state.acceptanceGate
-                  ? "Shu mezonlar bilan yangi yuborilgan videolar ham tekshiriladi: AI tasdiqlasa — qabul, aks holda — «Qo'lda tekshiruv»."
+                  ? "Yangi yuborilgan videolar ham shu sozlamalar bilan tekshiriladi: AI tasdiqlasa — qabul, aks holda — «Qo'lda tekshiruv»."
                   : "AI xulosasi videolar holatini o'zi o'zgartirmaydi."}
               </p>
             </div>
           }
-          confirmLabel="Tasdiqlash"
+          confirmLabel={mode === "TRIAL" ? "Sinovni boshlash" : "Tekshirishni boshlash"}
           onConfirm={async () => {
             await flushCriteria();
             const next = await approveAiDraft(
@@ -181,8 +184,8 @@ export function ApproveBlock({ state, draft, ready, flushCriteria, onApproved }:
             setConfirming(false);
             onApproved(
               mode === "TRIAL"
-                ? `Versiya ${draft.version} tasdiqlandi — sinov videolari navbatga qo'yildi.`
-                : `Versiya ${draft.version} tasdiqlandi — barcha videolar navbatga qo'yildi.`,
+                ? "Sinov boshlandi — videolar AI navbatiga qo'yildi."
+                : "Tekshiruv boshlandi — barcha videolar AI navbatiga qo'yildi.",
             );
             await Promise.all([
               queryClient.invalidateQueries({ queryKey: AI_REVIEWS_KEY }),

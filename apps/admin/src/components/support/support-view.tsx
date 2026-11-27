@@ -15,6 +15,7 @@ import { TicketList, type SupportListFilter } from "./ticket-list";
 
 const PAGE_SIZE = 25;
 const DEFAULT_FILTER: SupportListFilter = "OPEN";
+/** "Yangi" va "Ko'rilmoqda" tab sifatida ko'rinmaydi, lekin URL orqali (`?status=NEW`) ochiladi. */
 const FILTERS: SupportListFilter[] = ["OPEN", "NEW", "IN_PROGRESS", "CLOSED", "ALL"];
 
 interface SupportUrlState {
@@ -112,8 +113,10 @@ export function SupportView() {
         ) : (
           <Card className="flex h-full flex-col items-center justify-center gap-2 px-4 py-16 text-center">
             <IosIcon icon={MessagesSquare} tint="gray" size={48} />
-            <p className="text-sm text-slate-500">
-              Javob berish uchun chap tomondagi ro&apos;yxatdan murojaatni tanlang.
+            <p className="max-w-md text-sm leading-relaxed text-slate-600">
+              Bu yerda ishtirokchilar bot yoki sayt orqali yozgan savollar turadi. Chapdan murojaatni
+              tanlang va javob yozing — javob ishtirokchiga Telegramda boradi. Savol hal bo&apos;lgach
+              «Yuborish va yopish» ni bosing.
             </p>
           </Card>
         )}

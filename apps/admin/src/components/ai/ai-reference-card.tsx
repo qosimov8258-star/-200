@@ -152,7 +152,7 @@ export function DraftReferenceCard({ reference, index }: { reference: AiReferenc
       {confirmingDelete && (
         <ConfirmDialog
           title="Rasm o'chirilsinmi?"
-          description="Rasm faqat shu qoralamadan o'chadi. Tasdiqlangan versiyalarga ta'sir qilmaydi."
+          description="Rasm faqat tahrirlanayotgan sozlamalardan o'chadi. Avval boshlangan tekshiruvlarga ta'sir qilmaydi."
           confirmLabel="O'chirish"
           variant="danger"
           onConfirm={async () => setState(await deleteAiReference(reference.id))}

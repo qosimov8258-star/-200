@@ -49,8 +49,8 @@ const ACTIONS: Record<ParticipantAction, ActionConfig> = {
     run: unblockParticipant,
   },
   disqualify: {
-    title: "Diskvalifikatsiya qilish",
-    confirmLabel: "Diskvalifikatsiya qilish",
+    title: "Tanlovdan chetlatish",
+    confirmLabel: "Tanlovdan chetlatish",
     variant: "danger",
     describe: (name) => (
       <>
@@ -61,7 +61,7 @@ const ACTIONS: Record<ParticipantAction, ActionConfig> = {
         </strong>
       </>
     ),
-    successMessage: (name) => `${name} diskvalifikatsiya qilindi.`,
+    successMessage: (name) => `${name} tanlovdan chetlatildi.`,
     run: disqualifyParticipant,
   },
 };
@@ -89,12 +89,12 @@ export function ParticipantActionDialog({
       description={config.describe(name)}
       confirmLabel={config.confirmLabel}
       variant={config.variant}
-      placeholder="Masalan: Reel uchun pullik reklama yoqilgan, skrinshot bilan tasdiqlandi"
+      placeholder="Masalan: videoga pullik reklama yoqilgan, skrinshot bilan tasdiqlandi"
       onConfirm={async (reason) => {
         await config.run(participant.id, { reason });
-        // Holat ro'yxat, reyting, target ro'yxati va dashboardga ta'sir qiladi.
+        // Holat ro'yxat, ishtirokchi oynasi, reyting, sovrinlar oraliqlari, target ro'yxati va dashboardga ta'sir qiladi.
         await Promise.all(
-          ["participants", "target-cases", "daily-rating", "dashboard"].map((key) =>
+          ["participants", "participant-reels", "target-cases", "daily-rating", "rating-prizes", "dashboard"].map((key) =>
             queryClient.invalidateQueries({ queryKey: [key] }),
           ),
         );

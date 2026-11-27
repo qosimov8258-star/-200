@@ -7,7 +7,7 @@ import { AlertCircle, CheckCircle2, ImageOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { aiReferenceImageUrl } from "@/lib/api";
 import { AI_REF_KIND_LABELS, AI_REF_KIND_TONES } from "@/lib/labels";
-import type { AiRefKind, AiState } from "@/lib/types";
+import type { AiProgress, AiRefKind, AiState } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /** `GET /admin/ai/state` — barcha amallar javobi ham shu kalitga yoziladi. */
@@ -20,9 +20,42 @@ export const AI_CANDIDATES_KEY = ["ai-candidates"] as const;
 /** Worker ishlayotganda holat va natijalar shuncha vaqtda yangilanadi. */
 export const AI_POLL_MS = 3000;
 
+/** Sahifa bo'limlari — qadamlardagi tugmalar shu yerlarga olib boradi. */
+export const AI_SECTION_IDS = {
+  config: "ai-config",
+  configTitle: "ai-config-title",
+  approve: "ai-approve",
+  approveStart: "ai-approve-start",
+  progress: "ai-progress",
+  progressTitle: "ai-progress-title",
+  results: "ai-results",
+} as const;
+
 /** Navbatda yoki ishlanayotgan video bor. */
 export function aiRunInProgress(state: AiState | undefined): boolean {
   return Boolean(state?.run && state.progress.queued + state.progress.processing > 0);
+}
+
+/** Sinov ishga tushirilgan va undagi hamma videolar tekshirib bo'lingan. */
+export function aiTrialFinished(state: AiState): boolean {
+  const { run, progress } = state;
+  return run?.mode === "TRIAL" && progress.total > 0 && progress.queued + progress.processing === 0;
+}
+
+/** Bitta video o'rtacha narxi; hali birortasi tayyor bo'lmasa — null. */
+export function averageCost(progress: AiProgress): number | null {
+  return progress.done > 0 ? progress.costUsd / progress.done : null;
+}
+
+/**
+ * Sahifadagi bo'limga silliq o'tish. `focusId` berilsa — o'sha element fokus oladi (klaviatura va ekran
+ * o'quvchisi ham shu joyga o'tsin). Holat yangilangach bo'lim endi chizilayotgan bo'lishi mumkin — bir oz kutiladi.
+ */
+export function scrollToAiSection(id: string, focusId?: string): void {
+  window.setTimeout(() => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
+  }, 100);
 }
 
 /** Amal javobidagi yangi holatni keshga yozish. */

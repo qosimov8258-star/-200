@@ -1,19 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MoreDetails } from "@/components/ui/more-details";
 import { Select } from "@/components/ui/select";
 import { updateContestSettings } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
+import { formatDate } from "@/lib/format";
 import type { ContestSettingsResponse, ContestSettingsUpdate } from "@/lib/types";
 
 const SYNC_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** Ommaviy ofertadagi (25.11.2026) tugash sanasi — 2.5-band. */
+const OFFER_END_DATE = "2027-02-27";
 
 /** Ko'rishlar yig'ish davri (kun). Boshqa qiymat saqlangan bo'lsa — ro'yxatga qo'shiladi. */
 const SYNC_PERIODS: Array<{ days: number; label: string }> = [
@@ -25,6 +30,11 @@ const SYNC_PERIODS: Array<{ days: number; label: string }> = [
 
 const periodLabel = (days: number) =>
   SYNC_PERIODS.find((p) => p.days === days)?.label ?? `Har ${days} kunda`;
+
+/** "Batafsil" ichidagi maydonlar — ulardan birida xato bo'lsa, bo'lim o'zi ochiladi. */
+const ADVANCED_FIELDS = ["syncEveryDays", "syncTime", "minAge"] as const satisfies ReadonlyArray<
+  keyof ContestSettingsUpdate
+>;
 
 type FieldErrors = Partial<Record<keyof ContestSettingsUpdate, string>>;
 
@@ -56,12 +66,16 @@ interface SettingsFormProps {
   onSaved: () => void;
 }
 
-/** TZ 6: Sozlamalar — tanlov muddati, yangilanish vaqti va davri, minimal yosh. Qoidalar — `RulesEditor`. */
+/**
+ * TZ 6: Sozlamalar — tanlov muddati (ochiq) va "Batafsil" ichida kamdan-kam o'zgaradigan
+ * yangilanish davri, vaqti va minimal yosh. Qoidalar — `RulesEditor`.
+ */
 export function SettingsForm({ data, onSaved }: SettingsFormProps) {
   const queryClient = useQueryClient();
   const initial = toForm(data);
   const [form, setForm] = useState<ContestSettingsUpdate>(initial);
   const [showErrors, setShowErrors] = useState(false);
+  const advancedRef = useRef<HTMLDivElement>(null);
 
   const errors = validate(form, data);
   const hasErrors = Object.keys(errors).length > 0;
@@ -90,12 +104,26 @@ export function SettingsForm({ data, onSaved }: SettingsFormProps) {
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setShowErrors(true);
-    if (!hasErrors && dirty) {
+    if (hasErrors) {
+      // "Batafsil" dagi xato ko'rinsin: bo'lim ochiladi (qo'lda yopilgan bo'lsa ham) va xato
+      // tuzatilgach ham ochiq qoladi. `errors` tartibi — sahifadagi maydonlar tartibi.
+      if (ADVANCED_FIELDS.some((key) => errors[key])) {
+        const details = advancedRef.current?.querySelector("details");
+        if (details) details.open = true;
+      }
+      const [firstInvalid] = Object.keys(errors);
+      if (firstInvalid) document.getElementById(firstInvalid)?.focus();
+      return;
+    }
+    if (dirty) {
       mutation.mutate();
     }
   }
 
   const fieldError = (key: keyof ContestSettingsUpdate) => (showErrors ? errors[key] : undefined);
+  const advancedSummary = `${periodLabel(form.syncEveryDays)}, ${form.syncTime || "—"} · ${
+    Number.isNaN(form.minAge) ? "—" : `${form.minAge}+`
+  } yosh`;
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-4">
@@ -110,10 +138,7 @@ export function SettingsForm({ data, onSaved }: SettingsFormProps) {
       )}
 
       <Card>
-        <CardHeader>
-          <CardTitle>Tanlov muddati</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
+        <CardContent className="grid gap-4 pt-5 sm:grid-cols-2">
           <Field
             id="startsOn"
             label="Boshlanish sanasi"
@@ -133,7 +158,7 @@ export function SettingsForm({ data, onSaved }: SettingsFormProps) {
             id="endsOn"
             label="Tugash sanasi"
             error={fieldError("endsOn")}
-            hint="Yakuniy ko'rishlar shu kun 23:59 holatida qayd etiladi (oferta 7.5)."
+            hint={`Ofertada ${formatDate(OFFER_END_DATE)} — o'zgartirishdan oldin yuristlar bilan kelishing. Yakuniy ko'rishlar shu kun 23:59 holatida qayd etiladi (oferta 7.5).`}
           >
             <Input
               id="endsOn"
@@ -148,16 +173,17 @@ export function SettingsForm({ data, onSaved }: SettingsFormProps) {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Yangilanish va ishtirok sharti</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
+      <div ref={advancedRef}>
+        <MoreDetails
+          title="Batafsil: ko'rishlarni yangilash va yosh chegarasi"
+          meta={advancedSummary}
+          contentClassName="grid gap-4 sm:grid-cols-2"
+        >
           <Field
             id="syncEveryDays"
             label="Ko'rishlar yangilanish davri"
             error={fieldError("syncEveryDays")}
-            hint="Ko'rishlar va reyting tanlov boshidan shu davrda bir yangilanadi (Apify narxi davrga qarab). Yangi video yuborilganda darhol tekshiriladi."
+            hint="Ko'rishlar va reyting shu oraliqda yangilanadi. Har yangilanish pullik — tez-tez qilish xarajatni oshiradi. Yangi yuborilgan video darhol tekshiriladi."
           >
             <Select
               id="syncEveryDays"
@@ -194,7 +220,7 @@ export function SettingsForm({ data, onSaved }: SettingsFormProps) {
             id="minAge"
             label="Minimal yosh"
             error={fieldError("minAge")}
-            hint="Ro'yxatdan o'tishda yosh so'ralmaydi — ishtirokchi ommaviy ofertaga rozi bo'lib buni tasdiqlaydi."
+            hint="Ofertadagi yosh chegarasi (18+). Ishtirokchi ofertaga rozi bo'lib buni tasdiqlaydi."
           >
             <Input
               id="minAge"
@@ -208,8 +234,8 @@ export function SettingsForm({ data, onSaved }: SettingsFormProps) {
               aria-invalid={fieldError("minAge") ? true : undefined}
             />
           </Field>
-        </CardContent>
-      </Card>
+        </MoreDetails>
+      </div>
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button
@@ -224,7 +250,7 @@ export function SettingsForm({ data, onSaved }: SettingsFormProps) {
           O&apos;zgarishlarni bekor qilish
         </Button>
         <Button type="submit" loading={mutation.isPending} disabled={!dirty}>
-          Saqlash
+          Muddatni saqlash
         </Button>
       </div>
     </form>

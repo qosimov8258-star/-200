@@ -5,23 +5,13 @@ import { ChevronDown, Eye } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { formatCompact, formatNumber } from "@/lib/format";
+import { RATING_PRIZE_LABELS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
-interface Range {
-  min: number | null;
-  max: number | null;
-}
-
-/** Tez tanlash: ko'p so'raladigan oraliqlar (ikkala chegara ham kiradi). */
-export const VIEWS_PRESETS: Array<Range & { label: string }> = [
-  { label: "10 minggacha", min: null, max: 10_000 },
-  { label: "10 ming – 100 ming", min: 10_000, max: 100_000 },
-  { label: "100 ming – 1 mln", min: 100_000, max: 1_000_000 },
-  { label: "1 mln dan ko'p", min: 1_000_000, max: null },
-];
+import { useViewsPresets, type ViewsPreset, type ViewsRange } from "./prize-ranges";
 
 /** Tugmadagi yozuv: "Ko'rishlar: 100 ming – 1 mln". */
-export function viewsRangeLabel({ min, max }: Range): string {
+export function viewsRangeLabel({ min, max }: ViewsRange): string {
   if (min !== null && max !== null) return `${formatCompact(min)} – ${formatCompact(max)}`;
   if (min !== null) return `${formatCompact(min)} dan ko'p`;
   if (max !== null) return `${formatCompact(max)} gacha`;
@@ -36,25 +26,82 @@ export function parseDigits(text: string): number | null {
 
 export const toText = (value: number | null) => (value === null ? "" : formatNumber(value));
 
+/** Tanlangan oraliq tayyor oraliqlardan biri bo'lsa — o'sha. */
+export function matchingPreset(presets: readonly ViewsPreset[], { min, max }: ViewsRange): ViewsPreset | null {
+  return presets.find((preset) => preset.min === min && preset.max === max) ?? null;
+}
+
 /**
- * Ko'rishlar soni bo'yicha filtr (Foydalanuvchilar): tayyor oraliqlar yoki "dan" / "gacha"
- * qo'lda. Ikkala chegara ham kiradi; bittasi bo'sh qolsa — o'sha tomonda chegara yo'q.
+ * Tez tanlash tugmalari sarlavhasi bilan (Ishtirokchilar filtri va "Ko'rishlarni yangilash" oynasi
+ * uchun bir xil). Sovrinlar hali yuklanmagan bo'lsa — umumiy oraliqlar, sarlavha "Tez tanlash".
+ */
+export function ViewsPresetChips({
+  presets,
+  value,
+  onSelect,
+  className,
+}: {
+  presets: readonly ViewsPreset[];
+  value: ViewsRange;
+  onSelect: (range: ViewsRange) => void;
+  className?: string;
+}) {
+  const titleId = useId();
+  const byPrize = presets.some((preset) => preset.kind !== null);
+
+  return (
+    <div className={className}>
+      <p id={titleId} className="text-xs font-medium text-muted">
+        {byPrize ? "Sovrin oralig'i bo'yicha tanlash" : "Tez tanlash"}
+      </p>
+      <div role="group" aria-labelledby={titleId} className="mt-2 flex flex-wrap gap-1.5">
+        {presets.map((preset) => {
+          const selected = preset.min === value.min && preset.max === value.max;
+          return (
+            <button
+              key={preset.label}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => onSelect({ min: preset.min, max: preset.max })}
+              className={cn(
+                "rounded-full border px-3 py-1 text-left text-xs font-medium tabular-nums transition",
+                selected
+                  ? "border-brand-600 bg-brand-600 text-white"
+                  : "border-slate-200 bg-white text-slate-700 hover:border-brand-300 hover:bg-brand-50",
+              )}
+            >
+              {preset.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Ko'rishlar soni bo'yicha filtr (Ishtirokchilar): asosiy sovrinlar oraliqlari (oferta 6.2) yoki
+ * "dan" / "gacha" qo'lda. Ikkala chegara ham kiradi; bittasi bo'sh qolsa — o'sha tomonda chegara
+ * yo'q. Oraliq — ishtirokchining barcha qabul qilingan videolari ko'rishlari yig'indisi bo'yicha.
  */
 export function ViewsRangeFilter({
   min,
   max,
   onChange,
   className,
-}: Range & { onChange: (range: Range) => void; className?: string }) {
+}: ViewsRange & { onChange: (range: ViewsRange) => void; className?: string }) {
+  const presets = useViewsPresets();
   const [open, setOpen] = useState(false);
   const [minText, setMinText] = useState(toText(min));
   const [maxText, setMaxText] = useState(toText(max));
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelId = useId();
+  const hintId = useId();
   const active = min !== null || max !== null;
+  const matched = matchingPreset(presets, { min, max });
 
-  const draft: Range = { min: parseDigits(minText), max: parseDigits(maxText) };
+  const draft: ViewsRange = { min: parseDigits(minText), max: parseDigits(maxText) };
   const invalid = draft.min !== null && draft.max !== null && draft.min > draft.max;
 
   function openPanel() {
@@ -68,7 +115,7 @@ export function ViewsRangeFilter({
     if (returnFocus) buttonRef.current?.focus();
   }
 
-  function apply(range: Range) {
+  function apply(range: ViewsRange) {
     onChange(range);
     close(true);
   }
@@ -91,6 +138,9 @@ export function ViewsRangeFilter({
     };
   }, [open]);
 
+  // Tanlangan oraliq sovrin oralig'i bo'lsa — sovrin nomi, aks holda — sonlar.
+  const buttonValue = matched?.kind ? `${RATING_PRIZE_LABELS[matched.kind]} oralig'i` : viewsRangeLabel({ min, max });
+
   return (
     <div ref={rootRef} className={cn("relative", className)}>
       <button
@@ -107,7 +157,7 @@ export function ViewsRangeFilter({
       >
         <Eye className={cn("size-4 shrink-0", active ? "text-brand-600" : "text-slate-400")} aria-hidden />
         <span className="min-w-0 flex-1 truncate">
-          Ko&apos;rishlar: <span className={cn(active && "font-semibold text-brand-700")}>{viewsRangeLabel({ min, max })}</span>
+          Ko&apos;rishlar: <span className={cn(active && "font-semibold text-brand-700")}>{buttonValue}</span>
         </span>
         <ChevronDown className={cn("size-4 shrink-0 text-slate-400 transition", open && "rotate-180")} aria-hidden />
       </button>
@@ -117,29 +167,14 @@ export function ViewsRangeFilter({
           id={panelId}
           role="dialog"
           aria-label="Ko'rishlar soni bo'yicha filtr"
-          className="absolute top-full left-0 z-30 mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-line bg-white p-4 shadow-[0_20px_50px_-20px_rgba(39,38,39,0.35)]"
+          aria-describedby={hintId}
+          className="absolute top-full left-0 z-30 mt-2 w-[min(24rem,calc(100vw-2rem))] rounded-2xl border border-line bg-white p-4 shadow-[0_20px_50px_-20px_rgba(39,38,39,0.35)]"
         >
-          <p className="text-xs font-medium text-muted">Tez tanlash</p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {VIEWS_PRESETS.map((preset) => {
-              const selected = preset.min === min && preset.max === max;
-              return (
-                <button
-                  key={preset.label}
-                  type="button"
-                  onClick={() => apply({ min: preset.min, max: preset.max })}
-                  className={cn(
-                    "rounded-full border px-3 py-1 text-xs font-medium transition",
-                    selected
-                      ? "border-brand-600 bg-brand-600 text-white"
-                      : "border-slate-200 bg-white text-slate-700 hover:border-brand-300 hover:bg-brand-50",
-                  )}
-                >
-                  {preset.label}
-                </button>
-              );
-            })}
-          </div>
+          <p id={hintId} className="text-xs text-muted">
+            Oraliq — barcha qabul qilingan videolar ko&apos;rishlari yig&apos;indisi bo&apos;yicha.
+          </p>
+
+          <ViewsPresetChips presets={presets} value={{ min, max }} onSelect={apply} className="mt-3" />
 
           <form
             className="mt-4"
@@ -148,7 +183,7 @@ export function ViewsRangeFilter({
               if (!invalid) apply(draft);
             }}
           >
-            <p className="text-xs font-medium text-muted">Oraliq (ikkala chegara ham kiradi)</p>
+            <p className="text-xs font-medium text-muted">Yoki o&apos;zingiz kiriting (ikkala chegara ham kiradi)</p>
             <div className="mt-2 flex items-center gap-2">
               <label className="relative flex-1">
                 <span className="sr-only">Ko&apos;rishlar, dan</span>

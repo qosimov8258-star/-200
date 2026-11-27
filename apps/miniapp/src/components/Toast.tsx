@@ -2,6 +2,11 @@ import { useCallback, useRef, useState, type ReactNode } from "react";
 
 import { ToastContext } from "./toast-context";
 
+/**
+ * Qisqa xabar 2,6 soniya turadi; uzun xabar (masalan, kirish yopiq yoki cookie o'chirilgan) —
+ * o'qib ulgurguncha uzoqroq, 9 soniyagacha.
+ */
+const toastDuration = (text: string): number => Math.min(9_000, Math.max(2_600, text.length * 50));
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [message, setMessage] = useState<string | null>(null);
@@ -9,7 +14,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const show = useCallback((text: string) => {
     window.clearTimeout(timer.current);
     setMessage(text);
-    timer.current = window.setTimeout(() => setMessage(null), 2600);
+    timer.current = window.setTimeout(() => setMessage(null), toastDuration(text));
   }, []);
   return (
     <ToastContext value={show}>

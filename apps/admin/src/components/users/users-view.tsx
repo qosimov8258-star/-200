@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, SearchX } from "lucide-react";
+import { AlertTriangle, CheckCircle2, SearchX, UserPlus } from "lucide-react";
 
-import { IosIcon } from "@/components/ui/ios-icon";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { IosIcon } from "@/components/ui/ios-icon";
+import { PageHint } from "@/components/ui/page-hint";
 import { Pagination } from "@/components/ui/pagination";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { getParticipants } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
 import type { ParticipantAction, ParticipantListItem, ParticipantSort } from "@/lib/types";
@@ -25,7 +27,6 @@ import { cn } from "@/lib/utils";
 import { ParticipantActionDialog } from "./participant-action-dialog";
 import { ParticipantReelsDialog } from "./participant-reels-dialog";
 import { UsersTable } from "./users-table";
-import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { UsersToolbar } from "./users-toolbar";
 import { ViewsRefreshDialog } from "./views-refresh-dialog";
 
@@ -43,6 +44,7 @@ export function UsersView() {
 
   const filters = parseUsersFilters(searchParams);
   const query = usersFiltersToQuery(filters);
+  const filtered = hasActiveFilters(filters);
 
   const { data, error, isPending, isError, isFetching, refetch } = useQuery({
     queryKey: ["participants", query],
@@ -93,6 +95,11 @@ export function UsersView() {
         )}
       </div>
 
+      <PageHint>
+        Aksiyaga ro&apos;yxatdan o&apos;tgan barcha ishtirokchilar. Qatorni bossangiz — videolari va umumiy
+        ko&apos;rishlari ochiladi.
+      </PageHint>
+
       <UsersToolbar
         filters={filters}
         counts={data?.statusCounts}
@@ -125,15 +132,22 @@ export function UsersView() {
             </Button>
           </div>
         ) : data && data.items.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 px-4 py-12 text-center">
-            <IosIcon icon={SearchX} tint="gray" size={48} />
-            <p className="text-sm text-slate-600">Hech kim topilmadi.</p>
-            {hasActiveFilters(filters) && (
+          filtered ? (
+            <div className="flex flex-col items-center gap-3 px-4 py-12 text-center">
+              <IosIcon icon={SearchX} tint="gray" size={48} />
+              <p className="text-sm text-slate-600">Bu filtr bo&apos;yicha hech kim topilmadi.</p>
               <Button variant="secondary" size="sm" onClick={clearFilters}>
                 Filtrlarni tozalash
               </Button>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-3 px-4 py-12 text-center">
+              <IosIcon icon={UserPlus} tint="gray" size={48} />
+              <p className="max-w-md text-sm text-slate-600">
+                Hali hech kim ro&apos;yxatdan o&apos;tmagan. Ishtirokchilar Telegram bot yoki sayt orqali qo&apos;shiladi.
+              </p>
+            </div>
+          )
         ) : data ? (
           <>
             <div
@@ -164,10 +178,12 @@ export function UsersView() {
         ) : null}
       </Card>
 
+      {/* Amal tanlansa — tasdiqlash oynasi videolar oynasi ustida ochiladi; bekor qilinsa, videolar oynasi joyida qoladi. */}
       {reelsFor && (
         <ParticipantReelsDialog
           key={reelsFor.id}
           participant={reelsFor}
+          onAction={(action) => setPendingAction({ participant: reelsFor, action })}
           onClose={() => setReelsFor(null)}
         />
       )}
@@ -180,6 +196,8 @@ export function UsersView() {
           onClose={() => setPendingAction(null)}
           onDone={(message) => {
             setPendingAction(null);
+            // Natija xabari sahifada ko'rinsin — videolar oynasi ham yopiladi.
+            setReelsFor(null);
             setNotice(message);
           }}
         />

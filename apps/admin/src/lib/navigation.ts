@@ -32,8 +32,8 @@ export interface NavItem {
  * bo'lim emas — "G'oliblar" ichidagi "Voucher" tabida (`/winner?tab=voucher`).
  */
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/dashboard", title: "Dashboard", icon: LayoutDashboard, roles: ["ADMIN"], ready: true },
-  { href: "/users", title: "Foydalanuvchilar", icon: Users, roles: ["ADMIN"], ready: true },
+  { href: "/dashboard", title: "Bosh sahifa", icon: LayoutDashboard, roles: ["ADMIN"], ready: true },
+  { href: "/users", title: "Ishtirokchilar", icon: Users, roles: ["ADMIN"], ready: true },
   { href: "/ratings", title: "Reyting", icon: ListOrdered, roles: ["ADMIN"], ready: true },
   { href: "/winner", title: "G'oliblar", icon: Award, roles: ["ADMIN"], ready: true },
   { href: "/manual-review", title: "Qo'lda tekshiruv", icon: ClipboardCheck, roles: ["ADMIN"], ready: true },
@@ -43,7 +43,7 @@ export const NAV_ITEMS: NavItem[] = [
   // Videolarni AI bilan tekshirish (moderatsiyaga yordam) — "Yana" ichida.
   { href: "/ai", title: "AI", icon: Sparkles, roles: ["ADMIN"], ready: true },
   { href: "/settings", title: "Sozlamalar", icon: Settings, roles: ["ADMIN"], ready: true },
-  { href: "/audit-log", title: "Audit log", icon: ScrollText, roles: ["ADMIN"], ready: true },
+  { href: "/audit-log", title: "Amallar tarixi", icon: ScrollText, roles: ["ADMIN"], ready: true },
 ];
 
 export const ROLE_LABELS: Record<AdminRole, string> = {

@@ -19,12 +19,13 @@ interface PeriodSelectProps {
   minDate?: IsoDate;
 }
 
+/** Tugmadagi yozuv: "Davr: 7 kun" — bu tugma raqamlarni o'zgartirishi darrov ko'rinsin. */
 function label(period: Period): string {
-  if (period.kind === "custom") return `${formatDayMonth(period.from)} – ${formatDayMonth(period.to)}`;
-  return PERIOD_PRESETS.find((preset) => preset.value === period.preset)?.label ?? "";
+  if (period.kind === "custom") return `Davr: ${formatDayMonth(period.from)} – ${formatDayMonth(period.to)}`;
+  return `Davr: ${PERIOD_PRESETS.find((preset) => preset.value === period.preset)?.label ?? ""}`;
 }
 
-/** Davr tanlash — CareOps'dagi "This week ▾" kabi bitta kapsula, ochilganda ro'yxat va sanalar. */
+/** Davr tanlash — bitta kapsula, ochilganda ro'yxat va sanalar. */
 export function PeriodSelect({ value, onChange, today, minDate }: PeriodSelectProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);

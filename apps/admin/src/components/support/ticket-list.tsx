@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
 import { SearchInput } from "@/components/ui/search-input";
 import { Segmented } from "@/components/ui/segmented";
-import { formatDayTime, formatNumber } from "@/lib/format";
+import { formatDayTime } from "@/lib/format";
 import { SUPPORT_STATUS_LABELS, SUPPORT_STATUS_TONES } from "@/lib/labels";
 import type {
   SupportStatusFilter,
@@ -20,12 +20,17 @@ import { cn } from "@/lib/utils";
 
 export type SupportListFilter = SupportStatusFilter | "ALL";
 
-const FILTER_TABS: Array<{ value: SupportListFilter; label: string }> = [
-  { value: "OPEN", label: "Ochiq" },
-  { value: "NEW", label: SUPPORT_STATUS_LABELS.NEW },
-  { value: "IN_PROGRESS", label: SUPPORT_STATUS_LABELS.IN_PROGRESS },
-  { value: "CLOSED", label: SUPPORT_STATUS_LABELS.CLOSED },
-  { value: "ALL", label: "Hammasi" },
+/**
+ * Filtr tablari. Doim ko'rinadi: "Ochiq" (yangi + ko'rilayotgan), "Yopilgan", "Hammasi".
+ * "Yangi" va "Ko'rilmoqda" — faqat URL orqali (`?status=NEW`) ochilganda tab bo'lib chiqadi;
+ * ro'yxatdagi belgi baribir ularni ajratib turadi.
+ */
+const FILTER_TABS: Array<{ value: SupportListFilter; label: string; always: boolean }> = [
+  { value: "OPEN", label: "Ochiq", always: true },
+  { value: "NEW", label: SUPPORT_STATUS_LABELS.NEW, always: false },
+  { value: "IN_PROGRESS", label: SUPPORT_STATUS_LABELS.IN_PROGRESS, always: false },
+  { value: "CLOSED", label: "Yopilgan", always: true },
+  { value: "ALL", label: "Hammasi", always: true },
 ];
 
 interface TicketListProps {
@@ -57,6 +62,13 @@ export function TicketList({
   onPageChange,
   onRetry,
 }: TicketListProps) {
+  const tabs = FILTER_TABS.filter((tab) => tab.always || tab.value === filter);
+  const emptyText = search
+    ? "Qidiruv bo'yicha murojaat topilmadi."
+    : filter === "OPEN"
+      ? "Ochiq murojaat yo'q — hammasi yopilgan. Yangi savol kelsa, shu yerda chiqadi."
+      : "Bu bo'limda murojaat yo'q.";
+
   return (
     <Card className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="space-y-3 border-b border-slate-200 p-3">
@@ -71,11 +83,11 @@ export function TicketList({
           label="Holat bo'yicha filtr"
           value={filter}
           onChange={onFilterChange}
-          options={FILTER_TABS.map((tab) => ({
+          options={tabs.map((tab) => ({
             value: tab.value,
             label: tab.label,
             count: data?.statusCounts[tab.value],
-            attention: tab.value === "NEW",
+            attention: tab.value === "OPEN",
           }))}
         />
       </div>
@@ -94,7 +106,7 @@ export function TicketList({
         ) : data && data.items.length === 0 ? (
           <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
             <IosIcon icon={Inbox} tint="gray" size={44} />
-            <p className="text-sm text-slate-500">Murojaat topilmadi.</p>
+            <p className="text-sm text-slate-500">{emptyText}</p>
           </div>
         ) : data ? (
           <ul
@@ -128,6 +140,10 @@ export function TicketList({
   );
 }
 
+/**
+ * Ro'yxatdagi murojaat: mavzu, kim yozgan, oxirgi xabar va bitta belgi — javob kerakmi.
+ * Murojaat raqami — ochilgan murojaat sarlavhasida; qidiruv uni baribir topadi.
+ */
 function TicketListItem({
   ticket,
   selected,
@@ -137,7 +153,7 @@ function TicketListItem({
   selected: boolean;
   onSelect: () => void;
 }) {
-  const name = `${ticket.participant.firstName} ${ticket.participant.lastName}`;
+  const name = `${ticket.participant.firstName} ${ticket.participant.lastName}`.trim();
 
   return (
     <button
@@ -164,23 +180,20 @@ function TicketListItem({
         </time>
       </div>
 
-      <p className="mt-0.5 truncate text-xs text-slate-500">
-        {name} · {ticket.id}
-      </p>
+      <p className="mt-0.5 truncate text-xs text-slate-500">{name || "Ismsiz"}</p>
 
       <p className="mt-1 line-clamp-2 text-sm text-slate-600">
-        {ticket.lastMessage.author === "STAFF" && (
-          <span className="text-slate-400">Javob: </span>
-        )}
+        {/* "Siz" emas: javobni boshqa xodim yoki Telegram guruhidagi operator yozgan bo'lishi mumkin. */}
+        {ticket.lastMessage.author === "STAFF" && <span className="text-slate-400">Javob: </span>}
         {ticket.lastMessage.text}
       </p>
 
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <Badge tone={SUPPORT_STATUS_TONES[ticket.status]}>
-          {SUPPORT_STATUS_LABELS[ticket.status]}
-        </Badge>
-        {ticket.awaitingReply && <Badge tone="brand">Javob kutilmoqda</Badge>}
-        <span className="text-xs text-slate-400">{formatNumber(ticket.messageCount)} ta xabar</span>
+      <div className="mt-2">
+        {ticket.awaitingReply ? (
+          <Badge tone="brand">Javob kutmoqda</Badge>
+        ) : (
+          <Badge tone={SUPPORT_STATUS_TONES[ticket.status]}>{SUPPORT_STATUS_LABELS[ticket.status]}</Badge>
+        )}
       </div>
     </button>
   );

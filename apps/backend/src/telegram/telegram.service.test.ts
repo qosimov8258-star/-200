@@ -243,21 +243,33 @@ const loginButtons = (calls: ApiCall[], chatId: number) =>
     })
     .filter((d) => d.startsWith("login:"));
 
-test("site login: a web-only account is locked after its one entry; with the admin's permission it confirms and the site gets it", async () => {
+test("site login: linking a web account in the bot opens one entry; after it the site is locked until the admin's permission", async () => {
   const { bot, calls, participants, botLogin, start, contact, press } = setup();
   // Saytda ro'yxatdan o'tgan (shu bilan saytga bir marta kirilgan) hisob — keyin chiqib ketgan.
   const webId = participants.registerWeb("Dilnoza", "90 123 45 67", 22);
-  const locked = botLogin.start();
-  assert.ok(locked);
+  const linking = botLogin.start();
+  assert.ok(linking);
 
-  await bot.handleUpdate(start(42, `login_${locked.id}`));
-  assert.ok(sent(calls, 42).some((t) => t === texts.loginShareContact(locked.code)), "raqam so'raladi, kod ko'rinadi");
+  await bot.handleUpdate(start(42, `login_${linking.id}`));
+  assert.ok(sent(calls, 42).some((t) => t === texts.loginShareContact(linking.code)), "raqam so'raladi, kod ko'rinadi");
 
+  // Raqam ulashildi: hisob Telegram'ga ulandi, raqam egasi tasdiqlandi — bir marta kirish ochiq.
   await bot.handleUpdate(contact(42, "+998 90 123 45 67"));
   assert.ok(sent(calls, 42).includes(texts.loginContactLinked));
   assert.equal(participants.resolve(42), webId, "saytdagi hisob Telegram'ga ulandi");
-  assert.ok(sent(calls, 42).includes(texts.loginLocked), "qayta kirish yopiq — supportga yozish taklif qilinadi");
-  assert.ok(!sent(calls, 42).includes(texts.loginConfirm("Dilnoza", locked.code)), "tasdiq so'ralmaydi");
+  assert.ok(sent(calls, 42).includes(texts.loginConfirm("Dilnoza", linking.code)), "tasdiq so'raladi");
+  assert.ok(!sent(calls, 42).includes(texts.loginLocked), "yopiq emas");
+  await bot.handleUpdate(press(42, `login:ok:${linking.id}`));
+  assert.deepEqual(edited(calls), [texts.loginDone]);
+  assert.deepEqual(botLogin.poll(linking.id, linking.secret), { status: "CONFIRMED", accountId: webId, issuedAt: null });
+  participants.startWebSession(webId); // sayt sessiyani oldi (`AuthController.pollBotLogin`)
+
+  // Keyingi kirish yopiq — supportga yozish taklif qilinadi, tasdiq so'ralmaydi.
+  const locked = botLogin.start();
+  assert.ok(locked);
+  const beforeLocked = sent(calls, 42).length;
+  await bot.handleUpdate(start(42, `login_${locked.id}`));
+  assert.deepEqual(sent(calls, 42).slice(beforeLocked), [texts.loginLocked], "faqat 'yopiq' xabari, tasdiq so'ralmaydi");
   assert.equal(botLogin.poll(locked.id, locked.secret).status, "LOCKED");
 
   // Admin (Support murojaati orqali) bir martalik ruxsat berdi.
@@ -266,13 +278,17 @@ test("site login: a web-only account is locked after its one entry; with the adm
   assert.ok(request);
   await bot.handleUpdate(start(42, `login_${request.id}`));
   assert.ok(sent(calls, 42).includes(texts.loginConfirm("Dilnoza", request.code)));
-  assert.deepEqual(loginButtons(calls, 42), [`login:ok:${request.id}`, `login:no:${request.id}`]);
+  assert.deepEqual(loginButtons(calls, 42), [
+    `login:ok:${linking.id}`,
+    `login:no:${linking.id}`,
+    `login:ok:${request.id}`,
+    `login:no:${request.id}`,
+  ]);
   assert.equal(botLogin.poll(request.id, request.secret).status, "PENDING", "tugma bosilmaguncha kirilmaydi");
 
   await bot.handleUpdate(press(42, `login:ok:${request.id}`));
-  assert.deepEqual(edited(calls), [texts.loginDone]);
-  assert.deepEqual(botLogin.poll(request.id, request.secret), { status: "CONFIRMED", accountId: webId });
-  assert.equal(botLogin.poll(request.id, request.secret).status, "EXPIRED", "bir martalik");
+  assert.deepEqual(edited(calls), [texts.loginDone, texts.loginDone]);
+  assert.deepEqual(botLogin.poll(request.id, request.secret), { status: "CONFIRMED", accountId: webId, issuedAt: null });
 });
 
 test("site login: a registered Telegram user confirms straight away; another person cannot take over the link", async () => {
@@ -293,7 +309,7 @@ test("site login: a registered Telegram user confirms straight away; another per
   assert.equal(botLogin.poll(request.id, request.secret).status, "PENDING");
 
   await bot.handleUpdate(press(42, `login:ok:${request.id}`));
-  assert.deepEqual(botLogin.poll(request.id, request.secret), { status: "CONFIRMED", accountId: 42 });
+  assert.deepEqual(botLogin.poll(request.id, request.secret), { status: "CONFIRMED", accountId: 42, issuedAt: null });
 });
 
 test("site login: 'Men emas' denies; unknown links and a phone owned by someone else fail", async () => {

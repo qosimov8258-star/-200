@@ -5,6 +5,9 @@ import { t as uz } from "./uz";
  * Ilova tili: o'zbek (lotin) yoki rus. Tanlov `localStorage` da saqlanadi; tanlanmagan bo'lsa —
  * Telegram tili (`ru` → rus), aks holda o'zbek. Til almashtirilganda sahifa qayta yuklanadi —
  * shunda barcha matnlar (va serverdan keladigan qoidalar, sovg'alar) yangi tilda bo'ladi.
+ * Xotiraga yozib bo'lmasa (masalan, web.telegram.org uchinchi tomon cookie'lari bloklangan
+ * brauzerda) — til ekrani o'tkaziladi va ilova qurilma tilida ochiladi: qayta yuklash tanlovni
+ * baribir unutardi va til ekrani cheksiz qaytaverardi.
  */
 export type Lang = "uz" | "ru";
 
@@ -27,6 +30,8 @@ const STORAGE_KEY = "lang";
 const SKIP_SPLASH_KEY = "skipSplash";
 /** Shu sessiyada (yorliq yopilguncha) til ekrani o'tildi — ro'yxatdan o'tishning birinchi qadami. */
 const CONFIRMED_KEY = "langConfirmed";
+/** `localStorage` ga yozib bo'lishini tekshirish uchun vaqtinchalik kalit. */
+const PROBE_KEY = "__langProbe";
 
 function savedLang(): Lang | null {
   try {
@@ -34,6 +39,17 @@ function savedLang(): Lang | null {
     return value === "uz" || value === "ru" ? value : null;
   } catch {
     return null;
+  }
+}
+
+/** `localStorage` ga yozib bo'ladimi (maxfiy rejim yoki bloklangan sayt ma'lumotlarida — yo'q). */
+function storageWritable(): boolean {
+  try {
+    localStorage.setItem(PROBE_KEY, "1");
+    localStorage.removeItem(PROBE_KEY);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -47,8 +63,18 @@ function deviceLang(): Lang {
 
 export const lang: Lang = savedLang() ?? deviceLang();
 
-/** Foydalanuvchi tilni o'zi tanlaganmi (yo'q bo'lsa — birinchi ekran "Tilni tanlang"). */
-export const langChosen: boolean = savedLang() !== null;
+/**
+ * Til tanlovini saqlab bo'ladimi. Yo'q bo'lsa — til almashtirgich ko'rsatilmaydi: tanlov qayta
+ * yuklanishda baribir unutiladi (tugma hech narsa qilmaydigan bo'lib qolmasin).
+ */
+export const langSaveable: boolean = storageWritable();
+
+/**
+ * Foydalanuvchi tilni o'zi tanlaganmi (yo'q bo'lsa — birinchi ekran "Tilni tanlang"). Tanlovni
+ * saqlab bo'lmasa — tanlangan deb hisoblanadi (`langConfirmed` dagi kabi), aks holda ekran
+ * har qayta yuklanishda qaytaverardi.
+ */
+export const langChosen: boolean = savedLang() !== null || !langSaveable;
 
 /** Joriy tildagi barcha matnlar. */
 export const t: Texts = lang === "ru" ? ru : uz;
@@ -68,20 +94,23 @@ export function langConfirmed(): boolean {
 
 /**
  * Tilni saqlaydi. Til o'zgarsa (yoki birinchi tanlov bo'lsa) sahifa shu tilda qayta yuklanadi —
- * `true` qaytaradi; o'sha til qayta tanlansa — `false` (qayta yuklash shart emas).
+ * `true` qaytaradi; o'sha til qayta tanlansa yoki tanlovni saqlab bo'lmasa — `false` (ilova
+ * joriy tilda davom etadi).
  */
 export function setLang(next: Lang): boolean {
+  let saved = true;
   try {
     localStorage.setItem(STORAGE_KEY, next);
   } catch {
-    // Saqlab bo'lmasa ham (maxfiy rejim) — shu sessiya uchun almashadi.
+    saved = false;
   }
   try {
     sessionStorage.setItem(CONFIRMED_KEY, "1");
   } catch {
     // `langConfirmed` bu holda baribir `true`.
   }
-  if (next === lang && langChosen) return false;
+  // Saqlanmagan tanlov qayta yuklanishda yo'qoladi — sahifani bekorga yangilamaymiz.
+  if (!saved || (next === lang && langChosen)) return false;
   // Qayta yuklanishda yuklanish animatsiyasi ikkinchi marta ko'rsatilmaydi.
   try {
     sessionStorage.setItem(SKIP_SPLASH_KEY, "1");

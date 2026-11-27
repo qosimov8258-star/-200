@@ -16,6 +16,7 @@ import { hideSplash } from "./lib/splash";
 import { takeTelegramAuthResult } from "./lib/telegram-login-return";
 import { isInTelegram, showBackButton } from "./lib/telegram";
 import type { Me } from "./lib/types";
+import { sessionRejected } from "./lib/web-session";
 import { MyReelScreen } from "./screens/MyReelScreen";
 import { PrizesScreen } from "./screens/PrizesScreen";
 import { HomeScreen } from "./screens/HomeScreen";
@@ -37,9 +38,12 @@ const isOverflow = (tab: Tab): tab is OverflowTab => tab === "prizes";
 /**
  * Ro'yxatdan o'tish: avval til (o'zbek yoki rus), keyin ism va telefon, ommaviy oferta ("Roziman");
  * butun ilova shu tilda. Til hali saqlanmagan bo'lsa — til ekrani darhol (serverga so'rovsiz).
+ * Odatda tanlovdan keyin sahifa shu tilda qayta yuklanadi; qayta yuklanmasa (tanlovni saqlab
+ * bo'lmadi) — ilova joriy tilda ochiladi, til ekranida qolib ketilmaydi.
  */
 export default function App() {
-  return langChosen ? <MainApp /> : <LanguageScreen />;
+  const [chosen, setChosen] = useState(langChosen);
+  return chosen ? <MainApp /> : <LanguageScreen onDone={() => setChosen(true)} />;
 }
 
 function MainApp() {
@@ -103,7 +107,10 @@ function useTelegramLoginReturn() {
     if (!user) return;
     api
       .telegramLogin(user)
-      .then(() => queryClient.invalidateQueries())
+      .then(async () => {
+        // Brauzer sessiya cookie'sini saqlamagan bo'lsa — ilova jim mehmon holatida qolmaydi.
+        if (await sessionRejected(queryClient)) toast(t.cookiesBlocked);
+      })
       .catch((e: unknown) => toast(errorCode(e) === "LOGIN_LOCKED" ? t.webLoginLocked : t.webLoginFailed));
   }, [queryClient, toast]);
 }
@@ -289,9 +296,15 @@ function SubPageLayout({
   );
 }
 
+/**
+ * Mock rejim paneli. Saytdagi ro'yxatdan o'tish va "Hisobim bor" oynalaridan (`z-[80]`) yuqorida —
+ * aks holda mehmon ko'rinishida "Boshidan boshlash" ga yetib bo'lmasdi; istoriya, bildirishnoma va
+ * tasdiq oynalari (`z-[90]` va undan yuqori) esa uni yopadi. Balandligi 28px — oynalar mazmuni
+ * mock rejimda shu panel ostidan boshlanadi (`WebLoginScreen.tsx`).
+ */
 function DevBanner() {
   return (
-    <div className="sticky top-0 z-50 flex items-center justify-between gap-3 bg-gold px-4 py-1.5 text-xs font-semibold text-ink">
+    <div className="sticky top-0 z-[85] flex items-center justify-between gap-3 bg-gold px-4 py-1.5 text-xs font-semibold text-ink">
       <span>{t.devBanner}</span>
       {api.mockControls && (
         <button

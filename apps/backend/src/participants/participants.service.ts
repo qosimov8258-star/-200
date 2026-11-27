@@ -154,23 +154,30 @@ export interface Participant {
   /**
    * Saytga bir marta kiriladi (tashkilotchi qarori, 2026-11-27): sayt sessiyasi berilgan (ro'yxatdan
    * o'tish yoki birinchi kirish). Shundan keyin — chiqib ketsa ham, boshqa qurilmadan ham — qayta
-   * kirish faqat admin ruxsati bilan (`webLoginGrant`). Yo'q bo'lsa: saytdagi hisob — kirilgan,
-   * Telegram hisobi — hali kirilmagan (`webLoginState`).
+   * kirish faqat admin ruxsati bilan (`webLoginGrant`). Yo'q bo'lsa (eski yozuvlar): saytdagi hisob —
+   * kirilgan, Telegram'ga ulangan saytdagi hisob va Telegram hisobi — hali kirilmagan (`webLoginState`).
    */
   webLoginUsed?: boolean;
-  /** Admin (Support murojaati orqali) saytga qayta kirishga bir martalik ruxsat bergan. */
+  /**
+   * Saytga yana bir marta kirish mumkin: admin (Support murojaati orqali) ruxsat bergan yoki hisob
+   * bot orqali Telegram'ga ulangan (raqam egasi tasdiqlandi, eski sessiyalarni tizim yopdi).
+   */
   webLoginGrant?: boolean;
 }
 
 /**
  * Saytga kirish holati: `NEVER` — hali kirilmagan (birinchi kirish ochiq), `USED` — kirilgan, qayta
- * kirish yopiq (admin ruxsati kerak), `GRANTED` — admin bir martalik ruxsat bergan.
+ * kirish yopiq (admin ruxsati kerak), `GRANTED` — bir martalik ruxsat bor (admin bergan yoki hisob
+ * Telegram'ga ulangan).
  */
 export type WebLoginState = "NEVER" | "USED" | "GRANTED";
 
 export function webLoginState(p: Participant): WebLoginState {
   if (p.webLoginGrant) return "GRANTED";
-  return (p.webLoginUsed ?? isWebAccount(p.telegramId)) ? "USED" : "NEVER";
+  // Belgi yo'q (eski yozuv): saytdagi hisob ro'yxatdan o'tishda kirilgan deb olinadi. Telegram'ga
+  // ulangan bo'lsa — yo'q: ulanish uning sessiyalarini yopgan, raqam egasi bir marta qayta kira oladi.
+  const used = p.webLoginUsed ?? (isWebAccount(p.telegramId) && !p.linkedTelegramId);
+  return used ? "USED" : "NEVER";
 }
 
 /** `ownerUpdate` uchun o'zgarishlar (faqat berilganlari yoziladi). */
@@ -352,8 +359,10 @@ export class ParticipantsService {
    * - raqam saytdagi hisobda — o'sha hisob shu Telegram foydalanuvchisiga ulanadi (`LINKED`):
    *   raqam egasi Telegram orqali tasdiqlandi. Shu paytgacha berilgan sayt sessiyalari bekor
    *   bo'ladi (raqamni begona odam yozgan bo'lsa — u hisobdan chiqariladi); saytga endi Telegram
-   *   orqali kiriladi. Telegram foydalanuvchisining o'z alohida profili yoki videolari bo'lsa —
-   *   ikki hisob qo'shilmaydi: `TAKEN_WEB` (support hal qiladi).
+   *   orqali kiriladi. Sessiyalarni foydalanuvchi emas, tizim yopgani uchun raqam egasiga saytga
+   *   bir marta qayta kirish beriladi (`webLoginGrant`) — "Hisobim bor" yoki Telegram orqali.
+   *   Telegram foydalanuvchisining o'z alohida profili yoki videolari bo'lsa — ikki hisob
+   *   qo'shilmaydi: `TAKEN_WEB` (support hal qiladi).
    */
   setPhone(
     telegramId: number,
@@ -372,7 +381,11 @@ export class ParticipantsService {
       if (own) this.byTelegramId.delete(telegramId);
       owner.linkedTelegramId = telegramId;
       owner.chatId = chatId;
-      owner.sessionsFrom = now;
+      // Shu paytgacha berilgan sessiyalar yopiladi — oxirgisi ham: uning vaqti butun soniyaga yuqoriga
+      // yaxlitlangan (`startWebSession`), ya'ni `now` dan sal keyin bo'lishi mumkin.
+      owner.sessionsFrom = new Date(Math.max(now.getTime(), (owner.sessionsFrom?.getTime() ?? 0) + 1));
+      // Eski sessiyalarni tizim yopdi — Telegram tasdiqlagan raqam egasi saytga bir marta qayta kira oladi.
+      owner.webLoginGrant = true;
       this.linked.set(telegramId, owner.telegramId);
       return "LINKED";
     }
@@ -390,8 +403,9 @@ export class ParticipantsService {
   }
 
   /**
-   * Saytda shu hisobga yangi sessiya ochish mumkinmi: birinchi kirish yoki admin ruxsati bor. Yozuvi
-   * yo'q Telegram foydalanuvchisi — mumkin (himoya qiladigan hisob yo'q).
+   * Saytda shu hisobga yangi sessiya ochish mumkinmi: birinchi kirish yoki bir martalik ruxsat bor
+   * (admin bergan yoki hisob Telegram'ga ulangan). Yozuvi yo'q Telegram foydalanuvchisi — mumkin
+   * (himoya qiladigan hisob yo'q).
    */
   canStartWebSession(accountId: number): boolean {
     const p = this.get(accountId);
@@ -399,7 +413,7 @@ export class ParticipantsService {
   }
 
   /**
-   * Saytga sessiya berildi (ro'yxatdan o'tish, birinchi kirish yoki admin ruxsati — bir martalik):
+   * Saytga sessiya berildi (ro'yxatdan o'tish, birinchi kirish yoki bir martalik ruxsat bilan kirish):
    * keyingi kirish yopiladi, boshqa qurilmalardagi oldingi sessiyalar bekor bo'ladi. Qaytaradi —
    * yangi sessiyaning berilgan vaqti (ms). Token vaqti soniyalarda — shuning uchun chegara butun
    * soniya va avvalgisidan qat'iy keyin: bir soniya ichidagi qayta kirishda ham eski sessiya yopiladi.

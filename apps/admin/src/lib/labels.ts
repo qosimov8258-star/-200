@@ -27,6 +27,7 @@ import type {
   TelegramMessageKind,
   WinnerCheckKey,
 } from "./types";
+import { formatNumber } from "./format";
 
 type BadgeTone = "neutral" | "brand" | "success" | "warning" | "danger";
 
@@ -34,7 +35,7 @@ export const PARTICIPANT_STATUS_LABELS: Record<ParticipantStatus, string> = {
   ACTIVE: "Faol",
   WARNED: "Ogohlantirilgan",
   BLOCKED: "Bloklangan",
-  DISQUALIFIED: "Diskvalifikatsiya qilingan",
+  DISQUALIFIED: "Tanlovdan chetlatilgan",
 };
 
 export const PARTICIPANT_STATUS_TONES: Record<ParticipantStatus, BadgeTone> = {
@@ -109,15 +110,15 @@ export const MANUAL_REVIEW_STATUS_TONES: Record<ManualReviewStatus, BadgeTone> =
 };
 
 export const MANUAL_REVIEW_KIND_LABELS: Record<ManualReviewKind, string> = {
-  NEW_REEL: "Yangi video",
-  LOST_REEL: "Reytingdagi video yo'qoldi",
-  AI_CHECK: "AI mahsulotni topmadi",
+  NEW_REEL: "Yangi video — tizim ocha olmadi",
+  LOST_REEL: "Avval qabul qilingan video endi ochilmayapti",
+  AI_CHECK: "AI tekshiruvidan o'tmadi",
 };
 
 /** AI qarori (qo'lda tekshiruvda — nega AI o'tkazmagani). */
 export const MANUAL_REVIEW_AI_LABELS: Record<ManualReviewAi["verdict"], string> = {
-  REJECTED: "AI: mahsulot yo'q",
-  UNCERTAIN: "AI: ishonchi past",
+  REJECTED: "AI fikri: mahsulot yo'q",
+  UNCERTAIN: "AI aniq ayta olmadi",
   FAILED: "AI videoni ko'ra olmadi",
 };
 
@@ -126,10 +127,10 @@ export const MANUAL_REVIEW_REJECT_LABELS: Record<ManualReviewRejectReason, strin
   REEL_REJECT_REASON_LABELS;
 
 export const TARGET_CASE_STATUS_LABELS: Record<TargetCaseStatus, string> = {
-  NEW: "Ko'rib chiqilmagan",
+  NEW: "Qaror kutmoqda",
   WARNED: "Ogohlantirilgan",
-  DISQUALIFIED: "Diskvalifikatsiya qilingan",
-  DISMISSED: "Ro'yxatdan chiqarilgan",
+  DISQUALIFIED: "Tanlovdan chetlatilgan",
+  DISMISSED: "Xato signal (yopildi)",
 };
 
 export const TARGET_CASE_STATUS_TONES: Record<TargetCaseStatus, BadgeTone> = {
@@ -140,9 +141,9 @@ export const TARGET_CASE_STATUS_TONES: Record<TargetCaseStatus, BadgeTone> = {
 };
 
 export const TARGET_METHOD_LABELS: Record<TargetDetectionMethod, string> = {
-  AD_LIBRARY: "Meta reklama kutubxonasi",
-  GROWTH_ANALYSIS: "AI: o'sish tahlili",
-  REPORT: "Ishtirokchi shikoyati",
+  AD_LIBRARY: "Instagram'da faol reklama topildi",
+  GROWTH_ANALYSIS: "Ko'rishlar g'ayrioddiy tez o'sgan",
+  REPORT: "Boshqa ishtirokchi shikoyat qilgan",
 };
 
 export const TARGET_STATE_LABELS: Record<TargetState, string> = {
@@ -159,8 +160,8 @@ export const TARGET_STATE_TONES: Record<TargetState, BadgeTone> = {
 
 /** TZ 5.3: g'olib nomzodining tekshiruv ro'yxati. */
 export const WINNER_CHECK_LABELS: Record<WinnerCheckKey, string> = {
-  NO_TARGET: "Target yoqilmagan",
-  REEL_AVAILABLE: "Reel o'chirilmagan",
+  NO_TARGET: "Reklama (target) yoqilmagan",
+  REEL_AVAILABLE: "Video o'chirilmagan",
   NO_FAKE_VIEWS: "Soxta ko'rish belgisi yo'q",
   AD_TOOLS_REVIEWED: "Reklama tarixi yuzma-yuz ko'rilgan",
 };
@@ -169,9 +170,9 @@ export const WINNER_CHECK_LABELS: Record<WinnerCheckKey, string> = {
 export const TELEGRAM_STATUS_LABELS: Record<TelegramDeliveryStatus, string> = {
   SENT: "Yuborildi",
   DELIVERED: "Yetkazildi",
-  READ: "O'qildi",
-  UNREAD: "O'qilmadi",
-  FAILED: "Yuborilmadi",
+  READ: "O'qilgan",
+  UNREAD: "O'qilmagan",
+  FAILED: "Yetib bormadi",
 };
 
 export const TELEGRAM_STATUS_TONES: Record<TelegramDeliveryStatus, BadgeTone> = {
@@ -183,14 +184,14 @@ export const TELEGRAM_STATUS_TONES: Record<TelegramDeliveryStatus, BadgeTone> = 
 };
 
 export const TELEGRAM_KIND_LABELS: Record<TelegramMessageKind, string> = {
-  REEL_ACCEPTED: "Reel qabul qilindi",
-  REEL_REJECTED: "Reel rad etildi",
-  REEL_REVIEW: "Reel qo'lda tekshiruvda",
+  REEL_ACCEPTED: "Video qabul qilindi",
+  REEL_REJECTED: "Video rad etildi",
+  REEL_REVIEW: "Video tekshiruvda",
   RANK_CHANGED: "Reyting o'zgardi",
   WARNING: "Ogohlantirish",
   SUPPORT_REPLY: "Support javobi",
-  VOUCHER_WIN: "Random tanlov g'olibi",
-  WINNER: "Asosiy g'olib",
+  VOUCHER_WIN: "Voucher g'olibi",
+  WINNER: "Asosiy sovrin g'olibi",
   OTHER: "Boshqa",
 };
 
@@ -242,9 +243,9 @@ export const RATING_PRIZE_LABELS: Record<RatingPrizeKind, string> = {
 // ---------------------------------------------------------------------------
 
 export const DRAW_STATUS_LABELS: Record<DrawStatus, string> = {
-  DRAFT: "Qoralama",
+  DRAFT: "Tasdiqlanmagan",
   CONFIRMED: "Tasdiqlangan",
-  SENT: "Yuborilgan",
+  SENT: "Xabar yuborilgan",
   CANCELLED: "Bekor qilingan",
 };
 
@@ -331,16 +332,20 @@ export const AI_VERDICT_TONES: Record<AiVerdict, BadgeTone> = {
   UNCERTAIN: "warning",
 };
 
+/**
+ * AI natijasiga qo'lda qo'yilgan belgi: faqat AI xulosasini to'g'rilaydi (video holati o'zgarmaydi) —
+ * shuning uchun "tasdiqlandi / rad etildi" emas.
+ */
 export const AI_MANUAL_DECISION_LABELS: Record<AiManualDecision, string> = {
-  APPROVED: "Tasdiqlandi",
-  REJECTED: "Rad etildi",
+  APPROVED: "mos",
+  REJECTED: "mos emas",
 };
 
 export const AI_REVIEW_STATE_LABELS: Record<AiReviewState, string> = {
   QUEUED: "Navbatda",
-  PROCESSING: "Ishlanmoqda",
+  PROCESSING: "Hozir tekshirilmoqda",
   DONE: "Tayyor",
-  FAILED: "Xato",
+  FAILED: "Tekshirib bo'lmadi",
 };
 
 export const AI_REVIEW_STATE_TONES: Record<AiReviewState, BadgeTone> = {
@@ -361,37 +366,37 @@ export const AI_RUN_MODE_LABELS: Record<AiRunMode, string> = {
 
 export const AUDIT_ENTITY_LABELS: Record<AuditEntity, string> = {
   participant: "Ishtirokchi",
-  reel: "Reel",
+  reel: "Video",
   support_ticket: "Support",
-  target_case: "Target",
+  target_case: "Reklama (target)",
   telegram_message: "Telegram",
   winner: "G'olib",
   settings: "Sozlamalar",
   prize: "Sovg'alar",
-  voucher_draw: "Random tanlov",
+  voucher_draw: "Tanlov (baraban)",
   // Istoriyalar bo'limi olib tashlangan — eski audit yozuvlari o'qilishi uchun qoldi.
   story: "Istoriya",
-  auth: "Kirish",
+  auth: "Kirish va chiqish",
 };
 
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "auth.login": "Tizimga kirdi",
   "auth.logout": "Tizimdan chiqdi",
-  "reel.accept": "Reelni qabul qildi",
-  "reel.reject": "Reelni rad etdi",
+  "reel.accept": "Videoni qabul qildi",
+  "reel.reject": "Videoni rad etdi",
   "manual_review.approve": "Qo'lda tekshiruv: tasdiqladi",
   "manual_review.reject": "Qo'lda tekshiruv: rad etdi",
   "participant.block": "Bloklandi",
   "participant.unblock": "Blokdan chiqarildi",
-  "participant.disqualify": "Diskvalifikatsiya qilindi",
+  "participant.disqualify": "Tanlovdan chetlatildi",
   "participant.warn": "Ogohlantirildi",
   "support.reply": "Murojaatga javob yozdi",
   "support.status": "Murojaat holatini o'zgartirdi",
   "participant.web_login": "Saytga qayta kirishga ruxsat berdi",
-  "target.warn": "Target: ogohlantirish",
-  "target.disqualify": "Target: diskvalifikatsiya",
-  "target.dismiss": "Target: ro'yxatdan chiqarildi",
-  "target.check": "Target: reklama kutubxonasi tekshirildi",
+  "target.warn": "Reklama (target): ogohlantirdi",
+  "target.disqualify": "Reklama (target): tanlovdan chetlatdi",
+  "target.dismiss": "Reklama (target): xato signal deb yopdi",
+  "target.check": "Reklama (target): Instagram reklamalari tekshirildi",
   "telegram.resend": "Telegram: qayta yuborildi",
   "telegram.resend_unread": "Telegram: o'qilmaganlarga qayta yuborildi",
   "winner.purchase_check": "G'olib: xarid tekshiruvi",
@@ -461,6 +466,19 @@ const AUDIT_VALUE_LABELS: Partial<Record<AuditEntity, Record<string, string>>> =
   winner: WINNER_VALUE_LABELS,
   voucher_draw: DRAW_STATUS_LABELS,
 };
+
+/**
+ * Audit yozuvidagi xom matnni o'qiladigan qiladi (faqat ko'rinish): sanalar "2026-11-27" →
+ * "27.11.2026", chegarasiz oraliq "4000001–1000000000" → "4 000 001+", alohida turgan katta sonlar
+ * guruhlanadi ("400000" → "400 000"). Telefon (+998…), sana ichidagi yillar, havola va Instagram
+ * kodlaridagi raqamlarga ("DA12345678b", "/reel/C123456xyz/") tegmaydi.
+ */
+export function auditText(text: string): string {
+  return text
+    .replace(/\s?[–-]\s?1000000000(?!\d)/g, "+")
+    .replace(/(?<!\d)(\d{4})-(\d{2})-(\d{2})(?!\d)/g, "$3.$2.$1")
+    .replace(/(?<![\w.+/@-])\d{5,}(?![\w./-])/g, (digits) => formatNumber(Number(digits)));
+}
 
 /** Audit yozuvidagi holat kodini o'qiladigan matnga ("ACTIVE" -> "Faol"). */
 export function auditValueLabel(entity: AuditEntity, value: string): string {

@@ -17,7 +17,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { IosIcon } from "@/components/ui/ios-icon";
 import { Spinner } from "@/components/ui/spinner";
@@ -39,9 +39,9 @@ const MAX_SIZE_LABEL = formatFileSize(RULES_VIDEO_LIMITS.maxBytes);
 type Notice = "uploaded" | "replaced" | "deleted";
 
 const NOTICE_TEXT: Record<Notice, string> = {
-  uploaded: "Video yuklandi — ishtirokchilar uni Mini App'dagi Qoidalar bo'limida ko'radi.",
+  uploaded: "Video yuklandi — ishtirokchilar uni ilovadagi Qoidalar bo'limida ko'radi.",
   replaced: "Video almashtirildi — ishtirokchilar endi yangisini ko'radi.",
-  deleted: "Video o'chirildi — Mini App'da endi faqat qoidalar matni ko'rinadi.",
+  deleted: "Video o'chirildi — ilovada endi faqat qoidalar matni ko'rinadi.",
 };
 
 interface UploadRequest {
@@ -64,7 +64,7 @@ function uploadErrorText(error: unknown): string {
 }
 
 /**
- * Sozlamalar → Tanlov qoidalari: qoida videosi (Mini App'dagi Qoidalar bo'limida eng tepada).
+ * Sozlamalar → Qoida videosi (Mini App'dagi Qoidalar bo'limida eng tepada).
  * Yuklash, almashtirish (eskisi o'chiriladi) va o'chirish; yuklash jarayoni foizda ko'rsatiladi.
  */
 export function RulesVideoCard() {
@@ -188,7 +188,7 @@ export function RulesVideoCard() {
       <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-4 py-8 text-center">
         <IosIcon icon={Film} tint="gray" size={40} />
         <p className="max-w-md text-sm text-slate-600">
-          Video hali yuklanmagan — Mini App&apos;da faqat qoidalar matni ko&apos;rinadi.
+          Video hali yuklanmagan — ilovada faqat qoidalar matni ko&apos;rinadi.
         </p>
         <Button onClick={pickFile} loading={uploading}>
           {!uploading && <Upload className="size-4" aria-hidden />}
@@ -199,21 +199,22 @@ export function RulesVideoCard() {
   }
 
   return (
+    // Sarlavha ("Qoida videosi") — Sozlamalar sahifasidagi bo'lim sarlavhasida.
     <Card>
-      <CardHeader className="flex flex-wrap items-center justify-between gap-2">
-        <CardTitle>Qoida videosi</CardTitle>
-        {!isPending && !isError && (
-          <Badge tone={video ? "success" : "neutral"}>{video ? "Mini App'da ko'rinadi" : "Yuklanmagan"}</Badge>
-        )}
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="flex items-start gap-2 text-sm text-slate-600">
-          <IosIcon icon={Film} tint="purple" size={22} />
-          <span>
-            Mini App&apos;dagi Qoidalar bo&apos;limida eng tepada, qoidalar matnidan oldin ko&apos;rinadi.
-            MP4, MOV yoki WebM, ko&apos;pi bilan {MAX_SIZE_LABEL}. Yangisi yuklansa, eskisi o&apos;chiriladi.
-          </span>
-        </p>
+      <CardContent className="space-y-4 pt-5">
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+          <p className="flex min-w-0 flex-1 items-start gap-2 text-sm text-slate-600">
+            <IosIcon icon={Film} tint="purple" size={22} />
+            <span>
+              Ilovadagi Qoidalar bo&apos;limida eng tepada, qoidalar matnidan oldin ko&apos;rinadi.
+              MP4, MOV yoki WebM, ko&apos;pi bilan {MAX_SIZE_LABEL}. Yangisi yuklansa, eskisi
+              o&apos;chiriladi.
+            </span>
+          </p>
+          {!isPending && !isError && (
+            <Badge tone={video ? "success" : "neutral"}>{video ? "Ilovada ko'rinadi" : "Yuklanmagan"}</Badge>
+          )}
+        </div>
 
         {body}
 
@@ -279,7 +280,7 @@ export function RulesVideoCard() {
       {confirmingDelete && (
         <ConfirmDialog
           title="Qoida videosi o'chirilsinmi?"
-          description="Video Mini App'dagi Qoidalar bo'limidan darhol yo'qoladi. Keyin yangisini yuklash mumkin."
+          description="Video ilovadagi Qoidalar bo'limidan darhol yo'qoladi. Keyin yangisini yuklash mumkin."
           confirmLabel="O'chirish"
           variant="danger"
           onConfirm={deleteRulesVideo}

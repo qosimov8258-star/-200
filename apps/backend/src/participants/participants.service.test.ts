@@ -21,6 +21,7 @@ import {
   type Reel,
   type StoredParticipant,
   WEB_ID_BASE,
+  webLoginState,
 } from "./participants.service";
 
 const RULES_VERSION = 1;
@@ -345,6 +346,8 @@ test("sharing the web account's phone in the bot links that account to Telegram"
   assert.equal(account.linkedTelegramId, 777);
   assert.equal(account.chatId, 7770, "bot xabarlari endi Telegram'ga boradi");
   assert.deepEqual(account.sessionsFrom, now);
+  assert.equal(webLoginState(account), "GRANTED", "sessiyalarni tizim yopdi — raqam egasi saytga bir marta qayta kira oladi");
+  assert.ok(participants.canStartWebSession(webId));
   assert.equal(participants.get(777), null, "bo'sh Telegram yozuvi o'rnini saytdagi hisob oldi");
   assert.equal(participants.resolve(777), webId);
 
@@ -369,6 +372,18 @@ test("sharing the web account's phone in the bot links that account to Telegram"
   // Hisob o'chirilsa — ulanish ham yo'qoladi.
   participants.delete(webId);
   assert.equal(participants.resolve(777), 777);
+});
+
+test("site entry state: a web account counts as entered; one linked before the rule (no marks) gets one more entry", () => {
+  const participants = make();
+  const webId = participants.registerWeb("Dilnoza", "90 123 45 67");
+  const account = participants.get(webId)!;
+  assert.equal(webLoginState(account), "USED", "saytdagi hisob — ro'yxatdan o'tishda kirilgan");
+  participants.setPhone(1, 1, "+998900000001");
+  assert.equal(webLoginState(participants.get(1)!), "NEVER", "Telegram hisobi — hali kirilmagan");
+  assert.equal(webLoginState({ ...account, linkedTelegramId: 42 }), "NEVER", "eski ulangan hisob (belgisiz) — bir marta");
+  assert.equal(webLoginState({ ...account, linkedTelegramId: 42, webLoginUsed: true }), "USED");
+  assert.equal(webLoginState({ ...account, webLoginUsed: true, webLoginGrant: true }), "GRANTED");
 });
 
 test("a linked account survives a restart", () => {

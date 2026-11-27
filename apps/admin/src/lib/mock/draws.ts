@@ -706,7 +706,8 @@ export function runDraw(input: DrawSettings, actor: AdminUser): VoucherDraw {
   const pool = buildPool(settings, store);
   if (pool.eligible.length === 0) throw new ApiError(400, "Talabga javob beradigan nomzod yo'q.");
 
-  const prize = monthlyPrizes(store).find((item) => item.id === settings.prizeId);
+  // Oylik voucher yoki asosiy sovrin — nomi sovg'aning o'zidan (backend `findPrize` kabi).
+  const prize = drawablePrizes(store).find((item) => item.id === settings.prizeId);
   const seed = createSeed();
   const shuffled = seededShuffle(pool.eligible, seed);
   const entry = (candidate: DrawCandidate, position: number): DrawEntry => ({
@@ -908,6 +909,10 @@ export function cancelDraw(id: string, request: DrawCancelRequest, actor: AdminU
 export function sendDraw(id: string, actor: AdminUser): VoucherDraw {
   const store = readStore();
   const draw = findDraw(store, id);
+  // Backend kabi: avtomobil g'olibi yuzma-yuz tekshiruvdan keyin Bosh sovrin bo'limida e'lon qilinadi.
+  if (draw.prizeId === "main-car") {
+    throw new ApiError(409, "Avtomobil g'olibi G'oliblar → Bosh sovrin bo'limida e'lon qilinadi.");
+  }
   if (draw.status !== "CONFIRMED" && draw.status !== "SENT") {
     throw new ApiError(409, "Avval natijani tasdiqlang.");
   }

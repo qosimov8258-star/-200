@@ -1,47 +1,47 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { AlertTriangle, PlayCircle, Rocket } from "lucide-react";
+import { AlertTriangle, PlayCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { MoreDetails } from "@/components/ui/more-details";
 import { runAiForAll } from "@/lib/api";
-import { formatDateTime, formatNumber, formatPercent, formatUsd } from "@/lib/format";
-import { AI_RUN_MODE_LABELS, AI_VERDICT_FILTER_LABELS } from "@/lib/labels";
-import type { AiRun, AiState } from "@/lib/types";
+import { formatDayTime, formatNumber, formatPercent, formatUsd } from "@/lib/format";
+import { AI_REVIEW_STATE_LABELS, AI_RUN_MODE_LABELS } from "@/lib/labels";
+import type { AiProgress, AiRun, AiState } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-import { AI_REVIEWS_KEY, useSetAiState } from "./ai-common";
+import { AI_REVIEWS_KEY, AI_SECTION_IDS, aiTrialFinished, averageCost, useSetAiState } from "./ai-common";
 
 interface ProgressCardProps {
   state: AiState;
   run: AiRun;
-  onNotice: (message: string) => void;
+  /** "Hammasini ishga tushirish" oynasini ochish (asosiy tugma — qadamlarda). */
+  onRunAll: () => void;
 }
 
-/** "Jarayon": nechtasi tayyor / navbatda / ishlanmoqda / xato, xulosalar, tokenlar va sarf. */
-export function ProgressCard({ state, run, onNotice }: ProgressCardProps) {
-  const setState = useSetAiState();
-  const queryClient = useQueryClient();
-  const [confirming, setConfirming] = useState(false);
+/** "Jarayon": nechtasi tekshirildi, holatlar bo'yicha sonlar, sarf; tokenlar — "Batafsil" ichida. */
+export function ProgressCard({ state, run, onRunAll }: ProgressCardProps) {
   const { progress, worker } = state;
 
   const finished = progress.done + progress.failed;
   const inFlight = progress.queued + progress.processing;
   const ratio = progress.total > 0 ? finished / progress.total : 0;
-  const trialFinished = run.mode === "TRIAL" && progress.total > 0 && inFlight === 0;
-  const priced = progress.done > 0 ? progress.costUsd / progress.done : null;
+  const trialFinished = aiTrialFinished(state);
+  const priced = averageCost(progress);
   const width = (value: number) => `${progress.total > 0 ? (value / progress.total) * 100 : 0}%`;
 
   return (
-    <Card id="ai-progress" className="scroll-mt-28">
+    <Card id={AI_SECTION_IDS.progress} className="scroll-mt-28">
       <CardHeader className="space-y-1">
-        <CardTitle>Jarayon</CardTitle>
+        <CardTitle id={AI_SECTION_IDS.progressTitle} tabIndex={-1} className="outline-none">
+          Jarayon
+        </CardTitle>
         <p className="text-sm text-slate-500">
-          Versiya {run.version} · {AI_RUN_MODE_LABELS[run.mode]} · boshlangan{" "}
-          <span className="tabular-nums">{formatDateTime(run.startedAt)}</span> · {run.startedBy}
+          {AI_RUN_MODE_LABELS[run.mode]} · <span className="tabular-nums">{formatDayTime(run.startedAt)}</span> da{" "}
+          {run.startedBy} boshlagan
         </p>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -61,6 +61,7 @@ export function ProgressCard({ state, run, onNotice }: ProgressCardProps) {
             aria-valuemin={0}
             aria-valuemax={progress.total}
             aria-valuenow={finished}
+            aria-valuetext={`${formatNumber(finished)} / ${formatNumber(progress.total)}`}
             className="flex h-3 overflow-hidden rounded-full bg-slate-200/70"
           >
             <div className="h-full bg-up-bar transition-[width] duration-500" style={{ width: width(progress.done) }} />
@@ -73,112 +74,106 @@ export function ProgressCard({ state, run, onNotice }: ProgressCardProps) {
         </div>
 
         <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Stat label="Tayyor" value={progress.done} dot="bg-up-bar" />
-          <Stat label="Navbatda" value={progress.queued} dot="bg-slate-300" />
-          <Stat label="Ishlanmoqda" value={progress.processing} dot="bg-brand-400" />
-          <Stat label="Xato" value={progress.failed} dot="bg-down" attention={progress.failed > 0} />
+          <Stat label={AI_REVIEW_STATE_LABELS.DONE} value={progress.done} dot="bg-up-bar" />
+          <Stat label={AI_REVIEW_STATE_LABELS.QUEUED} value={progress.queued} dot="bg-slate-300" />
+          <Stat label={AI_REVIEW_STATE_LABELS.PROCESSING} value={progress.processing} dot="bg-brand-400" />
+          <Stat label={AI_REVIEW_STATE_LABELS.FAILED} value={progress.failed} dot="bg-down" attention={progress.failed > 0} />
         </dl>
 
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <div className="rounded-xl border border-line p-3">
-            <p className="text-xs font-medium text-slate-500">Xulosalar</p>
-            <dl className="mt-2 grid grid-cols-3 gap-2 text-center">
-              <Verdict label={AI_VERDICT_FILTER_LABELS.APPROVED} value={progress.approved} className="bg-[#e9f6ee] text-up" />
-              <Verdict label={AI_VERDICT_FILTER_LABELS.REJECTED} value={progress.rejected} className="bg-[#fdecea] text-[#c2412b]" />
-              <Verdict
-                label={AI_VERDICT_FILTER_LABELS.UNCERTAIN}
-                value={progress.uncertain}
-                className="bg-[#fdf3e2] text-[#a7650f]"
-              />
-            </dl>
-            <p className="mt-2 text-xs text-slate-500 tabular-nums">
-              Qo&apos;lda qaror qilingan: {formatNumber(progress.manual)}
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-line p-3">
-            <p className="text-xs font-medium text-slate-500">$ sarflandi</p>
-            <p className="mt-1 text-2xl font-semibold tracking-tight text-ink tabular-nums">{formatUsd(progress.costUsd)}</p>
-            {priced !== null && (
-              <p className="text-xs text-slate-500 tabular-nums">1 video o&apos;rtacha: {formatUsd(priced)}</p>
-            )}
-            <dl className="mt-2 grid gap-x-4 gap-y-0.5 text-xs text-slate-600 sm:grid-cols-2">
-              <TokenRow label="Kiruvchi token" value={progress.inputTokens} />
-              <TokenRow label="Chiquvchi token" value={progress.outputTokens} />
-              <TokenRow label="Keshdan o'qildi" value={progress.cacheReadTokens} />
-              <TokenRow label="Keshga yozildi" value={progress.cacheWriteTokens} />
-            </dl>
-          </div>
-        </div>
+        <p className="text-sm text-slate-600">
+          Sarflandi: <span className="font-semibold text-ink tabular-nums">{formatUsd(progress.costUsd)}</span>
+          {priced !== null && <span className="text-slate-500 tabular-nums"> (1 video ≈ {formatUsd(priced)})</span>}
+        </p>
 
         {inFlight > 0 && !worker.online && (
           <p className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
-            Worker o&apos;chiq — {formatNumber(inFlight)} ta video navbatda kutadi. Worker yoqilgach tekshiruv o&apos;zi davom etadi.
+            AI dasturi to&apos;xtab turibdi — {formatNumber(inFlight)} ta video navbatda. Dasturchiga xabar bering;
+            yoqilgach o&apos;zi davom etadi.
           </p>
         )}
 
         {run.mode === "FULL" && (
+          <p className="text-xs text-slate-500">Yangi qabul qilingan videolar ham o&apos;zi tekshiriladi.</p>
+        )}
+
+        {run.mode === "TRIAL" && !trialFinished && progress.total > 0 && (
           <p className="text-xs text-slate-500">
-            Keyin qabul qilinadigan videolar ham versiya {run.version} bo&apos;yicha avtomatik navbatga qo&apos;yiladi.
+            Sinov tugagach, keyingi qadam sahifa tepasida chiqadi. Shu orada natijalarni ko&apos;rib chiqing.
           </p>
         )}
 
-        {run.mode === "TRIAL" && !trialFinished && (
-          <p className="text-xs text-slate-500">
-            Sinov tugagach shu yerda «Hammasini ishga tushirish» tugmasi chiqadi. Shu orada natijalarni ko&apos;rib chiqing.
-          </p>
-        )}
-
-        {trialFinished && (
-          <div className="flex flex-col gap-3 rounded-2xl border border-brand-200 bg-brand-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <Rocket className="mt-0.5 size-6 shrink-0 text-brand-600" aria-hidden />
-              <div>
-                <p className="font-semibold text-ink">Sinov tugadi</p>
-                <p className="text-sm text-slate-600">
-                  Pastdagi natijalarni ko&apos;rib chiqing. AI to&apos;g&apos;ri ishlayotgan bo&apos;lsa — barcha videolarni
-                  ishga tushiring. Bo&apos;lmasa — «Yangi versiya» bilan rasm va mezonlarni aniqlashtiring.
-                </p>
-              </div>
-            </div>
-            <Button onClick={() => setConfirming(true)} className="w-full sm:w-auto">
-              <PlayCircle className="size-4" aria-hidden />
-              Hammasini ishga tushirish
-            </Button>
-          </div>
-        )}
-      </CardContent>
-
-      {confirming && (
-        <ConfirmDialog
-          title="Barcha videolar tekshirilsinmi?"
-          description={
-            <div className="space-y-2">
-              <p>
-                Barcha qabul qilingan videolar versiya {run.version} bo&apos;yicha navbatga qo&apos;yiladi. Sinovdagi{" "}
-                {formatNumber(progress.total)} ta video qayta tekshirilmaydi. Keyin qabul qilinadigan videolar ham avtomatik
-                tekshiriladi.
+        {trialFinished &&
+          (state.draft ? (
+            // Qadamlar yangi sozlamalarga qaragan — hozirgilari bilan hammasini tekshirish shu yerda qoladi.
+            <div className="flex flex-col gap-2 rounded-xl border border-line p-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-slate-600">
+                Sinov tugagan. Yangi sozlamalarni kutmasdan, hozirgilari bilan hamma videolarni tekshirish ham mumkin.
               </p>
-              {priced !== null && (
-                <p>Sinovda 1 video o&apos;rtacha {formatUsd(priced)} turdi.</p>
-              )}
+              <Button size="sm" variant="secondary" onClick={onRunAll} className="w-full sm:w-auto">
+                <PlayCircle className="size-4" aria-hidden />
+                Hozirgilari bilan hammasini tekshirish
+              </Button>
             </div>
-          }
-          confirmLabel="Ishga tushirish"
-          onConfirm={async () => setState(await runAiForAll())}
-          onClose={() => setConfirming(false)}
-          onDone={async () => {
-            setConfirming(false);
-            onNotice("Barcha qabul qilingan videolar navbatga qo'yildi.");
-            await Promise.all([
-              queryClient.invalidateQueries({ queryKey: AI_REVIEWS_KEY }),
-              queryClient.invalidateQueries({ queryKey: ["audit-log"] }),
-            ]);
-          }}
-        />
-      )}
+          ) : (
+            <p className="text-xs text-slate-500">
+              Sinov tugadi — pastdagi natijalarni ko&apos;rib chiqing. Keyingi qadam sahifa tepasida.
+            </p>
+          ))}
+
+        <MoreDetails title="Batafsil: tokenlar" meta={`sozlamalar versiyasi ${run.version}`}>
+          <dl className="grid gap-x-6 gap-y-1 text-sm text-slate-600 sm:grid-cols-2">
+            <TokenRow label="Kiruvchi token" value={progress.inputTokens} />
+            <TokenRow label="Chiquvchi token" value={progress.outputTokens} />
+            <TokenRow label="Keshdan o'qildi" value={progress.cacheReadTokens} />
+            <TokenRow label="Keshga yozildi" value={progress.cacheWriteTokens} />
+          </dl>
+        </MoreDetails>
+      </CardContent>
     </Card>
+  );
+}
+
+interface RunAllDialogProps {
+  progress: AiProgress;
+  onClose: () => void;
+  /** Navbatga qo'yilgach (xabar va "Jarayon"ga o'tish — chaqiruvchida). */
+  onStarted: () => void;
+}
+
+/** Sinovdan keyin: barcha qabul qilingan videolarni shu sozlamalar bo'yicha tekshirishga berish. */
+export function RunAllDialog({ progress, onClose, onStarted }: RunAllDialogProps) {
+  const setState = useSetAiState();
+  const queryClient = useQueryClient();
+  const priced = averageCost(progress);
+
+  return (
+    <ConfirmDialog
+      title="Hamma videolar tekshirilsinmi?"
+      description={
+        <div className="space-y-2">
+          <p>
+            Barcha qabul qilingan videolar shu rasm va mezonlar bo&apos;yicha tekshiriladi. Sinovdagi{" "}
+            {formatNumber(progress.total)} ta video qayta tekshirilmaydi. Keyin qabul qilinadigan videolar ham o&apos;zi
+            tekshiriladi.
+          </p>
+          <p className="text-xs text-slate-500">
+            Tekshiruv pullik — sarf «Jarayon»da ko&apos;rinadi.
+            {priced !== null && <> Sinovda 1 video o&apos;rtacha {formatUsd(priced)} turdi.</>}
+          </p>
+        </div>
+      }
+      confirmLabel="Tekshirishni boshlash"
+      onConfirm={async () => setState(await runAiForAll())}
+      onClose={onClose}
+      onDone={async () => {
+        onStarted();
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: AI_REVIEWS_KEY }),
+          queryClient.invalidateQueries({ queryKey: ["audit-log"] }),
+        ]);
+      }}
+    />
   );
 }
 
@@ -186,21 +181,12 @@ function Stat({ label, value, dot, attention = false }: { label: string; value: 
   return (
     <div className="rounded-xl bg-canvas px-3 py-2.5">
       <dt className="flex items-center gap-1.5 text-xs text-slate-500">
-        <span className={cn("size-2 rounded-full", dot)} aria-hidden />
+        <span className={cn("size-2 shrink-0 rounded-full", dot)} aria-hidden />
         {label}
       </dt>
       <dd className={cn("mt-0.5 text-xl font-semibold tabular-nums", attention ? "text-down" : "text-ink")}>
         {formatNumber(value)}
       </dd>
-    </div>
-  );
-}
-
-function Verdict({ label, value, className }: { label: string; value: number; className: string }) {
-  return (
-    <div className={cn("rounded-lg px-2 py-2", className)}>
-      <dt className="truncate text-xs font-medium">{label}</dt>
-      <dd className="text-lg font-semibold tabular-nums">{formatNumber(value)}</dd>
     </div>
   );
 }

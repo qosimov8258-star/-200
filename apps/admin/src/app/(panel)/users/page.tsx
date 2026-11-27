@@ -6,7 +6,7 @@ import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { UsersView } from "@/components/users/users-view";
 
 export const metadata: Metadata = {
-  title: "Foydalanuvchilar",
+  title: "Ishtirokchilar",
 };
 
 export default function UsersPage() {

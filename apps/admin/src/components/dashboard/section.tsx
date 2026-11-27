@@ -1,9 +1,6 @@
-import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-
 import { cn } from "@/lib/utils";
 
-/** Dashboard ichidagi bo'lim: sarlavha va o'ng tomonda boshqaruvlar (CareOps uslubi). */
+/** Bosh sahifa ichidagi bo'lim: sarlavha va o'ng tomonda boshqaruvlar. */
 export function DashboardSection({
   title,
   subtitle,
@@ -19,8 +16,8 @@ export function DashboardSection({
 }) {
   return (
     <section className={cn("p-5 sm:p-6", className)}>
-      <div className="mb-5 flex items-start justify-between gap-3">
-        <div>
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
           <h2 className="text-[15px] font-semibold tracking-tight text-ink">{title}</h2>
           {subtitle && <p className="mt-0.5 text-xs text-muted">{subtitle}</p>}
         </div>
@@ -34,9 +31,10 @@ export function DashboardSection({
 const ICON_BUTTON =
   "grid size-8 place-items-center rounded-[10px] border border-line bg-white text-muted transition-colors hover:border-brand-200 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40";
 
+/** Ikonkali tugma; `active` berilsa — almashtirgich (yoqilgan/o'chirilgan holati e'lon qilinadi). */
 export function IconButton({
   label,
-  active = false,
+  active,
   className,
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { label: string; active?: boolean }) {
@@ -45,41 +43,9 @@ export function IconButton({
       type="button"
       aria-label={label}
       title={label}
-      aria-pressed={active || undefined}
+      aria-pressed={active}
       className={cn(ICON_BUTTON, active && "border-brand-200 bg-brand-50 text-brand-600", className)}
       {...props}
     />
-  );
-}
-
-/** Karusel: ‹ › va "Barchasi". */
-export function CarouselControls({
-  page,
-  pages,
-  onPage,
-  href,
-}: {
-  page: number;
-  pages: number;
-  onPage: (page: number) => void;
-  href?: string;
-}) {
-  return (
-    <>
-      <IconButton label="Oldingi" disabled={page <= 0} onClick={() => onPage(page - 1)}>
-        <ChevronLeft className="size-4" aria-hidden />
-      </IconButton>
-      <IconButton label="Keyingi" disabled={page >= pages - 1} onClick={() => onPage(page + 1)}>
-        <ChevronRight className="size-4" aria-hidden />
-      </IconButton>
-      {href && (
-        <Link
-          href={href}
-          className="ml-1 inline-flex h-8 items-center rounded-[10px] border border-line bg-white px-3 text-xs font-medium text-ink hover:border-brand-200"
-        >
-          Barchasi
-        </Link>
-      )}
-    </>
   );
 }

@@ -2,36 +2,52 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { ArrowUpRight, Info, Ticket } from "lucide-react";
+import { ArrowUpRight, Dices, Ticket } from "lucide-react";
 
+import { MAIN_DRAW_RESULT_ANCHOR, VOUCHER_DRAW_ANCHOR } from "@/components/prizes/rating-prize";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { MoreDetails } from "@/components/ui/more-details";
 import { Pagination } from "@/components/ui/pagination";
 import { Spinner } from "@/components/ui/spinner";
 import { getDraw, getDraws } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
-import { periodLabel, stageLabel } from "@/lib/draw-rules";
-import { formatNumber } from "@/lib/format";
+import { stageLabel } from "@/lib/draw-rules";
+import { formatDayMonth, formatNumber } from "@/lib/format";
 import { DRAW_STATUS_LABELS, DRAW_STATUS_TONES } from "@/lib/labels";
-import type { DrawEntry, VoucherDraw } from "@/lib/types";
-import { voucherTabHref } from "@/lib/winner-links";
+import type { DrawEntry, VoucherDraw, VoucherDrawSummary } from "@/lib/types";
+import { drawHref, voucherTabHref } from "@/lib/winner-links";
+
+import { LinkButton } from "./link-button";
 
 const PAGE_SIZE = 25;
 
+const isMonthly = (draw: VoucherDrawSummary) => !draw.prizeId.startsWith("main-");
+
+/** "#2 · 1-bosqich · 27.11–26.12"; asosiy sovrin — "#5 · iPhone 18 Pro". */
+function drawTitle(draw: VoucherDrawSummary): string {
+  if (!isMonthly(draw)) return `#${draw.number} · ${draw.prizeTitle}`;
+  return `#${draw.number} · ${stageLabel(draw.stage)} · ${formatDayMonth(draw.periodFrom)}–${formatDayMonth(draw.periodTo)}`;
+}
+
 /**
- * "Voucher g'oliblari" (G'oliblar → "Voucher" tabining pastki qismi): bekor qilinmagan barcha random
- * tanlovlarning faol g'oliblari, tanlov bo'yicha guruhlangan. Har bir tanlov `GET /admin/draws/:id`
- * dan (keshi tepadagi tanlov natijasi bilan umumiy).
+ * "O'tkazilgan voucher tanlovlari" (G'oliblar → "Voucher" tabi): bitta ro'yxat — har qatorda
+ * tanlov, g'oliblar soni, holati va "Ochish"; g'oliblar jadvali qator ichida yopiq turadi. Tepada —
+ * barcha voucher g'oliblari ichida qidiruv. Bekor qilingan tanlovlar — pastda, yopiq bo'limda.
+ * Har bir tanlov `GET /admin/draws/:id` dan (keshi tanlov natijasi bilan umumiy).
  */
 export function VoucherWinners() {
   const draws = useQuery({ queryKey: ["draws"], queryFn: getDraws });
   // Faqat oylik voucher tanlovlari — asosiy sovrinlar "Asosiy sovrinlar" tabida.
   const live = useMemo(
-    () => (draws.data ?? []).filter((draw) => draw.status !== "CANCELLED" && !draw.prizeId.startsWith("main-")),
+    () => (draws.data ?? []).filter((draw) => draw.status !== "CANCELLED" && isMonthly(draw)),
     [draws.data],
   );
+  // Bekor qilinganlar ham ochiladigan bo'lib qoladi (sababini ko'rish uchun), shu jumladan asosiy sovrinlarniki.
+  const cancelled = useMemo(() => (draws.data ?? []).filter((draw) => draw.status === "CANCELLED"), [draws.data]);
   const details = useQueries({
     queries: live.map((draw) => ({ queryKey: ["draw", draw.id], queryFn: () => getDraw(draw.id) })),
   });
@@ -57,21 +73,17 @@ export function VoucherWinners() {
 
   return (
     <div className="space-y-4">
-      <p className="flex gap-2.5 rounded-2xl border border-brand-200 bg-brand-50/70 px-4 py-3 text-sm text-slate-700">
-        <Info className="mt-0.5 size-4 shrink-0 text-brand-600" aria-hidden />
-        <span>
-          Oferta 6.1.5: talablarni bajargan ishtirokchi bir necha oy davomida voucher yutishi mumkin. Bekor
-          qilingan tanlovlar kirmaydi.
-        </span>
-      </p>
-
       {live.length === 0 ? (
         <Card className="flex flex-col items-center gap-3 px-4 py-12 text-center">
           <Ticket className="size-8 text-slate-300" aria-hidden />
-          <p className="text-sm text-slate-600">Hali voucher g&apos;oliblari yo&apos;q.</p>
-          <p className="text-xs text-muted">
-            Yuqorida bosqichni tanlab, «Tanlash»ni bosing — g&apos;oliblar shu yerda ko&apos;rinadi.
+          <p className="max-w-md text-sm text-slate-600">
+            Hali voucher tanlovi o&apos;tkazilmagan. Tepadagi barabanda kerakli «Voucher» bosqichini tanlab,
+            «Aylantirish»ni bosing.
           </p>
+          <LinkButton href={`${voucherTabHref()}#baraban`}>
+            <Dices className="size-4" aria-hidden />
+            Barabanga o&apos;tish
+          </LinkButton>
         </Card>
       ) : (
         <>
@@ -81,6 +93,7 @@ export function VoucherWinners() {
               {formatNumber(live.length)} ta tanlov
             </p>
             <Input
+              type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Ism yoki telefon"
@@ -93,44 +106,81 @@ export function VoucherWinners() {
               Hech kim topilmadi
             </p>
           )}
-          {live.map((summary, index) => {
-            const detail = details[index];
-            return (
-              <DrawWinnersCard
-                // Qidiruv o'zgarsa sahifalash boshidan boshlanadi.
-                key={`${summary.id}:${needle}`}
-                draw={detail?.data}
-                loading={detail?.isPending ?? true}
-                error={detail?.isError ? errorMessage(detail.error) : null}
-                needle={needle}
-                title={`#${summary.number} · ${stageLabel(summary.stage)} · ${periodLabel(summary.periodFrom, summary.periodTo)}`}
-                status={summary.status}
-                id={summary.id}
-              />
-            );
-          })}
+          <ul className="space-y-3" aria-label="O'tkazilgan voucher tanlovlari">
+            {live.map((summary, index) => {
+              const detail = details[index];
+              return (
+                <DrawRow
+                  // Qidiruv o'zgarsa sahifalash boshidan boshlanadi va ro'yxat ochiladi.
+                  key={`${summary.id}:${needle}`}
+                  summary={summary}
+                  draw={detail?.data}
+                  loading={detail?.isPending ?? true}
+                  error={detail?.isError ? errorMessage(detail.error) : null}
+                  needle={needle}
+                />
+              );
+            })}
+          </ul>
         </>
+      )}
+
+      <p className="text-xs text-muted">
+        Bir ishtirokchi bir necha oy voucher yutishi mumkin — har oy alohida tanlov. Bekor qilingan tanlovlar
+        hisobga kirmaydi.
+      </p>
+
+      {cancelled.length > 0 && (
+        <MoreDetails title="Bekor qilingan tanlovlar" meta={`${formatNumber(cancelled.length)} ta`} contentClassName="p-0">
+          <ul className="divide-y divide-slate-100">
+            {cancelled.map((item) => (
+              <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <span className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
+                  <span className="font-medium text-ink tabular-nums">{drawTitle(item)}</span>
+                  <Badge tone={DRAW_STATUS_TONES[item.status]}>{DRAW_STATUS_LABELS[item.status]}</Badge>
+                </span>
+                <OpenLink summary={item} />
+              </li>
+            ))}
+          </ul>
+        </MoreDetails>
       )}
     </div>
   );
 }
 
-function DrawWinnersCard({
+/**
+ * "Ochish" — tanlov natijasi (asosiy sovrin — o'z tabida): sahifa natija sarlavhasiga suriladi,
+ * tepadagi barabandagi sovrin saqlanadi.
+ */
+function OpenLink({ summary }: { summary: VoucherDrawSummary }) {
+  const searchParams = useSearchParams();
+  const anchor = isMonthly(summary) ? VOUCHER_DRAW_ANCHOR : MAIN_DRAW_RESULT_ANCHOR;
+  return (
+    <Link
+      href={`${drawHref(summary, searchParams.get("prize"))}#${anchor}`}
+      aria-label={`${drawTitle(summary)}: natijani ochish`}
+      className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700"
+    >
+      Ochish
+      <ArrowUpRight className="size-3.5" aria-hidden />
+    </Link>
+  );
+}
+
+/** Bitta tanlov: sarlavha qatori va yopiq g'oliblar jadvali. */
+function DrawRow({
+  summary,
   draw,
   loading,
   error,
   needle,
-  title,
-  status,
-  id,
 }: {
+  summary: VoucherDrawSummary;
   draw: VoucherDraw | undefined;
   loading: boolean;
   error: string | null;
   needle: string;
-  title: string;
-  status: VoucherDraw["status"];
-  id: string;
 }) {
   const [page, setPage] = useState(1);
   const winners = useMemo(() => {
@@ -143,70 +193,74 @@ function DrawWinnersCard({
   if (needle && draw && winners.length === 0) return null;
 
   return (
-    <Card className="overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3.5">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h3 className="text-sm font-semibold text-ink tabular-nums">{title}</h3>
-          <Badge tone={DRAW_STATUS_TONES[status]}>{DRAW_STATUS_LABELS[status]}</Badge>
-          {draw && (
-            <span className="text-xs text-muted tabular-nums">
-              {needle ? `${formatNumber(winners.length)} ta topildi` : `${formatNumber(winners.length)} g'olib`}
+    <li>
+      <Card className="overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <h3 className="text-sm font-semibold text-ink tabular-nums">{drawTitle(summary)}</h3>
+            <span className="text-sm text-muted tabular-nums" aria-hidden>
+              ·
             </span>
-          )}
-        </div>
-        <Link
-          href={voucherTabHref(id)}
-          className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700"
-        >
-          Natijani ochish
-          <ArrowUpRight className="size-3.5" aria-hidden />
-        </Link>
-      </div>
-      {loading ? (
-        <Spinner />
-      ) : error ? (
-        <p className="px-5 py-4 text-sm text-red-700">{error}</p>
-      ) : (
-        <>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[440px] text-sm">
-              <thead className="border-b border-line bg-slate-50 text-xs text-slate-500">
-                <tr>
-                  <th className="w-16 px-5 py-2.5 text-left font-medium">#</th>
-                  <th className="px-4 py-2.5 text-left font-medium">Ishtirokchi</th>
-                  <th className="px-4 py-2.5 text-left font-medium">Telefon</th>
-                  <th className="px-5 py-2.5 text-right font-medium">Ko&apos;rishlar</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {rows.map((entry) => (
-                  <tr key={entry.candidate.participantId} className="hover:bg-slate-50/60">
-                    <td className="px-5 py-2.5 font-medium text-slate-500 tabular-nums">{entry.position}</td>
-                    <td className="px-4 py-2.5 font-medium whitespace-nowrap text-ink">
-                      {entry.candidate.firstName} {entry.candidate.lastName}
-                    </td>
-                    <td className="px-4 py-2.5 whitespace-nowrap tabular-nums">{entry.candidate.phone}</td>
-                    <td className="px-5 py-2.5 text-right tabular-nums">{formatNumber(entry.candidate.views)}</td>
-                  </tr>
-                ))}
-                {rows.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="px-5 py-8 text-center text-slate-500">
-                      G&apos;olib yo&apos;q
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+            <span className="text-sm text-slate-600 tabular-nums">{formatNumber(summary.winners)} g&apos;olib</span>
+            <Badge tone={DRAW_STATUS_TONES[summary.status]}>{DRAW_STATUS_LABELS[summary.status]}</Badge>
           </div>
-          {winners.length > PAGE_SIZE && (
-            <div className="border-t border-line px-5 py-3">
-              <Pagination page={page} pageSize={PAGE_SIZE} total={winners.length} onPageChange={setPage} />
-            </div>
+          <OpenLink summary={summary} />
+        </div>
+        <MoreDetails
+          title="G'oliblar ro'yxati"
+          meta={needle && draw ? `${formatNumber(winners.length)} ta topildi` : null}
+          // Qidiruvda — topilganlar darhol ko'rinsin.
+          defaultOpen={needle !== ""}
+          className="rounded-none border-x-0 border-b-0"
+          contentClassName="p-0"
+        >
+          {loading ? (
+            <Spinner className="px-5 py-4" />
+          ) : error ? (
+            <p className="px-5 py-4 text-sm text-red-700">{error}</p>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[440px] text-sm">
+                  <thead className="border-b border-line bg-slate-50 text-xs text-slate-500">
+                    <tr>
+                      <th className="w-16 px-5 py-2.5 text-left font-medium">#</th>
+                      <th className="px-4 py-2.5 text-left font-medium">Ishtirokchi</th>
+                      <th className="px-4 py-2.5 text-left font-medium">Telefon</th>
+                      <th className="px-5 py-2.5 text-right font-medium">Ko&apos;rishlar</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {rows.map((entry) => (
+                      <tr key={entry.candidate.participantId} className="hover:bg-slate-50/60">
+                        <td className="px-5 py-2.5 font-medium text-slate-500 tabular-nums">{entry.position}</td>
+                        <td className="px-4 py-2.5 font-medium whitespace-nowrap text-ink">
+                          {entry.candidate.firstName} {entry.candidate.lastName}
+                        </td>
+                        <td className="px-4 py-2.5 whitespace-nowrap tabular-nums">{entry.candidate.phone}</td>
+                        <td className="px-5 py-2.5 text-right tabular-nums">{formatNumber(entry.candidate.views)}</td>
+                      </tr>
+                    ))}
+                    {rows.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-5 py-8 text-center text-slate-500">
+                          G&apos;olib yo&apos;q
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {winners.length > PAGE_SIZE && (
+                <div className="border-t border-line px-5 py-3">
+                  <Pagination page={page} pageSize={PAGE_SIZE} total={winners.length} onPageChange={setPage} />
+                </div>
+              )}
+            </>
           )}
-        </>
-      )}
-    </Card>
+        </MoreDetails>
+      </Card>
+    </li>
   );
 }
 

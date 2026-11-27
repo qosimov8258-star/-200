@@ -1,65 +1,45 @@
 "use client";
 
-import { Ban, ExternalLink, FileSearch, ShieldAlert, Undo2 } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 
-import { ActionMenu, type ActionMenuItem } from "@/components/ui/action-menu";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatDate, formatNumber } from "@/lib/format";
-import {
-  PARTICIPANT_STATUS_LABELS,
-  PARTICIPANT_STATUS_TONES,
-  TARGET_CASE_STATUS_LABELS,
-  TARGET_CASE_STATUS_TONES,
-  TARGET_METHOD_LABELS,
-  TARGET_STATE_LABELS,
-  TARGET_STATE_TONES,
-} from "@/lib/labels";
-import type { TargetAction, TargetCaseListItem } from "@/lib/types";
+import { PARTICIPANT_STATUS_LABELS, PARTICIPANT_STATUS_TONES, TARGET_CASE_STATUS_LABELS, TARGET_CASE_STATUS_TONES, TARGET_METHOD_LABELS } from "@/lib/labels";
+import type { TargetCaseListItem } from "@/lib/types";
 
-import { availableTargetActions, TARGET_ACTION_LABELS } from "./target-action-dialog";
-
-const ACTION_ICONS = { warn: ShieldAlert, disqualify: Ban, dismiss: Undo2 } as const;
+import { isInteractiveTarget } from "../users/users-table";
+import { availableTargetActions, targetParticipantName } from "./target-action-dialog";
 
 interface TargetsTableProps {
   items: TargetCaseListItem[];
-  onShowEvidence: (item: TargetCaseListItem) => void;
-  onAction: (item: TargetCaseListItem, action: TargetAction) => void;
+  /** Dalil oynasini ochish — qaror tugmalari o'sha yerda. */
+  onOpen: (item: TargetCaseListItem) => void;
 }
 
-export function TargetsTable({ items, onShowEvidence, onAction }: TargetsTableProps) {
+export function TargetsTable({ items, onOpen }: TargetsTableProps) {
   return (
     <div className="relative overflow-x-auto">
-      <table className="w-full min-w-[960px] text-sm">
+      <table className="w-full min-w-[760px] text-sm">
         <thead className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500">
           <tr>
             <th scope="col" className="px-4 py-2.5 text-left font-medium">
               Ishtirokchi
             </th>
             <th scope="col" className="px-4 py-2.5 text-left font-medium">
-              Reel
-            </th>
-            <th scope="col" className="px-4 py-2.5 text-left font-medium">
-              Aniqlangan
-            </th>
-            <th scope="col" className="px-4 py-2.5 text-left font-medium">
-              Dalil
+              Nima topildi
             </th>
             <th scope="col" className="px-4 py-2.5 text-left font-medium">
               Holat
             </th>
-            <th scope="col" className="w-14 px-4 py-2.5">
-              <span className="sr-only">Amallar</span>
+            <th scope="col" className="w-40 px-4 py-2.5">
+              <span className="sr-only">Amal</span>
             </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
           {items.map((item) => (
-            <TargetRow
-              key={item.id}
-              item={item}
-              onShowEvidence={onShowEvidence}
-              onAction={onAction}
-            />
+            <TargetRow key={item.id} item={item} onOpen={onOpen} />
           ))}
         </tbody>
       </table>
@@ -67,36 +47,25 @@ export function TargetsTable({ items, onShowEvidence, onAction }: TargetsTablePr
   );
 }
 
-function TargetRow({
-  item,
-  onShowEvidence,
-  onAction,
-}: {
-  item: TargetCaseListItem;
-  onShowEvidence: TargetsTableProps["onShowEvidence"];
-  onAction: TargetsTableProps["onAction"];
-}) {
-  const name = `${item.participant.firstName} ${item.participant.lastName}`;
-  const actions = availableTargetActions(item);
-
-  const menuItems: ActionMenuItem[] = [
-    { label: "Dalilni ko'rish", icon: FileSearch, onSelect: () => onShowEvidence(item) },
-    ...actions.map((action) => ({
-      label: TARGET_ACTION_LABELS[action],
-      icon: ACTION_ICONS[action],
-      danger: action === "disqualify",
-      onSelect: () => onAction(item, action),
-    })),
-  ];
+function TargetRow({ item, onOpen }: { item: TargetCaseListItem; onOpen: TargetsTableProps["onOpen"] }) {
+  const name = targetParticipantName(item) || "Ismsiz";
+  // Qaror hali berilmagan (yoki yana qaror berish mumkin) — asosiy tugma.
+  const awaitingDecision = availableTargetActions(item).length > 0;
 
   return (
-    <tr className="align-top hover:bg-slate-50/70">
+    // Sichqoncha uchun butun qator bosiladi; klaviaturada — oxirgi ustundagi tugma.
+    <tr
+      className="cursor-pointer align-top hover:bg-slate-50/70"
+      onClick={(event) => {
+        if (isInteractiveTarget(event.target)) return;
+        // Matn belgilanayotgan bo'lsa (masalan, dalilni nusxalash) — oyna ochilmaydi.
+        if (window.getSelection()?.toString()) return;
+        onOpen(item);
+      }}
+    >
       <td className="px-4 py-3">
         <p className="font-medium whitespace-nowrap text-slate-900">{name}</p>
-        <p className="text-xs whitespace-nowrap text-slate-500 tabular-nums">
-          {item.participant.phone}
-        </p>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs whitespace-nowrap text-slate-500">
           {item.participant.instagramUsername ? `@${item.participant.instagramUsername}` : "—"}
         </p>
         {item.participant.status !== "ACTIVE" && (
@@ -106,56 +75,42 @@ function TargetRow({
         )}
       </td>
 
-      <td className="px-4 py-3">
-        <a
-          href={item.reelUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 whitespace-nowrap text-brand-700 hover:underline"
-        >
-          Reelni ochish
-          <ExternalLink className="size-3.5" aria-hidden />
-          <span className="sr-only">({name}, yangi oynada)</span>
-        </a>
-        <p className="text-xs whitespace-nowrap text-slate-500 tabular-nums">
-          {formatNumber(item.views)} ko&apos;rish
-          {item.rank !== null ? ` · ${item.rank}-o'rin` : " · reytingda yo'q"}
+      <td className="max-w-lg px-4 py-3">
+        <p className="text-slate-700">{item.evidence}</p>
+        <p className="mt-0.5 text-xs text-slate-500">
+          {TARGET_METHOD_LABELS[item.method]}
+          <span aria-hidden> · </span>
+          <span className="tabular-nums">{formatDate(item.detectedOn)}</span>
+        </p>
+        <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-slate-500">
+          <a
+            href={item.reelUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 font-medium whitespace-nowrap text-brand-700 hover:underline"
+          >
+            Videoni ochish
+            <ExternalLink className="size-3" aria-hidden />
+            <span className="sr-only">({name}, yangi oynada)</span>
+          </a>
+          <span aria-hidden>·</span>
+          <span className="whitespace-nowrap tabular-nums">{formatNumber(item.views)} ko&apos;rish</span>
+          <span aria-hidden>·</span>
+          <span className="whitespace-nowrap">
+            {item.rank !== null ? `${item.rank}-o'rin` : "reytingda yo'q"}
+          </span>
         </p>
       </td>
 
       <td className="px-4 py-3">
-        <p className="whitespace-nowrap text-slate-900 tabular-nums">{formatDate(item.detectedOn)}</p>
-        <p className="text-xs whitespace-nowrap text-slate-500">{TARGET_METHOD_LABELS[item.method]}</p>
-      </td>
-
-      <td className="max-w-72 px-4 py-3">
-        <p className="text-slate-700">{item.evidence}</p>
-        <button
-          type="button"
-          onClick={() => onShowEvidence(item)}
-          className="mt-1 text-xs font-medium text-brand-700 hover:underline"
-        >
-          Batafsil
-          <span className="sr-only"> ({name} dalili)</span>
-        </button>
-      </td>
-
-      <td className="px-4 py-3">
-        <div className="flex flex-col items-start gap-1.5">
-          <Badge tone={TARGET_CASE_STATUS_TONES[item.status]}>
-            {TARGET_CASE_STATUS_LABELS[item.status]}
-          </Badge>
-          <span className="text-xs whitespace-nowrap text-slate-500">
-            Target:{" "}
-            <Badge tone={TARGET_STATE_TONES[item.currentState]}>
-              {TARGET_STATE_LABELS[item.currentState]}
-            </Badge>
-          </span>
-        </div>
+        <Badge tone={TARGET_CASE_STATUS_TONES[item.status]}>{TARGET_CASE_STATUS_LABELS[item.status]}</Badge>
       </td>
 
       <td className="px-4 py-3 text-right">
-        <ActionMenu label={`${name} uchun amallar`} items={menuItems} />
+        <Button variant={awaitingDecision ? "primary" : "secondary"} size="sm" onClick={() => onOpen(item)}>
+          {awaitingDecision ? "Ko'rib chiqish" : "Ko'rish"}
+          <span className="sr-only">: {name}</span>
+        </Button>
       </td>
     </tr>
   );
