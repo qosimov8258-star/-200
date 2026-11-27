@@ -1,6 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 
+import type { Lang } from "../common/lang";
+
 /**
  * Saytdagi "Hisobim bor" — Telegram bot orqali tasdiqlanadigan kirish (parol va SMS'siz).
  *
@@ -52,6 +54,8 @@ interface BotLoginRequest {
   accountId: number | null;
   /** Shu so'rov bo'yicha berilgan sayt sessiyasi vaqti (ms); hali berilmagan — null. */
   issuedAt: number | null;
+  /** Saytda tanlangan til — bot ham shu tilda gapiradi; noma'lum — null. */
+  lang: Lang | null;
 }
 
 /** `poll` natijasi. `issuedAt` — faqat `CONFIRMED` da, sessiya avval berilgan bo'lsa (aks holda null). */
@@ -78,7 +82,7 @@ export class BotLoginService {
   private readonly requests = new Map<string, BotLoginRequest>();
 
   /** Yangi so'rov; ochiq so'rovlar juda ko'p bo'lsa — null (chaqiruvchi `TOO_MANY` qaytaradi). */
-  start(now: number = Date.now()): BotLoginStart | null {
+  start(now: number = Date.now(), lang: Lang | null = null): BotLoginStart | null {
     this.prune(now);
     if (this.requests.size >= BOT_LOGIN_MAX_OPEN) return null;
     const id = randomBytes(16).toString("base64url");
@@ -94,20 +98,21 @@ export class BotLoginService {
       telegramId: null,
       accountId: null,
       issuedAt: null,
+      lang,
     });
     return { id, secret, code, expiresAt: new Date(expiresAt) };
   }
 
   /**
-   * Bot havolasi ochildi: so'rov shu Telegram foydalanuvchisiga bog'lanadi. Natija — saytdagi kod;
-   * noma'lum, eskirgan, tugagan yoki boshqa odam ochgan so'rov — null.
+   * Bot havolasi ochildi: so'rov shu Telegram foydalanuvchisiga bog'lanadi. Natija — saytdagi kod va
+   * saytda tanlangan til; noma'lum, eskirgan, tugagan yoki boshqa odam ochgan so'rov — null.
    */
-  claim(id: string, telegramId: number, now: number = Date.now()): { code: string } | null {
+  claim(id: string, telegramId: number, now: number = Date.now()): { code: string; lang: Lang | null } | null {
     const request = this.pending(id, now);
     if (!request) return null;
     if (request.telegramId !== null && request.telegramId !== telegramId) return null;
     request.telegramId = telegramId;
-    return { code: request.code };
+    return { code: request.code, lang: request.lang };
   }
 
   /** Shu Telegram foydalanuvchisi botda ochgan, hali tasdiqlanmagan eng oxirgi so'rov (raqam ulashgandan keyin). */

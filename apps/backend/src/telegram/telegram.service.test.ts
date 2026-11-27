@@ -9,9 +9,11 @@ import { ParticipantsService } from "../participants/participants.service";
 import { RulesService } from "../rules/rules.service";
 import { SupportService } from "../support/support.service";
 import { BotLoginService } from "../web/bot-login.service";
+import { LANGUAGE_PROMPT } from "./bot-texts";
 import { MessageLogService } from "./message-log.service";
 import { TelegramService } from "./telegram.service";
 import { texts } from "./texts";
+import { textsRu } from "./texts.ru";
 
 const SUPPORT_CHAT = -100_500;
 const BOT_INFO: UserFromGetMe = {
@@ -89,21 +91,23 @@ function setup(memberStatus: Record<number, string> = {}, supportChat: number | 
       },
     },
   });
-  /** `/start <payload>` — grammy buyruqni `bot_command` belgisi bo'yicha taniydi. */
-  const start = (userId: number, payload: string): Update => {
-    const text = `/start ${payload}`;
+  /** `/<name> <payload>` — grammy buyruqni `bot_command` belgisi bo'yicha taniydi. */
+  const command = (userId: number, name: string, payload = "", languageCode?: string): Update => {
+    const text = payload ? `/${name} ${payload}` : `/${name}`;
     return {
       update_id: (updateId += 1),
       message: {
         message_id: updateId,
         date: 0,
         chat: { id: userId, type: "private", first_name: "U" },
-        from: { id: userId, is_bot: false, first_name: "U" },
+        from: { id: userId, is_bot: false, first_name: "U", language_code: languageCode },
         text,
-        entities: [{ type: "bot_command", offset: 0, length: 6 }],
+        entities: [{ type: "bot_command", offset: 0, length: name.length + 1 }],
       },
     };
   };
+  const start = (userId: number, payload: string, languageCode?: string): Update =>
+    command(userId, "start", payload, languageCode);
   const contact = (userId: number, phone: string, ownerId = userId): Update => ({
     update_id: (updateId += 1),
     message: {
@@ -132,6 +136,7 @@ function setup(memberStatus: Record<number, string> = {}, supportChat: number | 
     botLogin,
     privateText,
     groupReply,
+    command,
     start,
     contact,
     press,
@@ -336,4 +341,93 @@ test("site login: 'Men emas' denies; unknown links and a phone owned by someone 
   assert.ok(sent(calls, 55).includes(texts.contactTaken));
   assert.equal(botLogin.poll(taken.id, taken.secret).status, "FAILED");
   assert.equal(loginButtons(calls, 55).length, 0);
+});
+
+/** Oxirgi xabar va uning tugmalari (shu chatga). */
+const lastMessage = (calls: ApiCall[], chatId: number) =>
+  calls.filter((c) => c.method === "sendMessage" && c.payload.chat_id === chatId).at(-1)?.payload;
+
+test("language: Uzbek until a language is chosen (not the Telegram app's language); /start asks it first and the bot continues in it", async () => {
+  const { bot, calls, participants, start, press, privateText } = setup();
+  const russianApp = privateText(50, "salom");
+  if (russianApp.message) russianApp.message.from.language_code = "ru";
+  await bot.handleUpdate(russianApp);
+  assert.equal(sent(calls, 50).at(-1), texts.supportNeedsContact, "Telegram ruscha bo'lsa ham — o'zbekcha");
+
+  await bot.handleUpdate(start(50, "", "ru"));
+  const prompt = lastMessage(calls, 50);
+  assert.equal(prompt?.text, LANGUAGE_PROMPT, "avval til so'raladi");
+  const buttons = (prompt?.reply_markup as { inline_keyboard: { callback_data?: string }[][] }).inline_keyboard
+    .flat()
+    .map((b) => b.callback_data);
+  assert.deepEqual(buttons, ["lang:uz", "lang:ru"]);
+
+  await bot.handleUpdate(press(50, "lang:ru"));
+  assert.equal(participants.get(50)?.lang, "ru", "tanlov saqlanadi");
+  assert.ok(calls.some((c) => c.method === "deleteMessage"), "til savoli o'chiriladi");
+  assert.equal(sent(calls, 50).at(-1), textsRu.welcome, "keyin shu tilda salomlashadi va raqam so'raydi");
+  const keyboard = lastMessage(calls, 50)?.reply_markup as { keyboard?: { text: string }[][] } | undefined;
+  assert.equal(keyboard?.keyboard?.[0]?.[0]?.text, textsRu.shareContactButton);
+
+  await bot.handleUpdate(privateText(50, "salom"));
+  assert.equal(sent(calls, 50).at(-1), textsRu.supportNeedsContact, "keyingi xabarlar ham tanlangan tilda");
+});
+
+test("language: a registered user switches with /lang; the bottom Support button follows the new language", async () => {
+  const { bot, calls, participants, command, press } = setup();
+  participants.setPhone(42, 42, "+998901234567");
+  participants.register(42, "Ali", "", 25);
+  participants.setLang(42, "ru");
+
+  await bot.handleUpdate(command(42, "lang"));
+  assert.equal(lastMessage(calls, 42)?.text, LANGUAGE_PROMPT);
+  await bot.handleUpdate(press(42, "lang:uz"));
+  assert.equal(participants.get(42)?.lang, "uz");
+  const saved = calls.find((c) => c.method === "sendMessage" && c.payload.text === texts.langSaved)?.payload;
+  assert.ok(saved, "tanlangan til aytiladi");
+  const keyboard = saved.reply_markup as { keyboard?: { text: string }[][]; is_persistent?: boolean };
+  assert.equal(keyboard.keyboard?.[0]?.[0]?.text, texts.supportButton, "pastdagi tugma ham o'zbekcha");
+  assert.equal(keyboard.is_persistent, true);
+});
+
+test("language: links from the site carry the site's language into the bot (old links without it still work)", async () => {
+  const { bot, calls, participants, botLogin, start } = setup();
+  await bot.handleUpdate(start(60, "web_ru"));
+  assert.equal(participants.get(60)?.lang, "ru");
+  assert.equal(sent(calls, 60).at(-1), textsRu.welcomeFromWeb, "til qayta so'ralmaydi");
+
+  await bot.handleUpdate(start(61, "link_uz", "ru"));
+  assert.equal(sent(calls, 61).at(-1), texts.welcomeLink);
+
+  await bot.handleUpdate(start(62, "link"));
+  assert.equal(sent(calls, 62).at(-1), texts.welcomeLink, "eski havola — o'zbekcha");
+  assert.equal(participants.get(62)?.lang ?? null, null, "til taxmin qilinib saqlanmaydi");
+
+  const login = botLogin.start(Date.now(), "ru");
+  assert.ok(login);
+  await bot.handleUpdate(start(63, `login_${login.id}`));
+  assert.equal(participants.get(63)?.lang, "ru");
+  assert.equal(sent(calls, 63).at(-1), textsRu.loginShareContact(login.code));
+});
+
+test("language: the language chosen in the bot survives linking a site account by phone", async () => {
+  const { bot, calls, participants, botLogin, start, press, contact } = setup();
+  const webId = participants.registerWeb("Dilnoza", "90 123 45 67", 22);
+  participants.setLang(webId, "uz");
+  await bot.handleUpdate(start(70, ""));
+  await bot.handleUpdate(press(70, "lang:ru"));
+  await bot.handleUpdate(contact(70, "+998 90 123 45 67"));
+  assert.equal(participants.resolve(70), webId, "hisob ulandi");
+  assert.equal(participants.get(webId)?.lang, "ru", "botdagi tanlov saytdagi hisobga o'tdi");
+  assert.ok(sent(calls, 70).includes(textsRu.contactLinked), "javob o'sha tilda");
+
+  // "Hisobim bor" (saytda ruscha) — raqam ulashilgach ham tasdiq so'rovi ruscha.
+  const other = participants.registerWeb("Aziz", "90 765 43 21", 30);
+  const login = botLogin.start(Date.now(), "ru");
+  assert.ok(login);
+  await bot.handleUpdate(start(71, `login_${login.id}`));
+  await bot.handleUpdate(contact(71, "+998 90 765 43 21"));
+  assert.equal(participants.get(other)?.lang, "ru");
+  assert.ok(sent(calls, 71).includes(textsRu.loginContactLinked));
+  assert.ok(sent(calls, 71).includes(textsRu.loginConfirm("Aziz", login.code)));
 });

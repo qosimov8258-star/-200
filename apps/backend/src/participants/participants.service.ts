@@ -377,8 +377,12 @@ export class ParticipantsService {
       if (!isWebAccount(owner.telegramId) || owner.linkedTelegramId) return "TAKEN";
       const own = this.get(telegramId);
       if (own && (own.firstName || own.reels.length > 0)) return "TAKEN_WEB";
-      // Hali ro'yxatdan o'tmagan Telegram yozuvi (faqat /start) — o'rnini saytdagi hisob oladi.
-      if (own) this.byTelegramId.delete(telegramId);
+      // Hali ro'yxatdan o'tmagan Telegram yozuvi (faqat /start) — o'rnini saytdagi hisob oladi. Botda
+      // (yoki saytdan kelgan havolada) hozirgina tanlangan til saqlanadi — suhbat shu tilda davom etadi.
+      if (own) {
+        if (own.lang) owner.lang = own.lang;
+        this.byTelegramId.delete(telegramId);
+      }
       owner.linkedTelegramId = telegramId;
       owner.chatId = chatId;
       // Shu paytgacha berilgan sessiyalar yopiladi — oxirgisi ham: uning vaqti butun soniyaga yuqoriga

@@ -10,3 +10,8 @@ export const LANGS: readonly Lang[] = ["uz", "ru"];
 export function langOf(value: string | null | undefined): Lang {
   return typeof value === "string" && value.trim().toLowerCase().startsWith("ru") ? "ru" : "uz";
 }
+
+/** Aniq tanlangan til (`uz` yoki `ru`); boshqa qiymat yoki yo'q — null (til taxmin qilinmaydi). */
+export function chosenLang(value: string | null | undefined): Lang | null {
+  return value === "uz" || value === "ru" ? value : null;
+}

@@ -23,8 +23,8 @@ test("only the Telegram user who opened the link can confirm; the browser needs 
   const r = service.start(NOW);
   assert.ok(r);
   assert.equal(service.confirm(r.id, 42, 9_000, NOW), false, "botda ochilmagan so'rov tasdiqlanmaydi");
-  assert.deepEqual(service.claim(r.id, 42, NOW), { code: r.code });
-  assert.deepEqual(service.claim(r.id, 42, NOW), { code: r.code }, "o'zi qayta ochsa bo'ladi");
+  assert.deepEqual(service.claim(r.id, 42, NOW), { code: r.code, lang: null });
+  assert.deepEqual(service.claim(r.id, 42, NOW), { code: r.code, lang: null }, "o'zi qayta ochsa bo'ladi");
   assert.equal(service.claim(r.id, 77, NOW), null, "boshqa odam ololmaydi");
   assert.equal(service.confirm(r.id, 77, 7_000, NOW), false);
   assert.deepEqual(service.claimedBy(42, NOW), { id: r.id, code: r.code });

@@ -25,6 +25,7 @@ export const textsRu: BotTexts = {
   openMiniApp: "🏆 Открыть акцию",
   menuButton: "Акция",
   alreadyRegistered: "Чтобы открыть приложение акции, нажмите кнопку ниже:",
+  langSaved: "✅ Язык: русский. Сменить — /lang",
   loginShareContact: (code: string) =>
     `🔐 Вход на сайт\n\nКод на сайте: ${code}\n\nДля входа поделитесь номером Telegram с помощью кнопки ниже. Если вы регистрировались на сайте — это должен быть тот же номер.\n\n⚠️ Если вы сами не нажимали «У меня есть аккаунт» на сайте — ничего не делайте.`,
   loginConfirm: (name: string, code: string) =>

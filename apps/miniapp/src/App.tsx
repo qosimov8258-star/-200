@@ -9,7 +9,7 @@ import { RulesHero } from "./components/RulesHero";
 import { SupportScreen } from "./screens/SupportScreen";
 import { useToast } from "./components/toast-context";
 import { ErrorBlock, PageHeader, Spinner } from "./components/ui";
-import { forgetLang, lang, langChosen, langConfirmed, t } from "./i18n";
+import { adoptLang, forgetLang, lang, langChosen, langConfirmed, langPicked, langSynced, langSyncPending, t } from "./i18n";
 import * as api from "./lib/api";
 import { errorCode } from "./lib/api-error";
 import { hideSplash } from "./lib/splash";
@@ -60,10 +60,19 @@ function MainApp() {
   const [langAsked, setLangAsked] = useState(langConfirmed);
   const registering = isGuest || me.data?.stage === "NEEDS_CONTACT" || me.data?.stage === "NEEDS_PROFILE";
 
-  // Tanlangan til serverga ham saqlanadi — bot xabarlari shu tilda boradi.
+  // Til ilova va botda bir xil: oxirgi tanlov yutadi. Shu qurilmada yangi tanlangan til (yoki serverda
+  // hali til yo'q) — serverga yoziladi, bot xabarlari shu tilda boradi; keyinroq botda (/lang) yoki
+  // boshqa qurilmada tanlangan til — ilova ham shu tilga o'tadi. Taxminiy qurilma tili yozilmaydi.
   const savedLang = me.data?.lang;
   useEffect(() => {
-    if (me.data && savedLang !== lang) void api.setLanguage(lang).catch(() => undefined);
+    if (!me.data || !langPicked) return;
+    if (savedLang === lang) {
+      langSynced();
+    } else if (savedLang == null || langSyncPending()) {
+      void api.setLanguage(lang).then(langSynced, () => undefined);
+    } else {
+      adoptLang(savedLang);
+    }
   }, [me.data, savedLang]);
 
   // Birinchi ekran tayyor (yoki xato) — "Olivia" yuklanish sahifasi yopiladi.

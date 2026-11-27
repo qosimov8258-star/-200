@@ -8,7 +8,7 @@
  * - oddiy brauzerda (veb-sayt) — Telegram Login Widget orqali kirgandan keyingi
  *   `HttpOnly` sessiya cookie'si (`credentials: "include"`).
  */
-import { lang } from "../i18n";
+import { lang, langPicked } from "../i18n";
 import { ApiError } from "./api-error";
 import * as mock from "./mock/store";
 import { storyMime } from "./stories";
@@ -47,15 +47,15 @@ export const mockControls = IS_MOCK_API
     }
   : null;
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function request<T>(method: string, path: string, body?: unknown, opts: { lang?: boolean } = {}): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}`, {
       method,
       headers: {
         "Content-Type": "application/json",
-        // Oferta, sovg'alar va boshqa matnlar shu tilda keladi.
-        "X-Lang": lang,
+        // Oferta, sovg'alar va boshqa matnlar shu tilda keladi (`lang: false` — til yuborilmaydi).
+        ...(opts.lang === false ? {} : { "X-Lang": lang }),
         ...(initData ? { "X-Telegram-Init-Data": initData } : {}),
       },
       // Veb-saytda sessiya cookie'si (Telegram ichida ishlatilmaydi, lekin zarari yo'q).
@@ -273,8 +273,9 @@ export const webRegister = (body: WebRegisterRequest): Promise<void> =>
  * va 4 xonali kod). Maxfiy kalitni backend shu brauzerning cookie'siga qo'yadi.
  * Xatolar: TOO_MANY (10 daqiqada 10 tadan ko'p), SERVER (bot sozlanmagan).
  */
+/** Bot shu tilda gapiradi — faqat til haqiqatan tanlangan bo'lsa yuboriladi (taxminiy til emas). */
 export const startBotLogin = (): Promise<BotLoginStart> =>
-  IS_MOCK_API ? mock.startBotLogin() : request("POST", "/auth/bot-login", {});
+  IS_MOCK_API ? mock.startBotLogin() : request("POST", "/auth/bot-login", {}, { lang: langPicked });
 
 /**
  * @endpoint POST /auth/bot-login/poll — holat; CONFIRMED bo'lsa shu javob bilan sessiya cookie'si
