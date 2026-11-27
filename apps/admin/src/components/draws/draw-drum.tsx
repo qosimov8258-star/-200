@@ -22,11 +22,13 @@ import type { DrawEntry, DrawSettings, DrawSetup, RatingPrizeKind, VoucherDraw, 
 import { cn } from "@/lib/utils";
 import { voucherTabHref } from "@/lib/winner-links";
 
-/** Lentaning aylanish vaqti: birinchisi va keyingilari, ms. */
-const FIRST_SPIN_MS = 3200;
-const SPIN_MS = 2600;
-/** Bir aylanishda ramkadan o'tib ketadigan ismlar soni (tezlik shundan). */
-const FILL_ROWS = 34;
+/**
+ * Lentaning aylanish vaqti (jonli efirda tomoshabin kuzatib tursin), ms: bosh sovrin — avtomobil —
+ * eng uzoq. Voucherda ko'p aylanish bo'lsa — "Qolganini birdaniga ko'rsatish" bor.
+ */
+const SPIN_MS = { car: 15_000, main: 7_000, voucher: 6_000 } as const;
+/** Lenta tezligi: soniyasiga shuncha ism o'tadi (o'rtacha) — vaqt uzaysa, yo'l ham uzayadi. */
+const ROWS_PER_SECOND = 11;
 /** Asosiy sovrinlar tartibi — qimmatidan. */
 const MAIN_ORDER: RatingPrizeKind[] = ["car", "travel", "phone", "tablet"];
 /** `maxViews` shundan katta bo'lsa — yuqori chegara yo'q ("4 000 001+"). */
@@ -43,6 +45,8 @@ interface DrumPrize {
   quantity: number;
   /** Bir aylanishda nechta g'olib chiqadi: asosiy sovrinlarda 1 ta, voucherda 10 ta. */
   batch: number;
+  /** Bir aylanish qancha davom etadi, ms. */
+  spinMs: number;
   settings: DrawSettings;
   /** Shu sovrin (bosqich) uchun o'tkazilgan, bekor qilinmagan tanlov. */
   existing: VoucherDrawSummary | null;
@@ -71,6 +75,7 @@ function drumPrizes(setup: DrawSetup, draws: VoucherDrawSummary[]): DrumPrize[] 
         icon: RATING_PRIZE_ICONS[kind],
         quantity: settings.winnersCount,
         batch: 1,
+        spinMs: kind === "car" ? SPIN_MS.car : SPIN_MS.main,
         settings,
         existing: active(prize.id, settings.stage),
         blocker:
@@ -98,6 +103,7 @@ function drumPrizes(setup: DrawSetup, draws: VoucherDrawSummary[]): DrumPrize[] 
       icon: Ticket,
       quantity: settings.winnersCount,
       batch: 10,
+      spinMs: SPIN_MS.voucher,
       settings,
       existing: active(settings.prizeId, stage.index),
       blocker: notStarted ? `${stage.index}-bosqich hali boshlanmagan (${formatDate(stage.startsOn)} dan).` : null,
@@ -266,7 +272,7 @@ function PrizeDrum({ prize }: { prize: DrumPrize }) {
     const list = activeWinners(target);
     const from = draw ? revealed : 0;
     const landing = list.slice(from, from + prize.batch).map(fullName);
-    await reel.current?.spinTo(landing, draw ? SPIN_MS : FIRST_SPIN_MS);
+    await reel.current?.spinTo(landing, prize.spinMs);
     setSpinning(false);
     setRevealed(Math.min(from + prize.batch, list.length));
   };
@@ -483,7 +489,7 @@ function NameReel({
     spinTo: (names, durationMs) =>
       new Promise<void>((resolve) => {
         const start = landed?.rows ?? idle;
-        const fillers = pickNames(pool, FILL_ROWS);
+        const fillers = pickNames(pool, Math.round((durationMs / 1000) * ROWS_PER_SECOND));
         const below = pickNames(pool, Math.max(0, visible - frame - names.length));
         const all = [...start, ...fillers, ...names, ...below];
         const target = start.length + fillers.length - frame;
@@ -504,9 +510,16 @@ function NameReel({
           finish();
           return;
         }
+        // 60% vaqt — bir xil tezlikda (yo'lning 75%), qolgani — silliq sekinlashib to'xtaydi
+        // (ikkinchi bo'lak boshidagi tezlik birinchisiniki bilan teng — sakrash yo'q).
+        const distance = target * row;
         animation = element.animate(
-          [{ transform: "translateY(0)" }, { transform: `translateY(-${target * row}px)` }],
-          { duration: durationMs, easing: "cubic-bezier(0.12, 0.62, 0.08, 1)", fill: "forwards" },
+          [
+            { transform: "translateY(0)", offset: 0, easing: "linear" },
+            { transform: `translateY(-${distance * 0.75}px)`, offset: 0.6, easing: "cubic-bezier(0.25, 0.5, 0.5, 1)" },
+            { transform: `translateY(-${distance}px)`, offset: 1 },
+          ],
+          { duration: durationMs, fill: "forwards" },
         );
         animation.finished.then(finish, finish);
       }),
