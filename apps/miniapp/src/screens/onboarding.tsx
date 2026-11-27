@@ -1,11 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Check, Lock, Phone, Send, Snowflake } from "lucide-react";
+import { ArrowRight, Check, Download, FileText, Lock, Phone, Send, Snowflake } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { GiftButton } from "../components/GiftButton";
 import { PrizeHero } from "../components/PrizeHero";
 import { Card, ErrorBlock, PillButton, Spinner, TextField } from "../components/ui";
-import { t } from "../i18n";
+import { lang, t } from "../i18n";
 import * as api from "../lib/api";
 import { errorCode } from "../lib/api-error";
 import { profileErrors } from "../lib/profile-form";
@@ -16,6 +16,7 @@ import {
   isInTelegram,
   openTelegram,
   requestContact,
+  telegramDownload,
 } from "../lib/telegram";
 
 
@@ -344,6 +345,36 @@ function OfferLine({ text }: { text: string }) {
   return <p>{text}</p>;
 }
 
+/** Ommaviy ofertaning imzolangan asl nusxasi (skaner, PDF) — tanlangan tilda (`public/offer/`). */
+const OFFER_PDF = { uz: "offer/oferta-uz.pdf", ru: "offer/oferta-ru.pdf" } as const;
+
+/** Oferta matni ostida: asl PDF'ni yuklab olish (saytda — oddiy yuklab olish, Telegram'da — uning oynasi). */
+function OfferPdfDownload() {
+  const url = `${import.meta.env.BASE_URL}${OFFER_PDF[lang]}`;
+  return (
+    <a
+      href={url}
+      download={t.offerPdfFileName}
+      onClick={(e) => {
+        haptic.select();
+        if (!isInTelegram) return;
+        e.preventDefault();
+        telegramDownload(url, t.offerPdfFileName);
+      }}
+      className="mt-3 flex items-center gap-3.5 rounded-card bg-surface p-4 transition active:scale-[0.99]"
+    >
+      <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#df3425]/10 text-[#df3425]">
+        <FileText className="size-[22px]" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[16px] leading-snug font-semibold">{t.offerPdfTitle}</span>
+        <span className="mt-0.5 block text-[13px] text-muted">{t.offerPdfHint}</span>
+      </span>
+      <Download aria-hidden className="size-5 shrink-0 text-muted" />
+    </a>
+  );
+}
+
 /** Tanlov qoidalari. `requireConsent` — ro'yxatdan o'tishdagi majburiy rozilik qadami. */
 export function RulesContent({ requireConsent = false }: { requireConsent?: boolean }) {
   const queryClient = useQueryClient();
@@ -414,6 +445,7 @@ export function RulesContent({ requireConsent = false }: { requireConsent?: bool
               );
             })}
           </ol>
+          <OfferPdfDownload />
         </>
       )}
 
