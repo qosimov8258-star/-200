@@ -9,6 +9,8 @@ import { ParticipantsService, topReel, type Participant, type Reel } from "../pa
 import { ParticipantNotifier } from "../telegram/notifier";
 import {
   DEFAULT_DRAW_MESSAGE,
+  DEFAULT_MAIN_DRAW_MESSAGE,
+  DRAW_LIMITS,
   DRAW_PLACEHOLDERS,
   periodLabel,
   renderDrawMessage,
@@ -59,6 +61,8 @@ export interface DrawEntry {
 export interface VoucherDraw {
   id: string;
   number: number;
+  /** Sovg'a: `monthly` (oylik voucher) yoki `main-*` (asosiy sovrin) — `settings.prizeId` bilan bir xil. */
+  prizeId: string;
   prizeTitle: string;
   stage: number | null;
   periodFrom: string;
@@ -155,9 +159,38 @@ const fail = (status: number, message: string) => new HttpException({ message },
 /** Oylik bitta sovg'a (voucher) — `miniapp/prizes.ts` dan. */
 const MONTHLY_PRIZE_ID = "monthly";
 
+export type MainPrizeKind = ContestPrizes["tiers"][number]["kind"];
+/** Asosiy sovrinlar tanlovi: `main-car`, `main-travel`, `main-phone`, `main-tablet`. */
+export const mainPrizeId = (kind: MainPrizeKind): string => `main-${kind}`;
+
+/** Tanlov o'tkaziladigan sovg'a: oylik voucher yoki asosiy sovrin (oferta 6.1, 6.2). */
+interface DrawPrize {
+  id: string;
+  title: string;
+  /** Asosiy sovrin turi; oylik voucherda — null. */
+  kind: MainPrizeKind | null;
+  quantity: number;
+  minViews: number;
+  maxViews: number | null;
+}
+
+function drawPrizes(): DrawPrize[] {
+  const { monthly, tiers } = contestPrizes;
+  return [
+    { id: MONTHLY_PRIZE_ID, title: monthly.title, kind: null, quantity: monthly.perMonth, minViews: monthly.minViews, maxViews: monthly.maxViews },
+    // Eng qimmatidan: avtomobil, sayohat, iPhone, planshet.
+    ...[...tiers]
+      .sort((a, b) => b.minViews - a.minViews)
+      .map((t) => ({ id: mainPrizeId(t.kind), title: t.title, kind: t.kind, quantity: t.quantity, minViews: t.minViews, maxViews: t.maxViews })),
+  ];
+}
+
+const findPrize = (id: string): DrawPrize | null => drawPrizes().find((p) => p.id === id) ?? null;
+
 /**
- * Oylik voucherlar uchun random tanlov: nomzodlarni filtrlash, kriptografik tasodifiy tanlash,
- * g'olibni zaxira bilan almashtirish, tasdiqlash va g'oliblarga Telegram bot orqali xabar.
+ * Random tanlov (oferta 6.4): oylik voucherlar (har bosqich) va asosiy sovrinlar (har oraliq) —
+ * nomzodlarni filtrlash, kriptografik tasodifiy tanlash, g'olibni zaxira bilan almashtirish, tasdiqlash
+ * va g'oliblarga Telegram bot orqali xabar.
  *
  * `StateStore` orqali diskka saqlanadi; Faza 1 da `voucher_draws` jadvaliga ko'chadi.
  */
@@ -173,6 +206,8 @@ export class DrawsService {
   private savedSettings: SavedDrawSettings | null = null;
   private readonly now: () => Date;
   private readonly sendIntervalMs: number;
+  /** Bir martalik o'zgarishlar (qayta bajarilmasin) — holat faylida saqlanadi. */
+  private migrations: string[] = [];
 
   constructor(
     private readonly participants: ParticipantsService,
@@ -188,6 +223,7 @@ export class DrawsService {
       periodSeq: this.periodSeq,
       removedStages: this.removedStages,
       savedSettings: this.savedSettings,
+      migrations: this.migrations,
     }));
     if (saved) {
       this.draws.push(...saved.draws);
@@ -196,7 +232,32 @@ export class DrawsService {
       // Eski saqlangan holatda bu maydonlar yo'q.
       this.removedStages = saved.removedStages ?? [];
       this.savedSettings = saved.savedSettings ?? null;
+      this.migrations = saved.migrations ?? [];
+      // Eski holatda `prizeId` faqat sozlamalarda edi.
+      for (const d of this.draws) d.prizeId ??= d.settings.prizeId;
     }
+    this.migrate();
+  }
+
+  /**
+   * 2026-11-27, ommaviy oferta: avval saqlangan oylik tanlov sozlamalari bir marta moslanadi — oyiga
+   * 200 ta g'olib (eski standart 300 bo'lsa), video sanasi — ilovaga yuborilgan kun (7.2), oldingi
+   * oylar g'oliblari chetlatilmaydi (6.1.5). Admin keyin o'zgartirsa — tegilmaydi.
+   */
+  private migrate(): void {
+    const id = "draw-settings-offer-2026-11-27";
+    if (this.migrations.includes(id)) return;
+    const s = this.savedSettings;
+    if (s) {
+      this.savedSettings = {
+        ...s,
+        winnersCount: s.winnersCount === 300 ? contestPrizes.monthly.perMonth : s.winnersCount,
+        reservesCount: s.winnersCount === 300 && s.reservesCount === 30 ? Math.ceil(contestPrizes.monthly.perMonth / 10) : s.reservesCount,
+        dateBasis: "SUBMITTED",
+        excludePreviousWinners: false,
+      };
+    }
+    this.migrations.push(id);
   }
 
   /** Barcha bosqichlar (`prizes.ts`), raqami bilan. */
@@ -225,32 +286,36 @@ export class DrawsService {
       removedStages: this.allStages()
         .filter((s) => this.removedStages.includes(s.index))
         .map(withState),
-      prizes: [
-        {
-          id: MONTHLY_PRIZE_ID,
-          title: monthly.title,
-          quantity: monthly.perMonth,
-          minViews: monthly.minViews,
-          maxViews: monthly.maxViews,
-        },
-      ],
-      // Saqlangan sozlamalar bo'lsa — ular; bo'lmasa standartlar (Instagram'da joylangan sana).
+      prizes: drawPrizes().map(({ id, title, kind, quantity, minViews, maxViews }) => ({
+        id,
+        title,
+        kind,
+        quantity,
+        minViews,
+        maxViews,
+      })),
+      // Saqlangan sozlamalar bo'lsa — ular; bo'lmasa standartlar (oferta 7.2: shu oyda ro'yxatdan
+      // o'tkazilgan, ya'ni ilovaga yuborilgan videolar).
       saved,
       defaults: {
         prizeId: MONTHLY_PRIZE_ID,
         stage: stage?.index ?? null,
         periodFrom: stage?.startsOn ?? today,
         periodTo: stage?.endsOn ?? today,
-        dateBasis: saved?.dateBasis ?? "POSTED",
+        dateBasis: saved?.dateBasis ?? "SUBMITTED",
         minViews: saved?.minViews ?? monthly.minViews,
         maxViews: saved?.maxViews ?? monthly.maxViews,
         winnersCount: saved?.winnersCount ?? monthly.perMonth,
         reservesCount: saved?.reservesCount ?? Math.ceil(monthly.perMonth / 10),
         excludeWarned: saved?.excludeWarned ?? false,
         excludeTargets: saved?.excludeTargets ?? true,
-        excludePreviousWinners: true,
+        excludePreviousWinners: false,
         messageTemplate: saved?.messageTemplate ?? DEFAULT_DRAW_MESSAGE,
       } satisfies DrawSettings,
+      /** Asosiy sovrinlar tanlovi sozlamalari (oraliq va davr ofertada belgilangan — o'zgarmaydi). */
+      mainDefaults: drawPrizes()
+        .filter((prize) => prize.kind !== null)
+        .map((prize) => this.mainSettings(prize, null)),
       placeholders: DRAW_PLACEHOLDERS,
       periods: this.listPeriods(),
     };
@@ -268,7 +333,7 @@ export class DrawsService {
       stage: null,
       periodFrom: today,
       periodTo: today,
-      excludePreviousWinners: true,
+      excludePreviousWinners: false,
     });
     if (error) throw fail(400, error);
     this.savedSettings = {
@@ -279,7 +344,7 @@ export class DrawsService {
       reservesCount: input.reservesCount,
       excludeWarned: input.excludeWarned,
       excludeTargets: input.excludeTargets,
-      excludePreviousWinners: true,
+      excludePreviousWinners: false,
       messageTemplate: input.messageTemplate.trim(),
       updatedAt: this.now().toISOString(),
       updatedBy: actor,
@@ -320,6 +385,10 @@ export class DrawsService {
 
   run(settings: DrawSettings, actor: string): VoucherDraw {
     this.check(settings);
+    // Oferta 6.2.1, 7.5: asosiy sovrinlar aksiya yakunida — yakuniy (27.02 23:59) ko'rishlar bo'yicha.
+    if (findPrize(settings.prizeId)?.kind && contestDay(this.now()) <= settings.periodTo) {
+      throw fail(409, "Asosiy sovrinlar random tanlovi aksiya tugagach o'tkaziladi (oferta 6.2.1).");
+    }
     const existing = this.activeFor(settings);
     if (existing) throw fail(409, `Bu davr uchun #${existing.number} tanlov allaqachon bor — avval uni bekor qiling.`);
     const pool = this.pool(settings);
@@ -338,7 +407,8 @@ export class DrawsService {
     const draw = withSummary({
       id: `drw_${randomBytes(6).toString("hex")}`,
       number: this.draws.length + 1,
-      prizeTitle: contestPrizes.monthly.title,
+      prizeId: settings.prizeId,
+      prizeTitle: findPrize(settings.prizeId)?.title ?? contestPrizes.monthly.title,
       stage: settings.stage,
       periodFrom: settings.periodFrom,
       periodTo: settings.periodTo,
@@ -571,6 +641,10 @@ export class DrawsService {
 
   /** Faol g'oliblarga (yuborilmagan yoki xato bo'lganlarga) bot orqali xabar, ketma-ket. */
   async send(id: string, actor: string): Promise<VoucherDraw> {
+    // Avtomobil g'olibi G'oliblar bo'limida tekshiriladi va «E'lon qilish» orqali tabriklanadi (ikki xabar bo'lmasin).
+    if (this.get(id).settings.prizeId === mainPrizeId("car")) {
+      throw fail(409, "Avtomobil g'olibi G'oliblar → Bosh sovrin bo'limida e'lon qilinadi.");
+    }
     const draw = this.get(id);
     if (draw.status !== "CONFIRMED" && draw.status !== "SENT") throw fail(409, "Avval natijani tasdiqlang.");
     const queue = draw.winnerEntries.filter((e) => e.state === "ACTIVE" && e.notify.status !== "SENT");
@@ -612,14 +686,50 @@ export class DrawsService {
   // -------------------------------------------------------------------------
 
   private check(settings: DrawSettings): void {
-    // Voucher bir kishiga aksiya davomida bir marta — oldingi g'oliblar har doim chetda.
-    settings.excludePreviousWinners = true;
+    const prize = findPrize(settings.prizeId);
+    if (!prize) throw fail(400, "Sovg'a tanlanmagan.");
+    if (prize.kind !== null) {
+      // Asosiy sovrin (oferta 6.2): davr — butun aksiya, oraliq — ofertadagi; bitta kishiga bitta asosiy sovrin.
+      Object.assign(settings, this.mainSettings(prize, settings));
+    } else {
+      // Oferta 6.1.5: voucherni bir necha oy yutish mumkin — oldingi bosqichlar g'oliblari chetlatilmaydi.
+      settings.excludePreviousWinners = false;
+    }
     const error = validateDrawSettings(settings);
     if (error) throw fail(400, error);
-    if (settings.prizeId !== MONTHLY_PRIZE_ID) throw fail(400, "Oylik sovg'a tanlanmagan.");
     if (settings.stage !== null && !this.activeStages().some((s) => s.index === settings.stage)) {
       throw fail(400, "Bunday bosqich yo'q.");
     }
+  }
+
+  /**
+   * Asosiy sovrin tanlovi sozlamalari: butun aksiya davomida ro'yxatdan o'tkazilgan videolar (oferta 7.3),
+   * ko'rishlar oralig'i ofertadagi; g'oliblar soni — sovrin soni. Zaxira, filtrlar va xabar — admin
+   * berganidan (bo'lmasa standart).
+   */
+  private mainSettings(prize: DrawPrize, input: DrawSettings | null): DrawSettings {
+    const all = this.allStages();
+    return {
+      prizeId: prize.id,
+      stage: null,
+      periodFrom: all[0].startsOn,
+      periodTo: all[all.length - 1].endsOn,
+      dateBasis: "SUBMITTED",
+      minViews: prize.minViews,
+      maxViews: prize.maxViews ?? DRAW_LIMITS.viewsMax,
+      winnersCount: prize.quantity,
+      reservesCount: input?.reservesCount ?? Math.max(3, prize.quantity),
+      excludeWarned: input?.excludeWarned ?? false,
+      excludeTargets: input?.excludeTargets ?? true,
+      excludePreviousWinners: true,
+      messageTemplate: input?.messageTemplate?.trim() || DEFAULT_MAIN_DRAW_MESSAGE,
+    };
+  }
+
+  /** Asosiy sovrin bo'yicha amaldagi (bekor qilinmagan) tanlov; bo'lmasa — null. */
+  mainDraw(kind: MainPrizeKind): VoucherDraw | null {
+    const id = mainPrizeId(kind);
+    return this.draws.find((d) => d.status !== "CANCELLED" && d.settings.prizeId === id) ?? null;
   }
 
   private activeFor(settings: DrawSettings): VoucherDraw | null {
@@ -635,13 +745,16 @@ export class DrawsService {
   }
 
   /**
-   * Voucher olganlar: bekor qilinmagan barcha tanlovlarning (qoralama ham — u tasdiqlansa, bir kishi
-   * ikki bosqichda yutib qolmasin) faol g'oliblari. Voucher bir kishiga aksiya davomida bir marta.
+   * Chetlatiladigan oldingi g'oliblar. Asosiy sovrin — boshqa asosiy sovrinlar tanlovlarining (qoralama
+   * ham) faol g'oliblari: bitta kishiga faqat bitta asosiy sovrin (oferta 6.2.4). Oylik voucher —
+   * hech kim: voucherni bir necha oy yutish mumkin (6.1.5), asosiy sovrin esa voucherga to'sqinlik qilmaydi.
    */
   private previousWinners(prizeId: string): Set<string> {
     const ids = new Set<string>();
+    if (findPrize(prizeId)?.kind === null) return ids;
     for (const d of this.draws) {
-      if (d.settings.prizeId !== prizeId || d.status === "CANCELLED") continue;
+      if (d.status === "CANCELLED" || d.settings.prizeId === prizeId) continue;
+      if (findPrize(d.settings.prizeId)?.kind === null) continue;
       for (const e of d.winnerEntries) if (e.state === "ACTIVE") ids.add(e.candidate.participantId);
     }
     return ids;
@@ -703,8 +816,8 @@ function exclusionOf(
 ): DrawExclusion | null {
   if (counted.accepted.length === 0) return "NOT_ACCEPTED";
   if (counted.inPeriod.length === 0) return "OUT_OF_PERIOD";
-  // Nomzod ko'rishlari — davrga kirgan videolardan eng ko'p ko'rilganiniki (qo'shilmaydi).
-  const views = bestViewsOn(counted.inPeriod, viewsAsOf);
+  // Nomzod ko'rishlari — davrga kirgan barcha tasdiqlangan videolari ko'rishlarining yig'indisi (oferta 7.1–7.3).
+  const views = sumViewsOn(counted.inPeriod, viewsAsOf);
   if (views < s.minViews) return "VIEWS_LOW";
   if (views > s.maxViews) return "VIEWS_HIGH";
   if (p.status !== "ACTIVE") return "STATUS";
@@ -727,13 +840,13 @@ function viewsOn(reel: Reel, date: string): number {
   return views;
 }
 
-/** Davrga kirgan videolardan eng ko'p ko'rilgani — `date` kunidagi ko'rishlari (bo'sh ro'yxat — 0). */
-const bestViewsOn = (reels: readonly Reel[], date: string): number =>
-  reels.reduce((best, reel) => Math.max(best, viewsOn(reel, date)), 0);
+/** Davrga kirgan videolar ko'rishlarining yig'indisi — `date` kunidagi holat (bo'sh ro'yxat — 0). */
+const sumViewsOn = (reels: readonly Reel[], date: string): number =>
+  reels.reduce((sum, reel) => sum + viewsOn(reel, date), 0);
 
 /**
- * Nomzod: davrga kirgan videolardan eng ko'p ko'rilgani — ko'rishlar, link, akkaunt va sanalar
- * shu videoniki (videolar ko'rishlari qo'shilmaydi).
+ * Nomzod: ko'rishlar — davrga kirgan barcha videolari yig'indisi; link, akkaunt va sanalar — ulardan
+ * eng ko'p ko'rilganiniki (tekshirish uchun).
  */
 function toCandidate(p: Participant, counted: { inPeriod: Reel[] }, viewsAsOf: string): DrawCandidate {
   const main = topReel(counted.inPeriod, (r) => viewsOn(r, viewsAsOf)) ?? counted.inPeriod[0];
@@ -744,7 +857,7 @@ function toCandidate(p: Participant, counted: { inPeriod: Reel[] }, viewsAsOf: s
     phone: p.phone ?? "",
     instagramUsername: main.owner,
     reelUrl: main.url,
-    views: viewsOn(main, viewsAsOf),
+    views: sumViewsOn(counted.inPeriod, viewsAsOf),
     postedOn: postedOn(main),
     submittedOn: contestDay(main.submittedAt),
   };
@@ -761,6 +874,7 @@ function toSummary(d: VoucherDraw): VoucherDrawSummary {
   return {
     id: d.id,
     number: d.number,
+    prizeId: d.prizeId,
     prizeTitle: d.prizeTitle,
     stage: d.stage,
     periodFrom: d.periodFrom,

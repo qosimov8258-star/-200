@@ -133,7 +133,7 @@ export function ProfileScreen({
           <HeroStat
             icon={<Eye />}
             label={t.profileStatViews}
-            value={summary ? formatCount(summary.bestViews) : "—"}
+            value={summary ? formatCount(summary.totalViews) : "—"}
           />
           <HeroStat
             icon={<CalendarDays />}

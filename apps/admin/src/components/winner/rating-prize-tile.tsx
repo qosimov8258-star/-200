@@ -1,63 +1,171 @@
-import { ExternalLink } from "lucide-react";
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertCircle, ArrowRight, Dices, ExternalLink } from "lucide-react";
 
 import { RATING_PRIZE_ICONS } from "@/components/prizes/rating-prize";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { formatNumber, formatViewsRange } from "@/lib/format";
-import { RATING_PRIZE_LABELS } from "@/lib/labels";
+import { getDrawSetup, runDraw } from "@/lib/api";
+import { errorMessage } from "@/lib/api-error";
+import { formatDate, formatNumber, formatViewsRange } from "@/lib/format";
+import { DRAW_STATUS_LABELS, DRAW_STATUS_TONES, RATING_PRIZE_LABELS } from "@/lib/labels";
 import type { RatingPrizeEntry, RatingPrizeTier } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { voucherTabHref } from "@/lib/winner-links";
 
 /**
- * "Boshqa asosiy sovrinlar" kartochkasi (G'oliblar sahifasi): eni 350, bo'yi 400 px — yonma-yon
- * turadi (tor telefonda eni ekranga sig'adigan qilib qisqaradi). Tepada sovrin nomi va bir qator
- * qoida, pastda g'oliblar va navbatdagilar; ro'yxat uzun bo'lsa, kartochka ichida aylanadi
- * (sahifa cho'zilmaydi).
+ * Asosiy sovrin kartochkasi (G'oliblar sahifasi): eni 350, bo'yi 420 px — yonma-yon turadi (tor
+ * telefonda eni ekranga sig'adigan qilib qisqaradi). Oferta 6.2: g'oliblar shu sovrin oralig'idagi
+ * ishtirokchilar (umumiy tasdiqlangan ko'rishlar bo'yicha) orasidan **random tanlov** bilan aniqlanadi.
+ * Tanlov o'tkazilmagan bo'lsa — oraliqdagilar va "Random tanlov o'tkazish"; o'tkazilgan bo'lsa —
+ * g'oliblar, zaxira va tanlovni ochish (tasdiqlash, almashtirish, xabar yuborish).
  */
 export function RatingPrizeTile({ tier }: { tier: RatingPrizeTier }) {
   const Icon = RATING_PRIZE_ICONS[tier.kind];
   const label = RATING_PRIZE_LABELS[tier.kind];
+  const draw = tier.draw;
 
   return (
-    <Card className="flex h-[400px] w-[350px] max-w-full shrink-0 flex-col overflow-hidden">
+    <Card className="flex h-[420px] w-[350px] max-w-full shrink-0 flex-col overflow-hidden">
       <div className="border-b border-line px-4 pt-4 pb-3">
         <div className="flex items-start gap-2.5">
           <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
             <Icon className="size-[18px]" aria-hidden />
           </span>
-          <div className="min-w-0">
-            <h3 className="text-[15px] leading-tight font-semibold tracking-tight text-ink">
-              {label}
-            </h3>
-            <Badge className="mt-1 px-2 text-[11px]">Reyting bo&apos;yicha</Badge>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-[15px] leading-tight font-semibold tracking-tight text-ink">{label}</h3>
+            <span className="mt-1 inline-flex flex-wrap gap-1">
+              <Badge className="px-2 text-[11px]">Random tanlov</Badge>
+              {draw && (
+                <Badge tone={DRAW_STATUS_TONES[draw.status]} className="px-2 text-[11px]">
+                  #{draw.number} · {DRAW_STATUS_LABELS[draw.status]}
+                </Badge>
+              )}
+            </span>
           </div>
         </div>
         <p className="mt-2.5 text-xs text-muted tabular-nums">
           {formatNumber(tier.quantity)} ta ·{" "}
           <span className="whitespace-nowrap">{formatViewsRange(tier.minViews, tier.maxViews)}</span> ko&apos;rish
+          (jami) · <span className="whitespace-nowrap">{formatNumber(tier.eligibleCount)} ishtirokchi</span>
         </p>
       </div>
 
-      {tier.winners.length === 0 ? (
-        <p className="grid flex-1 place-items-center px-4 text-sm text-muted">Hozircha yo&apos;q</p>
+      {draw ? <DrawResult tier={tier} drawId={draw.id} /> : <BeforeDraw tier={tier} />}
+    </Card>
+  );
+}
+
+function DrawResult({ tier, drawId }: { tier: RatingPrizeTier; drawId: string }) {
+  const label = RATING_PRIZE_LABELS[tier.kind];
+  return (
+    <>
+      <div
+        // Ro'yxat uzun bo'lsa aylanadi — klaviatura bilan ham aylantirish uchun fokuslanadi.
+        tabIndex={0}
+        role="region"
+        aria-label={`${label}: g'oliblar va zaxira`}
+        className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-500"
+      >
+        {tier.winners.length === 0 ? (
+          <p className="px-2 py-3 text-sm text-muted">Faol g&apos;olib yo&apos;q.</p>
+        ) : (
+          <EntryList entries={tier.winners} />
+        )}
+        {tier.next.length > 0 && (
+          <>
+            <p className="px-2 pt-3 pb-1 text-[11px] font-medium text-slate-400">Zaxira g&apos;oliblar</p>
+            <EntryList entries={tier.next} muted />
+          </>
+        )}
+      </div>
+      <div className="border-t border-line px-4 py-3">
+        {tier.kind === "car" && (
+          <p className="mb-2 text-xs text-muted">
+            G&apos;olib quyida tekshiriladi va «E&apos;lon qilish» orqali tabriklanadi.
+          </p>
+        )}
+        <Link
+          href={voucherTabHref(drawId)}
+          className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:underline"
+        >
+          Tanlovni ochish
+          <ArrowRight className="size-3.5" aria-hidden />
+        </Link>
+      </div>
+    </>
+  );
+}
+
+function BeforeDraw({ tier }: { tier: RatingPrizeTier }) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const label = RATING_PRIZE_LABELS[tier.kind];
+  const setup = useQuery({ queryKey: ["draw-setup"], queryFn: getDrawSetup });
+  const settings = setup.data?.mainDefaults.find((item) => item.prizeId === `main-${tier.kind}`) ?? null;
+  // Oferta 6.2.1, 7.5: asosiy sovrinlar aksiya yakunida — oxirgi kundan keyin (backend ham tekshiradi).
+  const tooEarly = settings !== null && setup.data !== undefined && setup.data.today <= settings.periodTo;
+
+  const run = useMutation({
+    mutationFn: async () => {
+      if (!settings) throw new Error("Tanlov sozlamalari yuklanmadi.");
+      return runDraw(settings);
+    },
+    onSuccess: async (created) => {
+      await Promise.all(
+        ["rating-prizes", "draws", "winner", "audit-log"].map((key) => queryClient.invalidateQueries({ queryKey: [key] })),
+      );
+      router.push(voucherTabHref(created.id));
+    },
+  });
+
+  return (
+    <>
+      {tier.eligible.length === 0 ? (
+        <p className="grid flex-1 place-items-center px-4 text-center text-sm text-muted">
+          Bu oraliqda hozircha ishtirokchi yo&apos;q
+        </p>
       ) : (
         <div
-          // Ro'yxat uzun bo'lsa aylanadi — klaviatura bilan ham aylantirish uchun fokuslanadi.
           tabIndex={0}
           role="region"
-          aria-label={`${label}: g'oliblar`}
+          aria-label={`${label}: oraliqdagi ishtirokchilar`}
           className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-500"
         >
-          <EntryList entries={tier.winners} />
-          {tier.next.length > 0 && (
-            <>
-              <p className="px-2 pt-3 pb-1 text-[11px] font-medium text-slate-400">Navbatdagilar</p>
-              <EntryList entries={tier.next} muted />
-            </>
-          )}
+          <p className="px-2 pb-1 text-[11px] font-medium text-slate-400">
+            Oraliqdagi ishtirokchilar (nomzodlar){tier.eligibleCount > tier.eligible.length ? " — birinchilari" : ""}
+          </p>
+          <EntryList entries={tier.eligible} muted />
         </div>
       )}
-    </Card>
+      <div className="space-y-2 border-t border-line px-4 py-3">
+        {run.isError && (
+          <p role="alert" className="flex items-start gap-1.5 text-xs text-red-700">
+            <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+            {errorMessage(run.error)}
+          </p>
+        )}
+        <Button
+          size="sm"
+          className="w-full"
+          loading={run.isPending}
+          disabled={!settings || tooEarly || tier.eligibleCount === 0}
+          onClick={() => run.mutate()}
+        >
+          <Dices className="size-4" aria-hidden />
+          Random tanlov o&apos;tkazish
+        </Button>
+        <p className="text-[11px] text-muted">
+          {tooEarly && settings
+            ? `Aksiya tugagach (${formatDate(settings.periodTo)} dan keyin) yakuniy ko'rishlar bo'yicha o'tkaziladi.`
+            : "G'oliblar va zaxira tasodifiy tanlanadi (oferta 6.4); natija tasdiqlanmaguncha qoralama bo'lib turadi."}
+        </p>
+      </div>
+    </>
   );
 }
 
@@ -99,7 +207,7 @@ function EntryItem({ entry, muted }: { entry: RatingPrizeEntry; muted: boolean }
           target="_blank"
           rel="noopener noreferrer"
           aria-label={`${name}: Reelni ochish`}
-          title="Reelni ochish"
+          title="Eng ko'p ko'rilgan Reelni ochish"
           className="grid size-7 shrink-0 place-items-center rounded-md text-brand-700 hover:bg-brand-50"
         >
           <ExternalLink className="size-3.5" aria-hidden />

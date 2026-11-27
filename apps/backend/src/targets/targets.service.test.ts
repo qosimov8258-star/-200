@@ -348,7 +348,7 @@ test("several accounts: every live account of a leader is checked; one case per 
   const list = targets.list({});
   assert.equal(list.total, 1);
   assert.match(list.items[0].evidence, /3 ta faol reklama \(20\.11\.2026 dan\) — @user1, @user1\.food/);
-  assert.equal(list.items[0].views, 30_000, "reytingdagi eng ko'p ko'rilgan video (ko'rishlar qo'shilmaydi)");
+  assert.equal(list.items[0].views, 30_000 + 5_000, "umumiy ko'rishlar — qabul qilingan videolar yig'indisi (oferta 7.1)");
   assert.equal(targets.list({ search: "user1.food" }).total, 1);
 });
 

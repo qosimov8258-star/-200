@@ -4,15 +4,15 @@
  */
 export const contestDefaults = {
   /**
-   * Tanlov boshlanadigan kun (Asia/Tashkent). Ko'rishlar shu kundan boshlab har
-   * `STATS_SYNC_EVERY_DAYS` kunda yig'iladi: 25-noyabr → 5-dekabr, 15-dekabr, 25-dekabr …
+   * Aksiya boshlanadigan kun (Asia/Tashkent) — ommaviy oferta 2.5: 2026-yil 27-noyabr. Ko'rishlar shu
+   * kundan boshlab Sozlamalardagi davr bo'yicha yig'iladi.
    */
-  startsOn: "2026-11-25",
+  startsOn: "2026-11-27",
   /**
-   * Tanlovning oxirgi kuni (Asia/Tashkent, shu kun ham kiradi) — tanlov shu kun oxirida tugaydi.
-   * Sovg'alarning oxirgi bosqichi bilan bir xil (`prizes.ts` → 2027-01-25 – 2027-02-25).
+   * Aksiyaning oxirgi kuni (Asia/Tashkent, shu kun ham kiradi) — oferta 2.5: 2027-yil 27-fevral.
+   * Oxirgi oylik bosqich bilan bir xil (`prizes.ts`).
    */
-  endsOn: "2027-02-25",
+  endsOn: "2027-02-27",
   prizeName: "BYD Chazor",
   /** Ro'yxatdan o'tish uchun minimal yosh (PLAN.md Q3). */
   minAge: 18,

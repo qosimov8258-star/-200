@@ -154,7 +154,9 @@ function summarizeReels(participant: MockParticipant, context: ListContext): Ree
     }
   }
 
-  return { counts, statuses, best, views: best ? latestViews(best) : 0, owners };
+  // Oferta 7.1: umumiy ko'rishlar — barcha qabul qilingan videolar yig'indisi.
+  const views = reels.reduce((sum, reel, i) => (statuses[i] === "ACCEPTED" ? sum + latestViews(reel) : sum), 0);
+  return { counts, statuses, best, views, owners };
 }
 
 function toListItem(
@@ -200,7 +202,7 @@ function postedAt(reel: MockReel): string {
   return at < reel.submittedAt ? at : new Date(Date.parse(reel.submittedAt) - 45 * 60_000).toISOString();
 }
 
-function toAdminReel(reel: MockReel, context: ListContext, syncTime: string, best: boolean): AdminReelItem {
+function toAdminReel(reel: MockReel, context: ListContext, syncTime: string): AdminReelItem {
   const { status, manualReview } = reelState(reel, context);
   const snapshotDay = lastSnapshotDay(reel);
   const views = latestViews(reel);
@@ -212,15 +214,12 @@ function toAdminReel(reel: MockReel, context: ListContext, syncTime: string, bes
     rejectReason: status === "REJECTED" ? reel.rejectReason : null,
     owner: reel.owner,
     views,
-    // Reytingda faqat qabul qilingan videolar bor; har biri o'z o'rnida.
-    rank: status === "ACCEPTED" ? (context.rankByReel.get(reel.id) ?? null) : null,
     likes: snapshotDay ? Math.round(views * reel.likeRate) : null,
     submittedAt: reel.submittedAt,
     // Joylangan vaqt Instagram videoni topgandagina ma'lum bo'ladi (akkaunt bilan birga).
     postedAt: reel.owner ? postedAt(reel) : null,
     lastSyncedAt: snapshotDay ? lastSyncedAt(reel, snapshotDay, context.today, syncTime) : null,
     flags: [...reel.flags],
-    best,
   };
 }
 
@@ -339,7 +338,7 @@ export function getParticipantReels(participantId: string): ParticipantReels {
   const { syncTime } = effectiveSettings(context.store);
   const reels = [...(context.reelsByParticipant.get(participant.id) ?? [])]
     .sort((a, b) => compareForDisplay(a, b, context))
-    .map((reel) => toAdminReel(reel, context, syncTime, reel === summary.best));
+    .map((reel) => toAdminReel(reel, context, syncTime));
 
   return {
     participant: {
@@ -351,7 +350,7 @@ export function getParticipantReels(participantId: string): ParticipantReels {
       status: effectiveStatus(participant, context.store),
       registeredOn: participant.registeredOn,
     },
-    bestViews: summary.views,
+    totalViews: summary.views,
     reels,
   };
 }

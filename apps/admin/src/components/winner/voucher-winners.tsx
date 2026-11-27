@@ -27,7 +27,11 @@ const PAGE_SIZE = 25;
  */
 export function VoucherWinners() {
   const draws = useQuery({ queryKey: ["draws"], queryFn: getDraws });
-  const live = useMemo(() => (draws.data ?? []).filter((draw) => draw.status !== "CANCELLED"), [draws.data]);
+  // Faqat oylik voucher tanlovlari — asosiy sovrinlar "Asosiy sovrinlar" tabida.
+  const live = useMemo(
+    () => (draws.data ?? []).filter((draw) => draw.status !== "CANCELLED" && !draw.prizeId.startsWith("main-")),
+    [draws.data],
+  );
   const details = useQueries({
     queries: live.map((draw) => ({ queryKey: ["draw", draw.id], queryFn: () => getDraw(draw.id) })),
   });
@@ -56,8 +60,8 @@ export function VoucherWinners() {
       <p className="flex gap-2.5 rounded-2xl border border-brand-200 bg-brand-50/70 px-4 py-3 text-sm text-slate-700">
         <Info className="mt-0.5 size-4 shrink-0 text-brand-600" aria-hidden />
         <span>
-          Voucher bir kishiga aksiya davomida bir marta beriladi — bu ro&apos;yxatdagilar keyingi tanlovlarda
-          qatnashmaydi. Bekor qilingan tanlovlar kirmaydi.
+          Oferta 6.1.5: talablarni bajargan ishtirokchi bir necha oy davomida voucher yutishi mumkin. Bekor
+          qilingan tanlovlar kirmaydi.
         </span>
       </p>
 

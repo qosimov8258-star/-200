@@ -3,13 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import type { WinnerOverview } from "@/lib/types";
 
-/** Keyingi o'rinlar — nomzod rad etilsa navbatdagilar. */
+/** Zaxira g'oliblar — random tanlovdagi navbat; nomzod rad etilsa navbatdagisi (oferta 10.3). */
 export function RunnersUpCard({ runnersUp }: { runnersUp: WinnerOverview["runnersUp"] }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>Zaxira nomzodlar</CardTitle>
-        <p className="mt-0.5 text-xs text-slate-500">Nomzod rad etilsa, navbatdagisi nomzod bo&apos;ladi</p>
+        <p className="mt-0.5 text-xs text-slate-500">Random tanlov zaxirasi — nomzod rad etilsa, navbatdagisi</p>
       </CardHeader>
       <CardContent className="px-0 py-0">
         {runnersUp.length === 0 ? (

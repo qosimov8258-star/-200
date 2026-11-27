@@ -19,7 +19,7 @@ export const t = {
   prizeLabel: "Bosh sovrin",
   heroTitle: "Reel joylang —\navtomobil yuting",
   heroBody:
-    "Mahsulot haqida Instagram Reel joylang. Videosi eng ko'p ko'rilgan ishtirokchi g'olib bo'ladi.",
+    "OLIVIA mahsuloti ishtirokidagi Instagram Reel joylang, ko'rish yig'ing va sovrinlar tasodifiy tanlovida qatnashing.",
   shareContact: "Raqamni ulashish",
   shareContactHint:
     "Ro'yxatdan o'tish uchun Telegram'dagi telefon raqamingizni ulashing. Bitta raqam — bitta ishtirokchi.",
@@ -93,7 +93,7 @@ export const t = {
   guestJoinCta: "Ro'yxatdan o'tish",
   guestReelTitle: "Videongizni yuborish uchun ro'yxatdan o'ting",
   guestReelBody:
-    "Saytda ro'yxatdan o'ting yoki Telegram orqali kiring — parol yoki SMS kerak emas. Keyin Reel linklarini yuborasiz — har bir qabul qilingan videongiz reytingda alohida o'rin oladi.",
+    "Saytda ro'yxatdan o'ting yoki Telegram orqali kiring — parol yoki SMS kerak emas. Keyin Reel linklarini yuborasiz — barcha qabul qilingan videolaringiz ko'rishlari qo'shib hisoblanadi.",
   guestReportTitle: "Xabar yuborish uchun ro'yxatdan o'ting",
   guestReportBody: "Reklama haqida faqat tanlov ishtirokchilari xabar bera oladi. Ro'yxatdan o'tish bir daqiqa oladi.",
   supportWebHint: "Support Telegram botda — ochilgan chatga savolingizni yozing.",
@@ -115,15 +115,15 @@ export const t = {
     `Ma'lumotlar to'g'rimi?\n\n${first}, ${age} yosh\n${phone}\n\nTasdiqlagandan keyin ism va yoshni o'zgartirib bo'lmaydi.`,
 
   // Qoidalar
-  rulesTitle: "Tanlov qoidalari",
+  rulesTitle: "Ommaviy oferta",
   rulesVideoLabel: "Qoidalar haqida qisqa video",
   rulesHeroBadge: "Rasmiy shartlar",
-  rulesHeroBody: "Qishki Olivia tanlovida qatnashish va sovg'a yutish shartlari. Video yuborishdan oldin o'qib chiqing 🎄",
+  rulesHeroBody: "«OLIVIA» reklama aksiyasida ishtirok etish shartlari (ommaviy oferta). Video yuborishdan oldin o'qib chiqing 🎄",
   rulesSectionsCount: (n: number) => `${n} ta bo'lim`,
-  rulesAgree: "Qoidalar bilan tanishdim va ularga roziman",
-  rulesUpdatedTitle: "Qoidalar yangilandi",
+  rulesAgree: "Ommaviy oferta shartlari bilan tanishdim va roziman",
+  rulesUpdatedTitle: "Ommaviy oferta",
   rulesUpdatedBody:
-    "Tanlov qoidalariga o'zgartirish kiritildi. Davom etish uchun yangilangan qoidalar bilan tanishib chiqing.",
+    "Aksiya shartlari ommaviy oferta ko'rinishida e'lon qilindi. Davom etish uchun oferta bilan tanishib, uni qabul qiling.",
   rulesStale: "Qoidalar hozirgina yana yangilandi. Iltimos, qaytadan ko'rib chiqing.",
 
   // Navigatsiya
@@ -173,9 +173,9 @@ export const t = {
   ratingEmpty: "Reyting hali shakllanmagan",
   nearMeEmpty: "Video yuborganingizdan keyin o'rningiz shu yerda ko'rinadi",
   ratingPerVideoHint:
-    "Har bir video alohida o'rin oladi, shuning uchun bitta ishtirokchi bir necha marta chiqishi mumkin. Sizning o'rningiz — eng ko'p ko'rilgan videongiz o'rni.",
-  /** Ekran o'quvchi uchun: reyting qatori — bitta video. */
-  ratingVideo: "Video",
+    "Reyting — umumiy tasdiqlangan ko'rishlar (barcha videolaringiz yig'indisi) bo'yicha va faqat ma'lumot uchun: g'oliblar har bir sovrin oralig'ida tasodifiy tanlov (random) bilan aniqlanadi.",
+  /** Ekran o'quvchi uchun: reyting qatori — bitta ishtirokchi. */
+  ratingVideo: "Ishtirokchi",
 
   // Istoriyalar (24 soatlik videolar, bosh sahifada)
   storiesLabel: "Istoriyalar",
@@ -217,14 +217,11 @@ export const t = {
     "Mahsulot haqidagi Reel linkini qo'ying. Video avtomatik tekshiriladi, ko'rishlar esa muntazam yangilanib boradi.",
   addReelTitle: "Yangi video qo'shing",
   addReelBody:
-    "Videolar soni cheklanmagan: har biri alohida tekshiriladi va reytingda alohida o'rin oladi. Sizning o'rningiz — eng ko'p ko'rilgan videongiz o'rni, ko'rishlar qo'shilmaydi.",
+    "Videolar soni cheklanmagan: har biri alohida tekshiriladi, barcha tasdiqlangan videolaringiz ko'rishlari qo'shib hisoblanadi.",
   myReelsTitle: "Videolarim",
   myReelsCount: (accepted: number, total: number) =>
     accepted > 0 ? `${total} ta · ${accepted} tasi qabul qilingan` : `${total} ta`,
   reelSubmittedAt: (when: string) => `Yuborildi: ${when}`,
-  reelBestBadge: "Eng yaxshi natija",
-  reelRank: (rank: number) => `${rank}-o'rin`,
-  reelRankHint: "Shu videoning reytingdagi o'rni",
   linkPlaceholder: "https://www.instagram.com/reel/...",
   paste: "Qo'yish",
   submit: "Yuborish",
@@ -234,9 +231,9 @@ export const t = {
   linkAlready: "Bu videoni allaqachon yuborgansiz — u ro'yxatingizda bor",
   submitted: "Link yuborildi — video tekshirilmoqda",
   rulesHeading: "Shartlar",
-  ruleTag: "Videoda zavod akkaunti belgilangan bo'lishi kerak",
-  ruleOwn: "Video o'z akkauntingizda va ochiq bo'lishi kerak",
-  ruleOneAccount: "Bitta Instagram akkaunt — bitta ishtirokchi",
+  ruleTag: "Video tavsifida #reklama yoki #OLIVIAaksiya xeshtegi bo'lishi shart",
+  ruleOwn: "Videoda OLIVIA mahsuloti aniq ko'rinsin; video o'z akkauntingizda va ochiq bo'lsin",
+  ruleOneAccount: "Har bir ishtirokchi faqat bitta shaxsiy Instagram akkaunt orqali qatnashadi",
   ruleNoTarget: "Pullik reklama (target) taqiqlangan",
   ruleNoFakeViews:
     "Nakrutka (sotib olingan ko'rishlar, botlar) taqiqlangan — aniqlansa, ishtirokchi tanlovdan chetlashtiriladi",
@@ -250,7 +247,7 @@ export const t = {
   pendingNote: "Video tekshiruv navbatida. Natijani bot ham xabar qiladi.",
   /** "Tekshirilmoqda" va "Qo'lda tekshirilmoqda" videolar ostidagi izoh (buyurtmachi matni). */
   weeklyCheckNote: (days: number) =>
-    `Videolar ${syncPeriod(days)} tekshiriladi — tekshiruvdan so'ng reytingdagi o'rningiz aniqlanadi.`,
+    `Ko'rishlar ${syncPeriod(days)} yangilanadi — shundan so'ng umumiy ko'rishlaringiz ham yangilanadi.`,
   rejectedNote: "Video rad etildi. Savollar bo'lsa, bot orqali supportga yozing.",
   rejectReasons: {
     NOT_FOUND:
@@ -264,13 +261,13 @@ export const t = {
   manualReviewNote:
     "Bu videoni administrator qo'lda tekshiradi — natijani bot orqali xabar qilamiz. Shu orada akkauntingiz ochiq (yopiq emas) va video o'chirilmaganini tekshiring.",
   /** Plitka tor (telefonda ~130px) — bir qatorga sig'adigan qisqa matn. */
-  statBest: "Eng ko'p ko'rilgan",
+  statBest: "Umumiy ko'rishlar",
   statToday: "Oxirgi o'sish",
   statRank: "Reytingdagi o'rin",
   statRankDelta: "O'rin o'zgarishi",
   noChange: "o'zgarishsiz",
   chartTitle: "Ko'rishlar o'sishi",
-  chartSubtitle: "Eng ko'p ko'rilgan videongiz — har bir yangilanishdagi o'sish",
+  chartSubtitle: "Barcha videolaringiz — har bir yangilanishdagi o'sish",
   lastSyncedLabel: "Oxirgi yangilanish",
   nextSyncLabel: "Keyingi yangilanish",
   syncEvery: (days: number) => `Ko'rishlar ${syncPeriod(days)} yangilanadi`,
@@ -354,15 +351,16 @@ export const t = {
   prizesSubtitle: "Ko'rish yig'ing — sovrinlarni oling",
   fundLabel: "Sovrin fondi",
   fundTotal: "ta sovrin",
-  fundBody: "Har oy voucherlar random o'ynaladi (bir kishiga bir marta), aksiya yakunida esa asosiy sovrinlar reyting bo'yicha topshiriladi.",
+  fundBody:
+    "Har oy voucherlar tasodifiy tanlov (random) bilan o'ynaladi, aksiya yakunida esa asosiy sovrinlar ham har bir ko'rishlar oralig'ida random aniqlanadi.",
   monthlyTag: "Har oylik sovrin",
   sum: "so'm",
   perMonth: "har oy",
   totalPieces: "jami",
   randomDraw: "Tasodifiy tanlov",
   monthlyWho: (min: string, max: string) =>
-    `Oy davomidagi eng ko'p ko'rilgan tasdiqlangan Reeli ${min} dan ${max} gacha ko'rish yig'gan ishtirokchilar qatnashadi`,
-  monthlyDraw: "G'oliblar tasodifiy tanlov (random) orqali aniqlanadi. Voucher bir kishiga aksiya davomida faqat bir marta beriladi",
+    `Oylik bosqichda ro'yxatdan o'tkazilgan videolari jami ${min} dan ${max} gacha tasdiqlangan ko'rish yig'gan ishtirokchilar qatnashadi`,
+  monthlyDraw: "G'oliblar tasodifiy tanlov (random) orqali aniqlanadi. Talablarni bajarsangiz, bir necha oy davomida voucher yutishingiz mumkin",
   stagesTitle: "Bosqichlar",
   stageLabel: (n: number) => `${n}-bosqich`,
   stageNow: "Hozir",
@@ -374,20 +372,20 @@ export const t = {
     days === 0 ? `${n}-bosqichning oxirgi kuni` : `${n}-bosqich davom etmoqda — tugashiga ${days} kun`,
   stagesFinished: "Barcha bosqichlar yakunlandi",
   mainTitle: "Asosiy sovrinlar",
-  mainSubtitle: "Aksiya yakunida — eng ko'p ko'rilgan bitta Reelingiz ko'rishlari bo'yicha (videolar qo'shilmaydi)",
+  mainSubtitle: "Aksiya yakunida — barcha videolaringizning umumiy tasdiqlangan ko'rishlari bo'yicha, oraliq ichida random",
   mainPrize: "Bosh sovrin",
   viewsWord: "ko'rish",
   andMore: "va undan ko'p",
   pieces: (n: number, unit: string | null) => `${n} ta${unit ? ` ${unit}` : ""}`,
   tierWinners: (n: number) =>
     n === 1
-      ? "Toifada videosi eng ko'p ko'rilgan ishtirokchi yutadi"
-      : `Toifada videosi eng ko'p ko'rilgan ${n} kishi yutadi`,
+      ? "Shu oraliqdagi ishtirokchilar orasidan random bilan 1 kishi yutadi"
+      : `Shu oraliqdagi ishtirokchilar orasidan random bilan ${n} kishi yutadi`,
   youAreHere: "Siz shu yerdasiz",
   tierReached: "Erishildi",
   viewsLeft: (n: string) => `yana ${n} ko'rish`,
-  startLabel: "Eng ko'p ko'rilgan videongiz",
-  startNoReel: "Video yuboring — eng ko'p ko'rilgan videongiz ko'rishlari shu yerda hisoblanadi",
+  startLabel: "Umumiy ko'rishlaringiz",
+  startNoReel: "Video yuboring — barcha videolaringiz ko'rishlari shu yerda qo'shib hisoblanadi",
   startSendVideo: "Video yuborish",
   startNext: (title: string, left: string) => `Keyingi sovrin — ${title}: yana ${left} ko'rish`,
   startTop: "Siz eng yuqori toifadasiz!",

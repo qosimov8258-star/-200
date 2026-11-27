@@ -151,7 +151,7 @@ test("the list validates query values, paginates and counts statuses", () => {
   assert.equal(controller.list(undefined, undefined, undefined, "0", "").total, 3);
 });
 
-test("GET /admin/participants/:id/reels lists every video, the most viewed on top; unknown → 404 NOT_FOUND", () => {
+test("GET /admin/participants/:id/reels lists every video, the most viewed on top, total of accepted ones; unknown → 404 NOT_FOUND", () => {
   const { participants, controller } = setup();
   const first = participants.submitReel(1, "https://www.instagram.com/reel/AAAAA1/", "AAAAA1");
   first.status = "ACCEPTED";
@@ -179,21 +179,20 @@ test("GET /admin/participants/:id/reels lists every video, the most viewed on to
   assert.match(registeredOn, /^\d{4}-\d{2}-\d{2}$/);
   // 2-ishtirokchida ochiq target ogohlantirishi bor — oynada ham WARNED.
   assert.equal(controller.reels("2").participant.status, "WARNED");
-  // Ko'rishlar qo'shilmaydi: 1 200 + 800 emas, eng ko'p ko'rilgani — 1 200.
-  assert.equal(result.bestViews, 1_200);
+  // Oferta 7.1: qabul qilingan videolar ko'rishlari qo'shiladi — 1 200 + 800 (qo'lda tekshiruvdagisi kirmaydi).
+  assert.equal(result.totalViews, 2_000);
   assert.deepEqual(
-    result.reels.map((r) => [r.shortcode, r.status, r.manualReview, r.views, r.likes, r.lastSyncedAt, r.best, r.rank]),
+    result.reels.map((r) => [r.shortcode, r.status, r.manualReview, r.views, r.likes, r.lastSyncedAt]),
     [
-      // Har bir qabul qilingan videoning o'z o'rni (videolar reytingida).
-      ["AAAAA1", "ACCEPTED", false, 1_200, 30, "2026-12-01T01:00:00.000Z", true, 1],
-      ["CCCCC3", "ACCEPTED", false, 800, 10, "2026-12-01T01:00:00.000Z", false, 2],
-      ["BBBBB2", "PENDING", true, 0, null, null, false, null],
+      ["AAAAA1", "ACCEPTED", false, 1_200, 30, "2026-12-01T01:00:00.000Z"],
+      ["CCCCC3", "ACCEPTED", false, 800, 10, "2026-12-01T01:00:00.000Z"],
+      ["BBBBB2", "PENDING", true, 0, null, null],
     ],
   );
   assert.deepEqual(controller.reels("2").reels, []);
   const item = controller.list().items.find((i) => i.id === "1");
   assert.deepEqual(item?.reels, { total: 3, accepted: 2, pending: 1, rejected: 0 });
-  assert.equal(item?.views, 1_200);
+  assert.equal(item?.views, 2_000, "ro'yxatda ham — yig'indi");
 
   for (const id of ["999", "abc", "4"]) {
     try {

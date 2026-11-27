@@ -112,11 +112,13 @@ export function computeRanking(date: IsoDate, store: MockStore = readStore()): M
   const entries = new Map<string, MockRankingEntry>();
   const submittedAt = new Map<string, string>();
 
-  for (const { reel, views, rank } of ranked) {
+  // Oferta 7.1: ishtirokchining natijasi — barcha qabul qilingan videolari ko'rishlarining yig'indisi.
+  for (const { reel, views } of ranked) {
     submittedAt.set(reel.id, reel.submittedAt);
     const entry = entries.get(reel.participantId);
     if (entry) {
       entry.reelIds.push(reel.id);
+      entry.views += views;
       continue;
     }
     entries.set(reel.participantId, {
@@ -124,11 +126,15 @@ export function computeRanking(date: IsoDate, store: MockStore = readStore()): M
       reelIds: [reel.id],
       topReelId: reel.id,
       views,
-      rank,
+      rank: 0,
     });
   }
 
   const bySubmission = (a: string, b: string) =>
     (submittedAt.get(a) ?? "").localeCompare(submittedAt.get(b) ?? "") || a.localeCompare(b);
-  return [...entries.values()].map((entry) => ({ ...entry, reelIds: entry.reelIds.sort(bySubmission) }));
+  const first = (entry: MockRankingEntry) => entry.reelIds.map((id) => submittedAt.get(id) ?? "").sort()[0] ?? "";
+  return [...entries.values()]
+    .map((entry) => ({ ...entry, reelIds: entry.reelIds.sort(bySubmission) }))
+    .sort((a, b) => b.views - a.views || first(a).localeCompare(first(b)) || a.participantId.localeCompare(b.participantId))
+    .map((entry, i) => ({ ...entry, rank: i + 1 }));
 }

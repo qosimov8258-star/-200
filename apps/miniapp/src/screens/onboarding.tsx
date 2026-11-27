@@ -342,9 +342,12 @@ export function RulesContent({ requireConsent = false }: { requireConsent?: bool
           {rules.data.video && <RulesVideo id={rules.data.video.id} />}
           <ol className="space-y-3">
             {rules.data.sections.map((s, i) => {
-              // Sarlavha "1. Ishtirok etish" ko'rinishida keladi — raqam archa o'yinchog'iga chiqadi.
-              const match = /^(\d+)[.)]\s*(.+)$/.exec(s.title);
-              const number = match ? match[1] : String(i + 1);
+              // Sarlavha "1. Atamalar…" ko'rinishida keladi — raqam archa o'yinchog'iga chiqadi. Kichik bo'lim
+              // ("6.1. Oylik sovrinlar", "6.3–6.4. …") — o'yinchoqda bob raqami, sarlavhada to'liq raqami.
+              // Raqamsiz kirish qismi (oferta preambulasi) — "§".
+              const sub = /^(\d+)\.\d/.exec(s.title);
+              const match = sub ? null : /^(\d+)[.)]\s*(.+)$/.exec(s.title);
+              const number = sub ? sub[1] : match ? match[1] : "§";
               const title = match ? match[2] : s.title;
               return (
                 <li

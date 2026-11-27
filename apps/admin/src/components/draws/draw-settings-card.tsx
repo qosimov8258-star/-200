@@ -165,7 +165,7 @@ function DrawSettingsSummary({ saved, example }: { saved: SavedDrawSettings; exa
         <Row
           label="Ko'rishlar oralig'i"
           value={formatViewsRange(saved.minViews, saved.maxViews)}
-          hint="Davrdagi eng ko'p ko'rilgan bitta video"
+          hint="Davrdagi barcha tasdiqlangan videolar ko'rishlarining yig'indisi (oferta 7.1–7.2)"
         />
         <Row
           label="G'oliblar va zaxira"
@@ -179,7 +179,7 @@ function DrawSettingsSummary({ saved, example }: { saved: SavedDrawSettings; exa
         <span className="min-w-0 flex-1 font-medium text-ink">
           {PREVIOUS_WINNERS_RULE}{" "}
           <span className="ml-1 inline-block rounded-full bg-brand-100 px-2 py-0.5 align-middle text-[11px] font-medium whitespace-nowrap text-brand-700">
-            Doim yoqiq
+            Ofertada
           </span>
         </span>
       </p>

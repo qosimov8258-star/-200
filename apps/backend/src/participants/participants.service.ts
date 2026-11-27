@@ -14,8 +14,8 @@ export type ParticipantStage =
   | "DISQUALIFIED";
 
 /**
- * PENDING — avtomatik tekshiruv kutilmoqda (Apify, so'ng AI — `Reel.aiCheck`); ACCEPTED — reytingda
- * (eng ko'p ko'rilgani hisoblanadi); MANUAL_REVIEW — AI videoda mahsulotni topmadi yoki Apify 3 marta
+ * PENDING — avtomatik tekshiruv kutilmoqda (Apify, so'ng AI — `Reel.aiCheck`); ACCEPTED — tasdiqlangan
+ * (ko'rishlari ishtirokchining umumiy natijasiga qo'shiladi); MANUAL_REVIEW — AI videoda mahsulotni topmadi yoki Apify 3 marta
  * topa olmadi, admin qo'lda tekshiradi (reytingda hisoblanmaydi); REJECTED — rad etilgan (shu linkni
  * qayta yuborish mumkin).
  */
@@ -131,8 +131,8 @@ export interface Participant {
   consentVersion: number | null;
   /**
    * Yuborilgan videolar — eskidan yangiga (yuborilish tartibida). Soni cheklanmagan; har biri
-   * alohida tekshiriladi va yig'iladi. Reytingda — qabul qilinganlar (ACCEPTED) ichida eng ko'p
-   * ko'rilgan bitta videosi (ko'rishlar qo'shilmaydi; `participantViews`).
+   * alohida tekshiriladi va yig'iladi. Natija — qabul qilinganlar (ACCEPTED) ko'rishlarining
+   * yig'indisi (oferta 7.1; `participantViews`).
    */
   reels: Reel[];
   status: "ACTIVE" | "BLOCKED" | "DISQUALIFIED";
@@ -187,17 +187,15 @@ export const acceptedReels = (p: Participant): Reel[] => p.reels.filter((r) => r
 /** Videoning oxirgi yig'ilgan ko'rishlari (hali yig'ilmagan bo'lsa — 0). */
 export const reelViews = (reel: Reel): number => reel.history.at(-1)?.views ?? 0;
 
-/** Reytingda hisoblanadigan video: qabul qilinganlar ichida eng ko'p ko'rilgani (bo'lmasa — null). */
+/** Qabul qilinganlar ichida eng ko'p ko'rilgani — tekshirish uchun ko'rsatiladigan video (bo'lmasa — null). */
 export const bestReel = (p: Participant): Reel | null => topReel(acceptedReels(p));
 
 /**
- * Ishtirokchi ko'rishlari (reyting, asosiy sovrinlar, g'olib — qoidalar 7.1, 7.3): eng ko'p ko'rilgan
- * bitta qabul qilingan videosining oxirgi ko'rishlari. Videolar ko'rishlari qo'shilmaydi; qabul
- * qilingan video yo'q — 0.
+ * Ishtirokchi ko'rishlari (reyting, asosiy sovrinlar — oferta 7.1, 7.3): barcha tasdiqlangan
+ * (qabul qilingan) videolari oxirgi ko'rishlarining **yig'indisi**. Qabul qilingan video yo'q — 0.
  */
 export function participantViews(p: Participant): number {
-  const best = bestReel(p);
-  return best ? reelViews(best) : 0;
+  return acceptedReels(p).reduce((sum, reel) => sum + reelViews(reel), 0);
 }
 
 /** Ro'yxatdagi guruh: 0 — qabul qilingan, 1 — qaror kutilmoqda (PENDING, MANUAL_REVIEW), 2 — rad etilgan. */
@@ -228,8 +226,8 @@ export function instagramUsernames(p: Participant): string[] {
 }
 
 /**
- * "Asosiy" video — ko'rishlari eng ko'pi (teng bo'lsa — oldinroq yuborilgani). Ishtirokchining
- * natijasi shu videoning ko'rishlari (reyting, g'olib, random tanlov nomzodi, kunlik reyting).
+ * "Asosiy" video — ko'rishlari eng ko'pi (teng bo'lsa — oldinroq yuborilgani). Tekshirish uchun
+ * ko'rsatiladigan havola (g'olib, random tanlov nomzodi); natija esa barcha videolar yig'indisi.
  * `views` — qaysi kundagi ko'rishlar (standart — oxirgi). Bo'sh ro'yxat — null.
  */
 export function topReel(reels: readonly Reel[], views: (reel: Reel) => number = reelViews): Reel | null {

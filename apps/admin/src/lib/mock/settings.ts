@@ -21,7 +21,8 @@ const DEFAULT_SYNC_EVERY_DAYS = 7;
 const SYNC_EVERY_DAYS_RANGE = { min: 1, max: 30 } as const;
 const DEFAULT_MIN_AGE = 18;
 const SYNC_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
-const MIN_AGE_RANGE = { min: 14, max: 100 } as const;
+/** Oferta 3.1: 18 yoshga to'lganlar. */
+const MIN_AGE_RANGE = { min: 18, max: 100 } as const;
 
 /** Boshlang'ich qiymatlar + admin o'zgartirganlari. */
 export function effectiveSettings(store: MockStore = readStore()): ContestSettings {

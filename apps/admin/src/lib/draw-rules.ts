@@ -41,6 +41,10 @@ export const DRAW_PLACEHOLDERS: DrawPlaceholder[] = [
 export const DEFAULT_DRAW_MESSAGE =
   "🎉 Tabriklaymiz, {ism}!\n\nSiz {bosqich} ({davr}) random tanlovida g'olib bo'ldingiz va «{sovrin}» yutdingiz!\n\nSovrinni topshirish bo'yicha operatorimiz tez orada shu chat orqali siz bilan bog'lanadi. Iltimos, botni o'chirmang.";
 
+/** Asosiy sovrinlar tanlovi (oferta 6.2) g'oliblariga xabar — backend bilan bir xil. */
+export const DEFAULT_MAIN_DRAW_MESSAGE =
+  "🎉 Tabriklaymiz, {ism}!\n\nSiz «OLIVIA» aksiyasining asosiy sovrinlar random tanlovida g'olib bo'ldingiz va «{sovrin}» yutdingiz!\n\nOferta 10.2-bandiga ko'ra 5 kalendar kuni ichida tashkilotchi bilan bog'lanib, sovrinni olish uchun kerakli ma'lumotlarni taqdim eting. Operatorimiz shu chat orqali siz bilan bog'lanadi. Iltimos, botni o'chirmang.";
+
 // ---------------------------------------------------------------------------
 // Bosqichlar
 // ---------------------------------------------------------------------------

@@ -499,7 +499,7 @@ test("refreshing selected reels updates only them, leaves the schedule alone and
   assert.equal(s.stats.lastRefreshReport, report);
 });
 
-test("every Reel of a participant is verified on its own; the most viewed one counts in the rating", async () => {
+test("every Reel of a participant is verified on its own; all accepted ones add up in the rating", async () => {
   const { provider, stats, sent, join, submit, reelOf, setNow } = setup();
   provider.set("AAAAA1", { owner: "ali", views: 1_000 });
   provider.set("PHOTO2", { owner: "ali", isVideo: false });
@@ -517,8 +517,8 @@ test("every Reel of a participant is verified on its own; the most viewed one co
   assert.equal(reelOf(1, "BBBBB3")?.status, "ACCEPTED", "o'zining ikkinchi akkaunti — OWNER_TAKEN emas");
   assert.equal(reelOf(1, "GONE04")?.status, "PENDING");
   assert.equal(reelOf(1, "GONE04")?.misses, 1);
-  // Ko'rishlar qo'shilmaydi: 1 000 + 4 000 emas, eng ko'p ko'rilgani — 4 000.
-  assert.deepEqual(stats.ranking().map((e) => [e.participant.telegramId, e.views, e.reels.length]), [[1, 4_000, 2]]);
+  // Oferta 7.1: qabul qilingan videolar ko'rishlari qo'shiladi — 1 000 + 4 000.
+  assert.deepEqual(stats.ranking().map((e) => [e.participant.telegramId, e.views, e.reels.length]), [[1, 5_000, 2]]);
   // Har bir natija — alohida xabar, qaysi video ekani bilan.
   assert.equal(sent.length, 3);
   assert.ok(sent.some((m) => m.text.includes("/reel/PHOTO2/") && /Reel \(video\) emas/.test(m.text)));
@@ -538,10 +538,10 @@ test("every Reel of a participant is verified on its own; the most viewed one co
   assert.equal(report.total, 3);
   assert.deepEqual(provider.requests.at(-1)?.slice().sort(), ["AAAAA1", "BBBBB3", "GONE04"]);
   assert.equal(reelOf(1, "GONE04")?.status, "ACCEPTED");
-  assert.equal(stats.ranking()[0]?.views, 10_000);
+  assert.equal(stats.ranking()[0]?.views, 3_000 + 4_500 + 10_000);
 });
 
-test("video rating: every accepted Reel is its own row; a participant's place is their best Reel's", async () => {
+test("video rating: every accepted Reel is its own row; a participant's place is by the sum of their Reels", async () => {
   const { provider, stats, join, submit, setNow } = setup();
   provider.set("ALI001", { owner: "ali", views: 9_000 });
   provider.set("ALI002", { owner: "ali", views: 7_000 });
@@ -563,9 +563,9 @@ test("video rating: every accepted Reel is its own row; a participant's place is
       [4, 1, "ALI003", 1_000, 0],
     ],
   );
-  // Ishtirokchilar (g'olib, sovrinlar) — bittadan; o'rni — eng ko'p ko'rilgan videosiniki.
+  // Ishtirokchilar (sovrin oraliqlari) — bittadan; ko'rishlari — videolari ko'rishlarining yig'indisi.
   assert.deepEqual(stats.ranking().map((e) => [e.participant.telegramId, e.rank, e.views]), [
-    [1, 1, 9_000],
+    [1, 1, 9_000 + 7_000 + 1_000],
     [2, 2, 8_000],
   ]);
 
@@ -583,47 +583,46 @@ test("video rating: every accepted Reel is its own row; a participant's place is
     ],
   );
   assert.deepEqual(stats.ranking().map((e) => [e.participant.telegramId, e.rank, e.views, e.rankDelta]), [
-    [1, 1, 9_500, 0],
+    [1, 1, 9_000 + 7_000 + 9_500, 0],
     [2, 2, 9_200, 0],
   ]);
 });
 
-test("ranking: the most viewed Reel decides (no summing); ties go to the one whose best Reel came first", async () => {
+test("ranking: accepted Reels add up; ties go to the one whose first accepted Reel came first", async () => {
   const { provider, stats, join, submit, reelOf, setNow } = setup();
   provider.set("TWO001", { owner: "b", views: 1_000 });
   provider.set("ONE001", { owner: "a", views: 6_000 });
-  provider.set("TWO002", { owner: "b", views: 6_000 });
+  provider.set("TWO002", { owner: "b", views: 5_000 });
   join(2, "TWO001");
   join(1, "ONE001");
   submit(2, "TWO002");
   await stats.flushVerification();
-  // 2-ishtirokchi birinchi videosini oldinroq yuborgan, lekin tenglikni eng ko'p ko'rilgan video hal qiladi.
+  // 2-ishtirokchi: 1 000 + 5 000 = 6 000 — 1-ishtirokchi bilan teng; birinchi videosini oldinroq yuborgan.
   reelOf(2, "TWO001")!.submittedAt = tashkent("2026-11-25 10:00");
   reelOf(1, "ONE001")!.submittedAt = tashkent("2026-11-26 10:00");
   reelOf(2, "TWO002")!.submittedAt = tashkent("2026-11-27 10:00");
   assert.deepEqual(stats.ranking().map((e) => [e.participant.telegramId, e.rank, e.views]), [
-    [1, 1, 6_000],
-    [2, 2, 6_000],
+    [2, 1, 6_000],
+    [1, 2, 6_000],
   ]);
 
   setNow("2026-12-02 06:01");
-  provider.set("TWO001", { owner: "b", views: 5_000 }); // 5 000 + 6 500 qo'shilmaydi
-  provider.set("TWO002", { owner: "b", views: 6_500 });
+  provider.set("TWO001", { owner: "b", views: 500 }); // 500 + 5 000 = 5 500 < 6 000
   await stats.syncAll("schedule");
   assert.deepEqual(stats.ranking().map((e) => [e.participant.telegramId, e.rank, e.views, e.rankDelta]), [
-    [2, 1, 6_500, 1],
-    [1, 2, 6_000, -1],
+    [1, 1, 6_000, 1],
+    [2, 2, 5_500, -1],
   ]);
 });
 
-test("a lost best Reel leaves the rating and goes to manual review on its own; the next most viewed counts", async () => {
+test("a lost Reel leaves the rating and goes to manual review on its own; the other Reels still count", async () => {
   const { provider, stats, join, submit, reelOf, setNow } = setup();
   provider.set("KEEP01", { owner: "a", views: 1_000 });
   provider.set("LOST02", { owner: "a", views: 9_000 });
   join(1, "KEEP01");
   submit(1, "LOST02");
   await stats.flushVerification();
-  assert.equal(stats.ranking()[0]?.views, 9_000);
+  assert.equal(stats.ranking()[0]?.views, 1_000 + 9_000);
 
   provider.set("LOST02", null);
   setNow("2026-12-02 06:01");

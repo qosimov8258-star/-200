@@ -19,8 +19,9 @@ import { VoucherTab } from "./voucher-tab";
 import { WinnerView } from "./winner-view";
 
 /**
- * "G'oliblar" bo'limi. Ikki tab: "Asosiy sovrinlar" — bosh sovrin (avtomobil) g'olibini aniqlash
- * oqimi va reyting bo'yicha sayohat / iPhone / planshet; "Voucher" — oylik voucherlar uchun random
+ * "G'oliblar" bo'limi. Ikki tab: "Asosiy sovrinlar" — oferta 6.2: har bir sovrin (avtomobil, sayohat,
+ * iPhone, planshet) o'z ko'rishlar oralig'idagi ishtirokchilar orasidan random tanlov bilan; avtomobil
+ * g'olibi keyin tekshiriladi, tasdiqlanadi va e'lon qilinadi. "Voucher" — oylik voucherlar uchun random
  * tanlov (sozlamalar, bosqich, "Tanlash", natija, tarix) va voucher g'oliblari.
  * URL: `?tab=voucher`, ochiq tanlov — `&draw=<id>` (`src/lib/winner-links.ts`).
  */
@@ -59,6 +60,7 @@ function MainPrizes() {
           title={`Bosh sovrin — ${RATING_PRIZE_LABELS.car}`}
           meta={car ? `${prizeQuantityLabel(car)} · ${formatViewsRange(car.minViews, car.maxViews)} ko'rish` : null}
         />
+        {car && <RatingPrizeTile tier={car} />}
         <WinnerView />
       </section>
 

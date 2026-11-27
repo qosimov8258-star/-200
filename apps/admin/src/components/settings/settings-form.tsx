@@ -44,8 +44,8 @@ function validate(form: ContestSettingsUpdate, data: ContestSettingsResponse): F
     errors.endsOn = "O'tgan kunni tanlab bo'lmaydi.";
   }
   if (!SYNC_TIME_PATTERN.test(form.syncTime)) errors.syncTime = "Vaqtni SS:DD ko'rinishida kiriting.";
-  if (!Number.isInteger(form.minAge) || form.minAge < 14 || form.minAge > 100) {
-    errors.minAge = "14 dan 100 gacha butun son.";
+  if (!Number.isInteger(form.minAge) || form.minAge < 18 || form.minAge > 100) {
+    errors.minAge = "18 dan 100 gacha butun son (oferta 3.1).";
   }
   return errors;
 }
@@ -133,7 +133,7 @@ export function SettingsForm({ data, onSaved }: SettingsFormProps) {
             id="endsOn"
             label="Tugash sanasi"
             error={fieldError("endsOn")}
-            hint="G'olib shu kungi reyting bo'yicha aniqlanadi."
+            hint="Yakuniy ko'rishlar shu kun 23:59 holatida qayd etiladi (oferta 7.5)."
           >
             <Input
               id="endsOn"
@@ -200,7 +200,7 @@ export function SettingsForm({ data, onSaved }: SettingsFormProps) {
               id="minAge"
               type="number"
               inputMode="numeric"
-              min={14}
+              min={18}
               max={100}
               value={Number.isNaN(form.minAge) ? "" : form.minAge}
               disabled={mutation.isPending}

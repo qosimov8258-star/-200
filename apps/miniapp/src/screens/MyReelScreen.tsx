@@ -9,11 +9,9 @@ import {
   Copy,
   Eye,
   LoaderCircle,
-  Medal,
   Play,
   RefreshCw,
   Snowflake,
-  Star,
   TrendingUp,
   Trophy,
 } from "lucide-react";
@@ -147,7 +145,7 @@ function SummaryTiles({ data }: { data: MyReels }) {
   const podium = data.rank !== null && data.rank <= 3 ? (data.rank as 1 | 2 | 3) : null;
   return (
     <div className="grid grid-cols-2 gap-3">
-      <BestViewsTile views={data.bestViews} />
+      <BestViewsTile views={data.totalViews} />
       <StatTile icon={<TrendingUp />} label={t.statToday} style={rise(2)}>
         <span className={data.todayViews > 0 ? "text-positive" : undefined}>{formatSigned(data.todayViews)}</span>
       </StatTile>
@@ -398,41 +396,15 @@ function ReelRow({ reel, syncEveryDays }: { reel: MyReelItem; syncEveryDays: num
                 )}
                 {status.label}
               </span>
-              {/* Eng yaxshi natija: o'rningiz va asosiy sovrin shu video bo'yicha — archa tepasidagi tilla yulduz kabi ajratiladi. */}
-              {reel.best && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-[#f3c656]/20 px-2 py-0.5 text-[12px] font-semibold text-[#ffd96b] ring-1 ring-[#f3c656]/45">
-                  <Star className="size-3 fill-current" aria-hidden />
-                  {t.reelBestBadge}
-                </span>
-              )}
             </span>
             <span className="mt-1 line-clamp-2 block text-[15px] font-semibold [overflow-wrap:anywhere]">
               <LinkText url={reel.url} />
             </span>
             <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12.5px] text-white/60">
               {accepted && (
-                <span
-                  className={clsx(
-                    "inline-flex items-center gap-1 font-semibold tabular-nums",
-                    reel.best ? "text-[#ffd96b]" : "text-white/90",
-                  )}
-                >
+                <span className="inline-flex items-center gap-1 font-semibold text-white/90 tabular-nums">
                   <Eye className="size-3.5" aria-hidden />
                   {t.views(formatCount(reel.views))}
-                </span>
-              )}
-              {/* Reyting har bir video bo'yicha — shu videoning o'z o'rni. */}
-              {accepted && reel.rank !== null && (
-                <span
-                  title={t.reelRankHint}
-                  className={clsx(
-                    "inline-flex items-center gap-1 font-semibold tabular-nums",
-                    reel.best ? "text-[#ffd96b]" : "text-white/90",
-                  )}
-                >
-                  <Medal className="size-3.5" aria-hidden />
-                  <span className="sr-only">{t.reelRankHint}:</span>
-                  {t.reelRank(reel.rank)}
                 </span>
               )}
               <span>{t.reelSubmittedAt(formatDayMonthTime(reel.submittedAt))}</span>

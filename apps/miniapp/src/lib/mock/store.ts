@@ -265,7 +265,7 @@ export async function register(body: RegisterRequest): Promise<void> {
  * Tanlov tugash vaqti — backenddagidek: oxirgi kun (25.02.2027, sovg'alarning oxirgi bosqichi)
  * tugagan yarim tun, Toshkent vaqti (UTC+5).
  */
-const MOCK_CONTEST_ENDS_AT = "2027-02-25T19:00:00.000Z";
+const MOCK_CONTEST_ENDS_AT = "2027-02-27T19:00:00.000Z";
 
 export async function getContest(): Promise<ContestInfo> {
   await wait(200);
@@ -334,7 +334,7 @@ const DELTAS = [0, 1, -1, 2, 0, -2, 3, 0, 1, -1, 0, 4];
 const SAMPLE_TOTALS = [3120, 5480, 9050, 12890, 15400, 19760, 22310, 26255];
 
 /** Backend jadvali bilan bir xil: tanlov boshidan har kuni, soat 00:00 (Toshkent). */
-const MOCK_CONTEST_STARTS_ON = "2026-11-25";
+const MOCK_CONTEST_STARTS_ON = "2026-11-27";
 const MOCK_SYNC_EVERY_DAYS = 7;
 
 function mockNextSyncAt(now = new Date()): string | null {
@@ -438,10 +438,8 @@ function mockRating(): MockRatingRow[] {
 const STATUS_GROUP: Record<ReelStatus, number> = { ACCEPTED: 0, PENDING: 1, MANUAL_REVIEW: 1, REJECTED: 2 };
 
 /**
- * Backenddagi GET /miniapp/reels kabi: har bir video alohida, har birining reytingdagi o'z o'rni
- * (`rank`). Natija (ko'rishlar, ishtirokchining o'rni, kunlik o'sish) — eng ko'p ko'rilgan bitta
- * qabul qilingan video bo'yicha; videolar ko'rishlari qo'shilmaydi. Ro'yxat tartibi `MyReels.reels`
- * izohida.
+ * Backenddagi GET /miniapp/reels kabi: natija (ko'rishlar, kunlik o'sish) — barcha qabul qilingan
+ * videolar yig'indisi (oferta 7.1). Ro'yxat tartibi `MyReels.reels` izohida.
  */
 function currentReels(): MyReels {
   const t = today();
@@ -457,8 +455,6 @@ function currentReels(): MyReels {
       rejectReason,
       views: totals ? totals[totals.length - 1] : 0,
       submittedAt: new Date(reel.submittedAt).toISOString(),
-      best: false,
-      rank: myRows.get(reel.shortcode)?.rank ?? null,
     };
     return { reel, totals, item };
   });
@@ -473,24 +469,29 @@ function currentReels(): MyReels {
     return b.reel.submittedAt - a.reel.submittedAt;
   });
 
-  const best = items[0]?.totals ? items[0] : null;
-  if (best) best.item.best = true;
+  // Umumiy ko'rishlar — qabul qilingan videolar kunlik jami (oxirgi kunlar bo'yicha tekislanadi).
+  const accepted = items.filter((x) => x.totals !== null).map((x) => x.totals as number[]);
+  const length = Math.max(0, ...accepted.map((totals) => totals.length));
+  const sums = Array.from({ length }, (_, i) =>
+    accepted.reduce((sum, totals) => {
+      const j = totals.length - length + i;
+      return sum + (j >= 0 ? totals[j] : 0);
+    }, 0),
+  );
   const daily: DailyViews[] = [];
-  if (best?.totals) {
-    const totals = best.totals;
-    for (let i = 1; i < totals.length; i++) {
-      const d = new Date(t);
-      d.setDate(t.getDate() - (totals.length - 1 - i));
-      daily.push({ date: isoDay(d), views: totals[i] - totals[i - 1] });
-    }
+  for (let i = 1; i < sums.length; i++) {
+    const d = new Date(t);
+    d.setDate(t.getDate() - (sums.length - 1 - i));
+    daily.push({ date: isoDay(d), views: sums[i] - sums[i - 1] });
   }
-  // Ishtirokchining o'rni — eng yaxshi videosining qatori (reytingdagi birinchi `isMe` qatori).
+  const best = items[0]?.totals ? items[0] : null;
+  // Mock: o'rin — birinchi `isMe` qatori.
   const bestRow = best ? myRows.get(best.reel.shortcode) : undefined;
   const synced = new Date(t);
   synced.setHours(9);
   return {
-    bestViews: best ? best.item.views : 0,
-    todayViews: best ? daily[daily.length - 1].views : 0,
+    totalViews: sums.at(-1) ?? 0,
+    todayViews: daily.at(-1)?.views ?? 0,
     rank: bestRow?.rank ?? null,
     rankDelta: bestRow?.rankDelta ?? 0,
     daily,
@@ -583,39 +584,38 @@ export async function submitReel(url: string): Promise<MyReels> {
 /** Sovrinlar — backenddagi `apps/backend/src/miniapp/prizes.ts` bilan bir xil. */
 const PRIZES: ContestPrizes = {
   monthly: {
-    title: "Korzinka voucheri",
+    title: "Korzinka xarid voucheri",
     amount: 500_000,
-    perMonth: 300,
-    total: 900,
+    perMonth: 200,
+    total: 600,
     minViews: 1_000,
     maxViews: 100_000,
   },
   stages: [
-    { startsOn: "2026-11-25", endsOn: "2026-12-24" },
-    { startsOn: "2026-12-25", endsOn: "2027-01-24" },
-    { startsOn: "2027-01-25", endsOn: "2027-02-25" },
+    { startsOn: "2026-11-27", endsOn: "2026-12-26" },
+    { startsOn: "2026-12-27", endsOn: "2027-01-26" },
+    { startsOn: "2027-01-27", endsOn: "2027-02-27" },
   ],
   tiers: [
-    { kind: "tablet", title: "Planshet", quantity: 25, unit: null, minViews: 101_000, maxViews: 500_000 },
-    { kind: "phone", title: "iPhone 18 Pro", quantity: 15, unit: null, minViews: 500_001, maxViews: 1_500_000 },
+    { kind: "tablet", title: "Planshet", quantity: 25, unit: null, minViews: 100_001, maxViews: 500_000 },
+    { kind: "phone", title: "iPhone 18 Pro smartfoni", quantity: 15, unit: null, minViews: 500_001, maxViews: 1_500_000 },
     {
       kind: "travel",
-      title: "Tailandga 2 kishilik sayohat",
+      title: "Tailandga 2 kishilik sayohat yo'llanmasi",
       quantity: 3,
-      unit: "yo'llanma",
+      unit: null,
       minViews: 1_500_001,
-      maxViews: 3_500_000,
+      maxViews: 4_000_000,
     },
-    { kind: "car", title: "BYD Chazor avtomobili", quantity: 1, unit: null, minViews: 4_000_000, maxViews: null },
+    { kind: "car", title: "BYD Chazor avtomobili", quantity: 1, unit: null, minViews: 4_000_001, maxViews: null },
   ],
   notes: [
-    "500 000 so'mlik voucher random tanlanadi va bir kishiga aksiya davomida faqat bir marta beriladi",
-    "Asosiy sovrinlar random emas — reyting bo'yicha: har bir sovrinning ko'rishlar oralig'ida eng ko'p ko'rilgan videosi bor ishtirokchilar oladi",
-    "Voucherlardan tashqari bitta asosiy sovrinni ham yutishingiz mumkin",
-    "Bitta ishtirokchiga faqat bitta asosiy sovrin beriladi",
-    "Oylik sovrin uchun faqat shu oyda yuklangan Reellar hisoblanadi",
-    "Asosiy sovrin uchun aksiya davomidagi eng ko'p ko'rilgan bitta tasdiqlangan Reelingiz hisoblanadi (videolar ko'rishlari qo'shilmaydi)",
-    "Sovrinlar pulga almashtirilmaydi va boshqa odamga berilmaydi",
+    "G'oliblar reyting yoki o'rin bo'yicha emas — har bir oraliq ichida tasodifiy tanlov (random) orqali aniqlanadi",
+    "Oylik voucher uchun faqat shu oylik bosqichda ro'yxatdan o'tkazilgan videolarning tasdiqlangan ko'rishlari qo'shib hisoblanadi",
+    "Asosiy sovrin uchun aksiya davomida ro'yxatdan o'tkazilgan barcha tasdiqlangan videolaringiz ko'rishlari qo'shib hisoblanadi",
+    "Talablarni bajarsangiz, bir necha oy davomida voucher yutishingiz mumkin",
+    "Voucherlardan tashqari faqat bitta asosiy sovrin yutish mumkin; 100 000 va undan kam ko'rishlar asosiy sovrin tanloviga kirmaydi",
+    "Sovrinlar pul ekvivalentiga almashtirilmaydi va boshqa shaxsga berilmaydi",
   ],
 };
 

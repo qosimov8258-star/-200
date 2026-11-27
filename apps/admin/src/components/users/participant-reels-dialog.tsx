@@ -2,7 +2,7 @@
 
 import { useId } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Clapperboard, ExternalLink, Flag, Trophy } from "lucide-react";
+import { AlertTriangle, Clapperboard, ExternalLink, Flag } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,6 @@ import { getParticipantReels } from "@/lib/api";
 import { errorMessage } from "@/lib/api-error";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
 import {
-  BEST_REEL_LABEL,
   MANUAL_REVIEW_REEL_LABEL,
   PARTICIPANT_STATUS_LABELS,
   PARTICIPANT_STATUS_TONES,
@@ -41,10 +40,9 @@ interface ParticipantReelsDialogProps {
 }
 
 /**
- * Ishtirokchi ma'lumotlari (telefon, yosh, holat, Instagram) va barcha yuborgan videolari:
- * holati, reytingdagi o'rni, ko'rishlari va shubha belgilari. Reytingda har bir qabul qilingan
- * video alohida qator; ishtirokchining natijasi va o'rni — eng ko'p ko'rilgan bitta videosi
- * bo'yicha (ko'rishlar qo'shilmaydi).
+ * Ishtirokchi ma'lumotlari (telefon, yosh, holat, Instagram) va barcha yuborgan videolari: holati,
+ * ko'rishlari va shubha belgilari. Ishtirokchining natijasi — barcha tasdiqlangan videolari
+ * ko'rishlarining yig'indisi (oferta 7.1).
  */
 export function ParticipantReelsDialog({ participant, highlight, onClose }: ParticipantReelsDialogProps) {
   const name = fullName(participant);
@@ -91,10 +89,9 @@ function countReels(reels: AdminReelItem[]): ParticipantReelCounts {
 }
 
 function ReelsBody({ data, highlight }: { data: ParticipantReels; highlight?: string }) {
-  // Tartib backenddan: qabul qilinganlar ko'rishlar bo'yicha (birinchisi — eng ko'p ko'rilgani),
-  // keyin tekshiruvdagilar, keyin rad etilganlar.
+  // Tartib backenddan: qabul qilinganlar ko'rishlar bo'yicha, keyin tekshiruvdagilar, keyin rad etilganlar.
   const reels = data.reels;
-  const best = reels.find((reel) => reel.best);
+  const acceptedCount = reels.filter((reel) => reel.status === "ACCEPTED").length;
   const profile = data.participant;
   const usernames = profile.instagramUsernames;
   const listTitleId = useId();
@@ -150,16 +147,14 @@ function ReelsBody({ data, highlight }: { data: ParticipantReels; highlight?: st
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-slate-500">Eng ko&apos;p ko&apos;rilgan video</dt>
+          <dt className="text-xs text-slate-500">Umumiy ko&apos;rishlar</dt>
           <dd className="mt-0.5 text-base font-semibold text-slate-900 tabular-nums">
-            {formatNumber(data.bestViews)}
+            {formatNumber(data.totalViews)}
           </dd>
           <dd className="text-xs text-slate-500">
-            {!best
+            {acceptedCount === 0
               ? "qabul qilingan video yo'q"
-              : best.rank !== null
-                ? `ishtirokchi o'rni — ${best.rank}-o'rin`
-                : "reytingda emas"}
+              : `${formatNumber(acceptedCount)} ta tasdiqlangan video yig'indisi`}
           </dd>
         </div>
         <div>
@@ -181,7 +176,7 @@ function ReelsBody({ data, highlight }: { data: ParticipantReels; highlight?: st
       ) : (
         <section aria-labelledby={listTitleId}>
           <h3 id={listTitleId} className="mb-1 text-xs font-medium tracking-wide text-slate-500 uppercase">
-            {best ? "Yuborilgan videolar — eng ko'p ko'rilgani yuqorida" : "Yuborilgan videolar"}
+            {acceptedCount > 0 ? "Yuborilgan videolar — eng ko'p ko'rilgani yuqorida" : "Yuborilgan videolar"}
           </h3>
           <ul className="max-h-[55vh] divide-y divide-slate-100 overflow-y-auto rounded-md border border-slate-200">
             {reels.map((reel) => (
@@ -212,17 +207,6 @@ function ReelRow({ reel, highlighted }: { reel: AdminReelItem; highlighted: bool
         </a>
         {highlighted && <span className="sr-only">— qo&apos;lda tekshiruvdagi video</span>}
         <span className="inline-flex flex-wrap items-center gap-1.5">
-          {reel.rank !== null && (
-            <Badge tone="neutral" className="tabular-nums" title="Reytingdagi o'rni (har bir video alohida qator)">
-              {reel.rank}-o&apos;rin
-            </Badge>
-          )}
-          {reel.best && (
-            <Badge tone="brand" className="gap-1">
-              <Trophy className="size-3" aria-hidden />
-              {BEST_REEL_LABEL}
-            </Badge>
-          )}
           {reel.manualReview ? (
             <Badge tone="brand">{MANUAL_REVIEW_REEL_LABEL}</Badge>
           ) : (

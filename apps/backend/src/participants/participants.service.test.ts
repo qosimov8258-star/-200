@@ -155,7 +155,7 @@ test("one Instagram account — one participant, but a participant may use sever
   assert.deepEqual(instagramUsernames(svc.get(1)!), ["ali", "ali_second"]);
 });
 
-test("views are the most viewed accepted Reel's latest views — Reels do not add up", () => {
+test("views are the sum of every accepted Reel's latest views (oferta 7.1); undecided and rejected do not count", () => {
   const svc = make();
   active(svc, 1, "+998900000001");
   const snap = (reel: Reel, ...views: number[]) => {
@@ -174,7 +174,7 @@ test("views are the most viewed accepted Reel's latest views — Reels do not ad
   d.status = "REJECTED";
   snap(d, 70_000);
   const p = svc.get(1)!;
-  assert.equal(participantViews(p), 5_000);
+  assert.equal(participantViews(p), 6_000, "1 000 + 5 000 — faqat qabul qilinganlarning oxirgi ko'rishlari");
   assert.equal(bestReel(p), b);
   assert.equal(topReel([a, b]), b);
   assert.equal(topReel([]), null);
@@ -183,6 +183,7 @@ test("views are the most viewed accepted Reel's latest views — Reels do not ad
   a.submittedAt = new Date("2026-12-01T10:00:00Z");
   b.submittedAt = new Date("2026-12-02T10:00:00Z");
   assert.equal(topReel([b, a]), a);
+  assert.equal(participantViews(p), 10_000);
 });
 
 test("without accepted Reels the views are 0 and there is no best Reel", () => {

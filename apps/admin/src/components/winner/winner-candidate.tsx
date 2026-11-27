@@ -20,7 +20,6 @@ export type WinnerAction = "skip" | "confirm" | "unconfirm" | "announce" | Manua
 
 /** Qo'lda bandlar tugmalari: [o'tdi, o'tmadi]. */
 const MANUAL_BUTTONS: Record<WinnerManualCheckKey, [string, string]> = {
-  PURCHASE_CONFIRMED: ["Tasdiqlandi", "Tasdiqlanmadi"],
   AD_TOOLS_REVIEWED: ["Reklama yo'q", "Reklama bor"],
 };
 
@@ -32,7 +31,7 @@ interface WinnerCandidateCardProps {
 }
 
 const STAGE_TITLES: Record<WinnerOverview["stage"], string> = {
-  NOT_STARTED: "Joriy yetakchi",
+  NOT_STARTED: "Random tanlov g'olibi (oldindan)",
   CANDIDATE: "G'olib nomzodi",
   CONFIRMED: "G'olib (tasdiqlangan)",
   ANNOUNCED: "G'olib",
@@ -45,7 +44,7 @@ export function WinnerCandidateCard({ overview, onAction }: WinnerCandidateCardP
     return (
       <Card>
         <CardContent className="py-10 text-center text-sm text-slate-500">
-          Reytingda nomzod yo&apos;q.
+          Nomzod yo&apos;q — avval yuqorida avtomobil uchun random tanlov o&apos;tkazing.
         </CardContent>
       </Card>
     );
@@ -67,7 +66,8 @@ export function WinnerCandidateCard({ overview, onAction }: WinnerCandidateCardP
           <div className="min-w-0 flex-1">
             <p className="text-xl font-semibold text-slate-900">{name}</p>
             <p className="text-sm text-slate-500">
-              {candidate.rank}-o&apos;rin · {formatNumber(candidate.views)} ko&apos;rish ·{" "}
+              {candidate.rank === 1 ? "G'olib" : `${candidate.rank - 1}-zaxira`} · {formatNumber(candidate.views)}{" "}
+              ko&apos;rish (jami) ·{" "}
               {candidate.participant.age} yosh
             </p>
             <p className="mt-1 flex flex-wrap gap-x-3 text-sm text-slate-600">
@@ -186,9 +186,8 @@ function StageActions({
     case "NOT_STARTED":
       return (
         <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
-          Tasdiqlash tanlov tugagach ochiladi. Hozir yetakchini oldindan tekshirib, xarid
-          hujjatini tasdiqlab qo&apos;yishingiz mumkin. Reklama tarixi esa g&apos;olib bilan
-          yuzma-yuz uchrashuvda ko&apos;riladi.
+          Tasdiqlash aksiya tugagach ochiladi (yakuniy ko&apos;rishlar 27.02.2027 23:59 holatida). Reklama
+          tarixi g&apos;olib bilan yuzma-yuz uchrashuvda ko&apos;riladi.
         </p>
       );
     case "CANDIDATE":

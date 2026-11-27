@@ -115,7 +115,7 @@ avtomatik `reels` ga o'tkaziladi.
    - topilmadi, ko'rishlari kelmadi yoki Apify xato berdi → 2 va 10 daqiqadan keyin qayta urinadi (xatoda —
      2, 4… daqiqa); **3 marta bo'lmasa — qo'lda tekshiruv** (`NEW_REEL`, pastda). Video
      "tekshirilmoqda"da cheksiz qolmaydi.
-2. **Muntazam yig'ish** — tanlov boshlangan kundan (25-noyabr) Sozlamalardagi davr bo'yicha (standart — **haftada bir
+2. **Muntazam yig'ish** — aksiya boshlangan kundan (27-noyabr) Sozlamalardagi davr bo'yicha (standart — **haftada bir
    marta**, `syncEveryDays`) soat `STATS_SYNC_TIME` da
    rad etilmagan barcha videolar; har kunga bitta yozuv (tarix → Mini App grafigi). Qabul qilingan video topilmasa, 2 va 10
    daqiqadan keyin qayta tekshiriladi; 3 marta topilmasa — uning ko'rishlari reytingda vaqtincha hisobga olinmaydi va
@@ -134,14 +134,20 @@ avtomatik `reels` ga o'tkaziladi.
    Kutish paytida Apify videoni o'zi topsa — holat avtomatik yopiladi (`NEW_REEL`/`LOST_REEL`; AI
    mahsulotni topmagan `AI_CHECK` videoni esa faqat admin hal qiladi).
 4. **Tanlov tugagach** (`contest.ts` → `endsAt`) — bitta yakuniy yig'ish, keyin to'xtaydi.
-5. **Reyting** (qoidalar 7.1, 7.3) — **videolar reytingi**: har bir qabul qilingan (`ACCEPTED`) video —
-   alohida qator (`StatsService.reelRanking`), 4 ta videosi bor ishtirokchi 4 joyda ko'rinadi; ko'rishlar
-   kamayishi bo'yicha, teng bo'lsa — oldinroq yuborilgan video yuqorida. Videolar ko'rishlari
-   **qo'shilmaydi**. Ishtirokchining natijasi va o'rni (g'olib, asosiy sovrinlar, target tekshiruvi —
-   `ranking()`, bitta ishtirokchi bitta qator) — **eng ko'p ko'rilgan** videosi va uning shu reytingdagi
-   joyi, shuning uchun ishtirokchilar o'rni oralab ketishi mumkin (1, 4, 5…). O'rin o'zgarishi — oldingi
-   yig'ishdagi o'ringa nisbatan (har bir video uchun alohida). Oylik random tanlovda (7.2) davrga kirgan
-   videolardan eng ko'p ko'rilgani olinadi.
+5. **Natija va sovrinlar** — «OLIVIA» aksiyasi ommaviy ofertasi (25.11.2026; to'liq matni
+   [`src/rules/offer-text.ts`](src/rules/offer-text.ts), Mini App "Qoidalar" bo'limida ikki tilda):
+   - **Ko'rishlar qo'shiladi** (7.1): ishtirokchining natijasi — barcha qabul qilingan videolari oxirgi
+     ko'rishlarining yig'indisi (`participantViews`). Reyting (`StatsService.ranking()`, Mini App) —
+     ishtirokchilar shu yig'indi bo'yicha, **faqat ma'lumot uchun**: g'oliblar o'rin bo'yicha emas (9.1).
+   - **Oylik voucherlar** (6.1): Korzinka 500 000 so'm, oyiga 200 ta (jami 600); bosqichlar 27.11–26.12,
+     27.12–26.01, 27.01–27.02. Bosqichda ro'yxatdan o'tkazilgan (ilovaga yuborilgan) videolar ko'rishlari
+     yig'indisi 1 000–100 000 bo'lganlar orasida random (`DrawsService`). Bir necha oy yutish mumkin (6.1.5).
+   - **Asosiy sovrinlar** (6.2) — aksiya davomidagi umumiy ko'rishlar oralig'ida **random** (zaxira bilan):
+     4 000 001+ — BYD Chazor (1), 1 500 001–4 000 000 — Tailandga sayohat (3), 500 001–1 500 000 —
+     iPhone 18 Pro (15), 100 001–500 000 — planshet (25). Admin → G'oliblar → "Random tanlov o'tkazish"
+     (`prizeId: main-car|main-travel|main-phone|main-tablet`); bitta kishiga bitta asosiy sovrin.
+     Avtomobil g'olibi (`WinnerService`) — shu tanlov navbati: g'olib, rad etilsa — navbatdagi zaxira (10.3).
+   - Xarid ishtirok sharti emas (2.7) — g'olib tekshiruvida "xarid" bandi yo'q.
 6. **Nakrutka belgilari** (faqat admin uchun, avtomatik jazo yo'q): `LOW_ENGAGEMENT`
    (layk/ko'rish < 0.3%), `VIEW_SPIKE` (bir kunda 10 barobardan ko'p o'sish), `ENGAGEMENT_GAP`
    (kuniga kamida +20 000 va 3 barobar o'sish, shu kungi layk ulushi odatdagidan 4 marta past),
@@ -253,7 +259,7 @@ Kerak: `ffmpeg` va `ffprobe` (`brew install ffmpeg`). Serverda — [`deploy/READ
 
 | So'rov | Vazifa |
 |---|---|
-| `GET /miniapp/reels` | "Mening videolarim" — `MyReels`: `bestViews` (eng ko'p ko'rilgan qabul qilingan video — reytingdagi natija), shu videoning bugungi va kunlik o'sishi (oxirgi 30 kun), o'rin (eng ko'p ko'rilgan videosi joyi) va uning o'zgarishi, oxirgi va keyingi yig'ish, `reels` (avval qabul qilinganlar ko'rishlar kamayishi bo'yicha — birinchisi `best: true`, keyin tekshiruvdagilar, keyin rad etilganlar; holat, rad sababi, ko'rishlar, `rank` — videoning reytingdagi o'rni). Video bo'lmasa ham obyekt (`reels: []`) |
+| `GET /miniapp/reels` | "Mening videolarim" — `MyReels`: `totalViews` (barcha qabul qilingan videolar yig'indisi), umumiy o'sish (oxirgi va har yig'ishdagi, 30 tagacha), o'rin (ishtirokchilar reytingida) va uning o'zgarishi, oxirgi va keyingi yig'ish, `reels` (avval qabul qilinganlar ko'rishlar kamayishi bo'yicha, keyin tekshiruvdagilar, keyin rad etilganlar; holat, rad sababi, ko'rishlar). Video bo'lmasa ham obyekt (`reels: []`) |
 | `POST /miniapp/reels` | `{ url }` — yangi video (soni cheklanmagan), javob — yangilangan `MyReels`. Xatolar: `422 INVALID_LINK`, `409 REEL_ALREADY_SUBMITTED`, `409 REEL_TAKEN`, `403 UNAUTHORIZED` |
 | `GET /miniapp/stories` | Istoriyalar (ochiq, mehmonlarga ham): `StoryGroup[]` — ishtirokchi bo'yicha (`authorKey`, `fullName`, `isMe`, `stories` eskidan yangiga), o'zimniki birinchi, keyin eng yangisi bo'yicha. Bloklangan/chetlatilganlarniki ko'rinmaydi |
 | `POST /miniapp/stories` | Yangi istoriya: so'rov tanasi — videoning o'zi (raw), `Content-Type: video/mp4 \| video/quicktime \| video/webm`, 50 MB gacha; faqat ro'yxatdan o'tgan faol ishtirokchi, bir vaqtda 10 tagacha. Javob `201` — yangi ro'yxat. Xatolar: `403 UNAUTHORIZED`, `413 STORY_TOO_LARGE`, `422 STORY_INVALID_FILE`, `429 STORY_LIMIT`. Istoriya 24 soat yashaydi, keyin fayli o'chiriladi |
@@ -291,8 +297,8 @@ Kerak: `ffmpeg` va `ffprobe` (`brew install ffmpeg`). Serverda — [`deploy/READ
 | `GET /admin/audit-log` | Audit log: `search`, `entity`, `actorRole`, `page`, `pageSize` |
 | `GET /admin/rules`, `PUT /admin/rules` | Tanlov qoidalari |
 | `GET` / `PUT` / `DELETE /admin/rules/video` | Qoida videosi (Mini App'dagi "Qoidalar" bo'limida eng tepada): `PUT` tanasi — videoning o'zi (raw), `Content-Type: video/mp4 \| video/quicktime \| video/webm`, 100 MB gacha; eskisi almashtiriladi. Xatolar: `413 RULES_VIDEO_TOO_LARGE`, `422 RULES_VIDEO_INVALID`. Audit: `settings.rules_video`, `settings.rules_video_delete`. Mini App: `GET /miniapp/rules` → `video: { id, mime } \| null`, fayl — `GET /miniapp/rules/video/:id` (ochiq, Range bilan) |
-| `GET /admin/participants` | Foydalanuvchilar: `search` (ism, telefon, istalgan Instagram akkaunti), `status`, `reel` (`PENDING`/`ACCEPTED`/`REJECTED` — shu holatda kamida bitta videosi bor; `NONE` — videosi yo'q), `sort`, `order`, `page`, `pageSize`. Qatorda `reels` — videolar soni holatlar bo'yicha, `views` — eng ko'p ko'rilgan qabul qilingan videosi |
-| `GET /admin/participants/:id/reels` | Ishtirokchining barcha videolari (`/miniapp/reels` tartibida — eng ko'p ko'rilgani tepada, `best: true`; `bestViews`; `rank` — videoning reytingdagi o'rni): holat, qo'lda tekshiruvdami, rad sababi, egasi, ko'rishlar, layklar, sanalar, nakrutka belgilari; `404` — ishtirokchi topilmadi |
+| `GET /admin/participants` | Foydalanuvchilar: `search` (ism, telefon, istalgan Instagram akkaunti), `status`, `reel` (`PENDING`/`ACCEPTED`/`REJECTED` — shu holatda kamida bitta videosi bor; `NONE` — videosi yo'q), `sort`, `order`, `page`, `pageSize`. Qatorda `reels` — videolar soni holatlar bo'yicha, `views` — umumiy tasdiqlangan ko'rishlar (yig'indi) |
+| `GET /admin/participants/:id/reels` | Ishtirokchining barcha videolari (`/miniapp/reels` tartibida — eng ko'p ko'rilgani tepada; `totalViews` — yig'indi): holat, qo'lda tekshiruvdami, rad sababi, egasi, ko'rishlar, layklar, sanalar, nakrutka belgilari; `404` — ishtirokchi topilmadi |
 | `GET /admin/stories` | Istoriyalar: faol istoriyalar (bloklanganlarniki ham), eng yangisi birinchi — ishtirokchi (id, ism, telefon), sanalar, hajmi; `page`, `pageSize`. Video — `GET /miniapp/stories/:id/video` |
 | `POST /admin/stories/:id/remove` | `{ reason }` — istoriyani o'chirish (nomaqbul video), audit log: `story.remove`; `404` — topilmadi yoki muddati o'tgan |
 | `POST /admin/participants/:id/{block,unblock,disqualify}` | `{ reason }` — bloklash, blokdan chiqarish, diskvalifikatsiya |
@@ -304,8 +310,8 @@ Kerak: `ffmpeg` va `ffprobe` (`brew install ffmpeg`). Serverda — [`deploy/READ
 | `POST /admin/manual-reviews/:shortcode/decision` | `{ decision: "approve" }` yoki `{ decision: "reject", reason, note? }` |
 | `GET /admin/draws/setup` | Random tanlov: bosqichlar, oylik sovg'a, `saved` — bir marta tasdiqlangan doimiy sozlamalar (bo'lmasa — null), `defaults` — saqlangan yoki standart qiymatlar (sana turi standart — Instagram'da joylangan) |
 | `PUT /admin/draws/settings` | Doimiy sozlamalarni saqlash/tahrirlash: `{ dateBasis, minViews, maxViews, winnersCount, reservesCount, excludeWarned, excludeTargets, messageTemplate }`, javob — yangi `setup`; audit `draw.settings.update`. Har bir tanlovda faqat bosqich/davr tanlanadi |
-| `POST /admin/draws/preview` | Sozlamalar bo'yicha nomzodlar soni va chetda qolganlar sababi. Qoidalar 7.2: davrga faqat sanasi (`dateBasis` — Instagram'da joylangan yoki ilovaga yuborilgan kun) davr ichidagi qabul qilingan videolar kiradi, nomzod ko'rishlari — ulardan eng ko'p ko'rilganiniki; `totalReels` — barcha yuborilgan videolar. **Voucher bir kishiga aksiya davomida bir marta**: bekor qilinmagan istalgan tanlovning (qoralama ham) faol g'oliblari har doim chetda (`PREVIOUS_WINNER`), `excludePreviousWinners` e'tiborga olinmaydi |
-| `GET /admin/winner/prizes` | Asosiy sovrinlar (avtomobil, sayohat, iPhone, planshet) — **random emas, reyting bo'yicha**: har bir sovrinning ko'rishlar oralig'ida eng ko'p ko'rilgan videosi bor ishtirokchilar, birinchi `quantity` tasi g'olib, keyingi 5 tasi navbatda; target/nakrutka belgilari bilan |
+| `POST /admin/draws/preview` | Sozlamalar bo'yicha nomzodlar soni va chetda qolganlar sababi. Oferta 7.2: davrga faqat sanasi (`dateBasis`, standart — ilovaga yuborilgan kun) davr ichidagi qabul qilingan videolar kiradi, nomzod ko'rishlari — ularning **yig'indisi**; `totalReels` — barcha yuborilgan videolar. Oylik voucherni bir necha oy yutish mumkin (6.1.5) — oldingi g'oliblar chetlatilmaydi. Asosiy sovrin (`main-*`): davr, oraliq va soni ofertadagi, boshqa asosiy sovrin g'oliblari chetda (`PREVIOUS_WINNER`) |
+| `GET /admin/winner/prizes` | Asosiy sovrinlar (avtomobil, sayohat, iPhone, planshet) — oferta 6.2: har birining oralig'idagi ishtirokchilar soni (umumiy ko'rishlar bo'yicha), random tanlov bo'lsa — uning g'oliblari va zaxirasi, bo'lmasa — oraliqdagilar (30 tagacha); target/nakrutka belgilari bilan |
 | `POST /admin/draws` | Random tanlovni o'tkazish (kriptografik `seed`, natija — qoralama) |
 | `GET /admin/draws`, `GET /admin/draws/:id` | Tanlovlar tarixi va natija |
 | `GET /admin/draws/stock` | Voucherlar qoldig'i: jami, yuborilgan, tasdiqlangan, qoralamada, qolgan (bosqichlar bo'yicha) |

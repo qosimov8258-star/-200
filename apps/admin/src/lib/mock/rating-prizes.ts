@@ -6,30 +6,33 @@
  * reyting tartibida, birinchi `quantity` tasi — g'oliblar, keyingi 5 tasi — navbatdagilar.
  * Oraliqlar kesishmaydi — bir kishiga bitta asosiy sovrin.
  */
-import type { RatingPrizeEntry, RatingPrizes, RatingPrizeTier } from "../types";
+import type { DrawEntry, RatingPrizeEntry, RatingPrizes, RatingPrizeTier } from "../types";
+import { mainDrawOf } from "./draws";
 import { getContestData } from "./contest";
 import { computeRanking, type MockRankingEntry } from "./ranking";
 import { effectiveSettings, lastSyncAt } from "./settings";
 import { readStore } from "./store";
 import { targetCaseStatus } from "./targets";
 
-/** Har bir sovrin uchun ko'rsatiladigan navbatdagilar soni (backend `NEXT_COUNT`). */
-const NEXT_COUNT = 5;
+/** Har bir sovrin uchun ko'rsatiladigan navbatdagilar soni (backend `PREVIEW_COUNT`). */
+const PREVIEW_COUNT = 30;
 
 /** Backend `miniapp/prizes.ts` → `tiers` bilan bir xil; eng qimmatidan. */
-const TIERS: Array<Pick<RatingPrizeTier, "kind" | "title" | "quantity" | "unit" | "minViews" | "maxViews">> = [
-  { kind: "car", title: "BYD Chazor avtomobili", quantity: 1, unit: null, minViews: 4_000_000, maxViews: null },
+/** Ommaviy oferta 6.2.1 (backend `miniapp/prizes.ts` bilan bir xil). */
+export const MAIN_TIERS: Array<Pick<RatingPrizeTier, "kind" | "title" | "quantity" | "unit" | "minViews" | "maxViews">> = [
+  { kind: "car", title: "BYD Chazor avtomobili", quantity: 1, unit: null, minViews: 4_000_001, maxViews: null },
   {
     kind: "travel",
-    title: "Tailandga 2 kishilik sayohat",
+    title: "Tailandga 2 kishilik sayohat yo'llanmasi",
     quantity: 3,
-    unit: "yo'llanma",
+    unit: null,
     minViews: 1_500_001,
-    maxViews: 3_500_000,
+    maxViews: 4_000_000,
   },
-  { kind: "phone", title: "iPhone 18 Pro", quantity: 15, unit: null, minViews: 500_001, maxViews: 1_500_000 },
-  { kind: "tablet", title: "Planshet", quantity: 25, unit: null, minViews: 101_000, maxViews: 500_000 },
+  { kind: "phone", title: "iPhone 18 Pro smartfoni", quantity: 15, unit: null, minViews: 500_001, maxViews: 1_500_000 },
+  { kind: "tablet", title: "Planshet", quantity: 25, unit: null, minViews: 100_001, maxViews: 500_000 },
 ];
+const TIERS = MAIN_TIERS;
 
 const inRange = (views: number, tier: { minViews: number; maxViews: number | null }) =>
   views >= tier.minViews && (tier.maxViews === null || views <= tier.maxViews);
@@ -71,15 +74,35 @@ export function getRatingPrizes(): RatingPrizes {
     ];
   };
 
+  const byId = new Map(ranking.map((row) => [row.participantId, row]));
+  const fromDraw = (entry: DrawEntry): RatingPrizeEntry => ({
+    place: entry.position,
+    rank: byId.get(entry.candidate.participantId)?.rank ?? 0,
+    participant: {
+      id: entry.candidate.participantId,
+      firstName: entry.candidate.firstName,
+      lastName: entry.candidate.lastName,
+      phone: entry.candidate.phone,
+      instagramUsername: entry.candidate.instagramUsername,
+    },
+    views: entry.candidate.views,
+    reelUrl: entry.candidate.reelUrl,
+    hasTarget: withTarget.has(entry.candidate.participantId),
+    flagged: false,
+  });
+
   const tiers = TIERS.map((tier): RatingPrizeTier => {
     const rows = ranking.filter((row) => inRange(row.views, tier));
+    const draw = mainDrawOf(tier.kind);
     return {
       ...tier,
       eligibleCount: rows.length,
-      winners: rows.slice(0, tier.quantity).flatMap((row, i) => toEntry(row, i + 1)),
-      next: rows
-        .slice(tier.quantity, tier.quantity + NEXT_COUNT)
-        .flatMap((row, i) => toEntry(row, tier.quantity + i + 1)),
+      draw: draw
+        ? { id: draw.id, number: draw.number, status: draw.status, viewsAsOf: draw.viewsAsOf, poolSize: draw.poolSize }
+        : null,
+      winners: draw ? draw.winnerEntries.filter((e) => e.state === "ACTIVE").map(fromDraw) : [],
+      next: draw ? draw.reserveEntries.filter((e) => e.state === "ACTIVE").map(fromDraw) : [],
+      eligible: draw ? [] : rows.slice(0, PREVIEW_COUNT).flatMap((row, i) => toEntry(row, i + 1)),
     };
   });
 

@@ -108,8 +108,8 @@ export interface ParticipantListItem {
   /** Yuborilgan videolar soni holat bo'yicha. Videolarning o'zi — `getParticipantReels`. */
   reels: ParticipantReelCounts;
   /**
-   * Eng ko'p ko'rilgan qabul qilingan videosining oxirgi yig'ilgan ko'rishlari — reytingdagi natija
-   * (videolar ko'rishlari qo'shilmaydi). Qabul qilingan video yo'q — 0.
+   * Umumiy tasdiqlangan ko'rishlar — barcha qabul qilingan videolari oxirgi ko'rishlarining yig'indisi
+   * (oferta 7.1). Qabul qilingan video yo'q — 0.
    */
   views: number;
   /**
@@ -183,14 +183,14 @@ export interface ParticipantReels {
     registeredOn: IsoDate;
   };
   /**
-   * Ro'yxatdagi `views` bilan bir xil: eng ko'p ko'rilgan qabul qilingan videoning ko'rishlari
-   * (videolar ko'rishlari qo'shilmaydi). Qabul qilingan video yo'q — 0.
+   * Ro'yxatdagi `views` bilan bir xil: umumiy tasdiqlangan ko'rishlar — barcha qabul qilingan
+   * videolari ko'rishlarining yig'indisi (oferta 7.1). Qabul qilingan video yo'q — 0.
    */
-  bestViews: number;
+  totalViews: number;
   /**
-   * Tartib: qabul qilinganlar ko'rishlar kamayishi bo'yicha (teng bo'lsa — oldinroq yuborilgani;
-   * birinchisi — eng ko'p ko'rilgani, `best`), keyin tekshiruvdagilar (qo'lda tekshiruvdagilar ham),
-   * keyin rad etilgan va o'chirilganlar; oxirgi ikkalasida eng yangisi birinchi.
+   * Tartib: qabul qilinganlar ko'rishlar kamayishi bo'yicha (teng bo'lsa — oldinroq yuborilgani),
+   * keyin tekshiruvdagilar (qo'lda tekshiruvdagilar ham), keyin rad etilgan va o'chirilganlar;
+   * oxirgi ikkalasida eng yangisi birinchi.
    */
   reels: AdminReelItem[];
 }
@@ -208,11 +208,6 @@ export interface AdminReelItem {
   owner: string | null;
   /** Oxirgi yig'ilgan ko'rishlar (hali yig'ilmagan bo'lsa — 0). */
   views: number;
-  /**
-   * Videoning bugungi reytingdagi o'rni (har bir qabul qilingan video — alohida qator).
-   * Faqat reytingdagi qabul qilingan videoda; boshqalarida (va ishtirokchi reytingda bo'lmasa) — null.
-   */
-  rank: number | null;
   likes: number | null;
   /** Ilovaga yuborilgan vaqt (UTC ISO). */
   submittedAt: string;
@@ -222,12 +217,6 @@ export interface AdminReelItem {
   lastSyncedAt: string | null;
   /** Nakrutka shubhasi belgilari (`ReelFlagType` qiymatlari, takrorlanmaydi). */
   flags: string[];
-  /**
-   * Eng ko'p ko'rilgan qabul qilingan video — ishtirokchining natijasi va o'rni (`ParticipantListItem`
-   * dagi `views`, `rank`) shu bo'yicha. Ro'yxatda birinchi turadi, faqat bittasida true; qabul
-   * qilingan video bo'lmasa — hammasida false.
-   */
-  best: boolean;
 }
 
 /** Admin ishtirokchi ustida bajaradigan amallar. */
@@ -611,8 +600,11 @@ export interface SavedDrawSettings {
   reservesCount: number;
   excludeWarned: boolean;
   excludeTargets: boolean;
-  /** Har doim yoqiq — o'chirib bo'lmaydi. */
-  excludePreviousWinners: true;
+  /**
+   * Oylik voucherda — false: oferta 6.1.5 bo'yicha voucherni bir necha oy yutish mumkin, oldingi
+   * bosqichlar g'oliblari chetlatilmaydi.
+   */
+  excludePreviousWinners: boolean;
   messageTemplate: string;
   updatedAt: string;
   /** Saqlagan xodimning to'liq ismi. */
@@ -650,8 +642,23 @@ export interface DrawSetup {
   periods: DrawPeriod[];
   /** Admin o'chirgan bosqichlar (tiklash mumkin). Raqamlari o'zgarmaydi. */
   removedStages: DrawStage[];
-  /** Oylik sovg'alar (random tanlov faqat ular uchun). */
-  prizes: Array<Pick<Prize, "id" | "title" | "quantity" | "minViews" | "maxViews">>;
+  /**
+   * Random tanlov o'tkaziladigan sovg'alar: oylik voucher (`monthly`, `kind: null`) va asosiy sovrinlar
+   * (`main-car`, `main-travel`, `main-phone`, `main-tablet`). `maxViews: null` — yuqori chegara yo'q.
+   */
+  prizes: Array<{
+    id: string;
+    title: string;
+    kind: RatingPrizeKind | null;
+    quantity: number;
+    minViews: number;
+    maxViews: number | null;
+  }>;
+  /**
+   * Asosiy sovrinlar tanlovi sozlamalari (oferta 6.2): davr — butun aksiya, oraliq va g'oliblar soni —
+   * ofertadagi; zaxira, filtrlar va xabar — shu standartlar.
+   */
+  mainDefaults: DrawSettings[];
   /** Tasdiqlangan doimiy sozlamalar; null — hali tasdiqlanmagan. */
   saved: SavedDrawSettings | null;
   /**
@@ -679,11 +686,11 @@ export interface DrawCandidate {
   lastName: string;
   phone: string;
   instagramUsername: string | null;
-  /** Davrdagi eng ko'p ko'rilgan qabul qilingan videosi. */
+  /** Davrdagi eng ko'p ko'rilgan qabul qilingan videosi (tekshirish uchun). */
   reelUrl: string;
   /**
-   * Shu videoning `viewsAsOf` kunidagi ko'rishlari (davrdagi videolar ko'rishlari qo'shilmaydi);
-   * ko'rishlar chegarasi ham shunga qo'llanadi.
+   * Davrga kirgan barcha qabul qilingan videolari ko'rishlarining `viewsAsOf` kunidagi yig'indisi
+   * (oferta 7.1–7.3); ko'rishlar chegarasi ham shunga qo'llanadi.
    */
   views: number;
   postedOn: IsoDate;
@@ -735,6 +742,8 @@ export interface VoucherDrawSummary {
   id: string;
   /** Tartib raqami (#1, #2…). */
   number: number;
+  /** `monthly` — oylik voucher; `main-*` — asosiy sovrin (oferta 6.2). */
+  prizeId: string;
   prizeTitle: string;
   stage: number | null;
   periodFrom: IsoDate;
@@ -859,14 +868,14 @@ export type WinnerCheckKey =
   | "NO_TARGET"
   | "REEL_AVAILABLE"
   | "NO_FAKE_VIEWS"
-  | "PURCHASE_CONFIRMED"
   | "AD_TOOLS_REVIEWED";
 
 /**
- * Admin qo'lda belgilaydigan bandlar: mahsulot xaridi va g'olib bilan yuzma-yuz uchrashuvda
- * Instagram'dagi "Reklama vositalari" (reklama tarixi) bo'limini ko'rish.
+ * Admin qo'lda belgilaydigan band: g'olib bilan yuzma-yuz uchrashuvda Instagram'dagi "Reklama
+ * vositalari" (reklama tarixi) bo'limini ko'rish. Mahsulot xaridi tekshirilmaydi — oferta 2.7:
+ * xarid ishtirok etish uchun majburiy emas.
  */
-export type WinnerManualCheckKey = "PURCHASE_CONFIRMED" | "AD_TOOLS_REVIEWED";
+export type WinnerManualCheckKey = "AD_TOOLS_REVIEWED";
 
 /** PENDING — Admin qo'lda tekshirishi kerak. */
 export type WinnerCheckStatus = "PASSED" | "FAILED" | "PENDING";
@@ -890,13 +899,13 @@ export interface WinnerCandidate {
     instagramUsername: string | null;
   };
   /**
-   * Eng ko'p ko'rilgan videosining reytingdagi o'rni (reytingda har bir video alohida qator).
-   * G'olib — 1-o'rindagi video egasi; u rad etilsa — keyingi boshqa ishtirokchi.
+   * Avtomobil random tanlovidagi navbati (oferta 6.2, 10.3): 1 — g'olib, keyingilari — zaxira g'oliblar;
+   * nomzod rad etilsa — navbatdagi zaxira.
    */
   rank: number;
-  /** Eng ko'p ko'rilgan qabul qilingan videosining ko'rishlari (videolar ko'rishlari qo'shilmaydi). */
+  /** Umumiy tasdiqlangan ko'rishlari — barcha qabul qilingan videolari yig'indisi. */
   views: number;
-  /** Shu video. */
+  /** Eng ko'p ko'rilgan videosi (tekshirish uchun). */
   reelUrl: string;
   checks: WinnerCheck[];
 }
@@ -912,11 +921,11 @@ export interface WinnerOverview {
     ratingDate: IsoDate;
   };
   stage: WinnerStage;
-  /** Nomzod: tanlov tugagan bo'lsa — yakuniy 1-o'rin, aks holda joriy yetakchi. */
+  /** Nomzod: avtomobil random tanlovi g'olibi (rad etilsa — navbatdagi zaxira); tanlov bo'lmasa — null. */
   candidate: WinnerCandidate | null;
-  /** Keyingi o'rinlar (zaxira nomzodlar) — har ishtirokchi bir marta. */
+  /** Zaxira g'oliblar — tanlovdagi navbat tartibida. */
   runnersUp: Array<{
-    /** Eng ko'p ko'rilgan videosining reytingdagi o'rni (oralab ketishi mumkin). */
+    /** Tanlovdagi navbati. */
     rank: number;
     participantId: string;
     name: string;
@@ -944,16 +953,16 @@ export interface WinnerSkipRequest {
 }
 
 // ---------------------------------------------------------------------------
-// Asosiy sovrinlar — reyting bo'yicha (random emas)
+// Asosiy sovrinlar — oraliqlar ichida random tanlov (oferta 6.2, 9.1)
 // ---------------------------------------------------------------------------
 
 /** Asosiy sovrin turi; eng qimmatidan: avtomobil, sayohat, iPhone, planshet. */
 export type RatingPrizeKind = "car" | "travel" | "phone" | "tablet";
 
 export interface RatingPrizeEntry {
-  /** Shu sovrin ichidagi o'rin (1 dan; navbatdagilar raqamlashni davom ettiradi). */
+  /** Tanlovdagi g'olib yoki zaxira raqami; tanlov bo'lmasa — oraliqdagi tartib raqami. */
   place: number;
-  /** Umumiy reytingdagi o'rin (eng ko'p ko'rilgan videosining joyi). */
+  /** Ishtirokchilar reytingidagi o'rni (faqat ma'lumot); reytingda bo'lmasa — 0. */
   rank: number;
   participant: {
     id: string;
@@ -962,13 +971,13 @@ export interface RatingPrizeEntry {
     phone: string;
     instagramUsername: string | null;
   };
-  /** Eng ko'p ko'rilgan qabul qilingan videosining ko'rishlari. */
+  /** Umumiy tasdiqlangan ko'rishlari (yig'indi). */
   views: number;
-  /** Shu video. */
+  /** Eng ko'p ko'rilgan videosi. */
   reelUrl: string;
   /** Ochiq (ro'yxatdan chiqarilmagan) target holati bor. */
   hasTarget: boolean;
-  /** Shu videoda nakrutka (soxta ko'rish) belgilari bor. */
+  /** Videolaridan birida nakrutka (soxta ko'rish) belgilari bor. */
   flagged: boolean;
 }
 
@@ -981,12 +990,16 @@ export interface RatingPrizeTier {
   minViews: number;
   /** null — yuqori chegara yo'q. */
   maxViews: number | null;
-  /** Eng ko'p ko'rilgan videosi shu oraliqdagi ishtirokchilar soni. */
+  /** Umumiy ko'rishlari shu oraliqdagi ishtirokchilar soni (joriy holat). */
   eligibleCount: number;
-  /** Reyting bo'yicha birinchi `quantity` tasi. */
+  /** Shu sovrin bo'yicha amaldagi random tanlov; hali o'tkazilmagan — null. */
+  draw: { id: string; number: number; status: DrawStatus; viewsAsOf: IsoDate; poolSize: number } | null;
+  /** Tanlov g'oliblari (tanlov bo'lmasa — bo'sh). */
   winners: RatingPrizeEntry[];
-  /** Navbatdagilar (zaxira) — ko'pi bilan 5 ta. */
+  /** Zaxira g'oliblar — navbat tartibida (tanlov bo'lmasa — bo'sh). */
   next: RatingPrizeEntry[];
+  /** Tanlov hali o'tkazilmagan bo'lsa — oraliqdagi ishtirokchilar (ko'rishlar kamayishi, 30 tagacha). */
+  eligible: RatingPrizeEntry[];
 }
 
 export interface RatingPrizes {

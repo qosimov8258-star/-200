@@ -60,7 +60,7 @@ export const texts = {
   // xabar oxiriga qaysi video haqida ekani qo'shiladi (`reelLink`).
   reelLink: (url: string) => `🔗 Video: ${url}`,
   reelAccepted: (views: string) =>
-    `✅ Videongiz qabul qilindi va reytingga qo'shildi!\n\nHozircha ${views} ta ko'rish. Ko'rishlar avtomatik yangilanib boradi; har bir videongiz reytingda alohida o'rin oladi, sizning o'rningiz — eng ko'p ko'rilgan videongiz o'rni (ko'rishlar qo'shilmaydi). Statistikani tanlov ilovasida kuzating.`,
+    `✅ Videongiz qabul qilindi!\n\nHozircha ${views} ta ko'rish. Ko'rishlar avtomatik yangilanib boradi; barcha tasdiqlangan videolaringiz ko'rishlari qo'shib hisoblanadi. Statistikani aksiya ilovasida kuzating.`,
   reelRejected: {
     NOT_FOUND:
       "❌ Videongiz Instagram'da topilmadi. Link to'g'riligini va akkauntingiz ochiq (yopiq emas) ekanini tekshirib, linkni qaytadan yuboring.",
@@ -89,3 +89,15 @@ export const texts = {
   targetDisqualified:
     "❌ Pullik reklama (target) taqiqi buzilgani sababli tanlovdan chetlashtirildingiz. Savollar bo'lsa, shu chatga yozing.",
 } as const;
+
+/** `as const` dagi aniq satrlarni oddiy `string` ga kengaytiradi — ruscha matnlar ham shu shaklda. */
+type Widen<T> = T extends string
+  ? string
+  : T extends (...args: infer A) => infer R
+    ? (...args: A) => Widen<R>
+    : T extends object
+      ? { readonly [K in keyof T]: Widen<T[K]> }
+      : T;
+
+/** Bot matnlari shakli (o'zbekcha `texts` asosida); ruscha — `texts.ru.ts`. */
+export type BotTexts = Widen<typeof texts>;
