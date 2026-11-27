@@ -6,31 +6,11 @@
  */
 import { ApiError } from "../api-error";
 import { RULES_LIMITS, type AdminUser, type ContestRules, type ContestRulesUpdate, type RulesSection } from "../types";
+import { OFFER_UZ } from "./offer-text";
 import { auditId, readStore, writeStore } from "./store";
 
-/** Boshlang'ich (namunaviy) qoidalar — backend va Mini App'dagi bilan bir xil. */
-export const DEFAULT_RULES_SECTIONS: RulesSection[] = [
-  {
-    title: "1. Ishtirok etish",
-    body: "Tanlovda zavod mahsulotini sotib olgan, 18 yoshga to'lgan shaxslar qatnashadi. Bitta telefon raqami — bitta ishtirokchi.",
-  },
-  {
-    title: "2. Video talablari",
-    body: "Mahsulot haqidagi Reel o'z Instagram akkauntingizda joylanadi, ochiq bo'ladi va unda zavod akkaunti belgilanadi. Reel linki shu ilova orqali yuboriladi. Bitta Instagram akkaunt — bitta ishtirokchi.",
-  },
-  {
-    title: "3. Taqiqlar",
-    body: "Pullik reklama (target) va nakrutka (sotib olingan ko'rishlar, botlar) taqiqlanadi. Reyting yetakchilarining akkauntlari Meta reklama kutubxonasida muntazam tekshiriladi. Sovrin topshirilishidan oldin g'olib Instagram ilovasidagi \"Reklama vositalari\" bo'limini tashkilotchilarga ko'rsatadi. Boshqa ishtirokchining reklamasini ko'rsangiz, ilovadagi \"Reklamani ko'rdim\" bo'limi orqali skrinshot yuboring. Target yoki nakrutka aniqlansa, ishtirokchi tanlovdan chetlashtiriladi.",
-  },
-  {
-    title: "4. G'olibni aniqlash",
-    body: "Ko'rishlar muntazam ravishda avtomatik yig'iladi. Reytingda har bir qabul qilingan video alohida o'rin oladi; ishtirokchining natijasi — eng ko'p ko'rilgan videosi (videolar ko'rishlari qo'shilmaydi). Tanlov yakunida videosi eng ko'p ko'rilgan ishtirokchi tekshiruvdan so'ng g'olib deb e'lon qilinadi.",
-  },
-  {
-    title: "5. Shaxsiy ma'lumotlar",
-    body: "Ism va familiyangiz ommaviy reytingda ko'rsatiladi. Telefon raqamingiz boshqa ishtirokchilarga ko'rsatilmaydi.",
-  },
-];
+/** Boshlang'ich qoidalar — ommaviy oferta matni (backend va Mini App'dagi bilan bir xil). */
+export const DEFAULT_RULES_SECTIONS: RulesSection[] = OFFER_UZ;
 
 export function getContestRules(): ContestRules {
   return (

@@ -57,7 +57,7 @@ function addMonths(value: IsoDate, months: number): IsoDate {
 
 /**
  * Tanlov muddatini oylik bosqichlarga bo'ladi: har bosqich boshlanish kunidan bir oy.
- * Masalan 25.11.2026–25.02.2027 → 25.11–24.12, 25.12–24.01, 25.01–25.02.
+ * Masalan (oferta 6.1.2) 27.11.2026–27.02.2027 → 27.11–26.12, 27.12–26.01, 27.01–27.02.
  */
 export function contestStages(startsOn: IsoDate, endsOn: IsoDate, today: IsoDate): DrawStage[] {
   const ranges: Array<[IsoDate, IsoDate]> = [];
