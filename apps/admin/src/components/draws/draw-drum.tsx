@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useImperativeHandle, useRef, useState, type Ref } from "react";
+import { flushSync } from "react-dom";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -21,12 +22,11 @@ import type { DrawEntry, DrawSettings, DrawSetup, RatingPrizeKind, VoucherDraw, 
 import { cn } from "@/lib/utils";
 import { voucherTabHref } from "@/lib/winner-links";
 
-/** Birinchi aylanish (server g'oliblarni aniqlaydi) va keyingilari, ms. */
-const FIRST_SPIN_MS = 2600;
-const SPIN_MS = 1800;
-/** Baraban ichidagi sharlar soni (nomzodlar namunasidan). */
-const BALLS = 14;
-const BALL_COLORS = ["#7c62db", "#f45a42", "#22a99a", "#e2a325", "#3b82f6", "#db4a8c", "#16a36a", "#8b5cf6"];
+/** Lentaning aylanish vaqti: birinchisi va keyingilari, ms. */
+const FIRST_SPIN_MS = 3200;
+const SPIN_MS = 2600;
+/** Bir aylanishda ramkadan o'tib ketadigan ismlar soni (tezlik shundan). */
+const FILL_ROWS = 34;
 /** Asosiy sovrinlar tartibi — qimmatidan. */
 const MAIN_ORDER: RatingPrizeKind[] = ["car", "travel", "phone", "tablet"];
 /** `maxViews` shundan katta bo'lsa — yuqori chegara yo'q ("4 000 001+"). */
@@ -194,6 +194,8 @@ export function DrawDrumSection() {
   );
 }
 
+const fullName = (entry: DrawEntry) => `${entry.candidate.firstName} ${entry.candidate.lastName}`.trim();
+
 function activeWinners(draw: VoucherDraw | null): DrawEntry[] {
   if (!draw) return [];
   return draw.winnerEntries.filter((entry) => entry.state === "ACTIVE").sort((a, b) => a.position - b.position);
@@ -218,13 +220,7 @@ function PrizeDrum({ prize }: { prize: DrumPrize }) {
   const [revealed, setRevealed] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const timer = useRef<number | null>(null);
-  useEffect(
-    () => () => {
-      if (timer.current !== null) window.clearTimeout(timer.current);
-    },
-    [],
-  );
+  const reel = useRef<NameReelHandle>(null);
 
   const current = draw ?? existing.data ?? null;
   const winners = activeWinners(current);
@@ -234,9 +230,11 @@ function PrizeDrum({ prize }: { prize: DrumPrize }) {
   const freshFrom = draw ? Math.max(0, revealed - prize.batch) : shownCount;
   const done = current !== null && shownCount >= winners.length;
   const eligible = current?.poolSize ?? preview.data?.eligibleCount ?? null;
-  const ballNames = (
-    current ? winners.map((e) => e.candidate) : (preview.data?.sample ?? [])
-  ).map((c) => `${c.firstName} ${c.lastName}`);
+  // Lentadagi ismlar: talabga javob beradigan barcha nomzodlar (oldindan o'tkazilgan tanlovda —
+  // g'oliblar va zaxira).
+  const pool =
+    preview.data?.names ??
+    (current ? [...winners, ...current.reserveEntries].map(fullName) : []);
 
   const blocker =
     prize.blocker ?? (existingId === null && preview.data?.eligibleCount === 0 ? "Bu oraliqda hozircha ishtirokchi yo'q." : null);
@@ -247,7 +245,6 @@ function PrizeDrum({ prize }: { prize: DrumPrize }) {
     if (!canSpin) return;
     setError(null);
     setSpinning(true);
-    const startedAt = Date.now();
     let target = draw;
     try {
       if (!target) {
@@ -266,24 +263,26 @@ function PrizeDrum({ prize }: { prize: DrumPrize }) {
       setError(errorMessage(e));
       return;
     }
-    const total = activeWinners(target).length;
-    const minimum = draw ? SPIN_MS : FIRST_SPIN_MS;
-    timer.current = window.setTimeout(
-      () => {
-        setSpinning(false);
-        setRevealed((n) => Math.min(n + prize.batch, total));
-      },
-      Math.max(600, minimum - (Date.now() - startedAt)),
-    );
+    const list = activeWinners(target);
+    const from = draw ? revealed : 0;
+    const landing = list.slice(from, from + prize.batch).map(fullName);
+    await reel.current?.spinTo(landing, draw ? SPIN_MS : FIRST_SPIN_MS);
+    setSpinning(false);
+    setRevealed(Math.min(from + prize.batch, list.length));
   };
 
   const maxViews = prize.settings.maxViews >= NO_UPPER_LIMIT ? null : prize.settings.maxViews;
-  const Icon = prize.icon;
 
   return (
     <div className="grid gap-6 p-5 lg:grid-cols-[320px_minmax(0,1fr)]">
       <div className="space-y-4">
-        <Drum names={ballNames} spinning={spinning} icon={Icon} />
+        <NameReel
+          ref={reel}
+          pool={pool}
+          batch={prize.batch}
+          // Oldindan o'tkazilgan tanlov: ramkada birinchi g'olib(lar).
+          initial={current && !draw ? winners.slice(0, prize.batch).map(fullName) : null}
+        />
         {current && !draw ? null : (
           <Button className="h-12 w-full text-base" disabled={!canSpin} onClick={() => void spin()}>
             <RefreshCw className={cn("size-5", spinning && "animate-spin")} aria-hidden />
@@ -357,16 +356,8 @@ function PrizeDrum({ prize }: { prize: DrumPrize }) {
               <ol className="grid max-h-[420px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
                 {/* Yangi chiqqanlari tepada. */}
                 {[...shown].reverse().map((entry) => {
-                  const index = entry.position - 1;
-                  const fresh = index >= freshFrom;
-                  return (
-                    <WinnerChip
-                      key={entry.candidate.participantId}
-                      entry={entry}
-                      fresh={fresh}
-                      delayMs={fresh ? (index - freshFrom) * 70 : 0}
-                    />
-                  );
+                  const fresh = entry.position - 1 >= freshFrom;
+                  return <WinnerChip key={entry.candidate.participantId} entry={entry} fresh={fresh} />;
                 })}
               </ol>
             )}
@@ -390,10 +381,10 @@ function PrizeDrum({ prize }: { prize: DrumPrize }) {
           </div>
         ) : (
           <p className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            «Aylantirish» ni bosing — baraban aylanadi va{" "}
-            {prize.batch > 1 ? `${formatNumber(prize.batch)} ta g'olib chiqadi` : "1 ta g'olib chiqadi"}. Yana bosib, keyingilarini
-            chiqarasiz. Hamma {formatNumber(prize.quantity)} ta g&apos;olib (va zaxira) birinchi aylanishda server
-            tomonidan tasodifiy aniqlanadi — baraban ularni ochib beradi.
+            «Aylantirish» ni bosing — ismlar pastdan tepaga aylanadi va ramkada{" "}
+            {prize.batch > 1 ? `${formatNumber(prize.batch)} ta g'olib` : "g'olib"} ismida to&apos;xtaydi. Yana bosib,
+            keyingilarini chiqarasiz. Hamma {formatNumber(prize.quantity)} ta g&apos;olib (va zaxira) birinchi aylanishda
+            server tomonidan tasodifiy aniqlanadi — lenta ularni ochib beradi.
           </p>
         )}
       </div>
@@ -411,16 +402,15 @@ function Fact({ label, value, hint }: { label: string; value: string; hint?: Rea
   );
 }
 
-function WinnerChip({ entry, fresh, delayMs }: { entry: DrawEntry; fresh: boolean; delayMs: number }) {
+function WinnerChip({ entry, fresh }: { entry: DrawEntry; fresh: boolean }) {
   const { candidate } = entry;
   const name = `${candidate.firstName} ${candidate.lastName}`.trim();
   return (
     <li
       className={cn(
         "flex items-center gap-2.5 rounded-xl border px-3 py-2",
-        fresh ? "drum-pop border-brand-300 bg-brand-50" : "border-line bg-white",
+        fresh ? "reveal-in border-brand-200 bg-brand-50/70" : "border-line bg-white",
       )}
-      style={fresh ? { animationDelay: `${delayMs}ms` } : undefined}
     >
       <span className="grid size-7 shrink-0 place-items-center rounded-full bg-brand-500 text-xs font-bold text-white tabular-nums">
         {entry.position}
@@ -437,46 +427,128 @@ function WinnerChip({ entry, fresh, delayMs }: { entry: DrawEntry; fresh: boolea
   );
 }
 
-/** Shisha baraban: ichida nomzodlar sharlari aylanadi; aylantirilganda baraban tez aylanadi. */
-function Drum({ names, spinning, icon: Icon }: { names: string[]; spinning: boolean; icon: LucideIcon }) {
-  const balls = (names.length > 0 ? names : Array.from({ length: 8 }, () => "")).slice(0, BALLS);
+interface NameReelHandle {
+  /** Lenta aylanadi va `names` ramkada to'xtaydi; tugaganda resolve bo'ladi. */
+  spinTo: (names: string[], durationMs: number) => Promise<void>;
+}
+
+/** Lenta o'lchamlari: asosiy sovrinda — 5 qator, ramka o'rtada (1 ta); voucherda — ramka 10 qator. */
+function reelGeometry(batch: number) {
+  return batch > 1 ? { row: 34, visible: batch + 2, frame: 1 } : { row: 52, visible: 5, frame: 2 };
+}
+
+/** `pool` dan tasodifiy `n` ta ism (yonma-yon takrorlanmasdan); bo'sh bo'lsa — tire. */
+function pickNames(pool: string[], n: number): string[] {
+  if (pool.length === 0) return Array.from({ length: n }, () => "—");
+  const out: string[] = [];
+  for (let i = 0; i < n; i++) {
+    let name = pool[Math.floor(Math.random() * pool.length)];
+    if (pool.length > 1 && name === out[i - 1]) name = pool[(pool.indexOf(name) + 1) % pool.length];
+    out.push(name);
+  }
+  return out;
+}
+
+/**
+ * Ismlar lentasi (baraban): nomzodlarning to'liq ismlari ustun bo'lib turadi; aylantirilganda pastdan
+ * tepaga yuradi, sekinlashib, ramkada g'olib(lar) ismida to'xtaydi. Hamma ko'rib turishi uchun oddiy,
+ * yirik yozuv; ortiqcha bezaksiz.
+ */
+function NameReel({
+  pool,
+  batch,
+  initial,
+  ref,
+}: {
+  pool: string[];
+  batch: number;
+  /** Boshida ramkada turadigan ismlar (oldindan o'tkazilgan tanlov g'oliblari); null — oddiy ro'yxat. */
+  initial: string[] | null;
+  ref: Ref<NameReelHandle>;
+}) {
+  const { row, visible, frame } = reelGeometry(batch);
+  const stripRef = useRef<HTMLDivElement>(null);
+  /** Aylanish paytidagi butun lenta; null — tinch holat. */
+  const [strip, setStrip] = useState<string[] | null>(null);
+  /** Oxirgi to'xtagan oyna va ramkadagi g'oliblar soni. */
+  const [landed, setLanded] = useState<{ rows: string[]; count: number } | null>(null);
+
+  // Tinch holat: ro'yxat boshidan (render toza — tasodif faqat aylantirishda).
+  const idle = Array.from({ length: visible }, (_, i) => (pool.length > 0 ? pool[i % pool.length] : "—"));
+  if (initial && initial.length > 0) idle.splice(frame, initial.length, ...initial);
+  const rows = strip ?? landed?.rows ?? idle;
+  const highlighted = strip ? 0 : (landed?.count ?? (initial ? initial.length : 0));
+
+  useImperativeHandle(ref, () => ({
+    spinTo: (names, durationMs) =>
+      new Promise<void>((resolve) => {
+        const start = landed?.rows ?? idle;
+        const fillers = pickNames(pool, FILL_ROWS);
+        const below = pickNames(pool, Math.max(0, visible - frame - names.length));
+        const all = [...start, ...fillers, ...names, ...below];
+        const target = start.length + fillers.length - frame;
+        flushSync(() => setStrip(all));
+
+        let animation: Animation | null = null;
+        const finish = () => {
+          flushSync(() => {
+            setStrip(null);
+            setLanded({ rows: all.slice(target, target + visible), count: names.length });
+          });
+          animation?.cancel();
+          resolve();
+        };
+        const element = stripRef.current;
+        const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if (!element || reduced || typeof element.animate !== "function") {
+          finish();
+          return;
+        }
+        animation = element.animate(
+          [{ transform: "translateY(0)" }, { transform: `translateY(-${target * row}px)` }],
+          { duration: durationMs, easing: "cubic-bezier(0.12, 0.62, 0.08, 1)", fill: "forwards" },
+        );
+        animation.finished.then(finish, finish);
+      }),
+  }));
+
   return (
     <div
       aria-hidden
-      className="relative mx-auto aspect-square w-full max-w-[300px] overflow-hidden rounded-full bg-[radial-gradient(circle_at_50%_45%,#ffffff_0%,#ebe7f8_55%,#c5b9ea_100%)] shadow-[inset_0_-14px_36px_rgba(90,64,184,0.28),0_26px_50px_-26px_rgba(90,64,184,0.7)] ring-8 ring-white"
+      className="relative overflow-hidden rounded-2xl border border-line bg-white"
+      style={{ height: visible * row }}
     >
-      <div className={cn("absolute inset-0", spinning && "drum-spinning")}>
-        {balls.map((name, i) => {
-          const seconds = 6 + (i % 5) * 1.4;
-          return (
-            <span
-              key={i}
-              className="drum-ball grid size-[42px] place-items-center rounded-full text-[11px] font-bold text-white shadow-[0_4px_10px_-3px_rgba(0,0,0,0.35)]"
-              style={
-                {
-                  "--orbit": `${48 + (i % 4) * 24}px`,
-                  animationDuration: `${seconds}s`,
-                  // Boshlanishda sharlar aylana bo'ylab teng tarqalgan bo'lsin.
-                  animationDelay: `-${((i / balls.length) * seconds).toFixed(2)}s`,
-                  backgroundColor: BALL_COLORS[i % BALL_COLORS.length],
-                } as CSSProperties
-              }
-            >
-              {initials(name)}
-            </span>
-          );
-        })}
-      </div>
-      {/* Shisha yaltirog'i */}
-      <div className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle_at_30%_22%,rgba(255,255,255,0.85),transparent_38%)]" />
-      <div className="absolute top-1/2 left-1/2 grid size-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white text-brand-600 shadow-lg">
-        <Icon className="size-6" />
+      {/* Ramka — shu yerda to'xtagan ism(lar) g'olib. */}
+      <div
+        className="absolute inset-x-2 rounded-lg border-y-2 border-brand-500 bg-brand-50"
+        style={{ top: frame * row, height: batch * row }}
+      />
+      <div
+        className="absolute inset-0"
+        style={{
+          maskImage: "linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent)",
+          WebkitMaskImage: "linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent)",
+        }}
+      >
+        <div ref={stripRef} className="will-change-transform">
+          {rows.map((name, i) => {
+            const winner = i >= frame && i < frame + highlighted;
+            return (
+              <div
+                key={i}
+                className={cn(
+                  "flex items-center justify-center truncate px-4 text-center",
+                  batch > 1 ? "text-[14px]" : "text-[18px]",
+                  winner ? "font-semibold text-ink" : "text-slate-500",
+                )}
+                style={{ height: row }}
+              >
+                {name}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
-}
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  return parts.length === 0 ? "?" : parts.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("");
 }

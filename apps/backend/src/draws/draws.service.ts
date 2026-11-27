@@ -140,6 +140,11 @@ export interface DrawsOptions {
 export const DRAWS_OPTIONS = Symbol("DRAWS_OPTIONS");
 
 const SAMPLE_SIZE = 20;
+/**
+ * Barabandagi ismlar lentasi uchun — talabga javob beradigan barcha nomzodlarning ismi (ko'pi bilan
+ * shuncha; tanlovning o'zi butun ro'yxatda o'tadi).
+ */
+const NAMES_MAX = 5000;
 const MIN_REASON_LENGTH = 5;
 const DEFAULT_SEND_INTERVAL_MS = 40;
 const EXCLUSIONS: DrawExclusion[] = [
@@ -379,6 +384,7 @@ export class DrawsService {
       excluded: pool.excluded,
       poolHash: poolHash(pool.eligible),
       sample: [...pool.eligible].sort((a, b) => b.views - a.views).slice(0, SAMPLE_SIZE),
+      names: pool.eligible.slice(0, NAMES_MAX).map((c) => `${c.firstName} ${c.lastName}`.trim()),
       warnings,
     };
   }
