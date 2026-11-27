@@ -107,6 +107,7 @@ export const t = {
   rulesHeroBody: "«OLIVIA» reklama aksiyasida ishtirok etish shartlari (ommaviy oferta). Video yuborishdan oldin o'qib chiqing 🎄",
   rulesSectionsCount: (n: number) => `${n} ta bo'lim`,
   rulesAgree: "Ommaviy oferta shartlari bilan tanishdim va roziman",
+  rulesReadToEnd: "Oferta bilan oxirigacha tanishib chiqing — rozilik belgisi eng pastda.",
   rulesUpdatedTitle: "Ommaviy oferta",
   rulesUpdatedBody:
     "Aksiya shartlari ommaviy oferta ko'rinishida e'lon qilindi. Davom etish uchun oferta bilan tanishib, uni qabul qiling.",
