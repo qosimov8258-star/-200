@@ -25,6 +25,8 @@ export type Texts = Widen<typeof uz>;
 const STORAGE_KEY = "lang";
 /** `index.html` dagi skript o'qiydi: qayta yuklanishda "Olivia" animatsiyasi qayta chiqmaydi. */
 const SKIP_SPLASH_KEY = "skipSplash";
+/** Shu sessiyada (yorliq yopilguncha) til ekrani o'tildi — ro'yxatdan o'tishning birinchi qadami. */
+const CONFIRMED_KEY = "langConfirmed";
 
 function savedLang(): Lang | null {
   try {
@@ -51,22 +53,53 @@ export const langChosen: boolean = savedLang() !== null;
 /** Joriy tildagi barcha matnlar. */
 export const t: Texts = lang === "ru" ? ru : uz;
 
-/** Tilni almashtiradi va sahifani qayta yuklaydi (tanlov saqlanadi). */
-export function setLang(next: Lang): void {
+/**
+ * Ro'yxatdan o'tmagan foydalanuvchi shu sessiyada tilni tanladimi. Tanlamagan bo'lsa — ism va
+ * telefondan oldin "Tilni tanlang" ekrani chiqadi. `sessionStorage` yopiq bo'lsa — qadam o'tkaziladi
+ * (aks holda ekran qayta yuklanishdan keyin ham qaytaverardi).
+ */
+export function langConfirmed(): boolean {
+  try {
+    return sessionStorage.getItem(CONFIRMED_KEY) === "1";
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Tilni saqlaydi. Til o'zgarsa (yoki birinchi tanlov bo'lsa) sahifa shu tilda qayta yuklanadi —
+ * `true` qaytaradi; o'sha til qayta tanlansa — `false` (qayta yuklash shart emas).
+ */
+export function setLang(next: Lang): boolean {
   try {
     localStorage.setItem(STORAGE_KEY, next);
   } catch {
     // Saqlab bo'lmasa ham (maxfiy rejim) — shu sessiya uchun almashadi.
   }
-  // Birinchi tanlovda ham qayta yuklanadi — "Tilni tanlang" ekrani yopiladi va darhol
-  // ro'yxatdan o'tish ochiladi (yuklanish animatsiyasi ikkinchi marta ko'rsatilmaydi).
-  if (next === lang && langChosen) return;
+  try {
+    sessionStorage.setItem(CONFIRMED_KEY, "1");
+  } catch {
+    // `langConfirmed` bu holda baribir `true`.
+  }
+  if (next === lang && langChosen) return false;
+  // Qayta yuklanishda yuklanish animatsiyasi ikkinchi marta ko'rsatilmaydi.
   try {
     sessionStorage.setItem(SKIP_SPLASH_KEY, "1");
   } catch {
     // Saqlab bo'lmasa — animatsiya odatdagidek ko'rinadi.
   }
   window.location.reload();
+  return true;
+}
+
+/** Dev "Boshidan boshlash": til tanlovi ham unutiladi — ilova yana tildan boshlanadi. */
+export function forgetLang(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(CONFIRMED_KEY);
+  } catch {
+    // Saqlab bo'lmasa — til odatdagidek qoladi.
+  }
 }
 
 /** Sana va sonlarni formatlash uchun til kodi. */

@@ -9,7 +9,7 @@ import { RulesHero } from "./components/RulesHero";
 import { SupportScreen } from "./screens/SupportScreen";
 import { useToast } from "./components/toast-context";
 import { ErrorBlock, PageHeader, Spinner } from "./components/ui";
-import { lang, langChosen, t } from "./i18n";
+import { forgetLang, lang, langChosen, langConfirmed, t } from "./i18n";
 import * as api from "./lib/api";
 import { errorCode } from "./lib/api-error";
 import { hideSplash } from "./lib/splash";
@@ -35,8 +35,8 @@ type SubPage = "rules" | "winner" | "report" | "support" | null;
 const isOverflow = (tab: Tab): tab is OverflowTab => tab === "prizes";
 
 /**
- * Birinchi marta — til tanlash (o'zbek yoki rus); keyin darhol ro'yxatdan o'tish (ism va telefon),
- * ommaviy oferta ("Roziman") va butun ilova shu tilda.
+ * Ro'yxatdan o'tish: avval til (o'zbek yoki rus), keyin ism va telefon, ommaviy oferta ("Roziman");
+ * butun ilova shu tilda. Til hali saqlanmagan bo'lsa — til ekrani darhol (serverga so'rovsiz).
  */
 export default function App() {
   return langChosen ? <MainApp /> : <LanguageScreen />;
@@ -50,6 +50,11 @@ function MainApp() {
   const isGuest = !isInTelegram && me.isError && errorCode(me.error) === "UNAUTHORIZED";
   const loading = (me.isPending || contest.isPending) && !isGuest;
   useTelegramLoginReturn();
+
+  // Ro'yxatdan o'tmagan (sayt mehmoni yoki raqam/ism kiritmagan) — ism va telefondan oldin til
+  // so'raladi: har yangi sessiyada, oldin tanlangan til bo'lsa ham.
+  const [langAsked, setLangAsked] = useState(langConfirmed);
+  const registering = isGuest || me.data?.stage === "NEEDS_CONTACT" || me.data?.stage === "NEEDS_PROFILE";
 
   // Tanlangan til serverga ham saqlanadi — bot xabarlari shu tilda boradi.
   const savedLang = me.data?.lang;
@@ -65,7 +70,9 @@ function MainApp() {
   return (
     <>
       {api.IS_MOCK_API && <DevBanner />}
-      {isGuest ? (
+      {registering && !langAsked ? (
+        <LanguageScreen onDone={() => setLangAsked(true)} />
+      ) : isGuest ? (
         <WebStart />
       ) : me.isPending || contest.isPending ? (
         <div className="grid min-h-dvh place-items-center">
@@ -292,6 +299,7 @@ function DevBanner() {
           className="shrink-0 underline"
           onClick={() => {
             api.mockControls!.reset();
+            forgetLang();
             window.location.reload();
           }}
         >
