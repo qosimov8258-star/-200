@@ -28,6 +28,20 @@ const DAYS_ELAPSED = 24;
 /** Tanlovning umumiy davomiyligi (kun). */
 const CONTEST_LENGTH_DAYS = 46;
 const PARTICIPANT_COUNT = 140;
+/** Ommaviy oferta 2.5: aksiya boshlanishi — random tanlov davrlari shundan (`settings.ts` bilan bir xil). */
+const OFFER_STARTS_ON: IsoDate = "2026-11-27";
+/**
+ * Demo videolar (G'oliblar → "Baraban" ni sinash uchun): aksiya davrida yuborilgan, har bir sovrin
+ * oralig'iga mos ko'rishli ishtirokchilar — [soni, ko'rishlar (dan), ko'rishlar (gacha)].
+ * Oddiy soxta tarix aksiyadan oldingi kunlarda va ko'rishlari kichik — asosiy sovrinlarga yetmaydi.
+ */
+const DEMO_COHORTS: ReadonlyArray<readonly [count: number, min: number, max: number]> = [
+  [3, 4_200_000, 6_800_000], // BYD Chazor: 4 000 001+
+  [7, 1_600_000, 3_900_000], // Tailand sayohati: 1 500 001 – 4 000 000
+  [24, 520_000, 1_480_000], // iPhone 18 Pro: 500 001 – 1 500 000
+  [40, 110_000, 490_000], // Planshet: 100 001 – 500 000
+  [46, 1_200, 98_000], // Korzinka voucheri: 1 000 – 100 000
+];
 const TICKET_COUNT = 48;
 const TARGET_COUNT = 8;
 
@@ -529,6 +543,71 @@ function generateViews(
   }
 }
 
+/**
+ * Demo videolar: har bir sovrin oralig'iga mos ko'rishli faol ishtirokchilar (`DEMO_COHORTS`).
+ * Videolar aksiya davrida (27.11 dan bugungacha) joylangan va yuborilgan, qabul qilingan; ko'rishlar
+ * kunma-kun bugungi maqsadga yetadi. O'z generatori bilan — asosiy soxta ma'lumotlar siljimaydi.
+ */
+function addDemoVideos(participants: MockParticipant[], reels: MockReel[], today: IsoDate): void {
+  const random = createRandom(hashString("demo-videos"));
+  // Aksiya boshlanmagan bo'lsa ham bugun (davrga kirmaydi — tanlovda ko'rinmaydi).
+  const firstDay = today < OFFER_STARTS_ON ? today : OFFER_STARTS_ON;
+  const span = Math.max(0, eachDay(firstDay, today).length - 1);
+
+  for (const [count, min, max] of DEMO_COHORTS) {
+    for (let i = 0; i < count; i++) {
+      const female = random.chance(0.45);
+      const firstName = female ? random.pick(FEMALE_NAMES) : random.pick(MALE_NAMES);
+      const baseLastName = random.pick(LAST_NAMES);
+      const lastName = female ? `${baseLastName}a` : baseLastName;
+      const submittedOn = addDays(firstDay, random.int(0, Math.min(span, 5)));
+      const participant: MockParticipant = {
+        id: `usr_${(participants.length + 1).toString().padStart(4, "0")}`,
+        firstName,
+        lastName,
+        age: random.int(18, 50),
+        phone: `+998 ${random.pick(PHONE_CODES)} ${random.int(100, 999)} ${pad2(random.int(0, 99))} ${pad2(random.int(0, 99))}`,
+        instagramUsername: `${slug(firstName)}_${slug(lastName).slice(0, 5)}${random.int(1, 99)}`,
+        status: "ACTIVE",
+        registeredOn: submittedOn,
+      };
+      participants.push(participant);
+
+      const id = `reel_${(reels.length + 1).toString().padStart(4, "0")}`;
+      const shortcode = makeShortcode(random);
+      const target = random.int(min, max);
+      const days = eachDay(submittedOn, today);
+      const reel: MockReel = {
+        id,
+        participantId: participant.id,
+        shortcode,
+        url: `https://www.instagram.com/reel/${shortcode}/`,
+        submittedOn,
+        submittedAt: eventTime(submittedOn, `submit:${id}`),
+        postedOn: submittedOn,
+        reviewedOn: submittedOn,
+        reviewOutcome: "ACCEPTED",
+        rejectReason: null,
+        owner: participant.instagramUsername,
+        removedOn: null,
+        viewsByDay: new Map(),
+        growthByDay: new Map(),
+        likeRate: 0,
+        flags: [],
+      };
+      // Ko'rishlar bir tekis o'sib, bugun maqsadga yetadi.
+      let total = 0;
+      days.forEach((day, k) => {
+        const next = Math.round((target * (k + 1)) / days.length);
+        reel.growthByDay.set(day, next - total);
+        reel.viewsByDay.set(day, next);
+        total = next;
+      });
+      reels.push(reel);
+    }
+  }
+}
+
 /** Ko'rishlar o'sishi kunlik medianadan shuncha marta oshsa — "keskin o'sish" belgisi. */
 const VIEW_SPIKE_RATIO = 6;
 
@@ -778,6 +857,7 @@ function generate(today: IsoDate): MockContestData {
   const targets = generateTargets(random, reels, today);
   const boosts = new Map(targets.map((target) => [target.reelId, target.detectedOn]));
   generateViews(random, reels, boosts, today);
+  addDemoVideos(participants, reels, today);
   generateEngagement(reels, targets);
 
   // Boshlang'ich holatlar bir-biriga mos bo'lsin.
