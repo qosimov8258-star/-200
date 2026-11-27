@@ -26,7 +26,8 @@ import { voucherTabHref } from "@/lib/winner-links";
  * Lentaning aylanish vaqti (jonli efirda tomoshabin kuzatib tursin), ms: bosh sovrin — avtomobil —
  * eng uzoq. Voucherda ko'p aylanish bo'lsa — "Qolganini birdaniga ko'rsatish" bor.
  */
-const SPIN_MS = { car: 15_000, main: 7_000, voucher: 6_000 } as const;
+const SPIN_MS: Record<RatingPrizeKind, number> = { car: 15_000, travel: 7_000, phone: 10_000, tablet: 7_000 };
+const VOUCHER_SPIN_MS = 6_000;
 /** Lenta tezligi: soniyasiga shuncha ism o'tadi (o'rtacha) — vaqt uzaysa, yo'l ham uzayadi. */
 const ROWS_PER_SECOND = 11;
 /** Asosiy sovrinlar tartibi — qimmatidan. */
@@ -75,7 +76,7 @@ function drumPrizes(setup: DrawSetup, draws: VoucherDrawSummary[]): DrumPrize[] 
         icon: RATING_PRIZE_ICONS[kind],
         quantity: settings.winnersCount,
         batch: 1,
-        spinMs: kind === "car" ? SPIN_MS.car : SPIN_MS.main,
+        spinMs: SPIN_MS[kind],
         settings,
         existing: active(prize.id, settings.stage),
         blocker:
@@ -103,7 +104,7 @@ function drumPrizes(setup: DrawSetup, draws: VoucherDrawSummary[]): DrumPrize[] 
       icon: Ticket,
       quantity: settings.winnersCount,
       batch: 10,
-      spinMs: SPIN_MS.voucher,
+      spinMs: VOUCHER_SPIN_MS,
       settings,
       existing: active(settings.prizeId, stage.index),
       blocker: notStarted ? `${stage.index}-bosqich hali boshlanmagan (${formatDate(stage.startsOn)} dan).` : null,
