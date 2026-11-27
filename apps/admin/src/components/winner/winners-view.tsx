@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Car, Ticket, Trophy } from "lucide-react";
 
+import { DrawDrumSection } from "@/components/draws/draw-drum";
 import { prizeQuantityLabel } from "@/components/prizes/rating-prize";
 import { Segmented } from "@/components/ui/segmented";
 import { Spinner } from "@/components/ui/spinner";
@@ -19,7 +20,8 @@ import { VoucherTab } from "./voucher-tab";
 import { WinnerView } from "./winner-view";
 
 /**
- * "G'oliblar" bo'limi. Ikki tab: "Asosiy sovrinlar" — oferta 6.2: har bir sovrin (avtomobil, sayohat,
+ * "G'oliblar" bo'limi. Tepada — "Baraban": sovrinni tanlab aylantirish (asosiy sovrinlarda 1 tadan,
+ * voucherda 10 tadan g'olib chiqadi). Pastda ikki tab: "Asosiy sovrinlar" — oferta 6.2: har bir sovrin (avtomobil, sayohat,
  * iPhone, planshet) o'z ko'rishlar oralig'idagi ishtirokchilar orasidan random tanlov bilan; avtomobil
  * g'olibi keyin tekshiriladi, tasdiqlanadi va e'lon qilinadi. "Voucher" — oylik voucherlar uchun random
  * tanlov (sozlamalar, bosqich, "Tanlash", natija, tarix) va voucher g'oliblari.
@@ -32,10 +34,17 @@ export function WinnersView() {
 
   return (
     <div className="space-y-6">
+      <DrawDrumSection />
       <Segmented<WinnerTab>
         label="G'oliblar bo'limi"
         value={tab}
-        onChange={(next) => router.replace(next === "voucher" ? voucherTabHref() : WINNER_PATH, { scroll: false })}
+        onChange={(next) => {
+          // Barabandagi tanlangan sovrin saqlanadi.
+          const prize = searchParams.get("prize");
+          const keep = prize ? `prize=${encodeURIComponent(prize)}` : "";
+          const href = next === "voucher" ? voucherTabHref() : WINNER_PATH;
+          router.replace(keep ? `${href}${href.includes("?") ? "&" : "?"}${keep}` : href, { scroll: false });
+        }}
         options={[
           { value: "main", label: "Asosiy sovrinlar", icon: Trophy },
           { value: "voucher", label: "Voucher", icon: Ticket },

@@ -2,20 +2,19 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, ArrowRight, Dices, ExternalLink } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowRight, Dices, ExternalLink } from "lucide-react";
 
 import { RATING_PRIZE_ICONS } from "@/components/prizes/rating-prize";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { getDrawSetup, runDraw } from "@/lib/api";
-import { errorMessage } from "@/lib/api-error";
+import { getDrawSetup } from "@/lib/api";
 import { formatDate, formatNumber, formatViewsRange } from "@/lib/format";
 import { DRAW_STATUS_LABELS, DRAW_STATUS_TONES, RATING_PRIZE_LABELS } from "@/lib/labels";
 import type { RatingPrizeEntry, RatingPrizeTier } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { voucherTabHref } from "@/lib/winner-links";
+import { voucherTabHref, WINNER_PATH } from "@/lib/winner-links";
 
 /**
  * Asosiy sovrin kartochkasi (G'oliblar sahifasi): eni 350, bo'yi 420 px — yonma-yon turadi (tor
@@ -103,25 +102,11 @@ function DrawResult({ tier, drawId }: { tier: RatingPrizeTier; drawId: string })
 
 function BeforeDraw({ tier }: { tier: RatingPrizeTier }) {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const label = RATING_PRIZE_LABELS[tier.kind];
   const setup = useQuery({ queryKey: ["draw-setup"], queryFn: getDrawSetup });
   const settings = setup.data?.mainDefaults.find((item) => item.prizeId === `main-${tier.kind}`) ?? null;
   // Oferta 6.2.1, 7.5: asosiy sovrinlar aksiya yakunida — oxirgi kundan keyin (backend ham tekshiradi).
   const tooEarly = settings !== null && setup.data !== undefined && setup.data.today <= settings.periodTo;
-
-  const run = useMutation({
-    mutationFn: async () => {
-      if (!settings) throw new Error("Tanlov sozlamalari yuklanmadi.");
-      return runDraw(settings);
-    },
-    onSuccess: async (created) => {
-      await Promise.all(
-        ["rating-prizes", "draws", "winner", "audit-log"].map((key) => queryClient.invalidateQueries({ queryKey: [key] })),
-      );
-      router.push(voucherTabHref(created.id));
-    },
-  });
 
   return (
     <>
@@ -143,21 +128,15 @@ function BeforeDraw({ tier }: { tier: RatingPrizeTier }) {
         </div>
       )}
       <div className="space-y-2 border-t border-line px-4 py-3">
-        {run.isError && (
-          <p role="alert" className="flex items-start gap-1.5 text-xs text-red-700">
-            <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-            {errorMessage(run.error)}
-          </p>
-        )}
+        {/* Tanlov — tepadagi barabanda (g'oliblar birma-bir chiqadi). */}
         <Button
           size="sm"
           className="w-full"
-          loading={run.isPending}
-          disabled={!settings || tooEarly || tier.eligibleCount === 0}
-          onClick={() => run.mutate()}
+          disabled={!settings || tier.eligibleCount === 0}
+          onClick={() => router.replace(`${WINNER_PATH}?prize=main-${tier.kind}#baraban`, { scroll: false })}
         >
           <Dices className="size-4" aria-hidden />
-          Random tanlov o&apos;tkazish
+          Barabanda aylantirish
         </Button>
         <p className="text-[11px] text-muted">
           {tooEarly && settings

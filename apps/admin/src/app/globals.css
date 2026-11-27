@@ -55,3 +55,68 @@
     transparent 1.5px 7px
   );
 }
+
+/*
+ * Random tanlov barabani (G'oliblar → "Baraban"): nomzodlar sharlari baraban ichida aylanadi;
+ * "Aylantirish" bosilganda baraban tez aylanadi, keyin g'olib(lar) chiqadi. Natijani server
+ * oldindan tasodifiy aniqlaydi — animatsiya faqat ko'rsatish uchun.
+ */
+@keyframes drum-orbit {
+  from {
+    transform: rotate(0deg) translateX(var(--orbit)) rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg) translateX(var(--orbit)) rotate(-360deg);
+  }
+}
+
+@keyframes drum-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes drum-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.85);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(0) scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.drum-ball {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  margin: -21px 0 0 -21px;
+  animation: drum-orbit linear infinite;
+}
+
+.drum-spinning {
+  animation: drum-spin 0.45s linear infinite;
+}
+
+.drum-spinning .drum-ball {
+  filter: blur(1.2px);
+}
+
+.drum-pop {
+  animation: drum-pop 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drum-ball,
+  .drum-spinning {
+    animation-play-state: paused;
+  }
+  .drum-pop {
+    animation: none;
+  }
+}

@@ -55,8 +55,8 @@ export function VoucherTab() {
             <SectionTitle
               id="voucher-draw-title"
               icon={Dices}
-              title={selectedId ? "Tanlov natijasi" : "Yangi tanlov"}
-              meta={selectedId ? null : "Oylik voucher g'oliblari tasodifiy tanlanadi"}
+              title={selectedId ? "Tanlov natijasi" : "Voucher tanlovi sozlamalari"}
+              meta={selectedId ? null : "Tanlovni tepadagi barabanda o'tkazing"}
               action={
                 selectedId ? (
                   <Button variant="secondary" onClick={() => open(null)}>
@@ -75,13 +75,22 @@ export function VoucherTab() {
                 {setup.isError ? errorMessage(setup.error) : "Sozlamalarni yuklab bo'lmadi."}
               </p>
             ) : (
-              <NewDraw
-                setup={setup.data}
-                onCreated={(draw) => {
-                  setFreshId(draw.id);
-                  open(draw.id);
-                }}
-              />
+              // Oddiy yo'l — tepadagi baraban. Bu yerda: zaxira soni, bot xabari, maxsus davr va h.k.
+              <details className="group rounded-2xl border border-line bg-white">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-ink">
+                  Batafsil: sozlamalar, maxsus davr va qo&apos;lda tanlov
+                  <span className="text-xs font-normal text-muted group-open:hidden">ochish</span>
+                </summary>
+                <div className="border-t border-line p-5">
+                  <NewDraw
+                    setup={setup.data}
+                    onCreated={(draw) => {
+                      setFreshId(draw.id);
+                      open(draw.id);
+                    }}
+                  />
+                </div>
+              </details>
             )}
           </section>
         </div>
