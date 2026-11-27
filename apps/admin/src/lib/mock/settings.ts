@@ -24,13 +24,19 @@ const SYNC_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 /** Oferta 3.1: 18 yoshga to'lganlar. */
 const MIN_AGE_RANGE = { min: 18, max: 100 } as const;
 
+/**
+ * Aksiya muddati — ommaviy oferta 2.5 (backend `contestDefaults` bilan bir xil): 27.11.2026 – 27.02.2027;
+ * oylik bosqichlar shundan hisoblanadi (6.1.2). Grafiklar uchun soxta tarix (`getContestData`) alohida.
+ */
+const OFFER_STARTS_ON = "2026-11-27";
+const OFFER_ENDS_ON = "2027-02-27";
+
 /** Boshlang'ich qiymatlar + admin o'zgartirganlari. */
 export function effectiveSettings(store: MockStore = readStore()): ContestSettings {
-  const data = getContestData();
   const override = store.settings;
   return {
-    startsOn: override?.startsOn ?? data.startsOn,
-    endsOn: override?.endsOn ?? data.endsOn,
+    startsOn: override?.startsOn ?? OFFER_STARTS_ON,
+    endsOn: override?.endsOn ?? OFFER_ENDS_ON,
     syncTime: override?.syncTime ?? DEFAULT_SYNC_TIME,
     syncEveryDays: override?.syncEveryDays ?? DEFAULT_SYNC_EVERY_DAYS,
     minAge: override?.minAge ?? DEFAULT_MIN_AGE,

@@ -74,7 +74,7 @@ export function PrizesScreen({ onOpenReel }: { onOpenReel: () => void }) {
           <MonthlySection prizes={prizes.data} style={rise(1)} />
           <TierLadder
             tiers={prizes.data.tiers}
-            // Eng ko'p ko'rilgan qabul qilingan video ko'rishlari (videolar qo'shilmaydi);
+            // Umumiy tasdiqlangan ko'rishlar — barcha qabul qilingan videolar yig'indisi (oferta 7.3);
             // birorta ham video yo'q bo'lsa — null.
             views={reels.data && reels.data.reels.length > 0 ? reels.data.totalViews : null}
             loading={reels.isPending}

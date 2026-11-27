@@ -269,7 +269,7 @@ export async function register(body: RegisterRequest): Promise<void> {
 }
 
 /**
- * Tanlov tugash vaqti — backenddagidek: oxirgi kun (25.02.2027, sovg'alarning oxirgi bosqichi)
+ * Tanlov tugash vaqti — backenddagidek: oxirgi kun (27.02.2027, oferta 2.5; oxirgi oylik bosqich)
  * tugagan yarim tun, Toshkent vaqti (UTC+5).
  */
 const MOCK_CONTEST_ENDS_AT = "2027-02-27T19:00:00.000Z";

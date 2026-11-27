@@ -1,7 +1,7 @@
 /** Bot matnlari (o'zbek, lotin). Faza 3 da admin paneldan tahrirlanadigan bo'ladi. */
 export const texts = {
   welcome:
-    "Assalomu alaykum! 👋\n\nMahsulotimiz haqida Instagram Reel joylang, ko'rishlar yig'ing va bosh sovrin — avtomobilni yutib oling.\n\nIshtirok etish uchun avval telefon raqamingizni ulashing.",
+    "Assalomu alaykum! 👋\n\nOLIVIA mahsuloti ishtirokidagi Instagram Reel joylang, ko'rishlar yig'ing va sovrinlar tasodifiy tanlovida qatnashing — bosh sovrin avtomobil.\n\nIshtirok etish uchun avval telefon raqamingizni ulashing.",
   shareContactButton: "📱 Raqamni ulashish",
   contactNotOwn: "Iltimos, o'zingizning raqamingizni pastdagi tugma orqali ulashing.",
   contactTaken:

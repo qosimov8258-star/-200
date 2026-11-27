@@ -205,6 +205,7 @@ function ContestCountdown({ endsAt }: { endsAt: string | null }) {
 function PrizeShowcase({ prizes, onOpenPrizes }: { prizes: ContestPrizes; onOpenPrizes: () => void }) {
   const tier = (kind: PrizeTier["kind"]) => prizes.tiers.find((item) => item.kind === kind) ?? null;
   const car = tier("car");
+  const travel = tier("travel");
   const phone = tier("phone");
   const tablet = tier("tablet");
 
@@ -235,10 +236,29 @@ function PrizeShowcase({ prizes, onOpenPrizes }: { prizes: ContestPrizes; onOpen
         </GiftWrap>
       )}
 
+      {/* Oferta 6.2.1: 1 500 001 – 4 000 000 ko'rish — Tailandga sayohat (3 ta). */}
+      {travel && (
+        <GiftWrap bow="sm" className="animate-rise" style={rise(2)}>
+          <article className="flex items-center gap-4 p-3">
+            <PrizePhoto
+              src={photo("travel")}
+              cover={PRIZE_PHOTO_HAS_BACKGROUND.travel}
+              alt={travel.title}
+              className="h-24 w-32 shrink-0 rounded-tile bg-[radial-gradient(circle_at_50%_40%,#fff7ef,#fdeee6)]"
+            />
+            <div className="min-w-0">
+              <h3 className="text-[16px] leading-tight font-bold tracking-tight">{travel.title}</h3>
+              <p className="mt-1 text-[13px] font-semibold text-ink/80">{t.pieces(travel.quantity, travel.unit)}</p>
+              <p className="mt-0.5 text-[12px] text-muted">{viewsRange(travel.minViews, travel.maxViews)}</p>
+            </div>
+          </article>
+        </GiftWrap>
+      )}
+
       <div className="grid grid-cols-2 gap-3">
         {[phone, tablet].map((item, index) =>
           item ? (
-            <GiftWrap key={item.kind} bow="sm" className="animate-rise" style={rise(2 + index)}>
+            <GiftWrap key={item.kind} bow="sm" className="animate-rise" style={rise(3 + index)}>
               <article className="p-3">
                 <PrizePhoto
                   src={photo(item.kind === "phone" ? "phone" : "tablet")}
@@ -255,7 +275,7 @@ function PrizeShowcase({ prizes, onOpenPrizes }: { prizes: ContestPrizes; onOpen
         )}
       </div>
 
-      <GiftWrap bow="sm" className="animate-rise" style={rise(4)}>
+      <GiftWrap bow="sm" className="animate-rise" style={rise(5)}>
         <article className="flex items-center gap-4 p-3">
           <PrizePhoto
             src={photo("voucher")}
