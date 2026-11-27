@@ -253,7 +253,7 @@ test("a major rules change asks active participants to consent again", () => {
   assert.equal(svc.stage(svc.get(1)!), "ACTIVE");
 });
 
-test("web sign-up: name, phone and age create a separate account; phone stays unique", () => {
+test("web sign-up: name and phone create a separate account; phone stays unique", () => {
   const participants = new ParticipantsService(new RulesService());
   assert.equal(parseUzPhone("90 123 45 67"), "+998901234567");
   assert.equal(parseUzPhone("+998 (90) 123-45-67"), "+998901234567");
@@ -309,6 +309,29 @@ test("profile without a surname is accepted; an old app may still send one", () 
     phone: "901234567",
     age: 20,
   });
+});
+
+test("sign-up asks only for the name (and phone on the site); age is optional but still checked if sent", () => {
+  const participants = new ParticipantsService(new RulesService());
+  participants.setPhone(1, 1, "+998900000001");
+  participants.register(1, "Ali", "");
+  assert.equal(participants.get(1)?.age, null);
+  assert.equal(participants.stage(participants.get(1)!), "NEEDS_CONSENT");
+
+  const web = participants.registerWeb("Dilnoza", "90 765 43 21");
+  assert.equal(participants.get(web)?.age, null);
+  assert.equal(participants.stage(participants.get(web)!), "NEEDS_CONSENT");
+
+  assert.deepEqual(parseRegister({ firstName: "Ali" }), { firstName: "Ali", lastName: "", age: null });
+  assert.deepEqual(parseWebRegister({ firstName: "Ali", phone: "901234567" }), {
+    firstName: "Ali",
+    phone: "901234567",
+    age: null,
+  });
+  // Eski ilova yoshni yuborsa — tekshiriladi.
+  assert.throws(() => parseRegister({ firstName: "Ali", age: "20" }));
+  participants.setPhone(2, 2, "+998900000002");
+  assert.equal(code(() => participants.register(2, "Vali", "", 15)), "UNDER_AGE");
 });
 
 test("sharing the web account's phone in the bot links that account to Telegram", () => {

@@ -32,12 +32,9 @@ export const t = {
     "Raqam Telegram bot orqali ulashiladi: tugmani bosing, ochilgan chatda «Raqamni ulashish» ni tanlang va shu sahifaga qayting. Bitta raqam — bitta ishtirokchi.",
   contactWebWaiting: "Telegram'da raqamni ulashgach, sahifa o'zi yangilanadi…",
 
-  // Veb-sayt: kirish (mehmon "Profil" kartasi — sarlavha, bir qator va bitta tugma)
-  webJoinTitle: "Saytdan ro'yxatdan o'tish",
-  webJoinVia: "Ism, telefon raqam va yosh — bir daqiqa. Parol va SMS kerak emas.",
-  webSignupCta: "Ro'yxatdan o'tish",
+  // Veb-sayt: ro'yxatdan o'tish (til tanlangach birinchi ekran — ism va telefon raqam)
   webSignupTitle: "Ro'yxatdan o'tish",
-  webSignupSubtitle: "Ismingiz, telefon raqamingiz va yoshingizni kiriting.",
+  webSignupSubtitle: "Ismingiz va telefon raqamingizni kiriting.",
   webSignupBack: "Orqaga",
   webSignupDeviceNote:
     "Hisobingiz shu brauzerda saqlanadi — keyin ham shu telefon yoki kompyuterdan kiring.",
@@ -86,33 +83,22 @@ export const t = {
   logoutStay: "Qolaman",
   logoutLeave: "Ha, chiqish",
 
-  // Veb-sayt: ro'yxatdan o'tmagan mehmon (bosh sahifani ko'radi, qatnashish uchun "Profil" da kiradi)
-  guestName: "Mehmon",
-  guestStatus: "Hali ro'yxatdan o'tmagansiz",
-  guestJoinTitle: "Ro'yxatdan o'tish",
-  guestJoinCta: "Ro'yxatdan o'tish",
-  guestReelTitle: "Videongizni yuborish uchun ro'yxatdan o'ting",
-  guestReelBody:
-    "Saytda ro'yxatdan o'ting yoki Telegram orqali kiring — parol yoki SMS kerak emas. Keyin Reel linklarini yuborasiz — barcha qabul qilingan videolaringiz ko'rishlari qo'shib hisoblanadi.",
-  guestReportTitle: "Xabar yuborish uchun ro'yxatdan o'ting",
-  guestReportBody: "Reklama haqida faqat tanlov ishtirokchilari xabar bera oladi. Ro'yxatdan o'tish bir daqiqa oladi.",
+  // Veb-sayt: support
   supportWebHint: "Support Telegram botda — ochilgan chatga savolingizni yozing.",
 
   // Ro'yxatdan o'tish
   registerTitle: "Ro'yxatdan o'tish",
   registerSubtitle: "Ma'lumotlarni hujjatdagidek kiriting.",
-  registerWarning: "Diqqat: ism va yosh bir marta kiritiladi. Keyin ularni o'zgartirib bo'lmaydi.",
+  registerWarning: "Diqqat: ism bir marta kiritiladi. Keyin uni o'zgartirib bo'lmaydi.",
   firstName: "Ism",
   lastName: "Familiya",
   age: "Yosh",
   nameInvalid: "Kamida 2 ta harf kiriting",
-  ageInvalid: "Yoshni raqam bilan kiriting",
-  ageTooYoung: (min: number) => `Tanlovda ${min} yoshdan boshlab qatnashish mumkin`,
   // Tasdiqlash oynasi (Telegram'dan tashqarida)
   confirmOk: "Tasdiqlash",
   confirmCancel: "Bekor qilish",
-  confirmProfile: (first: string, phone: string, age: number) =>
-    `Ma'lumotlar to'g'rimi?\n\n${first}, ${age} yosh\n${phone}\n\nTasdiqlagandan keyin ism va yoshni o'zgartirib bo'lmaydi.`,
+  confirmProfile: (first: string, phone: string) =>
+    `Ma'lumotlar to'g'rimi?\n\n${first}\n${phone}\n\nTasdiqlagandan keyin ismni o'zgartirib bo'lmaydi.`,
 
   // Qoidalar
   rulesTitle: "Ommaviy oferta",
@@ -154,7 +140,6 @@ export const t = {
   homeCountdownAria: (days: number, hours: number, minutes: number) =>
     `Tanlov tugashiga ${days} kun ${hours} soat ${minutes} daqiqa qoldi`,
   homeContestOver: "Tanlov yakunlandi",
-  homeJoin: "Ishtirok etish",
   homePrizesTitle: "Sovg'alar",
   homeAllPrizes: "Batafsil",
   homeVoucherCount: (perMonth: number, total: number) => `Har oy ${perMonth} ta · jami ${total} ta`,
@@ -298,7 +283,7 @@ export const t = {
   profileDevTeam: "Dasturchilar jamoasi:",
   phone: "Telefon raqam",
   phoneShort: "Telefon",
-  profileLocked: "Ism va yosh ro'yxatdan o'tishda bir marta kiritiladi va o'zgartirilmaydi.",
+  profileLocked: "Ism ro'yxatdan o'tishda bir marta kiritiladi va o'zgartirilmaydi.",
   menuSupport: "Supportga yozish",
   supportTitle: "Support",
   supportIntroTitle: "Savolingiz bormi? Yozing!",
@@ -315,7 +300,7 @@ export const t = {
     `Assalomu alaykum! Profilimdagi «${field}» noto'g'ri kiritilgan. To'g'risi: `,
   lockedTitle: (field: string) => `«${field}» o'zgartirilmaydi`,
   lockedBody:
-    "Ism, familiya va yosh ro'yxatdan o'tishda bir marta kiritiladi va keyin o'zgartirib bo'lmaydi. Xato kiritilgan bo'lsa, supportga yozing — operator tekshirib, to'g'rilab beradi.",
+    "Ism ro'yxatdan o'tishda bir marta kiritiladi va keyin uni o'zgartirib bo'lmaydi. Xato kiritilgan bo'lsa, supportga yozing — operator tekshirib, to'g'rilab beradi.",
   lockedWriteSupport: "Supportga yozish",
   lockedClose: "Yopish",
   menuRules: "Tanlov qoidalari",

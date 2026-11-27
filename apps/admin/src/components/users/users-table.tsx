@@ -208,7 +208,9 @@ function UserRow({
           <span className="sr-only"> — videolarini ko&apos;rish</span>
         </button>
         <p className="text-xs whitespace-nowrap text-slate-500">
-          {item.age} yosh · {formatDate(item.registeredOn)} dan
+          {/* Yosh endi so'ralmaydi (0 — kiritilmagan); eski ishtirokchilarda ko'rinadi. */}
+          {item.age > 0 && `${item.age} yosh · `}
+          {formatDate(item.registeredOn)} dan
         </p>
       </td>
 

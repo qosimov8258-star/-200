@@ -149,15 +149,12 @@ export class OwnerService {
     return { ...page, items: page.items.map((p) => this.toOwnerParticipant(p, ctx)), counts };
   }
 
-  /** 404 — topilmadi; 409 — telefon boshqa ishtirokchida; 422 — ism bor-u familiya/yosh yo'q. */
+  /** 404 — topilmadi; 409 — telefon boshqa ishtirokchida. */
   updateParticipant(id: string, patch: OwnerParticipantPatch): OwnerParticipant {
     const telegramId = participantId(id);
     const result = telegramId === null ? "NOT_FOUND" : this.participants.ownerUpdate(telegramId, patch);
     if (result === "NOT_FOUND") throw adminError(404, "Ishtirokchi topilmadi.");
     if (result === "PHONE_TAKEN") throw adminError(409, "Bu telefon raqami boshqa ishtirokchida.");
-    if (result === "PROFILE_INCOMPLETE") {
-      throw adminError(422, "Ro'yxatdan o'tmagan ishtirokchiga ism bilan birga familiya va yosh ham yoziladi.");
-    }
     return this.toOwnerParticipant(result, this.context());
   }
 

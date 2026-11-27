@@ -57,10 +57,9 @@ const TIER_STYLE: Record<PrizeTierKind, { icon: LucideIcon; node: string; chip: 
 
 const rise = (i: number): CSSProperties => ({ animationDelay: `${i * 80}ms` });
 
-export function PrizesScreen({ onOpenReel, guest = false }: { onOpenReel: () => void; guest?: boolean }) {
+export function PrizesScreen({ onOpenReel }: { onOpenReel: () => void }) {
   const prizes = useQuery({ queryKey: ["prizes"], queryFn: api.getPrizes });
-  // Mehmonning videosi yo'q — so'ralmaydi (aks holda 401).
-  const reels = useQuery({ queryKey: ["reels"], queryFn: api.getMyReels, enabled: !guest });
+  const reels = useQuery({ queryKey: ["reels"], queryFn: api.getMyReels });
 
   return (
     <div className="space-y-6">
@@ -78,7 +77,7 @@ export function PrizesScreen({ onOpenReel, guest = false }: { onOpenReel: () => 
             // Eng ko'p ko'rilgan qabul qilingan video ko'rishlari (videolar qo'shilmaydi);
             // birorta ham video yo'q bo'lsa — null.
             views={reels.data && reels.data.reels.length > 0 ? reels.data.totalViews : null}
-            loading={!guest && reels.isPending}
+            loading={reels.isPending}
             onOpenReel={onOpenReel}
             style={rise(2)}
           />

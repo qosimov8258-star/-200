@@ -42,15 +42,12 @@ export function HomeScreen({
   fullName,
   canPostStory,
   onOpenPrizes,
-  onJoin,
 }: {
   firstName: string;
   fullName: string;
-  /** Ro'yxatdan o'tgan faol ishtirokchi — "Istoriya qo'shish" ko'rinadi (mehmonga — yo'q). */
+  /** Faol ishtirokchi — "Istoriya qo'shish" ko'rinadi. */
   canPostStory: boolean;
   onOpenPrizes: () => void;
-  /** Faqat mehmon uchun: bannerda "Ishtirok etish" tugmasi (Profil — ro'yxatdan o'tish). */
-  onJoin?: () => void;
 }) {
   const contest = useQuery({ queryKey: ["contest"], queryFn: api.getContest });
   const prizes = useQuery({ queryKey: ["prizes"], queryFn: api.getPrizes });
@@ -79,7 +76,6 @@ export function HomeScreen({
             ? `${dmy(prizes.data.stages[0].startsOn)} – ${dmy(prizes.data.stages.at(-1)!.endsOn)}`
             : null
         }
-        onJoin={onJoin}
       />
 
       {prizes.isPending ? <Spinner /> : prizes.data ? <PrizeShowcase prizes={prizes.data} onOpenPrizes={onOpenPrizes} /> : null}
@@ -107,12 +103,10 @@ export function HomeScreen({
 function StartedBanner({
   endsAt,
   period,
-  onJoin,
 }: {
   /** Admin panelda sozlangan tanlov tugash vaqti (backend `/miniapp/contest`). */
   endsAt: string | null;
   period: string | null;
-  onJoin?: () => void;
 }) {
   return (
     <section className="relative isolate animate-rise overflow-hidden rounded-card bg-[linear-gradient(140deg,#f2583f_0%,#df3425_48%,#ad1f2c_100%)] p-[22px] pb-[50px] text-white shadow-[0_18px_40px_-22px_rgba(173,31,44,0.75)]">
@@ -146,26 +140,11 @@ function StartedBanner({
 
       <ContestCountdown endsAt={endsAt} />
 
-      {(period || onJoin) && (
+      {period && (
         <div className="mt-4 flex flex-wrap items-center gap-2 text-[13px]">
-          {period && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-black/15 px-3 py-1.5 font-medium">
-              <CalendarDays className="size-4" aria-hidden />
-              {period}
-            </span>
-          )}
-          {/* Mehmonga — "Ishtirok etish" (Profil: ro'yxatdan o'tish). */}
-          <span className="inline-flex flex-wrap items-center gap-2">
-            {onJoin && (
-              <button
-                type="button"
-                onClick={onJoin}
-                className="inline-flex items-center gap-1.5 rounded-full bg-ink py-1.5 pr-2.5 pl-3.5 font-semibold text-white shadow-[0_6px_16px_-6px_rgba(0,0,0,0.55)] transition active:scale-[0.97]"
-              >
-                {t.homeJoin}
-                <ArrowRight className="size-4" aria-hidden />
-              </button>
-            )}
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-black/15 px-3 py-1.5 font-medium">
+            <CalendarDays className="size-4" aria-hidden />
+            {period}
           </span>
         </div>
       )}

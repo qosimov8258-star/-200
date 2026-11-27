@@ -23,6 +23,8 @@ type Widen<T> = T extends string
 export type Texts = Widen<typeof uz>;
 
 const STORAGE_KEY = "lang";
+/** `index.html` dagi skript o'qiydi: qayta yuklanishda "Olivia" animatsiyasi qayta chiqmaydi. */
+const SKIP_SPLASH_KEY = "skipSplash";
 
 function savedLang(): Lang | null {
   try {
@@ -56,8 +58,15 @@ export function setLang(next: Lang): void {
   } catch {
     // Saqlab bo'lmasa ham (maxfiy rejim) — shu sessiya uchun almashadi.
   }
-  // Birinchi tanlovda ham qayta yuklanadi — "Tilni tanlang" ekrani yopiladi.
-  if (next !== lang || !langChosen) window.location.reload();
+  // Birinchi tanlovda ham qayta yuklanadi — "Tilni tanlang" ekrani yopiladi va darhol
+  // ro'yxatdan o'tish ochiladi (yuklanish animatsiyasi ikkinchi marta ko'rsatilmaydi).
+  if (next === lang && langChosen) return;
+  try {
+    sessionStorage.setItem(SKIP_SPLASH_KEY, "1");
+  } catch {
+    // Saqlab bo'lmasa — animatsiya odatdagidek ko'rinadi.
+  }
+  window.location.reload();
 }
 
 /** Sana va sonlarni formatlash uchun til kodi. */

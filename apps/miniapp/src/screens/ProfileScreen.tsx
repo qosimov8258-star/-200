@@ -1,7 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import {
-  ArrowRight,
   Cake,
   CalendarDays,
   ChevronRight,
@@ -18,7 +17,6 @@ import {
   Trash2,
   Trophy,
   User,
-  UserPlus,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
@@ -37,7 +35,6 @@ import { Garland, SantaAvatar } from "../components/ProfileFestive";
 import { Snowfall } from "../components/Snowfall";
 import { daysUntil, displayName, formatCount } from "../lib/format";
 import { WinnerAnnounced, WinnerPending } from "../components/WinnerStage";
-import { WebLoginPanel } from "./WebLoginScreen";
 
 /** Ilovani ishlab chiqqan jamoa sayti (profil pastidagi yozuv). */
 const DEV_TEAM_URL = "https://orbitech.uz";
@@ -154,7 +151,7 @@ export function ProfileScreen({
           // Eski ishtirokchilarda familiya bor — ko'rsatiladi; yangilarida uning o'rnida telefon raqam.
           ...(profile.lastName ? [{ icon: <IdCard />, label: t.lastName, value: profile.lastName }] : []),
           ...(me.phoneMasked ? [{ icon: <Phone />, label: t.phoneShort, value: me.phoneMasked }] : []),
-          { icon: <Cake />, label: t.age, value: String(profile.age) },
+          ...(profile.age ? [{ icon: <Cake />, label: t.age, value: String(profile.age) }] : []),
         ].map((row, i) => (
           // Bosilsa — o'zgartirib bo'lmasligi va support'ga yozish taklifi.
           <button
@@ -308,66 +305,6 @@ function LinkTelegramCard() {
         {t.linkTelegramCta}
       </PillButton>
       {waiting && <p className="px-1 text-[13px] leading-snug text-muted">{t.linkTelegramWaiting}</p>}
-    </Card>
-  );
-}
-
-/**
- * Veb-saytdagi mehmonning "Profil" bo'limi: shu yerdan ro'yxatdan o'tiladi yoki "Hisobim bor" bilan
- * qaytib kiriladi (Telegram bot orqali tasdiq).
- * Kirgach ilova o'zi ro'yxatdan o'tish qadamlariga yoki bosh sahifaga o'tadi.
- */
-export function GuestProfile({ onOpenRules, onOpenWinner }: { onOpenRules: () => void; onOpenWinner: () => void }) {
-  return (
-    <div className="space-y-4">
-      <PageHeader title={t.profileTitle} trailing={<LangSwitch />} />
-      {/* Mehmon kartasi — bosh sahifadagi "Olivia tanlovi boshlandi" banneri uslubida (qizil, qor bilan). */}
-      <section className="relative isolate animate-rise overflow-hidden rounded-card bg-[linear-gradient(140deg,#f2583f_0%,#df3425_48%,#ad1f2c_100%)] p-[22px] text-white shadow-[0_18px_40px_-22px_rgba(173,31,44,0.75)]">
-        <div aria-hidden className="absolute -top-20 -right-16 -z-10 size-60 rounded-full bg-[#ffb36b]/45 blur-3xl" />
-        <div aria-hidden className="absolute -bottom-24 -left-16 -z-10 size-64 rounded-full bg-[#ff7aa8]/30 blur-3xl" />
-        <div
-          aria-hidden
-          className="absolute inset-0 -z-10 opacity-[0.12] [background-image:radial-gradient(circle,white_1px,transparent_1.5px)] [background-size:18px_18px] [mask-image:linear-gradient(to_bottom_left,black,transparent_70%)]"
-        />
-        <Snowfall density={0.7} />
-
-        <div className="flex items-center gap-3.5">
-          <span className="grid size-[60px] shrink-0 place-items-center rounded-full bg-white text-[24px] font-bold text-[#df3425] shadow-[0_8px_18px_-8px_rgba(0,0,0,0.45)] ring-4 ring-white/25">
-            {t.guestName.charAt(0)}
-          </span>
-          <span className="min-w-0">
-            <span className="block truncate text-[22px] leading-tight font-bold tracking-tight">{t.guestName}</span>
-            <span className="mt-1 inline-flex rounded-full bg-black/15 px-2.5 py-0.5 text-[12px] font-medium">
-              {t.guestStatus}
-            </span>
-          </span>
-        </div>
-        <div aria-hidden className="my-5 h-px bg-white/20" />
-        <WebLoginPanel />
-      </section>
-      <Menu
-        brand
-        items={[
-          { icon: <FileText />, label: t.menuRules, onClick: onOpenRules },
-          { icon: <Trophy />, label: t.menuWinner, onClick: onOpenWinner },
-        ]}
-      />
-    </div>
-  );
-}
-
-/** Faqat ishtirokchilar uchun bo'lim — mehmonga ro'yxatdan o'tishni taklif qiladi. */
-export function GuestGate({ title, body, onJoin }: { title: string; body: string; onJoin: () => void }) {
-  return (
-    <Card className="p-6">
-      <span className="grid size-[52px] place-items-center rounded-full bg-[linear-gradient(135deg,#f2583f,#df3425)] text-white">
-        <UserPlus className="size-6" />
-      </span>
-      <h2 className="mt-[18px] text-xl leading-tight font-bold tracking-tight">{title}</h2>
-      <p className="mt-1.5 text-[15px] leading-snug text-muted">{body}</p>
-      <PillButton className="mt-10" onClick={onJoin} icon={<ArrowRight className="size-5" />}>
-        {t.guestJoinCta}
-      </PillButton>
     </Card>
   );
 }

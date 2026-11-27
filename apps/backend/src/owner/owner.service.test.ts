@@ -196,11 +196,11 @@ test("owner can change name, age, phone and status (also undo a disqualification
   assert.equal(back.status, "ACTIVE");
   assert.equal(back.rank, 1, "yana reytingda");
 
-  // Ro'yxatdan o'tmagan ishtirokchiga faqat ism yozilmaydi — familiya va yosh ham kerak.
-  assert.equal(statusOf(() => people.update("4", { firstName: "Bekzod" })), 422);
-  assert.equal(participants.get(4)?.firstName, null);
-  const completed = people.update("4", { firstName: "Bekzod", lastName: "Aliyev", age: 30 });
+  // Ro'yxatdan o'tmagan ishtirokchiga faqat ism ham yoziladi — familiya va yosh ixtiyoriy.
+  const completed = people.update("4", { firstName: "Bekzod" });
   assert.equal(completed.firstName, "Bekzod");
+  assert.equal(completed.lastName, "");
+  assert.equal(completed.age, null);
   assert.equal(completed.profileComplete, false, "qoidalarga rozilik hali yo'q");
 
   assert.equal(sent.length, 0, "bot xabari yuborilmaydi");

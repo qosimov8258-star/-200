@@ -13,6 +13,11 @@ export function hideSplash(): void {
   hidden = true;
   const splash = document.getElementById("splash");
   if (!splash) return;
+  // Til tanlangach qayta yuklandi — yuklanish sahifasi umuman ko'rsatilmagan (`index.html`).
+  if (document.documentElement.classList.contains("no-splash")) {
+    splash.remove();
+    return;
+  }
 
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const wait = reducedMotion ? 0 : Math.max(0, MIN_VISIBLE_MS - performance.now());

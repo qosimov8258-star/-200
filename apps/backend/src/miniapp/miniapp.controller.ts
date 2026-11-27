@@ -100,10 +100,8 @@ export class MiniappController {
     return {
       stage: this.participants.stage(p),
       phoneMasked: p.phone ? maskPhone(p.phone) : null,
-      profile:
-        p.firstName && p.age
-          ? { firstName: p.firstName, lastName: p.lastName ?? "", age: p.age }
-          : null,
+      // Yosh endi so'ralmaydi — profil ism bilan to'ldiriladi (eski ishtirokchilarda yosh bor).
+      profile: p.firstName ? { firstName: p.firstName, lastName: p.lastName ?? "", age: p.age ?? null } : null,
       /** Avval rozilik bergan, lekin qoidalar shundan keyin muhim tarzda o'zgargan. */
       rulesUpdated: p.consentVersion !== null && p.consentVersion !== this.rulesService.version,
       /** `web` — saytda (Telegram'siz) ro'yxatdan o'tgan: faqat shu brauzer orqali kiriladi. */

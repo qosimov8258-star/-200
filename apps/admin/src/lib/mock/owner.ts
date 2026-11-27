@@ -911,11 +911,6 @@ export async function updateOwnerParticipant(id: string, update: OwnerParticipan
     throw new ApiError(404, "Ishtirokchi topilmadi. U o'chirilgan bo'lishi mumkin.");
   }
 
-  // Ro'yxatdan o'tmagan (ismi yo'q) ishtirokchiga ism yozilsa — familiya va yosh ham birga.
-  if (person.firstName === null && edits.firstName !== undefined && (edits.lastName === undefined || edits.age === undefined)) {
-    throw new ApiError(422, "Ro'yxatdan o'tmagan ishtirokchiga ism bilan birga familiya va yosh ham kiritilsin.");
-  }
-
   if (edits.phone !== undefined && context.people.some((other) => other.id !== id && other.phone === edits.phone)) {
     throw new ApiError(409, "Bu telefon raqami boshqa ishtirokchida.");
   }

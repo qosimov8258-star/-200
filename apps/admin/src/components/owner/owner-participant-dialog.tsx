@@ -107,12 +107,6 @@ function buildUpdate(
     update.status = values.status;
   }
 
-  // Ro'yxatdan o'tmagan (ismi yo'q) ishtirokchiga ism yozilsa — yosh ham birga (backend talabi).
-  // Familiya ixtiyoriy (ro'yxatdan o'tishda endi so'ralmaydi).
-  if (participant.firstName === null && update.firstName !== undefined) {
-    if (update.age === undefined && !errors.age) errors.age = "Ism bilan birga yoshni ham kiriting.";
-  }
-
   return { update, errors };
 }
 
