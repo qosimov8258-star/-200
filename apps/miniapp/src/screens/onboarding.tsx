@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Check, Download, FileText, Lock, Phone, Send, Snowflake } from "lucide-react";
+import clsx from "clsx";
+import { ArrowRight, Check, ChevronDown, Download, FileText, Lock, Phone, Send, Snowflake } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { GiftButton } from "../components/GiftButton";
@@ -375,6 +376,33 @@ function OfferPdfDownload() {
   );
 }
 
+/**
+ * O'ng pastdagi "oxiriga tushish" tugmasi (iPhone'dagidek): bir bosishda sahifa oxiriga silliq
+ * tushadi. Oxiri ko'ringanda yashirinadi. `bottom` — pastki menyu bo'lsa, uning ustida turadi.
+ */
+function ScrollDownButton({ hidden, bottom }: { hidden: boolean; bottom: string }) {
+  return (
+    <div className="pointer-events-none fixed inset-x-0 z-30 mx-auto flex max-w-[520px] justify-end px-4" style={{ bottom }}>
+      <button
+        type="button"
+        aria-label={t.scrollToEnd}
+        aria-hidden={hidden || undefined}
+        tabIndex={hidden ? -1 : undefined}
+        onClick={() => {
+          haptic.select();
+          window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
+        }}
+        className={clsx(
+          "grid size-12 place-items-center rounded-full bg-surface/90 text-ink shadow-[0_10px_24px_-10px_rgba(30,31,34,0.55)] ring-1 ring-black/5 backdrop-blur transition duration-300 active:scale-95",
+          hidden ? "pointer-events-none translate-y-3 opacity-0" : "pointer-events-auto opacity-100",
+        )}
+      >
+        <ChevronDown className="size-6" strokeWidth={2.4} />
+      </button>
+    </div>
+  );
+}
+
 /** Tanlov qoidalari. `requireConsent` — ro'yxatdan o'tishdagi majburiy rozilik qadami. */
 export function RulesContent({ requireConsent = false }: { requireConsent?: boolean }) {
   const queryClient = useQueryClient();
@@ -382,6 +410,23 @@ export function RulesContent({ requireConsent = false }: { requireConsent?: bool
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Sahifa oxiri ko'rindimi (o'ng pastdagi strelka yashirinadi) va bir marta bo'lsa ham oxirigacha
+  // tushildimi — "roziman" bloki shundan keyin chiqadi.
+  const endRef = useRef<HTMLDivElement>(null);
+  const [atEnd, setAtEnd] = useState(false);
+  const [reachedEnd, setReachedEnd] = useState(false);
+  const loaded = rules.data !== undefined;
+
+  useEffect(() => {
+    const end = endRef.current;
+    if (!loaded || !end) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      setAtEnd(entry.isIntersecting);
+      if (entry.isIntersecting) setReachedEnd(true);
+    });
+    observer.observe(end);
+    return () => observer.disconnect();
+  }, [loaded]);
 
   const accept = async () => {
     if (!rules.data) return;
@@ -449,10 +494,16 @@ export function RulesContent({ requireConsent = false }: { requireConsent?: bool
         </>
       )}
 
-      {/* Rozilik — ofertaning eng oxirida: foydalanuvchi matnni oxirigacha o'tib, shu yerda "roziman"
-          deydi (ustida suzib turuvchi panel yo'q — matn bilan aralashmaydi). */}
+      {/* Rozilik — ofertaning eng oxirida: foydalanuvchi matnni oxirigacha tushgach chiqadi va shu
+          yerda "roziman" deydi (ustida suzib turuvchi panel yo'q — matn bilan aralashmaydi). */}
       {requireConsent && rules.data && (
-        <div className="mt-5">
+        <div
+          inert={!reachedEnd}
+          className={clsx(
+            "mt-5 transition duration-500 ease-out",
+            reachedEnd ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0",
+          )}
+        >
           <label className="flex cursor-pointer items-center gap-3 rounded-card bg-surface px-5 py-4">
             <button
               type="button"
@@ -486,6 +537,14 @@ export function RulesContent({ requireConsent = false }: { requireConsent?: bool
             {t.continue}
           </PillButton>
         </div>
+      )}
+      <div ref={endRef} aria-hidden className="h-px" />
+      {loaded && (
+        <ScrollDownButton
+          hidden={atEnd}
+          // Ilova ichida pastki menyu (66px, pastdan 12px) bor — strelka uning ustida.
+          bottom={requireConsent ? "calc(var(--safe-bottom) + 20px)" : "calc(var(--safe-bottom) + 92px)"}
+        />
       )}
     </div>
   );

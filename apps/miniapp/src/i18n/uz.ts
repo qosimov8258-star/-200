@@ -109,6 +109,7 @@ export const t = {
   rulesAgree: "Ommaviy oferta shartlari bilan tanishdim va roziman",
   rulesReadToEnd: "Oferta bilan oxirigacha tanishib chiqing — rozilik belgisi eng pastda.",
   offerPdfTitle: "Ommaviy ofertani yuklab olish",
+  scrollToEnd: "Oxiriga tushish",
   offerPdfHint: "Imzolangan asl nusxa · PDF, 5 MB",
   offerPdfFileName: "Ommaviy-oferta-OLIVIA.pdf",
   rulesUpdatedTitle: "Ommaviy oferta",

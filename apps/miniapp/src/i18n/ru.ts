@@ -134,6 +134,7 @@ export const ru: Texts = {
   rulesAgree: "С условиями публичной оферты ознакомлен(а) и согласен(на)",
   rulesReadToEnd: "Прочитайте оферту до конца — отметка о согласии в самом низу.",
   offerPdfTitle: "Скачать публичную оферту",
+  scrollToEnd: "Вниз, к концу",
   offerPdfHint: "Подписанный оригинал · PDF, 5 МБ",
   offerPdfFileName: "Публичная-оферта-OLIVIA.pdf",
   rulesUpdatedTitle: "Публичная оферта",
