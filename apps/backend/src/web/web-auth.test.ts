@@ -143,7 +143,7 @@ test("bot login: start sets a secret cookie; poll gives the session only to that
         socket: {},
       }) as unknown as Request;
 
-    const started = controller.startBotLogin({}, req(), res);
+    const started = controller.startBotLogin({}, req(), res, "ru");
     assert.match(started.botUrl, new RegExp(`^https://t\\.me/olivia_test_bot\\?start=login_${started.id}$`));
     assert.match(started.code, /^\d{4}$/);
     assert.match(cookies[0], /^reels_bot_login=[^;]+; Path=\/api\/v1\/auth\/bot-login; HttpOnly; SameSite=Lax; Max-Age=600$/);
@@ -154,7 +154,7 @@ test("bot login: start sets a secret cookie; poll gives the session only to that
     // Bot tomoni: hisob Telegram'ga ulanadi (eski sayt sessiyalari bekor, raqam egasiga bir marta
     // qayta kirish beriladi) va tasdiqlanadi.
     assert.equal(participants.setPhone(42, 42, "+998901234567"), "LINKED");
-    assert.ok(botLogin.claim(started.id, 42));
+    assert.equal(botLogin.claim(started.id, 42)?.lang, "ru", "saytdagi til (X-Lang) botga o'tadi");
     assert.ok(botLogin.confirm(started.id, 42, participants.resolve(42)));
 
     // Havolani (id) bilgan, lekin kalit cookie'si yo'q boshqa brauzer — sessiya olmaydi.

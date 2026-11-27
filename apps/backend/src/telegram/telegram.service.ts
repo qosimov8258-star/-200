@@ -24,15 +24,19 @@ import {
 } from "./bot-guard";
 import { failureReasonOf, MessageLogService } from "./message-log.service";
 import type { ParticipantNotifier, TelegramMessageKind } from "./notifier";
-import { langOf } from "../common/lang";
-import { textsFor } from "./bot-texts";
+import { chosenLang } from "../common/lang";
+import { BOT_COMMANDS, LANGUAGE_BUTTONS, LANGUAGE_PROMPT, textsFor } from "./bot-texts";
 import { texts, type BotTexts } from "./texts";
 import { textsRu } from "./texts.ru";
 
-/** Saytdagi hisobni Telegram'ga ulash: `https://t.me/<bot>?start=link`. */
-const LINK_START_PAYLOAD = "link";
-/** Sayt botga shu parametr bilan yuboradi: `https://t.me/<bot>?start=web`. */
-const WEB_START_PAYLOAD = "web";
+/**
+ * Saytdan kelgan havolalar: `?start=web` (saytda ro'yxatdan o'tish — raqam ulashish) va
+ * `?start=link` (saytdagi hisobni Telegram'ga ulash). Sayt tanlangan tilni ham qo'shadi
+ * (`web_ru`, `link_uz`) — bot shu tilda gapiradi; tilsiz (eski) havolalar ham qabul qilinadi.
+ */
+const SITE_START = /^(web|link)(?:_(uz|ru))?$/;
+/** Til tanlash tugmalari: `lang:uz` / `lang:ru`. */
+const LANG_CALLBACK = /^lang:(uz|ru)$/;
 /** Xabarnoma ostidagi "✅ O'qidim" tugmasi: `read:<jurnal yozuvi ID si>`. */
 const READ_PREFIX = "read:";
 /** Bot menyusi tugmasi — hamma uchun bitta (Telegram bot darajasida), ikki tilda. */
@@ -56,7 +60,9 @@ export interface DownloadedFile {
 
 /**
  * Telegram bot:
- * - /start — salomlashadi va raqam ulashishni so'raydi (yoki Mini App tugmasini beradi);
+ * - /start — avval tilni so'raydi (o'zbekcha / ruscha), keyin shu tilda salomlashadi va raqam
+ *   ulashishni so'raydi (yoki Mini App tugmasini beradi); /lang — tilni o'zgartirish. Til
+ *   tanlanmagan bo'lsa — o'zbekcha (Telegram ilovasining tiliga qaralmaydi);
  * - /start login_<id> — saytdagi "Hisobim bor": raqam (kerak bo'lsa) va "Ha, kirish" tasdig'i;
  * - raqam (kontakt) — faqat o'z raqami qabul qilinadi, keyin Mini App tugmasi;
  * - shaxsiy chatdagi boshqa har qanday xabar — support murojaati, operatorlar guruhiga boradi;
@@ -113,6 +119,7 @@ export class TelegramService
     });
 
     void this.configureMenuButton(bot);
+    void this.configureCommands(bot);
     // `start` bot to'xtaguncha tugamaydi — kutmaymiz.
     void bot
       .start({
@@ -255,6 +262,15 @@ export class TelegramService
       await ctx.answerCallbackQuery(confirmed ? { text: this.tx(ctx).loginConfirmedToast } : undefined);
       await ctx.editMessageText(confirmed ? this.tx(ctx).loginDone : this.tx(ctx).loginExpired).catch(() => undefined);
     });
+    // Til tanlandi: saqlanadi, savol o'chiriladi va bot shu tilda davom etadi.
+    bot.callbackQuery(LANG_CALLBACK, async (ctx) => {
+      const match = typeof ctx.match === "string" ? null : ctx.match;
+      const lang = chosenLang(match?.[1]) ?? "uz";
+      this.participants.setLang(ctx.from.id, lang);
+      await ctx.answerCallbackQuery();
+      await ctx.deleteMessage().catch(() => ctx.editMessageReplyMarkup().catch(() => undefined));
+      if (isPrivate(ctx)) await this.greet(ctx);
+    });
     bot.callbackQuery(SUPPORT_CALLBACK, async (ctx) => {
       await ctx.answerCallbackQuery();
       await this.askSupport(ctx);
@@ -274,6 +290,8 @@ export class TelegramService
           await ctx.reply(this.tx(ctx).loginExpired);
           return;
         }
+        // Saytda tanlangan til — bot ham shu tilda.
+        if (claimed.lang) this.participants.setLang(ctx.from.id, claimed.lang);
         // Raqam yo'q — avval ulashadi (saytdagi hisob shu yerda Telegram'ga ulanadi), keyin tasdiq.
         if (!p.phone) {
           await ctx.reply(this.tx(ctx).loginShareContact(claimed.code), { reply_markup: this.contactKeyboard(this.tx(ctx)) });
@@ -282,16 +300,29 @@ export class TelegramService
         await this.askLoginConfirm(ctx, id, claimed.code, p);
         return;
       }
-      // Saytdan "Botda raqamni ulashish" (`?start=web`) yoki "Telegram'ga ulash" (`?start=link`).
-      const fromWeb = ctx.match === WEB_START_PAYLOAD || ctx.match === LINK_START_PAYLOAD;
-      if (fromWeb) this.webStarts.add(ctx.from.id);
-      if (!p.phone) {
-        const welcome =
-          ctx.match === LINK_START_PAYLOAD ? this.tx(ctx).welcomeLink : fromWeb ? this.tx(ctx).welcomeFromWeb : this.tx(ctx).welcome;
-        await ctx.reply(welcome, { reply_markup: this.contactKeyboard(this.tx(ctx)) });
+      // Saytdan "Botda raqamni ulashish" (`?start=web`) yoki "Telegram'ga ulash" (`?start=link`):
+      // til saytda tanlangan — qayta so'ralmaydi.
+      const site = SITE_START.exec(ctx.match);
+      if (site) {
+        const siteLang = chosenLang(site[2]);
+        if (siteLang) this.participants.setLang(ctx.from.id, siteLang);
+        this.webStarts.add(ctx.from.id);
+        if (!p.phone) {
+          const welcome = site[1] === "link" ? this.tx(ctx).welcomeLink : this.tx(ctx).welcomeFromWeb;
+          await ctx.reply(welcome, { reply_markup: this.contactKeyboard(this.tx(ctx)) });
+          return;
+        }
+        await this.replyWithMiniApp(ctx, this.tx(ctx).alreadyRegistered);
         return;
       }
-      await this.replyWithMiniApp(ctx, this.tx(ctx).alreadyRegistered);
+      // Oddiy /start — avval til (saytdagidek), keyin shu tilda salomlashish (`greet`).
+      await this.askLanguage(ctx);
+    });
+
+    bot.command(["lang", "til"], async (ctx) => {
+      if (!isPrivate(ctx) || !ctx.from) return;
+      this.participants.getOrCreate(this.participants.resolve(ctx.from.id)).chatId = ctx.chat.id;
+      await this.askLanguage(ctx);
     });
 
     bot.on("message:contact", async (ctx) => {
@@ -424,13 +455,37 @@ export class TelegramService
 
   /** Saytga kirish tasdig'i: hisob nomi va saytdagi kod — foydalanuvchi solishtiradi. */
   /**
-   * Shu foydalanuvchi tilidagi matnlar: ilovada tanlagan tili, bo'lmasa — Telegram tili
-   * (`language_code`: ru… — rus, qolgani — o'zbek).
+   * Shu foydalanuvchi tilidagi matnlar: botda, ilovada yoki saytda tanlagan tili; tanlamagan bo'lsa —
+   * o'zbekcha. Telegram ilovasining tiliga (`language_code`) qaralmaydi: O'zbekistonda ko'pchilikda
+   * Telegram ruscha sozlangan, tanlov esa asosan o'zbek tilida.
    */
   private tx(ctx: Context): BotTexts {
     if (!ctx.from) return texts;
-    const p = this.participants.get(this.participants.resolve(ctx.from.id));
-    return textsFor(p?.lang ?? langOf(ctx.from.language_code));
+    return textsFor(this.participants.get(this.participants.resolve(ctx.from.id))?.lang);
+  }
+
+  /** Til so'rovi (ikkala tilda), tugmalar — `lang:uz` / `lang:ru`. */
+  private async askLanguage(ctx: Context): Promise<void> {
+    await ctx.reply(LANGUAGE_PROMPT, {
+      reply_markup: new InlineKeyboard()
+        .text(LANGUAGE_BUTTONS.uz, "lang:uz")
+        .text(LANGUAGE_BUTTONS.ru, "lang:ru"),
+    });
+  }
+
+  /**
+   * Til tanlangach: raqam ulashilmagan — salomlashish va raqam so'rash; ulashilgan — tanlangan til
+   * (pastdagi doimiy "Supportga yozish" tugmasi ham yangi tilda) va tanlov ilovasi tugmasi.
+   */
+  private async greet(ctx: Context): Promise<void> {
+    if (!ctx.from) return;
+    const tx = this.tx(ctx);
+    if (!this.participants.get(this.participants.resolve(ctx.from.id))?.phone) {
+      await ctx.reply(tx.welcome, { reply_markup: this.contactKeyboard(tx) });
+      return;
+    }
+    await ctx.reply(tx.langSaved, { reply_markup: this.supportKeyboard(tx) });
+    await this.replyWithMiniApp(ctx, tx.alreadyRegistered);
   }
 
   private async askLoginConfirm(ctx: Context, id: string, code: string, account: Participant): Promise<void> {
@@ -479,6 +534,15 @@ export class TelegramService
         .row()
         .text(this.tx(ctx).supportButton, SUPPORT_CALLBACK),
     });
+  }
+
+  /** "/" menyusidagi buyruqlar: /start va /lang (ikkala tilda). */
+  private async configureCommands(bot: Bot): Promise<void> {
+    try {
+      await bot.api.setMyCommands(BOT_COMMANDS);
+    } catch (err) {
+      this.logger.warn(`Bot buyruqlarini o'rnatib bo'lmadi: ${(err as Error).message}`);
+    }
   }
 
   /** Chat pastidagi doimiy "Tanlov" tugmasi Mini App'ni ochadi. */

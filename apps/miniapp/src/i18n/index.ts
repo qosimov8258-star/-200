@@ -30,6 +30,11 @@ const STORAGE_KEY = "lang";
 const SKIP_SPLASH_KEY = "skipSplash";
 /** Shu sessiyada (yorliq yopilguncha) til ekrani o'tildi — ro'yxatdan o'tishning birinchi qadami. */
 const CONFIRMED_KEY = "langConfirmed";
+/**
+ * Shu qurilmada tanlangan til hali serverga yetib bormagan. Ilova serverga faqat shunday (yangi)
+ * tanlovni yozadi; aks holda keyinroq botda (/lang) yoki boshqa qurilmada tanlangan til yutadi.
+ */
+const SYNC_KEY = "langSync";
 /** `localStorage` ga yozib bo'lishini tekshirish uchun vaqtinchalik kalit. */
 const PROBE_KEY = "__langProbe";
 
@@ -76,6 +81,12 @@ export const langSaveable: boolean = storageWritable();
  */
 export const langChosen: boolean = savedLang() !== null || !langSaveable;
 
+/**
+ * Til shu qurilmada haqiqatan tanlangan va saqlangan. Faqat shunda u serverga va botga yuboriladi:
+ * xotira yopiq brauzerdagi taxminiy qurilma tili botdagi tanlovni bosib ketmasin.
+ */
+export const langPicked: boolean = savedLang() !== null;
+
 /** Joriy tildagi barcha matnlar. */
 export const t: Texts = lang === "ru" ? ru : uz;
 
@@ -101,6 +112,7 @@ export function setLang(next: Lang): boolean {
   let saved = true;
   try {
     localStorage.setItem(STORAGE_KEY, next);
+    localStorage.setItem(SYNC_KEY, "1");
   } catch {
     saved = false;
   }
@@ -121,10 +133,49 @@ export function setLang(next: Lang): boolean {
   return true;
 }
 
+/** Shu qurilmadagi til tanlovi hali serverga yozilmaganmi (`setLang` dan keyin). */
+export function langSyncPending(): boolean {
+  try {
+    return localStorage.getItem(SYNC_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** Tanlov serverga yozildi (yoki serverdagi bilan bir xil). */
+export function langSynced(): void {
+  try {
+    localStorage.removeItem(SYNC_KEY);
+  } catch {
+    // Saqlab bo'lmasa — keyingi ochilishda qayta yoziladi, zarari yo'q.
+  }
+}
+
+/**
+ * Serverdagi (botda yoki boshqa qurilmada tanlangan) tilga o'tadi: saqlaydi va sahifani shu tilda
+ * qayta yuklaydi. Serverga qayta yozilmaydi. Saqlab bo'lmasa — hech narsa qilmaydi (aks holda
+ * sahifa cheksiz qayta yuklanardi).
+ */
+export function adoptLang(next: Lang): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, next);
+    localStorage.removeItem(SYNC_KEY);
+  } catch {
+    return;
+  }
+  try {
+    sessionStorage.setItem(SKIP_SPLASH_KEY, "1");
+  } catch {
+    // Saqlab bo'lmasa — animatsiya odatdagidek ko'rinadi.
+  }
+  window.location.reload();
+}
+
 /** Dev "Boshidan boshlash": til tanlovi ham unutiladi — ilova yana tildan boshlanadi. */
 export function forgetLang(): void {
   try {
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(SYNC_KEY);
     sessionStorage.removeItem(CONFIRMED_KEY);
   } catch {
     // Saqlab bo'lmasa — til odatdagidek qoladi.

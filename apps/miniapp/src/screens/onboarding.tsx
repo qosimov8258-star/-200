@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { GiftButton } from "../components/GiftButton";
 import { PrizeHero } from "../components/PrizeHero";
 import { Card, ErrorBlock, PillButton, Spinner, TextField } from "../components/ui";
-import { lang, t } from "../i18n";
+import { lang, langPicked, t } from "../i18n";
 import * as api from "../lib/api";
 import { errorCode } from "../lib/api-error";
 import { profileErrors } from "../lib/profile-form";
@@ -40,7 +40,8 @@ export function ContactScreen({ prizeName }: { prizeName: string }) {
     return () => window.clearInterval(id);
   }, [phase, queryClient]);
 
-  // Veb-saytda raqam bot chatida ulashiladi: t.me/<bot>?start=web.
+  // Veb-saytda raqam bot chatida ulashiladi: t.me/<bot>?start=web_<til> — bot saytda tanlangan tilda
+  // gapiradi (til tanlanmagan bo'lsa — `web`, bot o'zbekcha).
   const auth = useQuery({
     queryKey: ["auth-config"],
     queryFn: api.getAuthConfig,
@@ -62,7 +63,7 @@ export function ContactScreen({ prizeName }: { prizeName: string }) {
         setPhase("unsupported");
         return;
       }
-      openTelegram(botLink(bot, "web"));
+      openTelegram(botLink(bot, langPicked ? `web_${lang}` : "web"));
       setPhase("waiting");
       return;
     }

@@ -20,6 +20,8 @@ export const texts = {
   openMiniApp: "🏆 Tanlovni ochish",
   menuButton: "Tanlov",
   alreadyRegistered: "Tanlov ilovasini ochish uchun pastdagi tugmani bosing:",
+  /** Botda til tanlangach (tilni keyin /lang bilan o'zgartirish mumkin). */
+  langSaved: "✅ Til: o'zbekcha. O'zgartirish uchun — /lang",
   // Saytdagi "Hisobim bor" — bot orqali kirish.
   loginShareContact: (code: string) =>
     `🔐 Saytga kirish\n\nSaytdagi kod: ${code}\n\nKirish uchun pastdagi tugma orqali Telegram'dagi raqamingizni ulashing. Saytda ro'yxatdan o'tgan bo'lsangiz — o'sha raqam bo'lsin.\n\n⚠️ Saytda «Hisobim bor» ni o'zingiz bosmagan bo'lsangiz — hech narsa qilmang.`,

@@ -1,7 +1,8 @@
-import { Body, Controller, Get, HttpCode, Logger, Post, Req, Res } from "@nestjs/common";
+import { Body, Controller, Get, Headers, HttpCode, Logger, Post, Req, Res } from "@nestjs/common";
 import type { Request, Response } from "express";
 
 import { ApiException } from "../common/api-exception";
+import { chosenLang } from "../common/lang";
 import { config } from "../config/config";
 import { contestDefaults } from "../miniapp/contest";
 import { parseBotLoginPoll, parseBotLoginStart, parseWebRegister } from "../miniapp/validation";
@@ -130,7 +131,8 @@ export class AuthController {
   /**
    * "Hisobim bor" — Telegram bot orqali kirish so'rovi. Javob: bot havolasi (`?start=login_<id>`)
    * va saytda ko'rsatiladigan 4 xonali kod (botda ham chiqadi). Maxfiy kalit — shu brauzerning
-   * `HttpOnly` cookie'sida: sessiya faqat shu brauzerga beriladi. Body — bo'sh obyekt.
+   * `HttpOnly` cookie'sida: sessiya faqat shu brauzerga beriladi. Body — bo'sh obyekt. Saytdagi til
+   * (`X-Lang`) so'rovda saqlanadi — bot ham shu tilda gapiradi.
    * Xatolar: `503 SERVER` (bot sozlanmagan), `429 TOO_MANY`.
    */
   @Post("bot-login")
@@ -139,6 +141,7 @@ export class AuthController {
     @Body() body: unknown,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
+    @Headers("x-lang") lang?: string,
   ): { id: string; code: string; botUrl: string; expiresAt: string } {
     parseBotLoginStart(body);
     const bot = config.telegram.botUsername;
@@ -147,7 +150,7 @@ export class AuthController {
     const ip = clientIp(req);
     const mine = (this.botLoginStarts.get(ip) ?? []).filter((at) => now - at < BOT_LOGIN_WINDOW_MS);
     if (mine.length >= BOT_LOGINS_PER_IP) throw new ApiException(429, "TOO_MANY");
-    const started = this.botLogin.start(now);
+    const started = this.botLogin.start(now, chosenLang(lang));
     if (!started) throw new ApiException(429, "TOO_MANY");
     this.botLoginStarts.set(ip, [...mine, now]);
     if (this.botLoginStarts.size > 10_000) this.botLoginStarts.clear();

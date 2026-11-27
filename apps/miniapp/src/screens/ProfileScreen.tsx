@@ -23,7 +23,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { LangSwitch } from "../components/LangSwitch";
 import { Card, ErrorBlock, PageHeader, PillButton, Spinner } from "../components/ui";
 import { useToast } from "../components/toast-context";
-import { t } from "../i18n";
+import { lang, langPicked, t } from "../i18n";
 import * as api from "../lib/api";
 import { botLink, confirmDialog, haptic, isInTelegram, openExternal, openTelegram } from "../lib/telegram";
 import type { Me } from "../lib/types";
@@ -287,7 +287,7 @@ function LinkTelegramCard() {
     }
     const bot = auth.data?.botUsername;
     if (!bot) return;
-    openTelegram(botLink(bot, "link"));
+    openTelegram(botLink(bot, langPicked ? `link_${lang}` : "link"));
     setWaiting(true);
   };
 
