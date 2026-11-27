@@ -59,6 +59,8 @@ import { auditId, readStore, storeFits, writeStore, type MockStore } from "./sto
 import { activeTargetParticipants } from "./targets";
 
 const SAMPLE_SIZE = 20;
+/** Barabandagi ismlar lentasi uchun — backend bilan bir xil. */
+const NAMES_MAX = 5000;
 const MIN_REASON_LENGTH = 5;
 /**
  * Mock: birinchi yuborishda botni bloklagan ishtirokchilar ulushi (%).
@@ -689,6 +691,7 @@ export function previewDraw(input: DrawSettings): DrawPreview {
     excluded: pool.excluded,
     poolHash: fingerprint(pool.eligible.map((item) => item.participantId)),
     sample: [...pool.eligible].sort((a, b) => b.views - a.views).slice(0, SAMPLE_SIZE),
+    names: pool.eligible.slice(0, NAMES_MAX).map((c) => `${c.firstName} ${c.lastName}`.trim()),
     warnings,
   };
 }

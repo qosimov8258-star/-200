@@ -709,6 +709,8 @@ export interface DrawPreview {
   poolHash: string;
   /** Eng ko'p ko'rishli nomzodlar (namuna). */
   sample: DrawCandidate[];
+  /** Barcha nomzodlarning ismi (5000 tagacha) — barabandagi ismlar lentasi uchun. */
+  names: string[];
   /** Ogohlantirishlar (bosqich tugamagan, nomzod kam va h.k.). */
   warnings: string[];
 }
