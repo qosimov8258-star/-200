@@ -23,7 +23,7 @@ import { Snowfall } from "../components/Snowfall";
 import { Card, ErrorBlock, PageHeader, PillButton, RankDelta, Spinner } from "../components/ui";
 import { ViewsChart } from "../components/ViewsChart";
 import { useToast } from "../components/toast-context";
-import { t } from "../i18n/uz";
+import { t } from "../i18n";
 import * as api from "../lib/api";
 import { errorCode } from "../lib/api-error";
 import { calendarDaysUntil, formatCount, formatDayMonthTime, formatSigned } from "../lib/format";

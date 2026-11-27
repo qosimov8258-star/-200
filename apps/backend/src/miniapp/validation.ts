@@ -1,4 +1,5 @@
 import { ApiException } from "../common/api-exception";
+import { LANGS, type Lang } from "../common/lang";
 import { parseScreenshot } from "../targets/screenshot";
 import type { TargetReportInput } from "../targets/targets.service";
 
@@ -64,6 +65,14 @@ export function parseVersion(body: unknown): number {
     throw new ApiException(400, "SERVER");
   }
   return b.version;
+}
+
+/** `{ lang: "uz" | "ru" }` — boshqa qiymat va noma'lum maydonlar rad etiladi. */
+export function parseLang(body: unknown): Lang {
+  const b = object(body, ["lang"]);
+  const lang = LANGS.find((l) => l === b.lang);
+  if (!lang) throw new ApiException(400, "SERVER");
+  return lang;
 }
 
 export function parseUrl(body: unknown): string {

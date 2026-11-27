@@ -684,3 +684,17 @@ test("new links do not wait for a running check: up to 3 checks run in parallel,
   for (const id of [1, 2, 3, 4]) assert.equal(reel(id)?.status, "ACCEPTED");
   assert.equal(calls.flat().filter((c) => c === "PARA01").length, 1);
 });
+
+test("bot messages follow the participant's chosen language (Russian after choosing ru)", async () => {
+  const { provider, stats, sent, join, participants } = setup();
+  provider.set("AAAAA1", { owner: "ali", views: 5_000 });
+  provider.set("BBBBB2", { owner: "vali", views: 7_000 });
+  join(1, "AAAAA1");
+  participants.setLang(2, "ru");
+  join(2, "BBBBB2");
+  await stats.flushVerification();
+  const byChat = (id: number) => sent.filter((m) => m.chatId === id).map((m) => m.text).join("\n");
+  assert.match(byChat(1), /Videongiz qabul qilindi/);
+  assert.match(byChat(2), /Ваше видео принято/);
+  assert.match(byChat(2), /Видео: https:\/\/www\.instagram\.com\/reel\/BBBBB2\//);
+});

@@ -3,7 +3,7 @@ import clsx from "clsx";
 import { Plus, X } from "lucide-react";
 import { useRef, type ChangeEvent } from "react";
 
-import { t } from "../i18n/uz";
+import { t } from "../i18n";
 import { displayName } from "../lib/format";
 import { STORY_ACCEPT, STORY_MAX_ACTIVE, hasUnseen, storyFileProblem, type StoryFileProblem } from "../lib/stories";
 import {

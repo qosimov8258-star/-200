@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, ScrollText, Snowflake } from "lucide-react";
 
-import { t } from "../i18n/uz";
+import { t } from "../i18n";
 import * as api from "../lib/api";
 import { Snowfall } from "./Snowfall";
 

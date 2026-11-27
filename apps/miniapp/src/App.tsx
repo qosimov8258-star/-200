@@ -9,7 +9,7 @@ import { RulesHero } from "./components/RulesHero";
 import { SupportScreen } from "./screens/SupportScreen";
 import { useToast } from "./components/toast-context";
 import { ErrorBlock, PageHeader, Spinner } from "./components/ui";
-import { t } from "./i18n/uz";
+import { lang, langChosen, t } from "./i18n";
 import * as api from "./lib/api";
 import { errorCode } from "./lib/api-error";
 import { hideSplash } from "./lib/splash";
@@ -19,6 +19,7 @@ import type { Me } from "./lib/types";
 import { MyReelScreen } from "./screens/MyReelScreen";
 import { PrizesScreen } from "./screens/PrizesScreen";
 import { HomeScreen } from "./screens/HomeScreen";
+import { LanguageScreen } from "./screens/LanguageScreen";
 import { ConsentScreen, ContactScreen, RegisterScreen, RulesContent, StatusScreen } from "./screens/onboarding";
 import { GuestGate, GuestProfile, ProfileScreen, WinnerContent } from "./screens/ProfileScreen";
 import { RatingScreen } from "./screens/RatingScreen";
@@ -32,7 +33,15 @@ type SubPage = "rules" | "winner" | "report" | "support" | null;
 
 const isOverflow = (tab: Tab): tab is OverflowTab => tab === "prizes";
 
+/**
+ * Birinchi marta — til tanlash (o'zbek yoki rus); keyin ro'yxatdan o'tish (raqam, ism, yosh), ommaviy
+ * oferta va butun ilova shu tilda.
+ */
 export default function App() {
+  return langChosen ? <MainApp /> : <LanguageScreen />;
+}
+
+function MainApp() {
   const me = useQuery({ queryKey: ["me"], queryFn: api.getMe });
   const contest = useQuery({ queryKey: ["contest"], queryFn: api.getContest });
   // Veb-sayt (Telegram'dan tashqarida), kirmagan: mehmon sifatida bosh sahifaga kiradi,
@@ -40,6 +49,12 @@ export default function App() {
   const isGuest = !isInTelegram && me.isError && errorCode(me.error) === "UNAUTHORIZED";
   const loading = (me.isPending || contest.isPending) && !isGuest;
   useTelegramLoginReturn();
+
+  // Tanlangan til serverga ham saqlanadi — bot xabarlari shu tilda boradi.
+  const savedLang = me.data?.lang;
+  useEffect(() => {
+    if (me.data && savedLang !== lang) void api.setLanguage(lang).catch(() => undefined);
+  }, [me.data, savedLang]);
 
   // Birinchi ekran tayyor (yoki xato) — "Olivia" yuklanish sahifasi yopiladi.
   useEffect(() => {

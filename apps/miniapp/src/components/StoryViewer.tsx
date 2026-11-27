@@ -4,7 +4,7 @@ import { CircleAlert, LoaderCircle, Trash2, Volume2, VolumeX, X } from "lucide-r
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode, type Ref } from "react";
 import { createPortal } from "react-dom";
 
-import { t } from "../i18n/uz";
+import { t } from "../i18n";
 import * as api from "../lib/api";
 import { errorCode } from "../lib/api-error";
 import { displayName, formatAgo } from "../lib/format";

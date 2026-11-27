@@ -2,7 +2,7 @@ import { Lock, MessageCircle } from "lucide-react";
 import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 
-import { t } from "../i18n/uz";
+import { t } from "../i18n";
 import { Snowfall } from "./Snowfall";
 
 /**

@@ -1,6 +1,7 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Optional, Param, Post, Res, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Headers, HttpCode, Inject, Optional, Param, Post, Res, UseGuards } from "@nestjs/common";
 import type { Response } from "express";
 
+import { langOf } from "../common/lang";
 import { ContestSettingsService } from "../contest/contest-settings.service";
 import { DrawsService } from "../draws/draws.service";
 import { ApiException } from "../common/api-exception";
@@ -24,7 +25,8 @@ import type { TelegramIdentity } from "../telegram/init-data";
 import { WinnerService } from "../winner/winner.service";
 import { canonicalReelUrl, parseReelShortcode } from "./reel-url";
 import { Public, TelegramAuthGuard, TgUser, TgUserOptional } from "./telegram-auth.guard";
-import { parseRegister, parseSupportMessage, parseTargetReport, parseUrl, parseVersion } from "./validation";
+import { localizePrizes } from "./prizes";
+import { parseLang, parseRegister, parseSupportMessage, parseTargetReport, parseUrl, parseVersion } from "./validation";
 
 /** Mini App grafigi uchun nechta kun beriladi. */
 const DAILY_DAYS = 30;
@@ -106,7 +108,16 @@ export class MiniappController {
       rulesUpdated: p.consentVersion !== null && p.consentVersion !== this.rulesService.version,
       /** `web` — saytda (Telegram'siz) ro'yxatdan o'tgan: faqat shu brauzer orqali kiriladi. */
       account: isWebAccount(p.telegramId) && !p.linkedTelegramId ? "web" : "telegram",
+      /** Saqlangan til (bot xabarlari shu tilda); hali tanlanmagan — null. */
+      lang: p.lang ?? null,
     };
+  }
+
+  /** Ilova tili tanlandi — ishtirokchiga saqlanadi (bot xabarlari shu tilda). Body: `{ lang: "uz" | "ru" }`. */
+  @Post("lang")
+  @HttpCode(204)
+  setLang(@TgUser() user: TelegramIdentity, @Body() body: unknown): void {
+    this.participants.setLang(user.telegramId, parseLang(body));
   }
 
   @Post("register")
@@ -134,8 +145,10 @@ export class MiniappController {
   @Public()
   /** Qoidalar; `video` — admin yuklagan tushuntirish videosi (eng tepada ko'rsatiladi) yoki null. */
   @Get("rules")
-  rules() {
-    const { version, sections } = this.rulesService.get();
+  rules(@Headers("x-lang") lang?: string) {
+    // Oferta tanlangan tilda (o'zbek yoki rus); versiya ikkalasida bir xil.
+    const { version } = this.rulesService.get();
+    const sections = this.rulesService.sectionsFor(langOf(lang));
     const video = this.rulesVideo?.get() ?? null;
     return { version, sections, video: video ? { id: video.id, mime: video.mime } : null };
   }
@@ -281,8 +294,8 @@ export class MiniappController {
   /** Sovrinlar: oylik voucherlar, bosqichlar, asosiy sovrin toifalari. */
   @Public()
   @Get("prizes")
-  prizes() {
-    return this.draws.publicPrizes();
+  prizes(@Headers("x-lang") lang?: string) {
+    return localizePrizes(this.draws.publicPrizes(), langOf(lang));
   }
 
   /** G'olib e'loni: faqat e'lon qilingandan keyin — ism, yakuniy ko'rishlar, sana (telefonsiz). */

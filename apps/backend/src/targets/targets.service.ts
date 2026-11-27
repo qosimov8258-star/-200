@@ -24,7 +24,7 @@ import {
 import { StateStore } from "../persistence/state-store";
 import { StatsService } from "../stats/stats.service";
 import { ParticipantNotifier, type TelegramMessageKind } from "../telegram/notifier";
-import { texts } from "../telegram/texts";
+import { textsFor } from "../telegram/bot-texts";
 import { screenshotExtension, type Screenshot, type ScreenshotMime } from "./screenshot";
 
 /** Admin paneldagi `apps/admin/src/lib/types.ts` (Target yoqqanlar) bilan bir xil. */
@@ -591,9 +591,9 @@ export class TargetsService implements OnApplicationBootstrap, OnApplicationShut
     if (action === "disqualify") this.participants.disqualify(p.telegramId);
     if (action === "warn") {
       const url = reelOf(p, c)?.url ?? canonicalReelUrl(c.shortcode);
-      this.notify(p, `${texts.targetWarning}\n\n${texts.reelLink(url)}`, "WARNING");
+      this.notify(p, `${textsFor(p.lang).targetWarning}\n\n${textsFor(p.lang).reelLink(url)}`, "WARNING");
     }
-    if (action === "disqualify") this.notify(p, texts.targetDisqualified, "WARNING");
+    if (action === "disqualify") this.notify(p, textsFor(p.lang).targetDisqualified, "WARNING");
     this.logger.log(`${actor}: target ${c.id} (${p.firstName} ${p.lastName}) — ${rule.label}: ${why}`);
     return this.get(id);
   }

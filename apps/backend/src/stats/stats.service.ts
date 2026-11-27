@@ -26,7 +26,7 @@ import {
 } from "../participants/participants.service";
 import { StateStore } from "../persistence/state-store";
 import { ParticipantNotifier, type TelegramMessageKind } from "../telegram/notifier";
-import { texts } from "../telegram/texts";
+import { textsFor } from "../telegram/bot-texts";
 
 export interface StatsOptions {
   /** Kunning qaysi vaqtida yig'iladi — Toshkent vaqti, "HH:MM". */
@@ -479,7 +479,7 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
       this.logger.log(`${reel.shortcode}: Apify topdi (${formatCount(s.views)} ko'rish) — AI tekshiruviga yuborildi.`);
       return;
     }
-    this.accept(p, reel, texts.reelAccepted(formatCount(s.views)));
+    this.accept(p, reel, textsFor(p.lang).reelAccepted(formatCount(s.views)));
   }
 
   private accept(p: Participant, reel: Reel, text: string): void {
@@ -499,7 +499,7 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
     if (!p || !reel) return;
     if (o.verdict === "APPROVED") {
       this.logger.log(`${reel.shortcode}: AI tasdiqladi — video qabul qilindi.`);
-      this.accept(p, reel, texts.reelAccepted(formatCount(reelViews(reel))));
+      this.accept(p, reel, textsFor(p.lang).reelAccepted(formatCount(reelViews(reel))));
       return;
     }
     this.toManualReview(p, reel, "AI_CHECK", { verdict: o.verdict, reason: o.reason, confidence: o.confidence });
@@ -517,7 +517,7 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
       for (const reel of p.reels) {
         if (reel.status !== "PENDING" || !reel.aiCheck) continue;
         if (!gate) {
-          this.accept(p, reel, texts.reelAccepted(formatCount(reelViews(reel))));
+          this.accept(p, reel, textsFor(p.lang).reelAccepted(formatCount(reelViews(reel))));
           continue;
         }
         const waited = now - new Date(reel.aiCheck.requestedAt).getTime();
@@ -541,12 +541,12 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
   private reject(p: Participant, reel: Reel, reason: ReelRejectReason): void {
     reel.status = "REJECTED";
     reel.rejectReason = reason;
-    this.notifyAbout(p, reel, texts.reelRejected[reason], "REEL_REJECTED");
+    this.notifyAbout(p, reel, textsFor(p.lang).reelRejected[reason], "REEL_REJECTED");
   }
 
   /** Avval ishtirokchiga xabar, so'ng video admin paneldagi qo'lda tekshiruv ro'yxatiga tushadi. */
   private toManualReview(p: Participant, reel: Reel, kind: ManualReview["kind"], ai: ManualReviewAi | null = null): void {
-    this.notifyAbout(p, reel, texts.reelManualReview[kind], "REEL_REVIEW");
+    this.notifyAbout(p, reel, textsFor(p.lang).reelManualReview[kind], "REEL_REVIEW");
     reel.status = "MANUAL_REVIEW";
     reel.aiCheck = null;
     reel.review = { kind, requestedAt: this.now(), attempts: reel.misses, ai, decision: null };
@@ -565,7 +565,7 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
       reel.status = "ACCEPTED";
       reel.lastFoundAt = now;
       this.record(reel, views, s, now);
-      this.notifyAbout(p, reel, texts.reelRestored, "REEL_REVIEW");
+      this.notifyAbout(p, reel, textsFor(p.lang).reelRestored, "REEL_REVIEW");
     } else {
       this.applyFound(p, reel, s, now);
     }
@@ -637,7 +637,7 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
       reel.rejectReason = null;
       reel.misses = 0;
       review.decision = { approved: true, reason: null, note: decision.note, by: actor, at: now };
-      this.notifyAbout(p, reel, texts.reelManualApproved, "REEL_REVIEW");
+      this.notifyAbout(p, reel, textsFor(p.lang).reelManualApproved, "REEL_REVIEW");
       // Yangi video ko'rishlari hali o'qilmagan — kunlik yig'ishni kutmay, Apify'dan hoziroq so'raymiz
       // (aks holda reyting va admin panelda 0 bo'lib turadi).
       if (awaitingViews(reel)) this.queueVerification(p.telegramId, reel.shortcode);
@@ -970,7 +970,7 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
 
   /** Video haqidagi xabar: ishtirokchida bir nechta video bo'lishi mumkin — oxiriga qaysi biri ekani (link). */
   private notifyAbout(p: Participant, reel: Reel, text: string, kind: TelegramMessageKind): void {
-    this.notify(p, `${text}\n\n${texts.reelLink(reel.url)}`, kind);
+    this.notify(p, `${text}\n\n${textsFor(p.lang).reelLink(reel.url)}`, kind);
   }
 
   private notify(p: Participant, text: string, kind: TelegramMessageKind): void {

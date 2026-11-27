@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 
 import { Snowfall } from "../components/Snowfall";
 import { Card, PillButton, RoundIcon } from "../components/ui";
-import { t } from "../i18n/uz";
+import { t } from "../i18n";
 import * as api from "../lib/api";
 import { errorCode } from "../lib/api-error";
 import { compressScreenshot } from "../lib/image";

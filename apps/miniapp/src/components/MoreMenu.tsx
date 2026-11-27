@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { ChevronRight, type LucideIcon } from "lucide-react";
 import { useEffect } from "react";
 
-import { t } from "../i18n/uz";
+import { t } from "../i18n";
 import { haptic } from "../lib/telegram";
 
 export interface MoreMenuItem {

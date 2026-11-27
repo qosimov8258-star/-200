@@ -25,7 +25,7 @@ async function bootstrap(): Promise<void> {
   app.enableCors({
     origin: config.corsOrigins,
     // Authorization — admin panel (Bearer token), X-Telegram-Init-Data — Mini App.
-    allowedHeaders: ["Content-Type", "Authorization", "X-Telegram-Init-Data"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Telegram-Init-Data", "X-Lang"],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     // Veb-sayt sessiyasi cookie'da — lokal ishlab chiqishda sayt (3002) va API (3000) alohida portda.
     credentials: true,

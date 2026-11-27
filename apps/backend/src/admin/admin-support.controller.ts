@@ -25,7 +25,7 @@ import {
 import { failureReasonOf } from "../telegram/message-log.service";
 import { ParticipantNotifier } from "../telegram/notifier";
 import { TelegramService } from "../telegram/telegram.service";
-import { texts } from "../telegram/texts";
+import { textsFor } from "../telegram/bot-texts";
 import { adminError, objectBody, oneOf, paginate } from "./admin-http";
 import type { AdminUser } from "./auth/admin-accounts";
 import { AdminAuthGuard, AdminRoles, CurrentAdmin } from "./auth/admin-auth.guard";
@@ -123,7 +123,7 @@ export class AdminSupportController {
     const p = this.participants.get(ticket.telegramId);
     if (!p?.chatId) throw adminError(409, "Ishtirokchi bot bilan chat ochmagan — javobni yuborib bo'lmaydi.");
     try {
-      await this.notifier.notify(p.chatId, texts.operatorPrefix + text, "SUPPORT_REPLY");
+      await this.notifier.notify(p.chatId, textsFor(p.lang).operatorPrefix + text, "SUPPORT_REPLY");
     } catch (err) {
       if (failureReasonOf(err) === "BOT_BLOCKED") {
         throw adminError(409, "Ishtirokchi botni bloklagan — javob yetkazilmadi.");

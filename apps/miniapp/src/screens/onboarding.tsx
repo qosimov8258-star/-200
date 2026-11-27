@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { GiftButton } from "../components/GiftButton";
 import { PrizeHero } from "../components/PrizeHero";
 import { Card, ErrorBlock, PillButton, Spinner, TextField } from "../components/ui";
-import { t } from "../i18n/uz";
+import { t } from "../i18n";
 import * as api from "../lib/api";
 import { errorCode } from "../lib/api-error";
 import { ageInput, profileErrors } from "../lib/profile-form";

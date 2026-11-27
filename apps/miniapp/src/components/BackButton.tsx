@@ -1,4 +1,4 @@
-import { t } from "../i18n/uz";
+import { t } from "../i18n";
 
 /**
  * Yangi yil uslubidagi "Orqaga" tugmasi: strelka o'rniga uchi bukilgan qizil-oq konfet tayoqcha.

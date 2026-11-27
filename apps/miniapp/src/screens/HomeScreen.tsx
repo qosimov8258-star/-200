@@ -11,7 +11,7 @@ import { Snowfall } from "../components/Snowfall";
 import { StoriesBar } from "../components/StoriesBar";
 import { StoryViewer } from "../components/StoryViewer";
 import { Spinner } from "../components/ui";
-import { t } from "../i18n/uz";
+import { t } from "../i18n";
 import * as api from "../lib/api";
 import { formatCount } from "../lib/format";
 import { firstUnseenIndex, hasUnseen } from "../lib/stories";

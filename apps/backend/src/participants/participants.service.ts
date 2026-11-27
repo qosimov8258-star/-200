@@ -1,6 +1,7 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
 
 import { ApiException } from "../common/api-exception";
+import type { Lang } from "../common/lang";
 import { ContestSettingsService } from "../contest/contest-settings.service";
 import { StateStore } from "../persistence/state-store";
 import { RulesService } from "../rules/rules.service";
@@ -128,6 +129,8 @@ export interface Participant {
   firstName: string | null;
   lastName: string | null;
   age: number | null;
+  /** Tanlangan til (Mini App/sayt) — bot xabarlari shu tilda; tanlanmagan — null/yo'q (Telegram tili). */
+  lang?: Lang | null;
   consentVersion: number | null;
   /**
    * Yuborilgan videolar — eskidan yangiga (yuborilish tartibida). Soni cheklanmagan; har biri
@@ -395,6 +398,18 @@ export class ParticipantsService {
     p.lastName = "";
     p.age = age;
     return id;
+  }
+
+  /** Ishtirokchi tanlagan til (Mini App/sayt) — bot xabarlari ham shu tilda boradi. */
+  setLang(telegramId: number, lang: Lang): void {
+    const p = this.getOrCreate(this.resolve(telegramId));
+    p.lang = lang;
+  }
+
+  /** Bot chati bo'yicha ishtirokchi (bot xabaridagi tugma tili uchun); topilmasa — null. */
+  byChatId(chatId: number): Participant | null {
+    for (const p of this.byTelegramId.values()) if (p.chatId === chatId) return p;
+    return null;
   }
 
   acceptRules(telegramId: number, version: number): void {
