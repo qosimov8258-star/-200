@@ -136,8 +136,8 @@ function RatingSummary({ data }: { data: DailyRatingResponse }) {
         ))}
       </dl>
       <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
-        Har bir video alohida qator: ishtirokchining o&apos;rni — eng ko&apos;p ko&apos;rilgan videosining
-        o&apos;rni.{" "}
+        Har bir video alohida qator. Ishtirokchining natijasi — barcha videolari yig&apos;indisi (Foydalanuvchilar
+        bo&apos;limida); g&apos;oliblar o&apos;rin bo&apos;yicha emas, random aniqlanadi.{" "}
         {firstDay
           ? "Tanlovning birinchi kuni — o'rin o'zgarishi hisoblanmaydi."
           : `O'rin o'zgarishi ${formatDate(addDays(data.date, -1))} kuniga nisbatan.`}

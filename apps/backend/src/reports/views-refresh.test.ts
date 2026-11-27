@@ -42,7 +42,7 @@ test("near the lower bound: those 20% below are included — they may have cross
   assert.deepEqual(refreshCandidates(all, { minViews: 100_000, maxViews: 1_000_000, includeNear: true }).ids, [2, 3, 4]);
 });
 
-test("picked by the most viewed reel (no summing); the video count covers every accepted reel", () => {
+test("picked by the sum of accepted reels (oferta 7.1); the video count covers every accepted reel", () => {
   const svc = new ParticipantsService(new RulesService());
   svc.setPhone(9, 9, "+998900000099");
   svc.register(9, "Ism", "Familiya", 30);
@@ -52,8 +52,9 @@ test("picked by the most viewed reel (no summing); the video count covers every 
     reel.status = "ACCEPTED";
     reel.history.push({ date: "2026-12-05", at: new Date("2026-12-05T01:00:00Z"), views, likes: 1, comments: 0 });
   }
-  // 60 000 + 50 000 qo'shilmaydi — 100 000 dan past.
-  assert.deepEqual(refreshCandidates(svc.all(), { minViews: 100_000, maxViews: null, includeNear: false }), { ids: [], videos: 0 });
-  // Eng ko'p ko'rilgani (60 000) oraliqda — ikkala video ham yangilanadi (har biri eng ko'piga aylanishi mumkin).
-  assert.deepEqual(refreshCandidates(svc.all(), { minViews: 55_000, maxViews: null, includeNear: false }), { ids: [9], videos: 2 });
+  // 60 000 + 50 000 = 110 000 — har bir video 100 000 dan past bo'lsa ham, yig'indisi oraliqda.
+  assert.deepEqual(refreshCandidates(svc.all(), { minViews: 100_000, maxViews: null, includeNear: false }), { ids: [9], videos: 2 });
+  assert.deepEqual(refreshCandidates(svc.all(), { minViews: 115_000, maxViews: null, includeNear: false }), { ids: [], videos: 0 });
+  // Yuqori chegara ham yig'indiga qo'llanadi.
+  assert.deepEqual(refreshCandidates(svc.all(), { minViews: null, maxViews: 100_000, includeNear: false }), { ids: [], videos: 0 });
 });

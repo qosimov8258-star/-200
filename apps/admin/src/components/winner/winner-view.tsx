@@ -40,16 +40,6 @@ const MANUAL_DIALOGS: Record<
     notice: string;
   }
 > = {
-  PURCHASE_CONFIRMED: {
-    title: ["Xaridni tasdiqlash", "Xarid tasdiqlanmadi"],
-    question: <>zavod mahsulotini sotib olganini qanday tekshirdingiz? (chek, QR kod, buyurtma raqami)</>,
-    placeholder: [
-      "Masalan: Chek №4512, 02.11.2026, do'kon bilan tasdiqlandi",
-      "Masalan: Chek taqdim etilmadi, buyurtma raqami topilmadi",
-    ],
-    confirmLabel: ["Tasdiqlandi", "Tasdiqlanmadi"],
-    notice: "Xarid tekshiruvi saqlandi.",
-  },
   AD_TOOLS_REVIEWED: {
     title: ["Reklama tarixi toza", "Reklama topildi"],
     question: (
@@ -163,11 +153,11 @@ export function WinnerView() {
           description={
             <>
               <strong className="font-medium text-slate-900">{candidateName}</strong> g&apos;olib
-              bo&apos;la olmaydi, keyingi o&apos;rindagi ishtirokchi nomzod bo&apos;ladi.
+              bo&apos;la olmaydi, random tanlovdagi navbatdagi zaxira g&apos;olib nomzod bo&apos;ladi (oferta 10.3).
               Ishtirokchining tanlovdagi holati o&apos;zgarmaydi.
             </>
           }
-          placeholder="Masalan: Xarid hujjati taqdim etilmadi"
+          placeholder="Masalan: 5 kun ichida bog'lanmadi"
           confirmLabel="Rad etish"
           variant="danger"
           onConfirm={async (reason) => {
@@ -287,8 +277,8 @@ function ContestStatus({ overview }: { overview: WinnerOverview }) {
             {formatDate(contest.startsOn)} – {formatDate(contest.endsOn)}
             <span aria-hidden> · </span>
             {contest.ended
-              ? `G'olib ${formatDate(contest.ratingDate)} reytingi bo'yicha aniqlanadi`
-              : "G'olib tanlov oxiridagi reyting bo'yicha aniqlanadi"}
+              ? `G'olib ${formatDate(contest.ratingDate)} holatidagi ko'rishlar bo'yicha random tanlovda aniqlanadi`
+              : "G'olib aksiya yakunida 4 000 001+ ko'rish to'plaganlar orasidan random tanlovda aniqlanadi"}
           </p>
         </div>
       </CardContent>

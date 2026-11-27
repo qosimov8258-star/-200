@@ -65,7 +65,6 @@ export const MANUAL_REVIEW_REEL_LABEL = "Qo'lda tekshiruvda";
  * Ishtirokchining eng ko'p ko'rilgan qabul qilingan videosi — `AdminReelItem.best`. Reytingda har
  * bir qabul qilingan video bor; ishtirokchining o'rni va g'olib shu video bo'yicha aniqlanadi.
  */
-export const BEST_REEL_LABEL = "Eng ko'p ko'rilgan";
 
 /** Foydalanuvchilar bo'limidagi video filtri: "shu holatdagi videosi bor" / "video yo'q". */
 export const REEL_FILTER_LABELS: Record<ReelStatus | "NONE", string> = {
@@ -163,7 +162,6 @@ export const WINNER_CHECK_LABELS: Record<WinnerCheckKey, string> = {
   NO_TARGET: "Target yoqilmagan",
   REEL_AVAILABLE: "Reel o'chirilmagan",
   NO_FAKE_VIEWS: "Soxta ko'rish belgisi yo'q",
-  PURCHASE_CONFIRMED: "Mahsulot sotib olingan",
   AD_TOOLS_REVIEWED: "Reklama tarixi yuzma-yuz ko'rilgan",
 };
 
@@ -231,7 +229,7 @@ export const SUPPORT_STATUS_TONES: Record<SupportTicketStatus, BadgeTone> = {
 // Sovg'alar
 // ---------------------------------------------------------------------------
 
-/** Asosiy sovrinlarning qisqa nomlari (reyting bo'yicha beriladi, random emas). */
+/** Asosiy sovrinlarning qisqa nomlari (oraliqlar ichida random tanlov bilan beriladi — oferta 6.2). */
 export const RATING_PRIZE_LABELS: Record<RatingPrizeKind, string> = {
   car: "BYD Chazor",
   travel: "Tailand sayohati",

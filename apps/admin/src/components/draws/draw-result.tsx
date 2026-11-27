@@ -133,7 +133,7 @@ export function DrawResult({ draw }: { draw: VoucherDraw }) {
             <Ban className="mt-0.5 size-4 shrink-0" aria-hidden />
             <span>
               Bu tanlov bekor qilingan — {formatDateTime(draw.cancelled.at)}, {draw.cancelled.by}. Sabab: «
-              {draw.cancelled.reason}». G&apos;oliblar voucher olmaydi.
+              {draw.cancelled.reason}». G&apos;oliblar sovg&apos;a olmaydi.
             </span>
           </p>
         )}
@@ -338,7 +338,7 @@ export function DrawResult({ draw }: { draw: VoucherDraw }) {
           }
           confirmLabel="Almashtirish"
           variant="danger"
-          placeholder="Masalan: mahsulot xaridi tasdiqlanmadi"
+          placeholder="Masalan: 5 kun ichida bog'lanmadi"
           onConfirm={(reason) => replaceDrawWinner(draw.id, { participantId: dialog.entry.candidate.participantId, reason }).then(done)}
           onClose={() => setDialog(null)}
           onDone={() => setDialog(null)}
@@ -428,8 +428,10 @@ function Participation({ draw }: { draw: VoucherDraw }) {
     settings.dateBasis === "POSTED"
       ? `Reelni ${dates} kunlari Instagram'ga joylaganlar`
       : `Reelni ${dates} kunlari ilovaga yuborganlar`,
-    `Videosi ${formatNumber(settings.minViews)} – ${formatNumber(settings.maxViews)} ko'rish yig'ganlar`,
-    ...(settings.excludePreviousWinners ? ["Oldin voucher olmaganlar"] : []),
+    settings.maxViews >= 1_000_000_000
+      ? `Videolari jami ${formatNumber(settings.minViews)} va undan ko'p ko'rish yig'ganlar`
+      : `Videolari jami ${formatNumber(settings.minViews)} – ${formatNumber(settings.maxViews)} ko'rish yig'ganlar`,
+    ...(settings.excludePreviousWinners ? ["Boshqa asosiy sovrin yutmaganlar"] : []),
     ...(settings.excludeTargets ? ["Target (pullik reklama) aniqlanmaganlar"] : []),
     ...(settings.excludeWarned ? ["Ogohlantirish olmaganlar"] : []),
   ];

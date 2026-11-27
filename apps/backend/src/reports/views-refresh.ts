@@ -4,8 +4,8 @@ import { acceptedReels, participantViews, type Participant } from "../participan
  * "Ko'rishlarni yangilash" (admin → Foydalanuvchilar): qaysi ishtirokchilarning videolari qayta
  * o'qiladi.
  *
- * Tanlov ishtirokchining oxirgi yig'ishdagi ko'rishlari bo'yicha (eng ko'p ko'rilgan qabul qilingan
- * videosi — reyting va filtr bilan bir xil). Shu orada ko'rishlari oshib, pastki chegaradan
+ * Tanlov ishtirokchining oxirgi yig'ishdagi umumiy ko'rishlari bo'yicha (barcha qabul qilingan
+ * videolari yig'indisi, oferta 7.1 — reyting va filtr bilan bir xil). Shu orada ko'rishlari oshib, pastki chegaradan
  * o'tgan bo'lishi mumkin bo'lganlar tushib qolmasligi uchun `includeNear` — pastki chegara
  * `NEAR_MARGIN` ga pastroqdan olinadi (100 000 → 80 000). Yuqori chegara o'zgarmaydi: ko'rishlar
  * odatda faqat oshadi.
@@ -27,9 +27,9 @@ export function effectiveRange(range: RefreshRange): { from: number | null; to: 
 
 /**
  * Yangilanadiganlar: faol (bloklanmagan, chetlatilmagan), kamida bitta qabul qilingan videosi bor
- * ishtirokchilar, ko'rishlari (eng ko'p ko'rilgan videosi) oraliqda (ikkala chegara ham kiradi).
- * `videos` — shu ishtirokchilarning qayta o'qiladigan barcha qabul qilingan videolari soni (har biri
- * eng ko'p ko'rilganiga aylanishi mumkin; Apify narxi shunga qarab).
+ * ishtirokchilar, umumiy ko'rishlari (yig'indi) oraliqda (ikkala chegara ham kiradi).
+ * `videos` — shu ishtirokchilarning qayta o'qiladigan barcha qabul qilingan videolari soni (Apify
+ * narxi shunga qarab).
  */
 export function refreshCandidates(participants: readonly Participant[], range: RefreshRange): { ids: number[]; videos: number } {
   const { from, to } = effectiveRange(range);

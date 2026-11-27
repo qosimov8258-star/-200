@@ -33,7 +33,8 @@ const SYNC_EVERY_DAYS_RANGE = { min: 1, max: 30 } as const;
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
-const MIN_AGE_RANGE = { min: 14, max: 100 } as const;
+/** Oferta 3.1: 18 yoshga to'lganlar ishtirok etadi. */
+const MIN_AGE_RANGE = { min: 18, max: 100 } as const;
 const MAX_DURATION_DAYS = 366;
 
 const fail = (message: string) => new HttpException({ message }, 422);
@@ -85,6 +86,21 @@ export class ContestSettingsService {
         this.settings = { ...this.settings, syncTime: "00:00", updatedAt: new Date().toISOString(), updatedBy: "Tizim" };
       }
       this.migrations.push(midnight);
+    }
+    // 2026-11-27: aksiya muddati ommaviy oferta (2.5) bo'yicha — 27.11.2026–27.02.2027. Eski standart
+    // (25.11–25.02) saqlangan bo'lsa — bir marta yangilanadi; admin boshqa sana qo'ygan bo'lsa — tegilmaydi.
+    const offerDates = "contest-dates-offer-2026-11-27";
+    if (!this.migrations.includes(offerDates)) {
+      if (this.settings.startsOn === "2026-11-25" && this.settings.endsOn === "2027-02-25") {
+        this.settings = {
+          ...this.settings,
+          startsOn: contestDefaults.startsOn,
+          endsOn: contestDefaults.endsOn,
+          updatedAt: new Date().toISOString(),
+          updatedBy: "Tizim",
+        };
+      }
+      this.migrations.push(offerDates);
     }
     // 2026-11-25: ko'rishlar haftada bir marta yig'iladi (tashkilotchi qarori). Davr ilgari env'da edi
     // (`STATS_SYNC_EVERY_DAYS`), endi Sozlamalarda — bir marta haftalikka o'rnatiladi, keyin admin hal qiladi.

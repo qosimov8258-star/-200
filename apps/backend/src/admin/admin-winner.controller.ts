@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Post, Put, UseGuards } from "@nestjs/common";
 
+import { DrawsService } from "../draws/draws.service";
 import { contestPrizes } from "../miniapp/prizes";
 import { buildRatingPrizes, type RatingPrizes } from "../reports/rating-prizes";
 import { StatsService } from "../stats/stats.service";
@@ -21,6 +22,7 @@ export class AdminWinnerController {
     private readonly winner: WinnerService,
     private readonly stats: StatsService,
     private readonly targets: TargetsService,
+    private readonly draws: DrawsService,
   ) {}
 
   @Get()
@@ -29,8 +31,8 @@ export class AdminWinnerController {
   }
 
   /**
-   * `GET /admin/winner/prizes` — asosiy sovrinlar (avtomobil, sayohat, iPhone, planshet) reyting
-   * bo'yicha: har birining ko'rishlar oralig'ida eng ko'p ko'rilganlar. Random emas, joriy holat.
+   * `GET /admin/winner/prizes` — asosiy sovrinlar (avtomobil, sayohat, iPhone, planshet), oferta 6.2:
+   * har birining oralig'idagi ishtirokchilar (umumiy ko'rishlar bo'yicha) va random tanlov natijasi.
    */
   @Get("prizes")
   prizes(): RatingPrizes {
@@ -39,10 +41,11 @@ export class AdminWinnerController {
       tiers: contestPrizes.tiers,
       cases: this.targets.allCases(),
       updatedAt: this.stats.status().lastSuccessAt,
+      drawFor: (kind) => this.draws.mainDraw(kind),
     });
   }
 
-  /** Qo'lda tekshiriladigan band: mahsulot xaridi yoki "Reklama vositalari". Izoh majburiy. */
+  /** Qo'lda tekshiriladigan band: "Reklama vositalari" (xarid tekshirilmaydi — oferta 2.7). Izoh majburiy. */
   @Put("manual-check")
   manualCheck(@Body() body: unknown, @CurrentAdmin() admin: AdminUser): WinnerOverview {
     return this.winner.setManualCheck(parseManualCheck(body), actorOf(admin));

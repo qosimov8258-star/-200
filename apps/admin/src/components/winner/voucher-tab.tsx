@@ -314,7 +314,7 @@ function FairnessNote() {
         </p>
         <ol className="list-decimal space-y-1 pl-4">
           <li>Talabga javob beradigan har bir ishtirokchida teng imkoniyat bor.</li>
-          <li>Voucher olganlar keyingi tanlovlarga kirmaydi — bir kishiga bir marta.</li>
+          <li>Oldingi oylarda voucher yutganlar ham qatnashadi — har oy alohida tanlov (oferta 6.1.5).</li>
           <li>Server kriptografik tasodifiy kalit (seed) yaratadi va nomzodlarni aralashtiradi.</li>
           <li>Birinchilari — g&apos;oliblar, keyingilari — zaxira.</li>
           <li>Kalit va nomzodlar izi saqlanadi: natijani istalgan payt qayta tekshirish mumkin.</li>

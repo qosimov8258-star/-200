@@ -4,9 +4,12 @@ import { adminError, objectBody, requiredText } from "../admin/admin-http";
 import { AuditService, type AuditActor } from "../audit/audit.service";
 import { contestDay } from "../common/time";
 import { ContestSettingsService } from "../contest/contest-settings.service";
+import { DrawsService } from "../draws/draws.service";
 import {
+  acceptedReels,
   instagramUsernames,
   isLiveReel,
+  participantViews,
   ParticipantsService,
   topReel,
   type Participant,
@@ -33,11 +36,13 @@ export type WinnerCheckKey =
   | "NO_TARGET"
   | "REEL_AVAILABLE"
   | "NO_FAKE_VIEWS"
-  | "PURCHASE_CONFIRMED"
   | "AD_TOOLS_REVIEWED";
 
-/** Admin qo'lda belgilaydigan bandlar: mahsulot xaridi va "Reklama vositalari" bo'limi. */
-export type WinnerManualCheckKey = "PURCHASE_CONFIRMED" | "AD_TOOLS_REVIEWED";
+/**
+ * Admin qo'lda belgilaydigan band: "Reklama vositalari" bo'limi. Mahsulot xaridi tekshirilmaydi —
+ * oferta 2.7: xarid ishtirok etish uchun majburiy shart emas.
+ */
+export type WinnerManualCheckKey = "AD_TOOLS_REVIEWED";
 
 /** PENDING — Admin qo'lda tekshirishi kerak. */
 export type WinnerCheckStatus = "PASSED" | "FAILED" | "PENDING";
@@ -137,11 +142,10 @@ const TEXT_MAX = 500;
 const DAY_MS = 86_400_000;
 const PARTICIPANT_ID = /^\d{1,20}$/;
 
-const MANUAL_KEYS: readonly WinnerManualCheckKey[] = ["PURCHASE_CONFIRMED", "AD_TOOLS_REVIEWED"];
+const MANUAL_KEYS: readonly WinnerManualCheckKey[] = ["AD_TOOLS_REVIEWED"];
 
 /** Audit log amallari — admin panel mock'idagi nomlar. */
 const MANUAL_AUDIT_ACTION: Record<WinnerManualCheckKey, string> = {
-  PURCHASE_CONFIRMED: "winner.purchase_check",
   AD_TOOLS_REVIEWED: "winner.ad_tools_check",
 };
 
@@ -150,12 +154,10 @@ const CHECK_LABELS: Record<WinnerCheckKey, string> = {
   NO_TARGET: "Target yoqilmagan",
   REEL_AVAILABLE: "Reel o'chirilmagan",
   NO_FAKE_VIEWS: "Soxta ko'rish belgisi yo'q",
-  PURCHASE_CONFIRMED: "Mahsulot sotib olingan",
   AD_TOOLS_REVIEWED: "Reklama tarixi yuzma-yuz ko'rilgan",
 };
 
 const MANUAL_PENDING: Record<WinnerManualCheckKey, string> = {
-  PURCHASE_CONFIRMED: "Chek yoki xarid hujjatini qo'lda tekshiring",
   AD_TOOLS_REVIEWED:
     "Uchrashuvda g'olib telefonida Instagram → Professional panel → \"Reklama vositalari\" (reklama tarixi) bo'limini ko'ring",
 };
@@ -242,6 +244,8 @@ export class WinnerService {
     private readonly notifier: ParticipantNotifier,
     @Optional() @Inject(WINNER_OPTIONS) options: WinnerOptions | null = null,
     @Optional() @Inject(StateStore) store: StateStore | null = null,
+    /** Avtomobil g'olibi random tanlovi (oferta 6.2, 9.1); yo'q bo'lsa — nomzod yo'q. */
+    @Optional() @Inject(DrawsService) private readonly draws: DrawsService | null = null,
   ) {
     this.now = options?.clock ?? (() => new Date());
     const saved = store?.attach("winner", () => this.state);
@@ -300,7 +304,7 @@ export class WinnerService {
 
   // --- Amallar -----------------------------------------------------------------
 
-  /** Qo'lda tekshiriladigan band (mahsulot xaridi, "Reklama vositalari"). Izoh majburiy. */
+  /** Qo'lda tekshiriladigan band ("Reklama vositalari"). Izoh majburiy. */
   setManualCheck(request: WinnerManualCheckRequest, actor: AuditActor): WinnerOverview {
     const p = this.requireParticipant(request.participantId);
     if (this.state.announced) throw adminError(409, "G'olib allaqachon e'lon qilingan.");
@@ -416,10 +420,32 @@ export class WinnerService {
     return last !== null && Date.parse(last) >= this.contest.endsAt.getTime();
   }
 
-  /** Reyting (faqat ACCEPTED va ACTIVE), rad etilgan nomzodlarsiz. */
+  /**
+   * Nomzodlar navbati — avtomobil uchun random tanlov (oferta 6.2.1, 9.1): avval g'olib, so'ng zaxira
+   * g'oliblar o'z tartibida (10.3), rad etilganlarsiz. Reyting va o'rin g'olibni aniqlamaydi. Tanlov
+   * hali o'tkazilmagan bo'lsa — bo'sh. `rank` — navbatdagi o'rni, `views` — joriy umumiy ko'rishlari.
+   */
   private ranking(): RankedEntry[] {
     const skipped = new Set(this.state.skipped.map((s) => s.participantId));
-    return this.stats.ranking().filter((e) => !skipped.has(String(e.participant.telegramId)));
+    const draw = this.draws?.mainDraw("car") ?? null;
+    if (!draw) return [];
+    const order = [...draw.winnerEntries, ...draw.reserveEntries].filter((e) => e.state === "ACTIVE");
+    const entries: RankedEntry[] = [];
+    for (const e of order) {
+      if (skipped.has(e.candidate.participantId)) continue;
+      const p = this.participants.get(Number(e.candidate.participantId));
+      // Bloklangan, chetlatilgan yoki qabul qilingan videosi qolmagan ishtirokchi nomzod bo'lmaydi —
+      // navbatdagi zaxira o'tadi.
+      if (!p || p.status !== "ACTIVE" || acceptedReels(p).length === 0) continue;
+      entries.push({
+        participant: p,
+        reels: acceptedReels(p),
+        views: participantViews(p),
+        rank: entries.length + 1,
+        rankDelta: 0,
+      });
+    }
+    return entries;
   }
 
   /**
@@ -434,7 +460,7 @@ export class WinnerService {
       return p ? { ...confirmed.candidate, checks: this.checks(p) } : confirmed.candidate;
     }
     const top = ranking[0];
-    // Reytingdagi ishtirokchida kamida bitta qabul qilingan video bor; ko'rsatiladigani — eng ko'p ko'rilgani.
+    // Ko'rsatiladigan video — eng ko'p ko'rilgani (tekshirish uchun); ko'rishlar — umumiy yig'indi.
     const main = top ? topReel(top.reels) : null;
     if (!top || !main) return null;
     const p = top.participant;
@@ -546,7 +572,7 @@ export class WinnerService {
     }
     const text =
       `🏆 Tabriklaymiz, ${p.firstName ?? "hurmatli ishtirokchi"}!\n\n` +
-      `Siz Reels tanlovining g'olibi deb e'lon qilindingiz: Reelingiz ${formatCount(views)} ko'rish to'pladi. ` +
+      `Siz «OLIVIA» aksiyasining bosh sovrini g'olibi deb e'lon qilindingiz: videolaringiz jami ${formatCount(views)} tasdiqlangan ko'rish to'pladi. ` +
       `Sovrin — ${this.contest.prizeName}.\n\n` +
       "Tez orada tashkilotchilar siz bilan bog'lanib, sovrinni topshirish tartibini aytishadi.";
     this.notifier.notify(p.chatId, text, "WINNER").catch((err: Error) => {

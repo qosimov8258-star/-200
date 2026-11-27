@@ -1,6 +1,5 @@
 import { contestDay } from "../common/time";
 import {
-  bestReel,
   instagramUsernames,
   participantViews,
   reelsForDisplay,
@@ -54,9 +53,9 @@ export interface ParticipantListItem {
   registeredOn: string;
   /** Videolar soni holatlar bo'yicha (`pending` ga qo'lda tekshiruvdagilar ham kiradi). */
   reels: ReelCounts;
-  /** Eng ko'p ko'rilgan qabul qilingan videosining oxirgi ko'rishlari (videolar qo'shilmaydi). */
+  /** Umumiy tasdiqlangan ko'rishlar — barcha qabul qilingan videolari yig'indisi (oferta 7.1). */
   views: number;
-  /** Eng ko'p ko'rilgan videosining joriy videolar reytingidagi o'rni; reytingda bo'lmasa — null. */
+  /** Ishtirokchilar reytingidagi o'rni (umumiy ko'rishlar bo'yicha); reytingda bo'lmasa — null. */
   rank: number | null;
   /** Ro'yxatdan chiqarilmagan (DISMISSED emas) target holati bormi. */
   hasTarget: boolean;
@@ -81,9 +80,9 @@ export interface ParticipantReels {
     status: AdminParticipantStatus;
     registeredOn: string;
   };
-  /** Ro'yxatdagi `views` bilan bir xil — eng ko'p ko'rilgan qabul qilingan video. */
-  bestViews: number;
-  /** `reelsForDisplay` tartibida: birinchisi — reytingdagi video (qabul qilingan bo'lsa). */
+  /** Ro'yxatdagi `views` bilan bir xil — umumiy tasdiqlangan ko'rishlar (yig'indi). */
+  totalViews: number;
+  /** `reelsForDisplay` tartibida: qabul qilinganlar ko'rishlar kamayishi bo'yicha. */
   reels: AdminReelItem[];
 }
 
@@ -103,10 +102,6 @@ export interface AdminReelItem {
   lastSyncedAt: string | null;
   /** Videodagi nakrutka belgilari turlari (takrorlarsiz). */
   flags: ReelFlagType[];
-  /** Reytingda hisoblanadigan video (eng ko'p ko'rilgan qabul qilingani) — faqat bittasida true. */
-  best: boolean;
-  /** Shu videoning videolar reytingidagi o'rni; reytingda bo'lmasa — null. */
-  rank: number | null;
 }
 
 export type StatusCounts = Record<AdminParticipantStatus | "ALL", number>;
@@ -193,12 +188,7 @@ export function toParticipantItem(p: Participant, ctx: ParticipantContext): Part
  * tekshiruv → ishtirokchi): eng ko'p ko'rilgani tepada (`reelsForDisplay`).
  * `warned` — ochiq "ogohlantirilgan" target holati borlar (holat `WARNED` bo'lib ko'rinadi).
  */
-export function toParticipantReels(
-  p: Participant,
-  reelRanks: ReadonlyMap<string, number> = new Map(),
-  warned: ReadonlySet<number> = new Set(),
-): ParticipantReels {
-  const best = bestReel(p);
+export function toParticipantReels(p: Participant, warned: ReadonlySet<number> = new Set()): ParticipantReels {
   return {
     participant: {
       id: String(p.telegramId),
@@ -209,7 +199,7 @@ export function toParticipantReels(
       status: adminStatus(p, warned),
       registeredOn: contestDay(p.createdAt),
     },
-    bestViews: participantViews(p),
+    totalViews: participantViews(p),
     reels: reelsForDisplay(p.reels).map((reel): AdminReelItem => {
       const last = reel.history.at(-1);
       return {
@@ -225,8 +215,6 @@ export function toParticipantReels(
         postedAt: reel.postedAt?.toISOString() ?? null,
         lastSyncedAt: last?.at.toISOString() ?? null,
         flags: [...new Set(reel.flags.map((f) => f.type))],
-        best: reel === best,
-        rank: reel.status === "ACCEPTED" ? (reelRanks.get(reel.shortcode) ?? null) : null,
       };
     }),
   };

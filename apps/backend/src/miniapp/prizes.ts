@@ -1,8 +1,7 @@
 /**
- * Sovrinlar. Javob shakli `apps/miniapp/src/lib/types.ts` → ContestPrizes bilan bir xil.
- *
- * VAQTINCHA kodda (tanlov qoidalari kabi keyin admin paneldan tahrirlanadi).
- * Sanalar — Asia/Tashkent bo'yicha tanlov kunlari, ikkala chegara ham kiradi.
+ * Sovrinlar — «OLIVIA» reklama aksiyasi ommaviy ofertasi (25.11.2026, 6-bo'lim) bo'yicha.
+ * Javob shakli `apps/miniapp/src/lib/types.ts` → ContestPrizes bilan bir xil.
+ * Sanalar — Asia/Tashkent bo'yicha aksiya kunlari, ikkala chegara ham kiradi.
  */
 export interface ContestPrizes {
   monthly: {
@@ -26,39 +25,41 @@ export interface ContestPrizes {
 }
 
 export const contestPrizes: ContestPrizes = {
+  // Oferta 6.1.1: oyiga 200 ta, jami 600 ta (6.1.3 dagi "300 nafar" — tashkilotchi qarori bilan 200).
   monthly: {
-    title: "Korzinka voucheri",
+    title: "Korzinka xarid voucheri",
     amount: 500_000,
-    perMonth: 300,
-    total: 900,
+    perMonth: 200,
+    total: 600,
     minViews: 1_000,
     maxViews: 100_000,
   },
+  // Oferta 6.1.2: oylik bosqichlar.
   stages: [
-    { startsOn: "2026-11-25", endsOn: "2026-12-24" },
-    { startsOn: "2026-12-25", endsOn: "2027-01-24" },
-    { startsOn: "2027-01-25", endsOn: "2027-02-25" },
+    { startsOn: "2026-11-27", endsOn: "2026-12-26" },
+    { startsOn: "2026-12-27", endsOn: "2027-01-26" },
+    { startsOn: "2027-01-27", endsOn: "2027-02-27" },
   ],
+  // Oferta 6.2.1: umumiy tasdiqlangan ko'rishlar oraliqlari.
   tiers: [
-    { kind: "tablet", title: "Planshet", quantity: 25, unit: null, minViews: 101_000, maxViews: 500_000 },
-    { kind: "phone", title: "iPhone 18 Pro", quantity: 15, unit: null, minViews: 500_001, maxViews: 1_500_000 },
+    { kind: "tablet", title: "Planshet", quantity: 25, unit: null, minViews: 100_001, maxViews: 500_000 },
+    { kind: "phone", title: "iPhone 18 Pro smartfoni", quantity: 15, unit: null, minViews: 500_001, maxViews: 1_500_000 },
     {
       kind: "travel",
-      title: "Tailandga 2 kishilik sayohat",
+      title: "Tailandga 2 kishilik sayohat yo'llanmasi",
       quantity: 3,
-      unit: "yo'llanma",
+      unit: null,
       minViews: 1_500_001,
-      maxViews: 3_500_000,
+      maxViews: 4_000_000,
     },
-    { kind: "car", title: "BYD Chazor avtomobili", quantity: 1, unit: null, minViews: 4_000_000, maxViews: null },
+    { kind: "car", title: "BYD Chazor avtomobili", quantity: 1, unit: null, minViews: 4_000_001, maxViews: null },
   ],
   notes: [
-    "500 000 so'mlik voucher random tanlanadi va bir kishiga aksiya davomida faqat bir marta beriladi",
-    "Asosiy sovrinlar random emas — reyting bo'yicha: har bir sovrinning ko'rishlar oralig'ida eng ko'p ko'rilgan videosi bor ishtirokchilar oladi",
-    "Voucherlardan tashqari bitta asosiy sovrinni ham yutishingiz mumkin",
-    "Bitta ishtirokchiga faqat bitta asosiy sovrin beriladi",
-    "Oylik sovrin uchun faqat shu oyda yuklangan Reellar hisoblanadi",
-    "Asosiy sovrin uchun aksiya davomidagi eng ko'p ko'rilgan bitta tasdiqlangan Reelingiz hisoblanadi (videolar ko'rishlari qo'shilmaydi)",
-    "Sovrinlar pulga almashtirilmaydi va boshqa odamga berilmaydi",
+    "G'oliblar reyting yoki o'rin bo'yicha emas — har bir oraliq ichida tasodifiy tanlov (random) orqali aniqlanadi",
+    "Oylik voucher uchun faqat shu oylik bosqichda ro'yxatdan o'tkazilgan videolarning tasdiqlangan ko'rishlari qo'shib hisoblanadi",
+    "Asosiy sovrin uchun aksiya davomida ro'yxatdan o'tkazilgan barcha tasdiqlangan videolaringiz ko'rishlari qo'shib hisoblanadi",
+    "Talablarni bajarsangiz, bir necha oy davomida voucher yutishingiz mumkin",
+    "Voucherlardan tashqari faqat bitta asosiy sovrin yutish mumkin; 100 000 va undan kam ko'rishlar asosiy sovrin tanloviga kirmaydi",
+    "Sovrinlar pul ekvivalentiga almashtirilmaydi va boshqa shaxsga berilmaydi",
   ],
 };

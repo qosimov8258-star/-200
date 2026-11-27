@@ -95,7 +95,7 @@ test("a list item maps the backend participant to the admin contract", () => {
   assert.equal(empty.rank, null);
 });
 
-test("several Reels: counts by status, views of the most viewed accepted one, the first live owner", () => {
+test("several Reels: counts by status, views summed over accepted ones, the first live owner", () => {
   const p = person(7, {
     reels: [
       reel("OLD", { status: "REJECTED", owner: "old.acc", views: [90_000] }),
@@ -107,11 +107,11 @@ test("several Reels: counts by status, views of the most viewed accepted one, th
   });
   const item = toParticipantItem(p, participantContext([], []));
   assert.deepEqual(item.reels, { total: 5, accepted: 2, pending: 2, rejected: 1 });
-  assert.equal(item.views, 2_500);
+  assert.equal(item.views, 2_500 + 1_000, "faqat qabul qilinganlar qo'shiladi (oferta 7.1)");
   assert.equal(item.instagramUsername, "ali.v");
 });
 
-test("participant Reels: the most viewed on top, admin statuses, latest numbers and distinct flags", () => {
+test("participant Reels: the most viewed on top, total of accepted ones, admin statuses, latest numbers and distinct flags", () => {
   const flagged = reel("BBB", { owner: "ali.second", views: [1_000, 30_000], submittedOn: "2026-12-03" });
   flagged.flags = [
     { type: "VIEW_SPIKE", date: "2026-12-02", detail: "a" },
@@ -142,15 +142,16 @@ test("participant Reels: the most viewed on top, admin statuses, latest numbers 
     registeredOn: "2026-11-26",
   });
   // Ochiq ogohlantirish bo'lsa — holat WARNED (ro'yxatdagidek).
-  assert.equal(toParticipantReels(p, new Map(), new Set([7])).participant.status, "WARNED");
-  assert.equal(result.bestViews, 30_000);
+  assert.equal(toParticipantReels(p, new Set([7])).participant.status, "WARNED");
+  assert.equal(result.totalViews, 30_000 + 2_500, "qabul qilinganlar yig'indisi — ro'yxatdagi views bilan bir xil");
+  assert.equal(result.totalViews, toParticipantItem(p, participantContext([], [])).views);
   assert.deepEqual(
-    result.reels.map((r) => [r.shortcode, r.status, r.manualReview, r.rejectReason, r.owner, r.views, r.best]),
+    result.reels.map((r) => [r.shortcode, r.status, r.manualReview, r.rejectReason, r.owner, r.views]),
     [
-      ["BBB", "ACCEPTED", false, null, "ali.second", 30_000, true],
-      ["AAA", "ACCEPTED", false, null, "ali.v", 2_500, false],
-      ["CCC", "PENDING", true, null, "ali.v", 0, false],
-      ["OLD", "REJECTED", false, "OWNER_TAKEN", "old.acc", 0, false],
+      ["BBB", "ACCEPTED", false, null, "ali.second", 30_000],
+      ["AAA", "ACCEPTED", false, null, "ali.v", 2_500],
+      ["CCC", "PENDING", true, null, "ali.v", 0],
+      ["OLD", "REJECTED", false, "OWNER_TAKEN", "old.acc", 0],
     ],
   );
   const bbb = result.reels[0];

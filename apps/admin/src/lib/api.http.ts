@@ -172,10 +172,9 @@ export async function startViewsRefresh(request: ViewsRefreshRequest): Promise<{
 }
 
 /**
- * Ishtirokchining barcha yuborgan videolari va natijasi (`bestViews` — eng ko'p ko'rilgan qabul
- * qilingan videosi, ko'rishlar qo'shilmaydi). Tartib: qabul qilinganlar ko'rishlar bo'yicha
- * (birinchisi `best`), keyin tekshiruvdagilar, keyin rad etilganlar. Har bir videoning `rank` i —
- * uning reytingdagi o'rni (faqat qabul qilinganlarda).
+ * Ishtirokchining barcha yuborgan videolari va natijasi (`totalViews` — barcha qabul qilingan
+ * videolari yig'indisi, oferta 7.1). Tartib: qabul qilinganlar ko'rishlar bo'yicha, keyin
+ * tekshiruvdagilar, keyin rad etilganlar.
  * @endpoint GET /api/v1/admin/participants/:id/reels
  * @throws ApiError 404 — ishtirokchi topilmadi
  */
@@ -627,8 +626,8 @@ export async function getWinnerOverview(): Promise<WinnerOverview> {
 }
 
 /**
- * Asosiy sovrinlar (avtomobil, sayohat, iPhone, planshet) — random emas, reyting bo'yicha: har birining
- * ko'rishlar oralig'ida eng ko'p ko'rilgan videosi bor ishtirokchilar, joriy holat.
+ * Asosiy sovrinlar (avtomobil, sayohat, iPhone, planshet) — oferta 6.2: har birining oralig'idagi
+ * ishtirokchilar (umumiy ko'rishlar bo'yicha) va shu sovrin bo'yicha random tanlov natijasi.
  * @endpoint GET /api/v1/admin/winner/prizes
  */
 export async function getRatingPrizes(): Promise<RatingPrizes> {

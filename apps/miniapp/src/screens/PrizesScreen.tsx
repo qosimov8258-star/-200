@@ -77,7 +77,7 @@ export function PrizesScreen({ onOpenReel, guest = false }: { onOpenReel: () => 
             tiers={prizes.data.tiers}
             // Eng ko'p ko'rilgan qabul qilingan video ko'rishlari (videolar qo'shilmaydi);
             // birorta ham video yo'q bo'lsa — null.
-            views={reels.data && reels.data.reels.length > 0 ? reels.data.bestViews : null}
+            views={reels.data && reels.data.reels.length > 0 ? reels.data.totalViews : null}
             loading={!guest && reels.isPending}
             onOpenReel={onOpenReel}
             style={rise(2)}

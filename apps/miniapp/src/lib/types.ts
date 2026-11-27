@@ -140,38 +140,22 @@ export interface MyReelItem {
   views: number;
   /** Yuborilgan vaqt (UTC ISO). */
   submittedAt: string;
-  /**
-   * Eng yaxshi natija: eng ko'p ko'rilgan ACCEPTED video (teng bo'lsa — oldinroq yuborilgani);
-   * ishtirokchining o'rni (`MyReels.rank`) va asosiy sovrin shu video bo'yicha. Ro'yxatda faqat
-   * birinchi video va faqat ACCEPTED bo'lsa true.
-   */
-  best: boolean;
-  /**
-   * Shu videoning reytingdagi o'rni (har bir video alohida qator). Faqat reytingdagi ACCEPTED
-   * videoda raqam, qolganlarida — null.
-   */
-  rank: number | null;
 }
 
 /**
- * Ishtirokchining barcha videolari va natijasi. Videolar soni cheklanmagan; reytingda har bir
- * ACCEPTED video alohida qator, ishtirokchining o'rni va asosiy sovrinlar uchun esa eng ko'p
- * ko'rilgan bitta ACCEPTED videosi hisoblanadi — videolar ko'rishlari qo'shilmaydi.
+ * Ishtirokchining barcha videolari va natijasi. Videolar soni cheklanmagan; natija — barcha ACCEPTED
+ * videolari ko'rishlarining yig'indisi (oferta 7.1).
  */
 export interface MyReels {
-  /** Eng ko'p ko'rilgan qabul qilingan video ko'rishlari; bunday video yo'q bo'lsa — 0. */
-  bestViews: number;
-  /** Eng ko'p ko'rilgan videoning oxirgi kundagi o'sishi. */
+  /** Umumiy tasdiqlangan ko'rishlar (barcha qabul qilingan videolar yig'indisi); yo'q bo'lsa — 0. */
+  totalViews: number;
+  /** Umumiy ko'rishlarning oxirgi yangilanishdagi o'sishi. */
   todayViews: number;
-  /**
-   * Ishtirokchining o'rni — eng ko'p ko'rilgan videosining reytingdagi o'rni (reyting har bir video
-   * bo'yicha, shuning uchun ishtirokchilar o'rinlari orasida raqamlar tushib qolishi mumkin).
-   * Qabul qilingan video yo'q bo'lsa — null.
-   */
+  /** Ishtirokchilar reytingidagi o'rni (umumiy ko'rishlar bo'yicha, faqat ma'lumot); bo'lmasa — null. */
   rank: number | null;
-  /** Shu (eng yaxshi) o'rinning oldingi yangilanishga nisbatan o'zgarishi: musbat — ko'tarilgan. */
+  /** O'rinning oldingi yangilanishga nisbatan o'zgarishi: musbat — ko'tarilgan. */
   rankDelta: number;
-  /** Eng ko'p ko'rilgan videoning kunlik o'sishi, eskidan yangiga (oxirgi 30 kun). */
+  /** Umumiy ko'rishlarning har yangilanishdagi o'sishi, eskidan yangiga (oxirgi 30 ta). */
   daily: DailyViews[];
   /** Videolar ichidagi eng so'nggi yangilanish (UTC ISO). */
   lastSyncedAt: string | null;

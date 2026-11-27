@@ -14,6 +14,7 @@ import { addDays, contestDay, daysBetween, tashkentAt } from "../common/time";
 import { ReelStatsProvider, type ReelStats } from "../instagram/reel-stats";
 import {
   acceptedReels,
+  participantViews,
   ParticipantsService,
   reelViews,
   type ManualReview,
@@ -88,12 +89,9 @@ export interface RankedEntry {
   participant: Participant;
   /** Reytingga kirgan (ACCEPTED) videolari — yuborilish tartibida, kamida bittasi. */
   reels: Reel[];
-  /**
-   * Eng ko'p ko'rilgan videosining videolar reytingidagi o'rni (`reelRanking`). Bir ishtirokchining
-   * bir nechta videosi yuqorida bo'lishi mumkin, shuning uchun o'rinlar oralab ketishi mumkin (1, 4, 5…).
-   */
+  /** Ishtirokchilar reytingidagi o'rni: 1..N (umumiy ko'rishlar bo'yicha). */
   rank: number;
-  /** Eng ko'p ko'rilgan qabul qilingan videosining oxirgi ko'rishlari (videolar qo'shilmaydi). */
+  /** Barcha qabul qilingan videolari ko'rishlarining yig'indisi (oferta 7.1). */
   views: number;
   /** Oldingi yig'ishdagi o'ringa nisbatan: musbat — ko'tarilgan. */
   rankDelta: number;
@@ -165,8 +163,8 @@ export const FLAG_RULES = {
  * - Yangi video: bir necha soniyada (navbat bilan, bitta so'rovda) tekshiriladi — topildimi,
  *   Reel'mi, egasi boshqa ishtirokchida emasmi. Natija bot orqali xabar qilinadi.
  * - Ko'rishlar: har `everyDays` kunda soat `syncTime` da (Toshkent) rad etilmagan hamma videolar uchun.
- * - Reyting: ishtirokchining eng ko'p ko'rilgan bitta qabul qilingan videosi bo'yicha (ko'rishlar
- *   qo'shilmaydi).
+ * - Reyting: ishtirokchining barcha qabul qilingan videolari ko'rishlarining yig'indisi bo'yicha
+ *   (oferta 7.1); faqat ma'lumot uchun — g'oliblar oraliqlar ichida random aniqlanadi.
  * - Apify videoni ketma-ket 3 marta topa olmasa (yangi yoki avval qabul qilingan) — ishtirokchiga
  *   xabar beriladi va video admin paneldagi "Qo'lda tekshiruv" bo'limiga o'tadi; admin linkni
  *   ochib tasdiqlaydi yoki rad etadi. Avtomatik "topilmadi" rad etish yo'q.
@@ -214,7 +212,7 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
     @Inject(STATS_OPTIONS) private readonly options: StatsOptions,
     @Optional() @Inject(StateStore) store: StateStore | null = null,
     /** Yangi videolar mazmuni (mahsulot bormi) — avval AI, keyin qabul. Yo'q bo'lsa — faqat Apify. */
-    @Optional() private readonly ai: AiReviewService | null = null,
+    @Optional() @Inject(AiReviewService) private readonly ai: AiReviewService | null = null,
   ) {
     this.now = options.clock ?? (() => new Date());
     this.ai?.setGateListener((outcome) => this.applyAiOutcome(outcome));
@@ -223,11 +221,14 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
       lastSuccessAt: this.lastSuccessAt,
       previousRanks: [...this.previousRanks],
       previousReelRanks: [...this.previousReelRanks],
+      rankBasis: "sum" as const,
     }));
     if (saved) {
       this.lastSync = saved.lastSync;
       this.lastSuccessAt = saved.lastSuccessAt;
-      this.previousRanks = new Map(saved.previousRanks);
+      // Eski holatda o'rinlar eng ko'p ko'rilgan video bo'yicha edi — yig'indi bo'yicha reyting bilan
+      // solishtirib bo'lmaydi: birinchi yig'ishgacha o'rin o'zgarishi 0 ko'rinadi.
+      this.previousRanks = saved.rankBasis === "sum" ? new Map(saved.previousRanks) : new Map();
       // Eski holat faylida bo'lmaydi — birinchi yig'ishgacha videolar o'rni o'zgarishi 0.
       this.previousReelRanks = new Map(saved.previousReelRanks ?? []);
     }
@@ -899,27 +900,30 @@ export class StatsService implements OnApplicationBootstrap, OnApplicationShutdo
   }
 
   /**
-   * Ishtirokchilar reytingi (g'olib, sovrinlar, target tekshiruvi): kamida bitta qabul qilingan
-   * videosi bor faol ishtirokchilar, eng ko'p ko'rilgan videosi bo'yicha (videolar ko'rishlari
-   * qo'shilmaydi). Tartib va o'rin — shu videoning videolar reytingidagi joyi (`reelRanking`).
+   * Ishtirokchilar reytingi (Mini App reytingi, sovrin oraliqlari, target tekshiruvi): kamida bitta
+   * qabul qilingan videosi bor faol ishtirokchilar, umumiy ko'rishlari (yig'indi) kamayishi bo'yicha;
+   * teng bo'lsa — oldinroq qatnashgan yuqorida.
    */
   ranking(): RankedEntry[] {
-    const seen = new Set<number>();
-    const entries: RankedEntry[] = [];
-    for (const row of this.reelRanking()) {
-      const p = row.participant;
-      if (seen.has(p.telegramId)) continue;
-      seen.add(p.telegramId);
-      const previous = this.previousRanks.get(p.telegramId);
-      entries.push({
-        participant: p,
-        reels: acceptedReels(p),
+    // Oferta 7.1: ishtirokchining natijasi — barcha qabul qilingan videolari ko'rishlarining yig'indisi.
+    // Reyting faqat ma'lumot uchun: g'oliblar o'rin bo'yicha emas, oraliqlar ichida random aniqlanadi (9.1).
+    const rows = this.participants
+      .all()
+      .filter((p) => p.status === "ACTIVE" && p.firstName)
+      .map((p) => ({ p, reels: acceptedReels(p) }))
+      .filter((row) => row.reels.length > 0)
+      .map((row) => ({ ...row, views: participantViews(row.p), first: firstSubmitted(row.reels) }));
+    rows.sort((a, b) => b.views - a.views || a.first - b.first || a.p.telegramId - b.p.telegramId);
+    return rows.map((row, i) => {
+      const previous = this.previousRanks.get(row.p.telegramId);
+      return {
+        participant: row.p,
+        reels: row.reels,
         views: row.views,
-        rank: row.rank,
-        rankDelta: previous === undefined ? 0 : previous - row.rank,
-      });
-    }
-    return entries;
+        rank: i + 1,
+        rankDelta: previous === undefined ? 0 : previous - (i + 1),
+      };
+    });
   }
 
   status() {
@@ -1001,6 +1005,9 @@ function readableViews(reel: Reel, s: ReelStats): number | null {
   if (s.views === null) return null;
   return s.views === 0 && reelViews(reel) > 0 ? null : s.views;
 }
+
+/** Videolardan eng birinchi yuborilganining vaqti (teng ko'rishda oldinroq qatnashgan yuqorida). */
+const firstSubmitted = (reels: readonly Reel[]): number => Math.min(...reels.map((r) => r.submittedAt.getTime()));
 
 /** Apify so'rovi uchun shortcode'lar — takrorlarsiz (band link bitta bo'ladi, lekin eski holatda ham). */
 const shortcodesOf = (targets: readonly { reel: Reel }[]): string[] => [...new Set(targets.map((t) => t.reel.shortcode))];

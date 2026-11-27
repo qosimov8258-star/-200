@@ -58,7 +58,7 @@ export function UsersTable({
             <SortableHeader
               sort="rank"
               label="O'rin"
-              hint="Eng ko'p ko'rilgan videosining reytingdagi o'rni (reytingda har bir video alohida qator)"
+              hint="Ishtirokchilar reytingidagi o'rni — umumiy ko'rishlar bo'yicha (faqat ma'lumot: g'oliblar random aniqlanadi)"
               className="w-20"
               {...sortProps}
             />
@@ -75,7 +75,7 @@ export function UsersTable({
             <SortableHeader
               sort="views"
               label="Ko'rishlar"
-              hint="Eng ko'p ko'rilgan bitta qabul qilingan videosi (videolar ko'rishlari qo'shilmaydi)"
+              hint="Umumiy tasdiqlangan ko'rishlar — barcha qabul qilingan videolari yig'indisi (oferta 7.1)"
               align="right"
               {...sortProps}
             />
@@ -191,7 +191,7 @@ function UserRow({
         ) : item.rank === 1 ? (
           <span className="inline-flex items-center gap-1 font-semibold text-slate-900">
             <Crown className="size-4 text-amber-500" aria-hidden />1
-            <span className="sr-only">(avtomobilga da&apos;vogar)</span>
+            <span className="sr-only">(reyting yetakchisi)</span>
           </span>
         ) : (
           <span className="font-medium text-slate-900">{item.rank}</span>

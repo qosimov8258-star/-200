@@ -2,6 +2,7 @@ import { Inject, Injectable, Optional } from "@nestjs/common";
 
 import { ApiException } from "../common/api-exception";
 import { StateStore } from "../persistence/state-store";
+import { OFFER_RU, OFFER_UZ } from "./offer-text";
 
 export interface RulesSection {
   title: string;
@@ -15,7 +16,13 @@ export interface ContestRules {
    * Imlo xatosini tuzatish kabi kichik o'zgarishlarda versiya o'zgarmaydi.
    */
   version: number;
+  /** O'zbekcha matn (admin paneldan tahrirlanadi). */
   sections: RulesSection[];
+  /**
+   * Ruscha matn (Mini App rus tilida). Standart — ofertaning ruscha rasmiy matni; eski holat fayllarida
+   * yo'q bo'lishi mumkin — unda ham shu standart.
+   */
+  sectionsRu?: RulesSection[];
   updatedAt: string | null;
   updatedBy: string | null;
 }
@@ -29,29 +36,14 @@ export const RULES_LIMITS = {
   bodyMax: 3000,
 } as const;
 
-/** Namunaviy matn — yakuniy qoidalar yurist tasdig'idan o'tgach admin paneldan kiritiladi. */
-const DEFAULT_SECTIONS: RulesSection[] = [
-  {
-    title: "1. Ishtirok etish",
-    body: "Tanlovda zavod mahsulotini sotib olgan, 18 yoshga to'lgan shaxslar qatnashadi. Bitta telefon raqami — bitta ishtirokchi.",
-  },
-  {
-    title: "2. Video talablari",
-    body: "Mahsulot haqidagi Reel o'z Instagram akkauntingizda joylanadi, ochiq bo'ladi va unda zavod akkaunti belgilanadi. Reel linki shu ilova orqali yuboriladi. Bitta Instagram akkaunt — bitta ishtirokchi.",
-  },
-  {
-    title: "3. Taqiqlar",
-    body: "Pullik reklama (target) va nakrutka (sotib olingan ko'rishlar, botlar) taqiqlanadi. Reyting yetakchilarining akkauntlari Meta reklama kutubxonasida muntazam tekshiriladi. Sovrin topshirilishidan oldin g'olib Instagram ilovasidagi \"Reklama vositalari\" bo'limini tashkilotchilarga ko'rsatadi. Boshqa ishtirokchining reklamasini ko'rsangiz, ilovadagi \"Reklamani ko'rdim\" bo'limi orqali skrinshot yuboring. Target yoki nakrutka aniqlansa, ishtirokchi tanlovdan chetlashtiriladi.",
-  },
-  {
-    title: "4. G'olibni aniqlash",
-    body: "Ko'rishlar muntazam ravishda avtomatik yig'iladi. Reytingda har bir qabul qilingan video alohida o'rin oladi; ishtirokchining natijasi — eng ko'p ko'rilgan videosi (videolar ko'rishlari qo'shilmaydi). Tanlov yakunida videosi eng ko'p ko'rilgan ishtirokchi tekshiruvdan so'ng g'olib deb e'lon qilinadi.",
-  },
-  {
-    title: "5. Shaxsiy ma'lumotlar",
-    body: "Ism va familiyangiz ommaviy reytingda ko'rsatiladi. Telefon raqamingiz boshqa ishtirokchilarga ko'rsatilmaydi.",
-  },
-];
+/**
+ * Boshlang'ich qoidalar — «OLIVIA» reklama aksiyasi ommaviy ofertasining rasmiy matni (25.11.2026,
+ * `offer-text.ts`). Admin keyin paneldan tahrirlashi mumkin.
+ */
+const DEFAULT_SECTIONS: RulesSection[] = OFFER_UZ;
+
+/** Bir martalik o'zgarish: saqlangan (eski) qoidalar ommaviy oferta matniga almashtiriladi. */
+const OFFER_MIGRATION = "rules-public-offer-2026-11-27";
 
 /**
  * Tanlov qoidalari — admin paneldan tahrirlanadi, Mini App'da ko'rsatiladi.
@@ -62,17 +54,48 @@ export class RulesService {
   private rules: ContestRules = {
     version: 1,
     sections: DEFAULT_SECTIONS,
+    sectionsRu: OFFER_RU,
     updatedAt: null,
     updatedBy: null,
   };
 
+  /** Bir martalik o'zgarishlar (qayta bajarilmasin) — holat faylida saqlanadi. */
+  private migrations: string[] = [];
+
   constructor(@Optional() @Inject(StateStore) store: StateStore | null = null) {
     const saved = store?.attach("rules", () => this.rules);
     if (saved) this.rules = saved;
+    const done = store?.attach("rulesMigrations", () => this.migrations);
+    if (done) this.migrations = done;
+    this.migrate(saved !== null && saved !== undefined);
+  }
+
+  /**
+   * 2026-11-27: qoidalar — ommaviy oferta matni (ikki tilda). Avval saqlangan qoidalar bir marta oferta
+   * bilan almashtiriladi va versiya oshadi: oferta 2.3 bo'yicha barcha ishtirokchilar ofertani qabul
+   * qiladi (Mini App'da qaytadan rozilik so'raladi). Yangi o'rnatishda — shunchaki standart.
+   */
+  private migrate(hadSaved: boolean): void {
+    if (this.migrations.includes(OFFER_MIGRATION)) return;
+    if (hadSaved) {
+      this.rules = {
+        version: this.rules.version + 1,
+        sections: OFFER_UZ,
+        sectionsRu: OFFER_RU,
+        updatedAt: new Date().toISOString(),
+        updatedBy: "Tizim (ommaviy oferta)",
+      };
+    }
+    this.migrations.push(OFFER_MIGRATION);
   }
 
   get(): ContestRules {
     return this.rules;
+  }
+
+  /** Mini App uchun bo'limlar — tanlangan tilda (ruscha matn bo'lmasa — o'zbekcha). */
+  sectionsFor(lang: "uz" | "ru"): RulesSection[] {
+    return lang === "ru" ? (this.rules.sectionsRu ?? OFFER_RU) : this.rules.sections;
   }
 
   get version(): number {
@@ -84,6 +107,7 @@ export class RulesService {
     const changed = JSON.stringify(clean) !== JSON.stringify(this.rules.sections);
     if (!changed && !requireReconsent) return this.rules;
     this.rules = {
+      ...this.rules,
       version: requireReconsent ? this.rules.version + 1 : this.rules.version,
       sections: clean,
       updatedAt: new Date().toISOString(),

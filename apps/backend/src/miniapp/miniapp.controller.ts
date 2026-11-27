@@ -10,7 +10,6 @@ import {
   ParticipantsService,
   reelsForDisplay,
   reelViews,
-  topReel,
   type Reel,
   type ReelRejectReason,
   type ReelStatus,
@@ -33,24 +32,24 @@ const DAILY_DAYS = 30;
 /** "Mening videolarim" (`apps/miniapp/src/lib/types.ts` → MyReels). */
 export interface MyReels {
   /**
-   * Eng ko'p ko'rilgan qabul qilingan videoning oxirgi ko'rishlari — reytingdagi natija
-   * (videolar ko'rishlari qo'shilmaydi). Qabul qilingan video yo'q — 0.
+   * Umumiy tasdiqlangan ko'rishlar — barcha qabul qilingan videolari oxirgi ko'rishlarining yig'indisi
+   * (oferta 7.1). Qabul qilingan video yo'q — 0.
    */
-  bestViews: number;
-  /** Shu videoning oxirgi kundagi o'sishi. */
+  totalViews: number;
+  /** Umumiy ko'rishlarning oxirgi yig'ishdagi o'sishi. */
   todayViews: number;
-  /** Eng ko'p ko'rilgan videosining videolar reytingidagi o'rni (reytingda bo'lmasa — null). */
+  /** Ishtirokchilar reytingidagi o'rni (faqat ma'lumot uchun); reytingda bo'lmasa — null. */
   rank: number | null;
   rankDelta: number;
-  /** Shu videoning kunlik o'sishi — eskidan yangiga, oxirgi `DAILY_DAYS` kun. */
+  /** Umumiy ko'rishlarning har yig'ishdagi o'sishi — eskidan yangiga, oxirgi `DAILY_DAYS` ta. */
   daily: { date: string; views: number }[];
   /** Videolar ichida eng oxirgi yig'ish vaqti (ISO). */
   lastSyncedAt: string | null;
   nextSyncAt: string | null;
   syncEveryDays: number;
   /**
-   * Tartib (`reelsForDisplay`): qabul qilinganlar ko'rishlar kamayishi bo'yicha (birinchisi —
-   * reytingdagi video), keyin tekshiruvdagilar, keyin rad etilganlar (ikkalasida yangisi birinchi).
+   * Tartib (`reelsForDisplay`): qabul qilinganlar ko'rishlar kamayishi bo'yicha, keyin
+   * tekshiruvdagilar, keyin rad etilganlar (ikkalasida yangisi birinchi).
    */
   reels: MyReelItem[];
 }
@@ -63,10 +62,6 @@ export interface MyReelItem {
   /** Shu videoning oxirgi ko'rishlari (hali yig'ilmagan — 0). */
   views: number;
   submittedAt: string;
-  /** Reytingda hisoblanadigan video (eng ko'p ko'rilgan qabul qilingani) — faqat bittasida true. */
-  best: boolean;
-  /** Shu videoning videolar reytingidagi o'rni; reytingda bo'lmasa (qabul qilinmagan) — null. */
-  rank: number | null;
 }
 /** Support: shu vaqt ichida ko'pi bilan shuncha xabar (spamdan himoya). */
 const SUPPORT_WINDOW_MS = 10 * 60 * 1000;
@@ -170,13 +165,14 @@ export class MiniappController {
   }
 
   /**
-   * Ommaviy reyting — har bir qabul qilingan video alohida qator (4 ta videosi bor ishtirokchi
-   * 4 joyda). Telefon raqamlari va video linklari berilmaydi. Ko'rishlarni worker (StatsService) yig'adi.
+   * Ommaviy reyting — ishtirokchilar umumiy tasdiqlangan ko'rishlari (barcha videolari yig'indisi,
+   * oferta 7.1) bo'yicha. Faqat ma'lumot uchun: g'oliblar o'rin bo'yicha emas, random aniqlanadi (9.1).
+   * Telefon raqamlari va video linklari berilmaydi. Ko'rishlarni worker (StatsService) yig'adi.
    */
   @Public()
   @Get("rating")
   rating(@TgUserOptional() user: TelegramIdentity | null) {
-    return this.stats.reelRanking().map((e) => ({
+    return this.stats.ranking().map((e) => ({
       rank: e.rank,
       fullName: `${e.participant.firstName} ${e.participant.lastName}`,
       views: e.views,
@@ -187,25 +183,21 @@ export class MiniappController {
 
   /**
    * Ishtirokchining barcha videolari va natijasi. Video bo'lmasa ham obyekt qaytadi (`reels: []`).
-   * Ko'rishlar, kunlik o'sish va o'rin — eng ko'p ko'rilgan qabul qilingan video bo'yicha
-   * (videolar ko'rishlari qo'shilmaydi).
+   * Ko'rishlar, o'sish va o'rin — barcha qabul qilingan videolari yig'indisi bo'yicha (oferta 7.1).
    */
   @Get("reels")
   reels(@TgUser() user: TelegramIdentity): MyReels {
     const p = this.participants.get(user.telegramId);
     const reels = p?.reels ?? [];
-    const best = topReel(reels.filter((r) => r.status === "ACCEPTED"));
+    const accepted = reels.filter((r) => r.status === "ACCEPTED");
     const entry = p ? (this.stats.ranking().find((e) => e.participant === p) ?? null) : null;
-    const reelRanks = new Map(
-      p ? this.stats.reelRanking().filter((e) => e.participant === p).map((e) => [e.reel, e.rank]) : [],
-    );
-    const daily = best ? dailyGrowth(best) : [];
+    const daily = totalGrowth(accepted);
     const lastSyncedAt = reels.reduce<Date | null>((latest, r) => {
       const at = r.history.at(-1)?.at ?? null;
       return at !== null && (latest === null || at > latest) ? at : latest;
     }, null);
     return {
-      bestViews: best ? reelViews(best) : 0,
+      totalViews: accepted.reduce((sum, r) => sum + reelViews(r), 0),
       todayViews: daily.at(-1)?.views ?? 0,
       rank: entry?.rank ?? null,
       rankDelta: entry?.rankDelta ?? 0,
@@ -222,8 +214,6 @@ export class MiniappController {
           rejectReason: r.status === "REJECTED" ? r.rejectReason : null,
           views: reelViews(r),
           submittedAt: r.submittedAt.toISOString(),
-          best: r === best,
-          rank: reelRanks.get(r) ?? null,
         }),
       ),
     };
@@ -316,4 +306,16 @@ export class MiniappController {
 export function dailyGrowth(reel: Pick<Reel, "history">): { date: string; views: number }[] {
   const h = reel.history;
   return h.slice(1).map((s, i) => ({ date: s.date, views: Math.max(0, s.views - h[i].views) }));
+}
+
+/**
+ * Umumiy ko'rishlar o'sishi — har bir yig'ish kunida barcha videolar o'sishining yig'indisi
+ * (eskidan yangiga). Video birinchi marta yig'ilgan kun o'sish sifatida hisoblanmaydi.
+ */
+export function totalGrowth(reels: readonly Pick<Reel, "history">[]): { date: string; views: number }[] {
+  const byDate = new Map<string, number>();
+  for (const reel of reels) {
+    for (const g of dailyGrowth(reel)) byDate.set(g.date, (byDate.get(g.date) ?? 0) + g.views);
+  }
+  return [...byDate].sort(([a], [b]) => a.localeCompare(b)).map(([date, views]) => ({ date, views }));
 }

@@ -3,7 +3,7 @@ import { Car, Plane, Smartphone, Tablet, type LucideIcon } from "lucide-react";
 import { formatNumber } from "@/lib/format";
 import type { RatingPrizeKind, RatingPrizeTier } from "@/lib/types";
 
-/** Asosiy sovrinlar (reyting bo'yicha) ikonkalari. */
+/** Asosiy sovrinlar (oraliqlar ichida random) ikonkalari. */
 export const RATING_PRIZE_ICONS: Record<RatingPrizeKind, LucideIcon> = {
   car: Car,
   travel: Plane,

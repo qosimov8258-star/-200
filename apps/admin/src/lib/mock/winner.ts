@@ -107,12 +107,10 @@ function reelFakeViewsIssue(reel: MockReel, date: IsoDate): string | null {
 
 /** Qo'lda belgilanadigan bandlar store'da qayerda saqlanadi. */
 const MANUAL_CHECK_FIELDS = {
-  PURCHASE_CONFIRMED: "purchaseChecks",
   AD_TOOLS_REVIEWED: "adToolsChecks",
 } as const satisfies Record<WinnerManualCheckKey, keyof MockWinnerState>;
 
 const MANUAL_CHECK_AUDIT: Record<WinnerManualCheckKey, string> = {
-  PURCHASE_CONFIRMED: "purchase_check",
   AD_TOOLS_REVIEWED: "ad_tools_check",
 };
 
@@ -159,11 +157,6 @@ function buildChecks(participantId: string, reels: MockReel[], date: IsoDate, st
       detail: fakeViews ?? "Ko'rishlar o'sishida g'ayritabiiy sakrash yo'q",
       manual: false,
     },
-    manualCheck(
-      "PURCHASE_CONFIRMED",
-      manualChecks(store, "PURCHASE_CONFIRMED")[participantId],
-      "Chek yoki xarid hujjatini qo'lda tekshiring (PLAN.md Q4)",
-    ),
     manualCheck(
       "AD_TOOLS_REVIEWED",
       manualChecks(store, "AD_TOOLS_REVIEWED")[participantId],

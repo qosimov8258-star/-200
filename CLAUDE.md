@@ -2,9 +2,11 @@
 
 ## Loyiha
 
-**Reels tanlov ilovasi.** Zavod mahsulotini sotib olgan mijozlar mahsulot haqida Instagram Reel
-joylaydi va linkini ilovaga yuboradi. Tizim har kuni ko'rishlarni yig'ib reyting tuzadi;
-eng ko'p ko'rish yig'gan ishtirokchi avtomobil yutadi (g'olibni Admin tasdiqlaydi).
+**Reels tanlov ilovasi** («OLIVIA» reklama aksiyasi, 27.11.2026–27.02.2027). Ishtirokchilar OLIVIA
+mahsuloti ishtirokidagi Instagram Reel joylaydi va linkini ilovaga yuboradi. Tizim ko'rishlarni
+muntazam yig'adi (barcha tasdiqlangan videolar ko'rishlari qo'shiladi); oylik voucherlar va asosiy
+sovrinlar (avtomobil, sayohat, iPhone, planshet) ko'rishlar oraliqlari ichida **random** o'ynaladi.
+Qoidalarning manbai — ommaviy oferta (25.11.2026): `apps/backend/src/rules/offer-text.ts` (UZ/RU).
 
 - Texnik topshiriq: [docs/tz.pdf](docs/tz.pdf)
 - Ish rejasi, fazalar, ochiq savollar: [PLAN.md](PLAN.md)

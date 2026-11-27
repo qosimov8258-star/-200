@@ -16,6 +16,7 @@ import {
   contestStages,
   createSeed,
   DEFAULT_DRAW_MESSAGE,
+  DEFAULT_MAIN_DRAW_MESSAGE,
   DRAW_PLACEHOLDERS,
   fingerprint,
   periodLabel,
@@ -46,9 +47,11 @@ import type {
   SavedDrawSettings,
   VoucherDraw,
   VoucherDrawSummary,
+  RatingPrizeKind,
 } from "../types";
 import { getContestData, reelStatusOn, viewsOn, type MockReel } from "./contest";
 import { effectivePrizes } from "./prizes";
+import { MAIN_TIERS } from "./rating-prizes";
 import { hashString } from "./random";
 import { effectiveStatus } from "./ranking";
 import { effectiveSettings } from "./settings";
@@ -86,6 +89,62 @@ function monthlyPrizes(store: MockStore): Prize[] {
   return effectivePrizes(store).filter((prize) => prize.kind === "MONTHLY");
 }
 
+/** Random tanlov sovg'alari: oylik voucherlar va asosiy sovrinlar (oferta 6.2; backend bilan bir xil id). */
+interface DrawablePrize {
+  id: string;
+  title: string;
+  kind: RatingPrizeKind | null;
+  quantity: number;
+  minViews: number;
+  maxViews: number | null;
+}
+
+function drawablePrizes(store: MockStore): DrawablePrize[] {
+  return [
+    ...monthlyPrizes(store).map((p) => ({
+      id: p.id,
+      title: p.title,
+      kind: null,
+      quantity: p.quantity,
+      minViews: p.minViews ?? 0,
+      maxViews: p.maxViews,
+    })),
+    ...MAIN_TIERS.map((t) => ({
+      id: `main-${t.kind}`,
+      title: t.title,
+      kind: t.kind,
+      quantity: t.quantity,
+      minViews: t.minViews,
+      maxViews: t.maxViews,
+    })),
+  ];
+}
+
+/** Asosiy sovrin tanlovi sozlamalari: davr — butun aksiya, oraliq va soni — ofertadagi. */
+function mainSettings(prize: DrawablePrize, store: MockStore, input: DrawSettings | null): DrawSettings {
+  const all = allStagesOf(store);
+  return {
+    prizeId: prize.id,
+    stage: null,
+    periodFrom: all[0]?.startsOn ?? getContestData().today,
+    periodTo: all[all.length - 1]?.endsOn ?? getContestData().today,
+    dateBasis: "SUBMITTED",
+    minViews: prize.minViews,
+    maxViews: prize.maxViews ?? 1_000_000_000,
+    winnersCount: prize.quantity,
+    reservesCount: input?.reservesCount ?? Math.max(3, prize.quantity),
+    excludeWarned: input?.excludeWarned ?? false,
+    excludeTargets: input?.excludeTargets ?? true,
+    excludePreviousWinners: true,
+    messageTemplate: input?.messageTemplate?.trim() || DEFAULT_MAIN_DRAW_MESSAGE,
+  };
+}
+
+/** Asosiy sovrin bo'yicha bekor qilinmagan tanlov (G'oliblar → asosiy sovrinlar). */
+export function mainDrawOf(kind: RatingPrizeKind): VoucherDraw | null {
+  return drawsOf(readStore()).find((d) => d.status !== "CANCELLED" && d.settings.prizeId === `main-${kind}`) ?? null;
+}
+
 /** Barcha bosqichlar (o'chirilganlari ham) — tanlov muddati chegaralari uchun. */
 function allStagesOf(store: MockStore) {
   const data = getContestData();
@@ -110,13 +169,16 @@ function findDraw(store: MockStore, id: string): VoucherDraw {
 }
 
 /**
- * Voucher olganlar: bekor qilinmagan (qoralama, tasdiqlangan yoki yuborilgan) istalgan tanlovning
- * faol g'oliblari. Voucher bir kishiga aksiya davomida bir marta beriladi (backend bilan bir xil).
+ * Chetlatiladigan oldingi g'oliblar (backend bilan bir xil): asosiy sovrinda — boshqa asosiy sovrinlar
+ * tanlovlarining faol g'oliblari (bitta kishiga bitta asosiy sovrin); oylik voucherda — hech kim
+ * (oferta 6.1.5: bir necha oy yutish mumkin).
  */
-function previousWinnerIds(store: MockStore, exceptId?: string): Set<string> {
+function previousWinnerIds(store: MockStore, settings: DrawSettings, exceptId?: string): Set<string> {
   const ids = new Set<string>();
+  if (!settings.prizeId.startsWith("main-")) return ids;
   for (const draw of drawsOf(store)) {
     if (draw.id === exceptId || draw.status === "CANCELLED") continue;
+    if (!draw.settings.prizeId.startsWith("main-") || draw.settings.prizeId === settings.prizeId) continue;
     for (const entry of draw.winnerEntries) {
       if (entry.state === "ACTIVE") ids.add(entry.candidate.participantId);
     }
@@ -150,15 +212,15 @@ function cleanSettings(settings: DrawSettings, store: MockStore): DrawSettings {
     reservesCount: Number(settings.reservesCount),
     excludeWarned: Boolean(settings.excludeWarned),
     excludeTargets: Boolean(settings.excludeTargets),
-    // Har doim yoqiq — yuborilgan qiymat e'tiborga olinmaydi (backend ham shunday).
-    excludePreviousWinners: true,
+    // Oylik voucherda — false (oferta 6.1.5); asosiy sovrinda — true (`mainSettings`).
+    excludePreviousWinners: false,
     messageTemplate: String(settings.messageTemplate ?? "").trim(),
   };
+  const prize = drawablePrizes(store).find((item) => item.id === clean.prizeId);
+  if (!prize) throw new ApiError(400, "Sovg'a tanlanmagan.");
+  if (prize.kind !== null) Object.assign(clean, mainSettings(prize, store, clean));
   const errors = Object.values(validateDrawSettings(clean));
   if (errors.length > 0) throw new ApiError(400, errors[0] ?? "Sozlamalar noto'g'ri.");
-  if (!monthlyPrizes(store).some((prize) => prize.id === clean.prizeId)) {
-    throw new ApiError(400, "Oylik sovg'a tanlanmagan.");
-  }
   if (clean.stage !== null && !stages(store).some((stage) => stage.index === clean.stage)) {
     throw new ApiError(400, "Bunday bosqich yo'q.");
   }
@@ -178,12 +240,12 @@ function buildPool(settings: DrawSettings, store: MockStore, exceptDrawId?: stri
   const viewsAsOf = settings.periodTo < data.today ? settings.periodTo : data.today;
   const participants = new Map(data.participants.map((item) => [item.id, item]));
   const targets = activeTargetParticipants(store, viewsAsOf);
-  const previous = previousWinnerIds(store, exceptDrawId);
+  const previous = previousWinnerIds(store, settings, exceptDrawId);
   const excluded = Object.fromEntries(EXCLUSIONS.map((key) => [key, 0])) as Record<DrawExclusion, number>;
   const eligible: DrawCandidate[] = [];
 
   // Ishtirokchi bo'yicha guruhlaymiz: nomzod ko'rishlari — davrga tushgan qabul qilingan
-  // videolari ichida eng ko'p ko'rilgan bittasiniki (Aksiya qoidalari 7.2; ko'rishlar qo'shilmaydi).
+  // videolari ko'rishlarining yig'indisi (oferta 7.1–7.3).
   const reelsByParticipant = new Map<string, MockReel[]>();
   for (const reel of data.reels) {
     const list = reelsByParticipant.get(reel.participantId);
@@ -210,13 +272,13 @@ function buildPool(settings: DrawSettings, store: MockStore, exceptDrawId?: stri
       exclude("OUT_OF_PERIOD");
       continue;
     }
-    // Davrdagi eng ko'p ko'rilgan video: havola, sanalar va ko'rishlar chegarasi — shuniki.
-    // Teng bo'lsa — oldinroq yuborilgani.
+    // Davrdagi eng ko'p ko'rilgan video — havola va sanalar shuniki (tekshirish uchun); ko'rishlar —
+    // davrdagi barcha videolar yig'indisi. Teng bo'lsa — oldinroq yuborilgani.
     const top = inPeriod.reduce((best, reel) => {
       const diff = viewsOn(reel, viewsAsOf) - viewsOn(best, viewsAsOf);
       return diff > 0 || (diff === 0 && reel.submittedAt < best.submittedAt) ? reel : best;
     });
-    const views = viewsOn(top, viewsAsOf);
+    const views = inPeriod.reduce((sum, reel) => sum + viewsOn(reel, viewsAsOf), 0);
     if (views < settings.minViews) {
       exclude("VIEWS_LOW");
       continue;
@@ -265,6 +327,7 @@ function summarize(draw: VoucherDraw): VoucherDrawSummary {
   return {
     id: draw.id,
     number: draw.number,
+    prizeId: draw.prizeId ?? draw.settings.prizeId,
     prizeTitle: draw.prizeTitle,
     stage: draw.stage,
     periodFrom: draw.periodFrom,
@@ -328,22 +391,32 @@ export function getDrawSetup(): DrawSetup {
   return {
     today: data.today,
     stages: allStages,
-    prizes: prizes.map(({ id, title, quantity, minViews, maxViews }) => ({ id, title, quantity, minViews, maxViews })),
+    prizes: drawablePrizes(store).map(({ id, title, kind, quantity, minViews, maxViews }) => ({
+      id,
+      title,
+      kind,
+      quantity,
+      minViews,
+      maxViews,
+    })),
+    mainDefaults: drawablePrizes(store)
+      .filter((item) => item.kind !== null)
+      .map((item) => mainSettings(item, store, null)),
     saved,
-    // Saqlangan sozlamalar bo'lsa — ular; bo'lmasa standartlar (Instagram'da joylangan sana).
+    // Saqlangan sozlamalar bo'lsa — ular; bo'lmasa standartlar (oferta 7.2: ilovaga yuborilgan sana).
     defaults: {
       prizeId: prize?.id ?? "",
       stage: stage?.index ?? null,
       periodFrom: stage?.startsOn ?? data.today,
       periodTo: stage?.endsOn ?? data.today,
-      dateBasis: saved?.dateBasis ?? "POSTED",
+      dateBasis: saved?.dateBasis ?? "SUBMITTED",
       minViews: saved?.minViews ?? prize?.minViews ?? 0,
       maxViews: saved?.maxViews ?? prize?.maxViews ?? 100_000,
       winnersCount: saved?.winnersCount ?? prize?.quantity ?? 1,
       reservesCount: saved?.reservesCount ?? Math.ceil((prize?.quantity ?? 10) / 10),
       excludeWarned: saved?.excludeWarned ?? false,
       excludeTargets: saved?.excludeTargets ?? true,
-      excludePreviousWinners: true,
+      excludePreviousWinners: false,
       messageTemplate: saved?.messageTemplate ?? DEFAULT_DRAW_MESSAGE,
     },
     placeholders: DRAW_PLACEHOLDERS,
@@ -375,7 +448,7 @@ export function saveDrawSettings(input: DrawSettingsInput, actor: AdminUser): Dr
   const before = store.drawSettings;
   const saved: SavedDrawSettings = {
     ...clean,
-    excludePreviousWinners: true,
+    excludePreviousWinners: false,
     updatedAt: new Date().toISOString(),
     updatedBy: actor.fullName,
   };
@@ -651,6 +724,7 @@ export function runDraw(input: DrawSettings, actor: AdminUser): VoucherDraw {
   const draw: VoucherDraw = {
     id: `drw_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
     number,
+    prizeId: settings.prizeId,
     prizeTitle: prize?.title ?? settings.prizeId,
     stage: settings.stage,
     periodFrom: settings.periodFrom,

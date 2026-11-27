@@ -30,8 +30,8 @@ interface DrawSettingsFormProps {
 }
 
 export const DATE_BASIS_HINTS: Record<DrawDateBasis, string> = {
-  POSTED: "Aksiya qoidasi: shu oyda Instagram'ga joylangan Reellargina hisoblanadi.",
-  SUBMITTED: "Reel qachon joylanganidan qat'i nazar, shu davrda ilovaga yuborilganlar.",
+  POSTED: "Reel qachon ilovaga yuborilganidan qat'i nazar, shu davrda Instagram'ga joylanganlar.",
+  SUBMITTED: "Oferta 7.2: shu oyda Platformada ro'yxatdan o'tkazilgan (ilovaga yuborilgan) videolar hisoblanadi.",
 };
 
 const EXCLUSIONS: Array<{ key: "excludeTargets" | "excludeWarned"; title: string; hint: string }> = [
@@ -47,8 +47,8 @@ const EXCLUSIONS: Array<{ key: "excludeTargets" | "excludeWarned"; title: string
   },
 ];
 
-/** Har doim yoqiq qoida — o'chirib bo'lmaydi (voucher bir kishiga bir marta). */
-export const PREVIOUS_WINNERS_RULE = "Voucher olganlar qatnashmaydi — bir kishiga aksiya davomida bir marta";
+/** Oferta 6.1.5: voucherni bir necha oy yutish mumkin — oldingi bosqichlar g'oliblari ham qatnashadi. */
+export const PREVIOUS_WINNERS_RULE = "Oldingi oylarda voucher yutganlar ham qatnashadi (oferta 6.1.5)";
 
 /**
  * Random tanlovning doimiy sozlamalari: Reel sanasi, ko'rishlar oralig'i, g'oliblar va zaxira soni,
@@ -110,7 +110,7 @@ export function DrawSettingsForm({
             >
               <span className="flex flex-wrap items-center gap-2 text-sm font-semibold">
                 {DRAW_DATE_BASIS_LABELS[basis]}
-                {basis === "POSTED" && <Badge tone="brand">Tavsiya</Badge>}
+                {basis === "SUBMITTED" && <Badge tone="brand">Oferta</Badge>}
               </span>
               <span className="mt-0.5 block text-xs text-slate-500">{DATE_BASIS_HINTS[basis]}</span>
             </button>
@@ -129,8 +129,8 @@ export function DrawSettingsForm({
           </Field>
         </div>
         <p className="text-xs text-slate-500">
-          Davrdagi eng ko&apos;p ko&apos;rilgan bitta tasdiqlangan video hisoblanadi (videolar ko&apos;rishlari
-          qo&apos;shilmaydi).
+          Davrda ro&apos;yxatdan o&apos;tkazilgan barcha tasdiqlangan videolari ko&apos;rishlari qo&apos;shib hisoblanadi
+          (oferta 7.1–7.2).
         </p>
       </Section>
 
@@ -163,11 +163,11 @@ export function DrawSettingsForm({
               <span className="block text-sm font-medium text-ink">
                 {PREVIOUS_WINNERS_RULE}{" "}
                 <Badge tone="brand" className="ml-1 align-middle">
-                  Doim yoqiq
+                  Ofertada
                 </Badge>
               </span>
               <span className="mt-0.5 block text-xs text-muted">
-                Bekor qilinmagan istalgan tanlov g&apos;oliblari keyingi tanlovlarga kirmaydi. O&apos;chirib bo&apos;lmaydi.
+                Talablarni bajargan ishtirokchi har oy voucher yutishi mumkin. Bitta bosqichda bitta tanlov.
               </span>
             </span>
           </li>

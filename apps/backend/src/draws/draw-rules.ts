@@ -27,11 +27,12 @@ export interface DrawSettings {
 }
 
 /**
- * Doimiy (bir marta tasdiqlanadigan, keyin tahrirlanadigan) tanlov sozlamalari — har bir tanlovda
- * faqat bosqich/davr tanlanadi. Oldingi g'oliblar har doim chetda (voucher bir kishiga bir marta).
+ * Doimiy (bir marta tasdiqlanadigan, keyin tahrirlanadigan) oylik voucher tanlovi sozlamalari — har bir
+ * tanlovda faqat bosqich/davr tanlanadi. Oferta 6.1.5: voucherni bir necha oy yutish mumkin, shuning
+ * uchun oldingi bosqichlar g'oliblari chetlatilmaydi (`excludePreviousWinners: false`).
  */
 export type SavedDrawSettings = Omit<DrawSettings, "prizeId" | "stage" | "periodFrom" | "periodTo" | "excludePreviousWinners"> & {
-  excludePreviousWinners: true;
+  excludePreviousWinners: boolean;
   updatedAt: string;
   updatedBy: string;
 };
@@ -58,6 +59,10 @@ export const DRAW_PLACEHOLDERS = [
 
 export const DEFAULT_DRAW_MESSAGE =
   "🎉 Tabriklaymiz, {ism}!\n\nSiz {bosqich} ({davr}) random tanlovida g'olib bo'ldingiz va «{sovrin}» yutdingiz!\n\nSovrinni topshirish bo'yicha operatorimiz tez orada shu chat orqali siz bilan bog'lanadi. Iltimos, botni o'chirmang.";
+
+/** Asosiy sovrinlar tanlovi (oferta 6.2) g'oliblariga xabar. */
+export const DEFAULT_MAIN_DRAW_MESSAGE =
+  "🎉 Tabriklaymiz, {ism}!\n\nSiz «OLIVIA» aksiyasining asosiy sovrinlar random tanlovida g'olib bo'ldingiz va «{sovrin}» yutdingiz!\n\nOferta 10.2-bandiga ko'ra 5 kalendar kuni ichida tashkilotchi bilan bog'lanib, sovrinni olish uchun kerakli ma'lumotlarni taqdim eting. Operatorimiz shu chat orqali siz bilan bog'lanadi. Iltimos, botni o'chirmang.";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const PLACEHOLDER_PATTERN = /\{[^{}\s]*\}/g;
