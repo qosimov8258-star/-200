@@ -74,6 +74,11 @@ export interface MockStore {
   /** Random tanlovning tasdiqlangan doimiy sozlamalari; null — hali tasdiqlanmagan. */
   drawSettings: SavedDrawSettings | null;
   /**
+   * Oferta 6.1.1 (2026-11-27): oyiga 200 ta voucher. Avval saqlangan "300" lar bir marta 200 ga
+   * o'tkazilgan (backend `draw-settings-offer-2026-11-27` kabi); yo'q — hali o'tkazilmagan.
+   */
+  offerVouchers200?: boolean;
+  /**
    * Istoriya id -> Admin o'chirgani. Istoriyalar bo'limi olib tashlangan — endi yozilmaydi, faqat
    * eski audit yozuvlarida (`story.remove`) ishtirokchi ismini ko'rsatish uchun o'qiladi.
    */
@@ -158,6 +163,18 @@ function emptyStore(): MockStore {
   };
 }
 
+/** Eski mock holati: oylik voucher 300 ta edi — ofertadagi 200 ga (bir marta, keyingi yozishda belgilanadi). */
+function migrateOfferVouchers(store: MockStore): MockStore {
+  if (store.offerVouchers200) return store;
+  return {
+    ...store,
+    offerVouchers200: true,
+    prizes: store.prizes?.map((p) => (p.kind === "MONTHLY" && p.quantity === 300 ? { ...p, quantity: 200 } : p)) ?? null,
+    drawSettings:
+      store.drawSettings?.winnersCount === 300 ? { ...store.drawSettings, winnersCount: 200 } : store.drawSettings,
+  };
+}
+
 export function readStore(): MockStore {
   try {
     const raw = window.localStorage.getItem(STORE_KEY);
@@ -165,7 +182,7 @@ export function readStore(): MockStore {
     const parsed = JSON.parse(raw) as Partial<MockStore>;
     if (parsed.version !== STORE_VERSION) return emptyStore();
     // Keyin qo'shilgan maydonlar eski yozuvlarda bo'lmasligi mumkin.
-    return { ...emptyStore(), ...parsed, version: STORE_VERSION };
+    return migrateOfferVouchers({ ...emptyStore(), ...parsed, version: STORE_VERSION });
   } catch {
     return memoryStore ?? emptyStore();
   }
