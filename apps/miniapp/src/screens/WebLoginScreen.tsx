@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 
 import { GiftButton } from "../components/GiftButton";
 import { Card, Spinner, TextField } from "../components/ui";
-import { t } from "../i18n/uz";
+import { t } from "../i18n";
 import * as api from "../lib/api";
 import { errorCode } from "../lib/api-error";
 import { confirmDialog, haptic, openTelegram } from "../lib/telegram";

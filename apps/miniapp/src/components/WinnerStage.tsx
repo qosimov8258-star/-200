@@ -2,7 +2,7 @@ import { Trophy } from "lucide-react";
 import type { ReactNode } from "react";
 
 import carUrl from "../assets/hero_car.webp";
-import { t } from "../i18n/uz";
+import { t } from "../i18n";
 import { formatCount, formatDateTime } from "../lib/format";
 import { useCountdown } from "../lib/use-countdown";
 import type { Winner } from "../lib/types";

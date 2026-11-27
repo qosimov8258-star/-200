@@ -1,6 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 
-import { t } from "../i18n/uz";
+import { t } from "../i18n";
 import { getConfirm, registerConfirmHost, subscribeConfirm } from "../lib/confirm-store";
 
 /**

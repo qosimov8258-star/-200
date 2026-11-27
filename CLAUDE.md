@@ -44,7 +44,10 @@ Hozircha bor: `apps/admin` (backend bilan yoki mock), `apps/miniapp` (mock yoki 
 Admin panel backend bilan faqat `apps/admin/src/lib/api.ts` orqali gaplashadi (`api.http.ts` —
 haqiqiy, `api.mock.ts` — soxta; `NEXT_PUBLIC_API_MODE`). Xodimlar login/parol bilan kiradi
 (`ADMIN_USERS`), sessiya — `HttpOnly` cookie, har bir amal audit log'ga yoziladi;
-Mini App va veb-sayt esa faqat `apps/miniapp/src/lib/api.ts` orqali. Ishtirokchi parol/SMS'siz
+Mini App va veb-sayt esa faqat `apps/miniapp/src/lib/api.ts` orqali. Ilova ikki tilda (o'zbek/rus):
+birinchi ekranda til tanlanadi; matnlar `apps/miniapp/src/i18n/uz.ts` va `ru.ts` da (bir xil tuzilma,
+`i18n/index.ts` → `t`, `lang`), so'rovlar `X-Lang` bilan; bot matnlari — `telegram/texts.ts` va
+`texts.ru.ts` (`textsFor(participant.lang)`). Ishtirokchi parol/SMS'siz
 tanilgan: Telegram ichida — `X-Telegram-Init-Data` imzosi, saytda — Telegram Login Widget'dan
 keyingi `HttpOnly` sessiya cookie'si (ikkalasi ham bitta `telegramId`) yoki saytning o'zida
 ro'yxatdan o'tgan hisob (ism, telefon raqam, yosh; `POST /auth/web-register`, ID — `WEB_ID_BASE`

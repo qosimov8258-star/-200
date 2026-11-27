@@ -1,4 +1,4 @@
-import { t } from "../i18n/uz";
+import { lang, t } from "../i18n";
 
 const NBSP = " ";
 
@@ -39,10 +39,15 @@ export function formatDateTime(iso: string): string {
   return `${two(d.getDate())}.${two(d.getMonth() + 1)}.${d.getFullYear()} ${two(d.getHours())}:${two(d.getMinutes())}`;
 }
 
-/** ISO vaqt → "5-dekabr, 06:00" (qurilma vaqt mintaqasida). */
+/** ISO vaqt → "5-dekabr, 06:00" (rus tilida — "5 декабря, 06:00"; qurilma vaqt mintaqasida). */
 export function formatDayMonthTime(iso: string): string {
   const d = new Date(iso);
-  return `${d.getDate()}-${t.months[d.getMonth()]}, ${two(d.getHours())}:${two(d.getMinutes())}`;
+  return `${dayMonth(d)}, ${two(d.getHours())}:${two(d.getMinutes())}`;
+}
+
+/** "5-dekabr" (o'zbek) yoki "5 декабря" (rus). */
+export function dayMonth(d: Date): string {
+  return lang === "ru" ? `${d.getDate()} ${t.months[d.getMonth()]}` : `${d.getDate()}-${t.months[d.getMonth()]}`;
 }
 
 /** ISO vaqt → "hozirgina", "12 daqiqa oldin", "5 soat oldin" (istoriyalar 24 soat yashaydi). */

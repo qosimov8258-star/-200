@@ -50,6 +50,8 @@ export interface Me {
    * tanilgan (chiqib bo'lmaydi). Eski backend yubormasa — Telegram deb hisoblanadi.
    */
   account?: "telegram" | "web";
+  /** Serverda saqlangan til (bot xabarlari shu tilda); hali tanlanmagan — null. */
+  lang?: "uz" | "ru" | null;
 }
 
 /** Profil: ism va yosh (familiya endi so'ralmaydi — uning o'rnida telefon raqam). */

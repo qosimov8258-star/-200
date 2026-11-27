@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { useEffect, useState } from "react";
 
-import { t } from "../i18n/uz";
+import { t } from "../i18n";
 import { displayName } from "../lib/format";
 import { OliviaFestive } from "./OliviaFestive";
 import { Avatar } from "./ui";

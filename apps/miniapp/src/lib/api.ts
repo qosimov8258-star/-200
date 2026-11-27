@@ -8,6 +8,7 @@
  * - oddiy brauzerda (veb-sayt) — Telegram Login Widget orqali kirgandan keyingi
  *   `HttpOnly` sessiya cookie'si (`credentials: "include"`).
  */
+import { lang } from "../i18n";
 import { ApiError } from "./api-error";
 import * as mock from "./mock/store";
 import { storyMime } from "./stories";
@@ -53,6 +54,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       method,
       headers: {
         "Content-Type": "application/json",
+        // Oferta, sovg'alar va boshqa matnlar shu tilda keladi.
+        "X-Lang": lang,
         ...(initData ? { "X-Telegram-Init-Data": initData } : {}),
       },
       // Veb-saytda sessiya cookie'si (Telegram ichida ishlatilmaydi, lekin zarari yo'q).
@@ -84,6 +87,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     throw new ApiError("SERVER", "Invalid JSON");
   }
 }
+
+/** Tanlangan til ishtirokchiga saqlanadi — bot xabarlari ham shu tilda. @endpoint POST /miniapp/lang */
+export const setLanguage = (next: "uz" | "ru"): Promise<void> =>
+  IS_MOCK_API ? mock.setLanguage(next) : request("POST", "/miniapp/lang", { lang: next });
 
 /** @endpoint GET /miniapp/me */
 export const getMe = (): Promise<Me> =>

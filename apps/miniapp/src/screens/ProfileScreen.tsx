@@ -22,9 +22,10 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
+import { LangSwitch } from "../components/LangSwitch";
 import { Card, ErrorBlock, PageHeader, PillButton, Spinner } from "../components/ui";
 import { useToast } from "../components/toast-context";
-import { t } from "../i18n/uz";
+import { t } from "../i18n";
 import * as api from "../lib/api";
 import { botLink, confirmDialog, haptic, isInTelegram, openExternal, openTelegram } from "../lib/telegram";
 import type { Me } from "../lib/types";
@@ -100,7 +101,7 @@ export function ProfileScreen({
 
   return (
     <div className="space-y-4">
-      <PageHeader title={t.profileTitle} />
+      <PageHeader title={t.profileTitle} trailing={<LangSwitch />} />
 
       {/* Qishki tun kartasi: gulchambar, archa o'yinchog'i, qor va qorbobo qalpoqli avatar. */}
       <section className="relative isolate animate-rise overflow-hidden rounded-card bg-[linear-gradient(155deg,#2c3874_0%,#1a2050_55%,#10142f_100%)] px-5 pt-12 pb-5 text-white shadow-[0_22px_44px_-24px_rgba(16,20,47,0.9)]">
@@ -319,7 +320,7 @@ function LinkTelegramCard() {
 export function GuestProfile({ onOpenRules, onOpenWinner }: { onOpenRules: () => void; onOpenWinner: () => void }) {
   return (
     <div className="space-y-4">
-      <PageHeader title={t.profileTitle} />
+      <PageHeader title={t.profileTitle} trailing={<LangSwitch />} />
       {/* Mehmon kartasi — bosh sahifadagi "Olivia tanlovi boshlandi" banneri uslubida (qizil, qor bilan). */}
       <section className="relative isolate animate-rise overflow-hidden rounded-card bg-[linear-gradient(140deg,#f2583f_0%,#df3425_48%,#ad1f2c_100%)] p-[22px] text-white shadow-[0_18px_40px_-22px_rgba(173,31,44,0.75)]">
         <div aria-hidden className="absolute -top-20 -right-16 -z-10 size-60 rounded-full bg-[#ffb36b]/45 blur-3xl" />

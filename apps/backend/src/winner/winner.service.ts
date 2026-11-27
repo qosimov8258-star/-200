@@ -571,10 +571,15 @@ export class WinnerService {
       return;
     }
     const text =
-      `🏆 Tabriklaymiz, ${p.firstName ?? "hurmatli ishtirokchi"}!\n\n` +
-      `Siz «OLIVIA» aksiyasining bosh sovrini g'olibi deb e'lon qilindingiz: videolaringiz jami ${formatCount(views)} tasdiqlangan ko'rish to'pladi. ` +
-      `Sovrin — ${this.contest.prizeName}.\n\n` +
-      "Tez orada tashkilotchilar siz bilan bog'lanib, sovrinni topshirish tartibini aytishadi.";
+      p.lang === "ru"
+        ? `🏆 Поздравляем, ${p.firstName ?? "уважаемый участник"}!\n\n` +
+          `Вы объявлены победителем главного приза акции «OLIVIA»: ваши видео набрали в сумме ${formatCount(views)} подтверждённых просмотров. ` +
+          `Приз — ${this.contest.prizeName}.\n\n` +
+          "В ближайшее время организаторы свяжутся с вами и расскажут о порядке вручения приза."
+        : `🏆 Tabriklaymiz, ${p.firstName ?? "hurmatli ishtirokchi"}!\n\n` +
+          `Siz «OLIVIA» aksiyasining bosh sovrini g'olibi deb e'lon qilindingiz: videolaringiz jami ${formatCount(views)} tasdiqlangan ko'rish to'pladi. ` +
+          `Sovrin — ${this.contest.prizeName}.\n\n` +
+          "Tez orada tashkilotchilar siz bilan bog'lanib, sovrinni topshirish tartibini aytishadi.";
     this.notifier.notify(p.chatId, text, "WINNER").catch((err: Error) => {
       this.logger.warn(`G'olibga (${p.telegramId}) tabrik yuborilmadi: ${err.message}`);
     });

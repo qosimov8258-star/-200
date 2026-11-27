@@ -259,6 +259,7 @@ Kerak: `ffmpeg` va `ffprobe` (`brew install ffmpeg`). Serverda — [`deploy/READ
 
 | So'rov | Vazifa |
 |---|---|
+| `POST /miniapp/lang` | Ilova tili: `{ lang: "uz" \| "ru" }` — ishtirokchiga saqlanadi (`Participant.lang`, `GET /miniapp/me` → `lang`), bot xabarlari shu tilda. Mini App har bir so'rovda `X-Lang: uz\|ru` yuboradi: `GET /miniapp/rules` (ommaviy oferta `sectionsFor(lang)`) va `GET /miniapp/prizes` (nomlar va izohlar) shu tilda. Til tanlanmagan bo'lsa bot Telegram tilidan foydalanadi (`language_code` ru… — rus) |
 | `GET /miniapp/reels` | "Mening videolarim" — `MyReels`: `totalViews` (barcha qabul qilingan videolar yig'indisi), umumiy o'sish (oxirgi va har yig'ishdagi, 30 tagacha), o'rin (ishtirokchilar reytingida) va uning o'zgarishi, oxirgi va keyingi yig'ish, `reels` (avval qabul qilinganlar ko'rishlar kamayishi bo'yicha, keyin tekshiruvdagilar, keyin rad etilganlar; holat, rad sababi, ko'rishlar). Video bo'lmasa ham obyekt (`reels: []`) |
 | `POST /miniapp/reels` | `{ url }` — yangi video (soni cheklanmagan), javob — yangilangan `MyReels`. Xatolar: `422 INVALID_LINK`, `409 REEL_ALREADY_SUBMITTED`, `409 REEL_TAKEN`, `403 UNAUTHORIZED` |
 | `GET /miniapp/stories` | Istoriyalar (ochiq, mehmonlarga ham): `StoryGroup[]` — ishtirokchi bo'yicha (`authorKey`, `fullName`, `isMe`, `stories` eskidan yangiga), o'zimniki birinchi, keyin eng yangisi bo'yicha. Bloklangan/chetlatilganlarniki ko'rinmaydi |

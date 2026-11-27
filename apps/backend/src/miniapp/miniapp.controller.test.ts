@@ -12,6 +12,8 @@ import type { SupportRelay } from "../support/support-relay";
 import type { SupportService } from "../support/support.service";
 import type { TargetsService } from "../targets/targets.service";
 import type { TelegramIdentity } from "../telegram/init-data";
+import { OFFER_RU, OFFER_UZ } from "../rules/offer-text";
+import { contestPrizes, localizePrizes } from "./prizes";
 import type { ParticipantNotifier } from "../telegram/notifier";
 import type { WinnerService } from "../winner/winner.service";
 import { dailyGrowth, MiniappController } from "./miniapp.controller";
@@ -210,4 +212,39 @@ test("GET /miniapp/rating lists one row per participant by the sum of accepted v
       ["PHOTO5", 0],
     ],
   );
+});
+
+test("language: POST /miniapp/lang saves the choice (me.lang); only uz/ru; the offer comes in the chosen language", () => {
+  const { controller, participants } = setup();
+  assert.equal(controller.me(user(1)).lang, null, "hali tanlanmagan");
+  controller.setLang(user(1), { lang: "ru" });
+  assert.equal(controller.me(user(1)).lang, "ru");
+  assert.equal(participants.get(1)?.lang, "ru");
+  assert.equal(errorCode(() => controller.setLang(user(1), { lang: "en" })), "SERVER");
+  assert.equal(errorCode(() => controller.setLang(user(1), { lang: "ru", extra: 1 })), "SERVER");
+
+  const ru = controller.rules("ru");
+  const uz = controller.rules("uz");
+  assert.deepEqual(ru.sections, OFFER_RU);
+  assert.deepEqual(uz.sections, OFFER_UZ);
+  assert.deepEqual(controller.rules(undefined).sections, OFFER_UZ, "sarlavhasiz — o'zbekcha");
+  assert.equal(ru.version, uz.version, "rozilik versiyasi ikki tilda bir xil");
+});
+
+test("prizes are localized: titles and notes in Russian, numbers and dates unchanged", () => {
+  const uz = contestPrizes;
+  const ru = localizePrizes(contestPrizes, "ru");
+  assert.equal(localizePrizes(contestPrizes, "uz"), uz);
+  assert.equal(ru.monthly.title, "Подарочный ваучер Korzinka");
+  assert.deepEqual(
+    ru.tiers.map((t) => [t.kind, t.title, t.quantity, t.minViews, t.maxViews]),
+    [
+      ["tablet", "Планшет", 25, 100_001, 500_000],
+      ["phone", "Смартфон iPhone 18 Pro", 15, 500_001, 1_500_000],
+      ["travel", "Туристическая путёвка в Таиланд на 2 человек", 3, 1_500_001, 4_000_000],
+      ["car", "Автомобиль BYD Chazor", 1, 4_000_001, null],
+    ],
+  );
+  assert.deepEqual([ru.monthly.perMonth, ru.monthly.total, ru.stages], [200, 600, uz.stages]);
+  assert.equal(ru.notes.length, uz.notes.length);
 });

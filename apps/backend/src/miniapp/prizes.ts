@@ -24,6 +24,39 @@ export interface ContestPrizes {
   notes: string[];
 }
 
+/** Ruscha nomlar va izohlar (oferta ruscha matni bo'yicha) — sonlar va sanalar `contestPrizes` dan. */
+export const contestPrizesRu: Pick<ContestPrizes, "notes"> & {
+  monthlyTitle: string;
+  tierTitles: Record<ContestPrizes["tiers"][number]["kind"], string>;
+} = {
+  monthlyTitle: "Подарочный ваучер Korzinka",
+  tierTitles: {
+    tablet: "Планшет",
+    phone: "Смартфон iPhone 18 Pro",
+    travel: "Туристическая путёвка в Таиланд на 2 человек",
+    car: "Автомобиль BYD Chazor",
+  },
+  notes: [
+    "Победители определяются не по рейтингу или месту — в каждом диапазоне путём случайного выбора (random)",
+    "Для ежемесячного ваучера суммируются подтверждённые просмотры только тех видео, которые зарегистрированы в этом месячном этапе",
+    "Для главного приза суммируются просмотры всех ваших подтверждённых видео, зарегистрированных за время Акции",
+    "При выполнении требований можно выигрывать ваучеры в течение нескольких месяцев",
+    "Помимо ваучеров можно выиграть только один главный приз; участники с 100 000 и менее просмотров в розыгрыше главных призов не участвуют",
+    "Призы не подлежат замене денежным эквивалентом и передаче другому лицу",
+  ],
+};
+
+/** Mini App uchun tanlangan tildagi sovrinlar (sonlar va sanalar bir xil). */
+export function localizePrizes(prizes: ContestPrizes, lang: "uz" | "ru"): ContestPrizes {
+  if (lang === "uz") return prizes;
+  return {
+    ...prizes,
+    monthly: { ...prizes.monthly, title: contestPrizesRu.monthlyTitle },
+    tiers: prizes.tiers.map((tier) => ({ ...tier, title: contestPrizesRu.tierTitles[tier.kind] })),
+    notes: contestPrizesRu.notes,
+  };
+}
+
 export const contestPrizes: ContestPrizes = {
   // Oferta 6.1.1: oyiga 200 ta, jami 600 ta (6.1.3 dagi "300 nafar" — tashkilotchi qarori bilan 200).
   monthly: {

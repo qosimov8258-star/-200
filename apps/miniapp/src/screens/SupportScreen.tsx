@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { Snowfall } from "../components/Snowfall";
 import { Card, ErrorBlock, PillButton, Spinner } from "../components/ui";
-import { t } from "../i18n/uz";
+import { t } from "../i18n";
 import * as api from "../lib/api";
 import { errorCode } from "../lib/api-error";
 import { formatDayMonthTime } from "../lib/format";

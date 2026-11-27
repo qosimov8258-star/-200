@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { ArrowDown, ArrowUp, LoaderCircle, Snowflake } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 
-import { t } from "../i18n/uz";
+import { t } from "../i18n";
 import { GiftButton } from "./GiftButton";
 import { initials } from "../lib/format";
 

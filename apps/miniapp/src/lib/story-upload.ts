@@ -6,7 +6,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { useSyncExternalStore } from "react";
 
-import { t } from "../i18n/uz";
+import { t } from "../i18n";
 import * as api from "./api";
 import { errorCode } from "./api-error";
 import type { ApiErrorCode, StoryGroup } from "./types";

@@ -24,7 +24,9 @@ import {
 } from "./bot-guard";
 import { failureReasonOf, MessageLogService } from "./message-log.service";
 import type { ParticipantNotifier, TelegramMessageKind } from "./notifier";
-import { texts } from "./texts";
+import { langOf } from "../common/lang";
+import { textsFor } from "./bot-texts";
+import { texts, type BotTexts } from "./texts";
 
 /** Saytdagi hisobni Telegram'ga ulash: `https://t.me/<bot>?start=link`. */
 const LINK_START_PAYLOAD = "link";
@@ -32,6 +34,8 @@ const LINK_START_PAYLOAD = "link";
 const WEB_START_PAYLOAD = "web";
 /** Xabarnoma ostidagi "✅ O'qidim" tugmasi: `read:<jurnal yozuvi ID si>`. */
 const READ_PREFIX = "read:";
+/** Bot menyusi tugmasi — hamma uchun bitta (Telegram bot darajasida), ikki tilda. */
+const MENU_BUTTON_TEXT = "OLIVIA";
 /** Saytga kirishni tasdiqlash tugmalari: `login:ok:<id>` / `login:no:<id>` (`BotLoginService`). */
 const LOGIN_CALLBACK = /^login:(ok|no):([A-Za-z0-9_-]{22})$/;
 /** Bot API orqali yuklab olinadigan fayl chegarasi (`getFile` — 20 MB gacha). */
@@ -95,7 +99,10 @@ export class TelegramService
     this.log.setMessenger({
       send: async (chatId, text, logId) => {
         await bot.api.sendMessage(chatId, text, {
-          reply_markup: new InlineKeyboard().text(texts.readButton, `${READ_PREFIX}${logId}`),
+          reply_markup: new InlineKeyboard().text(
+            textsFor(this.participants.byChatId(chatId)?.lang).readButton,
+            `${READ_PREFIX}${logId}`,
+          ),
         });
       },
     });
@@ -184,7 +191,7 @@ export class TelegramService
       if (ctx.from?.is_bot && !anonymousAdmin) return;
       if (ctx.from && !isSupportChat(ctx)) {
         const verdict = this.flood.check(ctx.from.id);
-        if (verdict === "warn" && isPrivate(ctx)) await ctx.reply(texts.tooManyRequests).catch(() => undefined);
+        if (verdict === "warn" && isPrivate(ctx)) await ctx.reply(this.tx(ctx).tooManyRequests).catch(() => undefined);
         if (verdict !== "ok") {
           if (ctx.callbackQuery) await ctx.answerCallbackQuery().catch(() => undefined);
           return;
@@ -214,7 +221,7 @@ export class TelegramService
     bot.callbackQuery(new RegExp(`^${READ_PREFIX}`), async (ctx) => {
       const id = ctx.callbackQuery.data.slice(READ_PREFIX.length);
       const marked = this.log.markRead(id, this.participants.resolve(ctx.from.id));
-      await ctx.answerCallbackQuery(marked ? { text: texts.readThanks } : undefined);
+      await ctx.answerCallbackQuery(marked ? { text: this.tx(ctx).readThanks } : undefined);
       await ctx.editMessageReplyMarkup().catch(() => undefined);
     });
     // Saytga kirish: "Ha, kirish" — faqat so'rovni botda ochgan foydalanuvchi, raqami bor hisob uchun.
@@ -224,13 +231,13 @@ export class TelegramService
       if (action === "no") {
         const closed = this.botLogin.close(id, ctx.from.id, "DENIED");
         await ctx.answerCallbackQuery();
-        await ctx.editMessageText(closed ? texts.loginDenied : texts.loginExpired).catch(() => undefined);
+        await ctx.editMessageText(closed ? this.tx(ctx).loginDenied : this.tx(ctx).loginExpired).catch(() => undefined);
         return;
       }
       const accountId = this.participants.resolve(ctx.from.id);
       const confirmed = Boolean(this.participants.get(accountId)?.phone) && this.botLogin.confirm(id, ctx.from.id, accountId);
-      await ctx.answerCallbackQuery(confirmed ? { text: texts.loginConfirmedToast } : undefined);
-      await ctx.editMessageText(confirmed ? texts.loginDone : texts.loginExpired).catch(() => undefined);
+      await ctx.answerCallbackQuery(confirmed ? { text: this.tx(ctx).loginConfirmedToast } : undefined);
+      await ctx.editMessageText(confirmed ? this.tx(ctx).loginDone : this.tx(ctx).loginExpired).catch(() => undefined);
     });
     // Eski yoki noma'lum tugmalar — Telegram'dagi "yuklanmoqda" belgisi osilib qolmasin.
     bot.on("callback_query", (ctx) => ctx.answerCallbackQuery());
@@ -244,12 +251,12 @@ export class TelegramService
         const id = ctx.match.slice(BOT_LOGIN_START_PREFIX.length);
         const claimed = BOT_LOGIN_ID.test(id) ? this.botLogin.claim(id, ctx.from.id) : null;
         if (!claimed) {
-          await ctx.reply(texts.loginExpired);
+          await ctx.reply(this.tx(ctx).loginExpired);
           return;
         }
         // Raqam yo'q — avval ulashadi (saytdagi hisob shu yerda Telegram'ga ulanadi), keyin tasdiq.
         if (!p.phone) {
-          await ctx.reply(texts.loginShareContact(claimed.code), { reply_markup: this.contactKeyboard() });
+          await ctx.reply(this.tx(ctx).loginShareContact(claimed.code), { reply_markup: this.contactKeyboard(this.tx(ctx)) });
           return;
         }
         await this.askLoginConfirm(ctx, id, claimed.code, p);
@@ -260,11 +267,11 @@ export class TelegramService
       if (fromWeb) this.webStarts.add(ctx.from.id);
       if (!p.phone) {
         const welcome =
-          ctx.match === LINK_START_PAYLOAD ? texts.welcomeLink : fromWeb ? texts.welcomeFromWeb : texts.welcome;
-        await ctx.reply(welcome, { reply_markup: this.contactKeyboard() });
+          ctx.match === LINK_START_PAYLOAD ? this.tx(ctx).welcomeLink : fromWeb ? this.tx(ctx).welcomeFromWeb : this.tx(ctx).welcome;
+        await ctx.reply(welcome, { reply_markup: this.contactKeyboard(this.tx(ctx)) });
         return;
       }
-      await this.replyWithMiniApp(ctx, texts.alreadyRegistered);
+      await this.replyWithMiniApp(ctx, this.tx(ctx).alreadyRegistered);
     });
 
     bot.on("message:contact", async (ctx) => {
@@ -272,7 +279,7 @@ export class TelegramService
       const contact = ctx.message.contact;
       // Faqat o'z raqami: boshqa odamning kontaktini ulashib bo'lmaydi.
       if (contact.user_id !== ctx.from.id) {
-        await ctx.reply(texts.contactNotOwn, { reply_markup: this.contactKeyboard() });
+        await ctx.reply(this.tx(ctx).contactNotOwn, { reply_markup: this.contactKeyboard(this.tx(ctx)) });
         return;
       }
       const result = this.participants.setPhone(ctx.from.id, ctx.chat.id, contact.phone_number);
@@ -282,7 +289,7 @@ export class TelegramService
         this.botLogin.close(login.id, ctx.from.id, "FAILED");
       } else if (login) {
         this.webStarts.delete(ctx.from.id);
-        await ctx.reply(result === "LINKED" ? texts.loginContactLinked : texts.loginContactSaved, {
+        await ctx.reply(result === "LINKED" ? this.tx(ctx).loginContactLinked : this.tx(ctx).loginContactSaved, {
           reply_markup: { remove_keyboard: true },
         });
         const account = this.participants.get(this.participants.resolve(ctx.from.id));
@@ -291,22 +298,22 @@ export class TelegramService
       }
       if (result === "LINKED") {
         this.webStarts.delete(ctx.from.id);
-        await ctx.reply(texts.contactLinked, { reply_markup: { remove_keyboard: true } });
-        await this.replyWithMiniApp(ctx, texts.openMiniApp);
+        await ctx.reply(this.tx(ctx).contactLinked, { reply_markup: { remove_keyboard: true } });
+        await this.replyWithMiniApp(ctx, this.tx(ctx).openMiniApp);
         return;
       }
       if (result !== "OK") {
-        await ctx.reply(result === "TAKEN_WEB" ? texts.contactTakenWeb : texts.contactTaken, {
+        await ctx.reply(result === "TAKEN_WEB" ? this.tx(ctx).contactTakenWeb : this.tx(ctx).contactTaken, {
           reply_markup: { remove_keyboard: true },
         });
         return;
       }
       // Pastdagi "Raqamni ulashish" klaviaturasini yopamiz, keyin Mini App tugmasi.
       const fromWeb = this.webStarts.delete(ctx.from.id);
-      await ctx.reply(fromWeb ? texts.contactSavedWeb : texts.contactSaved, {
+      await ctx.reply(fromWeb ? this.tx(ctx).contactSavedWeb : this.tx(ctx).contactSaved, {
         reply_markup: { remove_keyboard: true },
       });
-      await this.replyWithMiniApp(ctx, texts.openMiniApp);
+      await this.replyWithMiniApp(ctx, this.tx(ctx).openMiniApp);
     });
 
     // Operator guruhda ishtirokchi xabariga "Reply" qilib javob beradi.
@@ -333,24 +340,24 @@ export class TelegramService
             this.operatorAllowlist,
           );
       if (!allowed) {
-        await ctx.reply(texts.operatorNotAllowed, quote);
+        await ctx.reply(this.tx(ctx).operatorNotAllowed, quote);
         return;
       }
       const text = clip(rawText, OPERATOR_REPLY_MAX);
       const participant = this.participants.get(telegramId);
       if (!participant?.chatId) {
-        await ctx.reply(texts.operatorUnknownTarget, quote);
+        await ctx.reply(this.tx(ctx).operatorUnknownTarget, quote);
         return;
       }
       // Avval yuboriladi — yetkazilmagan javob yozishmaga tushmaydi.
       try {
-        await this.notify(participant.chatId, texts.operatorPrefix + text, "SUPPORT_REPLY");
+        await this.notify(participant.chatId, textsFor(participant.lang).operatorPrefix + text, "SUPPORT_REPLY");
       } catch (err) {
-        await ctx.reply(failureReasonOf(err) === "BOT_BLOCKED" ? texts.operatorBlocked : texts.operatorFailed, quote);
+        await ctx.reply(failureReasonOf(err) === "BOT_BLOCKED" ? this.tx(ctx).operatorBlocked : this.tx(ctx).operatorFailed, quote);
         return;
       }
       this.support.addOperatorReply(participant.telegramId, text);
-      await ctx.reply(texts.operatorDelivered, quote);
+      await ctx.reply(this.tx(ctx).operatorDelivered, quote);
     });
 
     // Shaxsiy chatdagi qolgan xabarlar — support murojaati.
@@ -358,7 +365,7 @@ export class TelegramService
       if (!isPrivate(ctx)) return;
       const p = this.participants.get(this.participants.resolve(ctx.from.id));
       if (!p?.phone) {
-        await ctx.reply(texts.supportNeedsContact, { reply_markup: this.contactKeyboard() });
+        await ctx.reply(this.tx(ctx).supportNeedsContact, { reply_markup: this.contactKeyboard(this.tx(ctx)) });
         return;
       }
       const text = clip((ctx.message.text ?? ctx.message.caption ?? "").trim(), SUPPORT_TEXT_MAX);
@@ -366,13 +373,13 @@ export class TelegramService
       if (!text && !photo) return;
       // Support spami: 10 daqiqada 10 tadan ortiq xabar operatorlarga bormaydi va saqlanmaydi.
       if (this.support.recentParticipantMessages(p.telegramId, BOT_SUPPORT_WINDOW_MS) >= BOT_SUPPORT_MAX_IN_WINDOW) {
-        if (this.supportLimitNotice.shouldNotify(p.telegramId)) await ctx.reply(texts.supportTooMany);
+        if (this.supportLimitNotice.shouldNotify(p.telegramId)) await ctx.reply(this.tx(ctx).supportTooMany);
         return;
       }
       const ticket = this.support.addParticipantMessage(p.telegramId, text, photo?.file_id ?? null, photo?.file_size);
 
       if (supportChatId === null) {
-        await ctx.reply(texts.supportUnavailable);
+        await ctx.reply(this.tx(ctx).supportUnavailable);
         return;
       }
       const name = p.firstName ? `${p.firstName} ${p.lastName}` : ctx.from.first_name;
@@ -385,31 +392,41 @@ export class TelegramService
           })
         : await ctx.api.sendMessage(supportChatId, clip(`${header}\n\n${text}`, TELEGRAM_TEXT_MAX));
       this.support.rememberGroupMessage(sent.message_id, p.telegramId);
-      await ctx.reply(texts.supportReceived);
+      await ctx.reply(this.tx(ctx).supportReceived);
     });
   }
 
   /** Saytga kirish tasdig'i: hisob nomi va saytdagi kod — foydalanuvchi solishtiradi. */
+  /**
+   * Shu foydalanuvchi tilidagi matnlar: ilovada tanlagan tili, bo'lmasa — Telegram tili
+   * (`language_code`: ru… — rus, qolgani — o'zbek).
+   */
+  private tx(ctx: Context): BotTexts {
+    if (!ctx.from) return texts;
+    const p = this.participants.get(this.participants.resolve(ctx.from.id));
+    return textsFor(p?.lang ?? langOf(ctx.from.language_code));
+  }
+
   private async askLoginConfirm(ctx: Context, id: string, code: string, account: Participant): Promise<void> {
     const name = account.firstName ? `${account.firstName} ${account.lastName}`.trim() : (ctx.from?.first_name ?? "");
-    await ctx.reply(texts.loginConfirm(name, code), {
+    await ctx.reply(this.tx(ctx).loginConfirm(name, code), {
       reply_markup: new InlineKeyboard()
-        .text(texts.loginConfirmButton, `login:ok:${id}`)
-        .text(texts.loginDenyButton, `login:no:${id}`),
+        .text(this.tx(ctx).loginConfirmButton, `login:ok:${id}`)
+        .text(this.tx(ctx).loginDenyButton, `login:no:${id}`),
     });
   }
 
-  private contactKeyboard(): Keyboard {
-    return new Keyboard().requestContact(texts.shareContactButton).resized().oneTime();
+  private contactKeyboard(tx: BotTexts): Keyboard {
+    return new Keyboard().requestContact(tx.shareContactButton).resized().oneTime();
   }
 
   private async replyWithMiniApp(ctx: Context, text: string): Promise<void> {
     const url = config.telegram.miniAppUrl;
     if (!url) {
-      await ctx.reply(texts.miniAppNotConfigured);
+      await ctx.reply(this.tx(ctx).miniAppNotConfigured);
       return;
     }
-    await ctx.reply(text, { reply_markup: new InlineKeyboard().webApp(texts.openMiniApp, url) });
+    await ctx.reply(text, { reply_markup: new InlineKeyboard().webApp(this.tx(ctx).openMiniApp, url) });
   }
 
   /** Chat pastidagi doimiy "Tanlov" tugmasi Mini App'ni ochadi. */
@@ -418,7 +435,7 @@ export class TelegramService
     if (!url) return;
     try {
       await bot.api.setChatMenuButton({
-        menu_button: { type: "web_app", text: texts.menuButton, web_app: { url } },
+        menu_button: { type: "web_app", text: MENU_BUTTON_TEXT, web_app: { url } },
       });
     } catch (err) {
       this.logger.warn(`Menyu tugmasini o'rnatib bo'lmadi: ${(err as Error).message}`);

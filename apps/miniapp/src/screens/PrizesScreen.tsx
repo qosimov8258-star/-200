@@ -21,7 +21,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { SoapIcon } from "../components/SoapIcon";
 import { Snowfall } from "../components/Snowfall";
 import { Card, ErrorBlock, PageHeader, Spinner } from "../components/ui";
-import { t } from "../i18n/uz";
+import { t } from "../i18n";
 import * as api from "../lib/api";
 import { daysBetween, formatCount, formatDayMonth, tashkentToday } from "../lib/format";
 import voucherCard from "../assets/prizes/voucher-card.webp";

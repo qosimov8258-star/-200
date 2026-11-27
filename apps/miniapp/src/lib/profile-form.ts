@@ -1,4 +1,4 @@
-import { t } from "../i18n/uz";
+import { t } from "../i18n";
 
 /** Ism: harflar, apostrof, defis va bo'sh joy — 2–40 belgi. */
 export const NAME = /^[\p{L}'ʻʼ‘’\- ]{2,40}$/u;

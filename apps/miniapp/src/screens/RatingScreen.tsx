@@ -7,7 +7,7 @@ import { ChampionBackdrop } from "../components/ChampionBackdrop";
 import { HangingOrnament, RankOrnament, SnowCap } from "../components/Ornaments";
 import { Snowfall } from "../components/Snowfall";
 import { Avatar, Card, ErrorBlock, PageHeader, RankDelta, Spinner } from "../components/ui";
-import { t } from "../i18n/uz";
+import { t } from "../i18n";
 import * as api from "../lib/api";
 import { formatCount } from "../lib/format";
 import { haptic } from "../lib/telegram";
