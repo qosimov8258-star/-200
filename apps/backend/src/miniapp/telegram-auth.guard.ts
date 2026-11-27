@@ -76,10 +76,12 @@ function identify(request: AuthedRequest, participants: ParticipantsService | nu
   const cookie = readCookie(request.header("cookie"), SESSION_COOKIE);
   const session = cookie ? readSessionToken(cookie, token) : null;
   if (!session) return null;
-  // Hisob Telegram'ga ulangan: undan oldingi sayt sessiyalari bekor (raqamni boshqa odam yozgan bo'lishi mumkin).
-  const sessionsFrom = participants?.get(session.id)?.sessionsFrom;
+  // Hisob Telegram'ga ulangan yoki saytga qayta (admin ruxsati bilan) kirilgan: undan oldingi sayt
+  // sessiyalari bekor — hisobga bir vaqtda faqat bitta qurilmadan kiriladi.
+  const accountId = resolve(session.id);
+  const sessionsFrom = participants?.get(accountId)?.sessionsFrom;
   if (sessionsFrom && session.issuedAt * 1000 < sessionsFrom.getTime()) return null;
-  return { telegramId: resolve(session.id), firstName: "", username: null };
+  return { telegramId: accountId, firstName: "", username: null };
 }
 
 /** Tekshirilgan Telegram foydalanuvchisi (faqat `TelegramAuthGuard` dan keyin, ochiq bo'lmagan yo'lda). */

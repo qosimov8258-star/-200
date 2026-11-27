@@ -48,6 +48,8 @@ export interface MockStore {
   ticketStatusChangedAt: Record<string, string>;
   /** Murojaat id -> xodimlar yozgan javoblar. */
   ticketReplies: Record<string, MockSupportMessage[]>;
+  /** Ishtirokchi id -> saytga qayta kirishga bir martalik ruxsat berilgan (mock'da ishlatilmaydi). */
+  webLoginGrants: Record<string, boolean>;
   /** Target holati id -> admin qarori. */
   targetCaseStatus: Record<string, TargetCaseStatus>;
   /** Qo'lda tekshiruv (Reel shortcode) -> admin qarori. */
@@ -131,6 +133,7 @@ function emptyStore(): MockStore {
     ticketStatus: {},
     ticketStatusChangedAt: {},
     ticketReplies: {},
+    webLoginGrants: {},
     targetCaseStatus: {},
     manualReviews: {},
     targetCheck: null,

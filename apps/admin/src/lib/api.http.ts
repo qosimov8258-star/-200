@@ -782,6 +782,15 @@ export async function updateSupportTicketStatus(
   });
 }
 
+/**
+ * Saytga qayta kirishga bir martalik ruxsat (murojaat egasi uchun). Ishtirokchiga bot orqali xabar boradi.
+ * @endpoint POST /api/v1/admin/support/tickets/:id/web-login
+ * @throws ApiError 404, 409 (qayta kirish yopiq emas)
+ */
+export async function allowSupportWebLogin(id: string): Promise<SupportTicketDetail> {
+  return requestJson<SupportTicketDetail>("POST", `/admin/support/tickets/${segment(id)}/web-login`);
+}
+
 // ---------------------------------------------------------------------------
 // AI tekshiruvi (faqat ADMIN)
 // ---------------------------------------------------------------------------

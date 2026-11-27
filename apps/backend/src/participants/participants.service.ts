@@ -146,8 +146,31 @@ export interface Participant {
    * saytdan ham (Telegram orqali kirib) shu hisobga kiradi.
    */
   linkedTelegramId?: number | null;
-  /** Shu vaqtdan oldin berilgan sayt sessiyalari bekor (hisob Telegram'ga ulanganda). */
+  /**
+   * Shu vaqtdan oldin berilgan sayt sessiyalari bekor (hisob Telegram'ga ulanganda yoki saytga
+   * qayta kirilganda — boshqa qurilmadagi eski kirish yopiladi).
+   */
   sessionsFrom?: Date | null;
+  /**
+   * Saytga bir marta kiriladi (tashkilotchi qarori, 2026-11-27): sayt sessiyasi berilgan (ro'yxatdan
+   * o'tish yoki birinchi kirish). Shundan keyin — chiqib ketsa ham, boshqa qurilmadan ham — qayta
+   * kirish faqat admin ruxsati bilan (`webLoginGrant`). Yo'q bo'lsa: saytdagi hisob — kirilgan,
+   * Telegram hisobi — hali kirilmagan (`webLoginState`).
+   */
+  webLoginUsed?: boolean;
+  /** Admin (Support murojaati orqali) saytga qayta kirishga bir martalik ruxsat bergan. */
+  webLoginGrant?: boolean;
+}
+
+/**
+ * Saytga kirish holati: `NEVER` — hali kirilmagan (birinchi kirish ochiq), `USED` — kirilgan, qayta
+ * kirish yopiq (admin ruxsati kerak), `GRANTED` — admin bir martalik ruxsat bergan.
+ */
+export type WebLoginState = "NEVER" | "USED" | "GRANTED";
+
+export function webLoginState(p: Participant): WebLoginState {
+  if (p.webLoginGrant) return "GRANTED";
+  return (p.webLoginUsed ?? isWebAccount(p.telegramId)) ? "USED" : "NEVER";
 }
 
 /** `ownerUpdate` uchun o'zgarishlar (faqat berilganlari yoziladi). */
@@ -364,6 +387,39 @@ export class ParticipantsService {
     p.phone = phone;
     p.chatId = chatId;
     return "OK";
+  }
+
+  /**
+   * Saytda shu hisobga yangi sessiya ochish mumkinmi: birinchi kirish yoki admin ruxsati bor. Yozuvi
+   * yo'q Telegram foydalanuvchisi — mumkin (himoya qiladigan hisob yo'q).
+   */
+  canStartWebSession(accountId: number): boolean {
+    const p = this.get(accountId);
+    return !p || webLoginState(p) !== "USED";
+  }
+
+  /**
+   * Saytga sessiya berildi (ro'yxatdan o'tish, birinchi kirish yoki admin ruxsati — bir martalik):
+   * keyingi kirish yopiladi, boshqa qurilmalardagi oldingi sessiyalar bekor bo'ladi. Qaytaradi —
+   * yangi sessiyaning berilgan vaqti (ms). Token vaqti soniyalarda — shuning uchun chegara butun
+   * soniya va avvalgisidan qat'iy keyin: bir soniya ichidagi qayta kirishda ham eski sessiya yopiladi.
+   */
+  startWebSession(accountId: number, now: Date = new Date()): number {
+    const p = this.getOrCreate(accountId);
+    const previous = Math.floor((p.sessionsFrom?.getTime() ?? 0) / 1000);
+    const at = Math.max(Math.ceil(now.getTime() / 1000), previous + 1) * 1000;
+    p.webLoginUsed = true;
+    p.webLoginGrant = false;
+    p.sessionsFrom = new Date(at);
+    return at;
+  }
+
+  /** Admin: saytga qayta kirishga bir martalik ruxsat. Ishtirokchi yo'q — false. */
+  allowWebLogin(accountId: number): boolean {
+    const p = this.get(accountId);
+    if (!p) return false;
+    p.webLoginGrant = true;
+    return true;
   }
 
   /**

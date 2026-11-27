@@ -13,7 +13,7 @@ import {
 } from "@nestjs/common";
 
 import { AuditService } from "../audit/audit.service";
-import { ParticipantsService, type Participant } from "../participants/participants.service";
+import { ParticipantsService, webLoginState, type Participant } from "../participants/participants.service";
 import {
   SUPPORT_STATUS_FILTERS,
   SupportService,
@@ -101,6 +101,42 @@ export class AdminSupportController {
 
     const { ticket, before } = await this.support.replyAsStaff(id, text, admin.fullName, (t) => this.deliver(t, text));
     this.record(admin, "support.reply", ticket, before, ticket.status, text.slice(0, 200));
+    return this.support.adminDetail(ticket.id, this.lookup);
+  }
+
+  /**
+   * Saytga qayta kirishga bir martalik ruxsat (murojaat egasi uchun). Hisobga saytda bir marta
+   * kiriladi — chiqib ketgan yoki boshqa qurilmadan kirmoqchi bo'lgan ishtirokchi supportga yozadi,
+   * xodim tekshirib, shu tugma bilan ruxsat beradi. Ishtirokchiga bot orqali xabar boradi
+   * (yetkazilmasa ham ruxsat saqlanadi). Qayta kirish yopiq bo'lmasa — 409.
+   */
+  @Post(":id/web-login")
+  @HttpCode(200)
+  async allowWebLogin(@Param("id") id: string, @CurrentAdmin() admin: AdminUser): Promise<SupportTicketDetail> {
+    const ticket = this.support.get(id);
+    if (!ticket) throw adminError(404, "Murojaat topilmadi.");
+    const p = this.participants.get(ticket.telegramId);
+    if (!p) throw adminError(404, "Ishtirokchi topilmadi.");
+    const before = webLoginState(p);
+    if (before !== "USED") {
+      throw adminError(409, before === "GRANTED" ? "Ruxsat allaqachon berilgan." : "Ishtirokchi saytga hali kirmagan — ruxsat kerak emas.");
+    }
+    this.participants.allowWebLogin(p.telegramId);
+    this.audit.record({
+      actor: actorOf(admin),
+      action: "participant.web_login",
+      entity: "participant",
+      entityId: String(p.telegramId),
+      entityLabel: `${p.firstName ?? ""} ${p.lastName ?? ""}`.trim() || String(p.telegramId),
+      before,
+      after: "GRANTED",
+      reason: `Murojaat #${ticket.id}`,
+    });
+    if (p.chatId) {
+      await this.notifier
+        .notify(p.chatId, textsFor(p.lang).webLoginAllowed, "SUPPORT_REPLY")
+        .catch(() => undefined);
+    }
     return this.support.adminDetail(ticket.id, this.lookup);
   }
 

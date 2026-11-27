@@ -1155,6 +1155,12 @@ export interface SupportMessage {
   attachments: SupportAttachment[];
 }
 
+/**
+ * Saytga kirish (hisobga bir marta kiriladi): `NEVER` — hali kirmagan, `USED` — kirgan, qayta kirish
+ * yopiq (shu murojaatdan ruxsat beriladi), `GRANTED` — bir martalik ruxsat berilgan, hali ishlatilmagan.
+ */
+export type WebLoginState = "NEVER" | "USED" | "GRANTED";
+
 export interface SupportTicketDetail {
   id: string;
   subject: string;
@@ -1164,6 +1170,7 @@ export interface SupportTicketDetail {
   participant: SupportTicketParticipant & {
     instagramUsername: string | null;
     status: ParticipantStatus;
+    webLogin: WebLoginState;
   };
   messages: SupportMessage[];
 }

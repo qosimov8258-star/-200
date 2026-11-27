@@ -136,6 +136,8 @@ function toDetail(
       phone: participant.phone,
       instagramUsername: participant.instagramUsername,
       status: effectiveStatus(participant, store),
+      // Mock: murojaat yozganlar saytga kirgan deb olinadi — qayta kirish yopiq, ruxsat shu yerdan.
+      webLogin: store.webLoginGrants[participant.id] ? "GRANTED" : "USED",
     },
     messages: messages.map(toMessage),
   };
@@ -256,6 +258,38 @@ export function addSupportReply(id: string, rawText: string, actor: AdminUser): 
   };
   writeStore(nextStore);
 
+  return toDetail(ticket, participant, nextStore);
+}
+
+/**
+ * Saytga qayta kirishga bir martalik ruxsat (murojaat egasi uchun) — backenddagidek audit bilan.
+ * Mock'da ishtirokchiga xabar yuborilmaydi.
+ */
+export function allowTicketWebLogin(id: string, actor: AdminUser): SupportTicketDetail {
+  const { ticket, participant } = findTicket(id);
+  const store = readStore();
+  if (store.webLoginGrants[participant.id]) throw new ApiError(409, "Ruxsat allaqachon berilgan.");
+  const now = new Date().toISOString();
+  const nextStore: MockStore = {
+    ...store,
+    webLoginGrants: { ...store.webLoginGrants, [participant.id]: true },
+    audit: [
+      ...store.audit,
+      {
+        id: auditId(),
+        at: now,
+        actorId: actor.id,
+        actorName: actor.fullName,
+        action: "participant.web_login",
+        entity: "participant",
+        entityId: participant.id,
+        before: "USED",
+        after: "GRANTED",
+        reason: `Murojaat #${ticket.id}`,
+      },
+    ],
+  };
+  writeStore(nextStore);
   return toDetail(ticket, participant, nextStore);
 }
 

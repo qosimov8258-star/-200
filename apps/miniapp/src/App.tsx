@@ -104,7 +104,7 @@ function useTelegramLoginReturn() {
     api
       .telegramLogin(user)
       .then(() => queryClient.invalidateQueries())
-      .catch(() => toast(t.webLoginFailed));
+      .catch((e: unknown) => toast(errorCode(e) === "LOGIN_LOCKED" ? t.webLoginLocked : t.webLoginFailed));
   }, [queryClient, toast]);
 }
 

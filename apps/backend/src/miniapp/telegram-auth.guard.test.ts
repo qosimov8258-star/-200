@@ -91,8 +91,8 @@ test("a Telegram user linked to a web account is recognised as that account; old
   probe = context("closed", { cookie: oldCookie });
   assert.equal(status(() => linkedGuard.canActivate(probe.ctx)), 401, "ulanishdan oldingi sayt sessiyasi yopildi");
 
-  // Telegram Login Widget orqali kirish (token — Telegram ID) → saytdagi hisob.
-  const viaTelegram = `${SESSION_COOKIE}=${createSessionToken(777, token)}`;
+  // Telegram Login Widget orqali (ulangandan keyin) kirish (token — Telegram ID) → saytdagi hisob.
+  const viaTelegram = `${SESSION_COOKIE}=${createSessionToken(777, token, Date.now() + 1000)}`;
   probe = context("closed", { cookie: viaTelegram });
   assert.equal(status(() => linkedGuard.canActivate(probe.ctx)), 200);
   assert.equal((probe.request.telegram as { telegramId: number }).telegramId, webId);

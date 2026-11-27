@@ -56,6 +56,11 @@ oralig'ida, shu brauzer sessiyasi bilan; bot orqali shu raqamni ulashib Telegram
 (o'rnida — telefon raqam). Saytga qaytib kirish — "Hisobim bor": Telegram bot orqali tasdiq
 (`POST /auth/bot-login` → bot `?start=login_<id>` → "Ha, kirish" → `POST /auth/bot-login/poll`;
 `BotLoginService`). Faqat telefon raqam bilan kirish yo'q — raqam egasini Telegram tasdiqlaydi.
+Saytdagi hisobga **bir marta** kiriladi: chiqib ketsa yoki boshqa qurilmadan — qayta kirish faqat
+admin ruxsati bilan (ishtirokchi botda "💬 Supportga yozish" → admin panel → Support murojaati →
+"Qayta kirishga ruxsat berish", bir martalik; `Participant.webLoginUsed/webLoginGrant`). **Bitta
+qurilma — bitta hisob** (`reels_device` cookie, `DEVICE_TAKEN`). Bot orqali yozilgan har bir xabar
+admin panelning Support bo'limiga tushadi (operatorlar guruhi ulangan bo'lsa — u yerga ham).
 
 Mobil ilovada Material vidjetlari `package:material_ui/material_ui.dart` dan import qilinadi
 (Flutter 3.50 da `flutter/material.dart` alohida paketga ko'chgan). Backend bilan aloqa faqat

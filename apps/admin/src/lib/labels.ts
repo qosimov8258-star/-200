@@ -387,6 +387,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "participant.warn": "Ogohlantirildi",
   "support.reply": "Murojaatga javob yozdi",
   "support.status": "Murojaat holatini o'zgartirdi",
+  "participant.web_login": "Saytga qayta kirishga ruxsat berdi",
   "target.warn": "Target: ogohlantirish",
   "target.disqualify": "Target: diskvalifikatsiya",
   "target.dismiss": "Target: ro'yxatdan chiqarildi",

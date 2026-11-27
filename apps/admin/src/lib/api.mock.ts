@@ -82,6 +82,7 @@ import {
   addSupportReply,
   getSupportTicketDetail,
   listSupportTickets,
+  allowTicketWebLogin,
   setSupportTicketStatus,
 } from "./mock/support";
 import {
@@ -975,6 +976,16 @@ export async function updateSupportTicketStatus(
 ): Promise<SupportTicketDetail> {
   await delay(400);
   return setSupportTicketStatus(id, request.status, requireRole("ADMIN", "SUPPORT"));
+}
+
+/**
+ * Saytga qayta kirishga bir martalik ruxsat (murojaat egasi uchun). Ishtirokchiga bot orqali xabar boradi.
+ * @endpoint POST /api/v1/admin/support/tickets/:id/web-login
+ * @throws ApiError 404, 409 (qayta kirish yopiq emas)
+ */
+export async function allowSupportWebLogin(id: string): Promise<SupportTicketDetail> {
+  await delay(400);
+  return allowTicketWebLogin(id, requireRole("ADMIN", "SUPPORT"));
 }
 
 // ---------------------------------------------------------------------------
